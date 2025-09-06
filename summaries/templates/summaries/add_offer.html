@@ -1,0 +1,259 @@
+{% extends 'base.html' %}
+{% load tz %}
+
+{% block title %}Добавить предложение - {{ block.super }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0"><i class="bi bi-plus-circle"></i> Добавить предложение</h4>
+                <small class="text-muted">Свод #{{ summary.id }} - {{ summary.request.client_name }}</small>
+            </div>
+            <div class="card-body">
+                <form method="post" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ form.company_name.id_for_label }}" class="form-label">
+                                    {{ form.company_name.label }}
+                                </label>
+                                {{ form.company_name }}
+                                {% if form.company_name.errors %}
+                                    <div class="text-danger">
+                                        {% for error in form.company_name.errors %}
+                                            <small>{{ error }}</small>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ form.company_email.id_for_label }}" class="form-label">
+                                    {{ form.company_email.label }}
+                                </label>
+                                {{ form.company_email }}
+                                {% if form.company_email.errors %}
+                                    <div class="text-danger">
+                                        {% for error in form.company_email.errors %}
+                                            <small>{{ error }}</small>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ form.insurance_sum.id_for_label }}" class="form-label">
+                                    {{ form.insurance_sum.label }}
+                                </label>
+                                <div class="input-group">
+                                    {{ form.insurance_sum }}
+                                    <span class="input-group-text">₽</span>
+                                </div>
+                                {% if form.insurance_sum.errors %}
+                                    <div class="text-danger">
+                                        {% for error in form.insurance_sum.errors %}
+                                            <small>{{ error }}</small>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ form.insurance_premium.id_for_label }}" class="form-label">
+                                    {{ form.insurance_premium.label }}
+                                </label>
+                                <div class="input-group">
+                                    {{ form.insurance_premium }}
+                                    <span class="input-group-text">₽</span>
+                                </div>
+                                {% if form.insurance_premium.errors %}
+                                    <div class="text-danger">
+                                        {% for error in form.insurance_premium.errors %}
+                                            <small>{{ error }}</small>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ form.franchise_amount.id_for_label }}" class="form-label">
+                                    {{ form.franchise_amount.label }}
+                                </label>
+                                <div class="input-group">
+                                    {{ form.franchise_amount }}
+                                    <span class="input-group-text">₽</span>
+                                </div>
+                                <div class="form-text">Оставьте пустым, если франшизы нет</div>
+                                {% if form.franchise_amount.errors %}
+                                    <div class="text-danger">
+                                        {% for error in form.franchise_amount.errors %}
+                                            <small>{{ error }}</small>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ form.valid_until.id_for_label }}" class="form-label">
+                                    {{ form.valid_until.label }}
+                                </label>
+                                {{ form.valid_until }}
+                                <div class="form-text">Время указывается в московском часовом поясе (МСК)</div>
+                                {% if form.valid_until.errors %}
+                                    <div class="text-danger">
+                                        {% for error in form.valid_until.errors %}
+                                            <small>{{ error }}</small>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-check mb-3">
+                                {{ form.installment_available }}
+                                <label class="form-check-label" for="{{ form.installment_available.id_for_label }}">
+                                    {{ form.installment_available.label }}
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ form.installment_months.id_for_label }}" class="form-label">
+                                    {{ form.installment_months.label }}
+                                </label>
+                                {{ form.installment_months }}
+                                <div class="form-text">Только если доступна рассрочка</div>
+                                {% if form.installment_months.errors %}
+                                    <div class="text-danger">
+                                        {% for error in form.installment_months.errors %}
+                                            <small>{{ error }}</small>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.notes.id_for_label }}" class="form-label">
+                            {{ form.notes.label }}
+                        </label>
+                        {{ form.notes }}
+                        {% if form.notes.errors %}
+                            <div class="text-danger">
+                                {% for error in form.notes.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.attachment_file.id_for_label }}" class="form-label">
+                            {{ form.attachment_file.label }}
+                        </label>
+                        {{ form.attachment_file }}
+                        <div class="form-text">Прикрепите файл с предложением (опционально)</div>
+                        {% if form.attachment_file.errors %}
+                            <div class="text-danger">
+                                {% for error in form.attachment_file.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Общие ошибки формы -->
+                    {% if form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {% for error in form.non_field_errors %}
+                                {{ error }}
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{% url 'summaries:summary_detail' summary.pk %}" class="btn btn-secondary">
+                            <i class="bi bi-x-circle"></i> Отмена
+                        </a>
+                        <button type="submit" class="btn btn-success">
+                            <i class="bi bi-check-circle"></i> Добавить предложение
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Информация о заявке -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h6 class="mb-0">Информация о заявке</h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <dl class="row">
+                            <dt class="col-sm-5">Клиент:</dt>
+                            <dd class="col-sm-7">{{ summary.request.client_name }}</dd>
+                            
+                            <dt class="col-sm-5">Тип страхования:</dt>
+                            <dd class="col-sm-7">{{ summary.request.insurance_type }}</dd>
+                        </dl>
+                    </div>
+                    <div class="col-md-6">
+                        <dl class="row">
+                            <dt class="col-sm-5">Срок:</dt>
+                            <dd class="col-sm-7">{{ summary.request.insurance_period }} мес.</dd>
+                            
+                            <dt class="col-sm-5">ТС:</dt>
+                            <dd class="col-sm-7">{{ summary.request.vehicle_info|default:"Не указано" }}</dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Автоматически отключаем поле месяцев рассрочки, если рассрочка недоступна
+document.addEventListener('DOMContentLoaded', function() {
+    const installmentCheckbox = document.getElementById('{{ form.installment_available.id_for_label }}');
+    const installmentMonths = document.getElementById('{{ form.installment_months.id_for_label }}');
+    
+    function toggleInstallmentMonths() {
+        installmentMonths.disabled = !installmentCheckbox.checked;
+        if (!installmentCheckbox.checked) {
+            installmentMonths.value = '';
+        }
+    }
+    
+    installmentCheckbox.addEventListener('change', toggleInstallmentMonths);
+    toggleInstallmentMonths(); // Инициализация
+});
+</script>
+{% endblock %}

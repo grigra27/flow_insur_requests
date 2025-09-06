@@ -1,0 +1,256 @@
+{% extends 'base.html' %}
+{% load tz %}
+
+{% block title %}{{ request.get_display_name }} - {{ block.super }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="bi bi-file-text"></i> {{ request.get_display_name }}</h1>
+    <div>
+        <a href="{% url 'insurance_requests:edit_request' request.pk %}" class="btn btn-outline-primary">
+            <i class="bi bi-pencil"></i> Редактировать
+        </a>
+        <a href="{% url 'insurance_requests:request_list' %}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> К списку
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <!-- Основная информация -->
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Информация о заявке</h5>
+                <span class="badge bg-{% if request.status == 'completed' %}success{% elif request.status == 'error' %}danger{% elif request.status == 'email_sent' %}info{% else %}secondary{% endif %} fs-6">
+                    {{ request.get_status_display }}
+                </span>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <dl class="row">
+                            <dt class="col-sm-4">Клиент:</dt>
+                            <dd class="col-sm-8">{{ request.client_name }}</dd>
+                            
+                            <dt class="col-sm-4">ИНН:</dt>
+                            <dd class="col-sm-8">{{ request.inn }}</dd>
+                            
+                            <dt class="col-sm-4">Тип страхования:</dt>
+                            <dd class="col-sm-8">{{ request.insurance_type }}</dd>
+                            
+                            <dt class="col-sm-4">Срок страхования:</dt>
+                            <dd class="col-sm-8">
+                                {% if request.insurance_start_date and request.insurance_end_date %}
+                                    <div>
+                                        <strong>Начало:</strong> {{ request.insurance_start_date|date:"d.m.Y" }}<br>
+                                        <strong>Окончание:</strong> {{ request.insurance_end_date|date:"d.m.Y" }}
+                                    </div>
+                                    <small class="text-muted">{{ request.insurance_period_formatted }}</small>
+                                {% else %}
+                                    {{ request.insurance_period|default:"Период не указан" }}
+                                {% endif %}
+                            </dd>
+                            
+                            <dt class="col-sm-4">Филиал:</dt>
+                            <dd class="col-sm-8">{{ request.branch|default:"Не указан" }}</dd>
+                            
+                            <dt class="col-sm-4">Номер ДФА:</dt>
+                            <dd class="col-sm-8">{{ request.dfa_number|default:"Не указан" }}</dd>
+                        </dl>
+                    </div>
+                    <div class="col-md-6">
+                        <dl class="row">
+                            <dt class="col-sm-4">Создана:</dt>
+                            <dd class="col-sm-8">{% timezone "Europe/Moscow" %}{{ request.created_at|date:"d.m.Y H:i" }}{% endtimezone %} (МСК)</dd>
+                            
+                            <dt class="col-sm-4">Обновлена:</dt>
+                            <dd class="col-sm-8">{% timezone "Europe/Moscow" %}{{ request.updated_at|date:"d.m.Y H:i" }}{% endtimezone %} (МСК)</dd>
+                            
+                            <dt class="col-sm-4">Срок ответа:</dt>
+                            <dd class="col-sm-8">
+                                {% if request.response_deadline %}
+                                    {% timezone "Europe/Moscow" %}{{ request.response_deadline|date:"d.m.Y в H:i" }}{% endtimezone %} (МСК)
+                                {% else %}
+                                    Не указан
+                                {% endif %}
+                            </dd>
+                        </dl>
+                    </div>
+                </div>
+                
+                {% if request.vehicle_info %}
+                    <hr>
+                    <h6>Информация о предмете лизинга:</h6>
+                    <p class="text-muted">{{ request.vehicle_info }}</p>
+                {% endif %}
+                
+                <!-- Дополнительные параметры -->
+                <hr>
+                <h6>Дополнительные параметры:</h6>
+                <div class="d-flex gap-2">
+                    {% if request.has_franchise %}
+                        <span class="badge bg-warning text-dark">Франшиза</span>
+                    {% endif %}
+                    {% if request.has_installment %}
+                        <span class="badge bg-info text-dark">Рассрочка</span>
+                    {% endif %}
+                    {% if request.has_autostart %}
+                        <span class="badge bg-secondary">Автозапуск</span>
+                    {% endif %}
+                    {% if not request.has_franchise and not request.has_installment and not request.has_autostart %}
+                        <span class="text-muted">Дополнительных параметров нет</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Письмо -->
+        {% if request.email_subject or request.email_body %}
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Сгенерированное письмо</h5>
+                    <div>
+                        {% if request.status == 'email_generated' %}
+                            <a href="{% url 'insurance_requests:preview_email' request.pk %}" class="btn btn-primary btn-sm">
+                                <i class="bi bi-envelope"></i> Отправить
+                            </a>
+                        {% endif %}
+                        {% if request.status == 'uploaded' %}
+                            <a href="{% url 'insurance_requests:generate_email' request.pk %}" class="btn btn-success btn-sm">
+                                <i class="bi bi-magic"></i> Сгенерировать
+                            </a>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% if request.email_subject %}
+                        <h6>Тема:</h6>
+                        <p class="fw-bold">{{ request.email_subject }}</p>
+                    {% endif %}
+                    
+                    {% if request.email_body %}
+                        <h6>Текст письма:</h6>
+                        <div class="border p-3 bg-light">
+                            <pre class="mb-0" style="white-space: pre-wrap; font-family: inherit;">{{ request.email_body }}</pre>
+                        </div>
+                    {% endif %}
+                    
+                    {% if request.email_sent_at %}
+                        <div class="alert alert-success mt-3">
+                            <i class="bi bi-check-circle"></i> Письмо отправлено {% timezone "Europe/Moscow" %}{{ request.email_sent_at|date:"d.m.Y в H:i" }}{% endtimezone %} (МСК)
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        {% else %}
+            <div class="card mb-4">
+                <div class="card-body text-center py-4">
+                    <i class="bi bi-envelope display-4 text-muted"></i>
+                    <h5 class="mt-3">Письмо не сгенерировано</h5>
+                    <p class="text-muted">Нажмите кнопку ниже, чтобы создать письмо на основе данных заявки</p>
+                    <a href="{% url 'insurance_requests:generate_email' request.pk %}" class="btn btn-primary">
+                        <i class="bi bi-magic"></i> Сгенерировать письмо
+                    </a>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+
+    <div class="col-lg-4">
+        <!-- Вложения -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-paperclip"></i> Вложения</h6>
+            </div>
+            <div class="card-body">
+                {% if request.attachments.all %}
+                    {% for attachment in request.attachments.all %}
+                        <div class="d-flex align-items-center mb-2">
+                            <i class="bi bi-file-earmark-excel text-success me-2"></i>
+                            <div class="flex-grow-1">
+                                <div class="fw-bold">{{ attachment.original_filename }}</div>
+                                <small class="text-muted">{% timezone "Europe/Moscow" %}{{ attachment.uploaded_at|date:"d.m.Y H:i" }}{% endtimezone %} (МСК)</small>
+                            </div>
+                            <a href="{{ attachment.file.url }}" class="btn btn-outline-primary btn-sm" download>
+                                <i class="bi bi-download"></i>
+                            </a>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted mb-0">Вложений нет</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Свод предложений -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-collection"></i> Свод предложений</h6>
+            </div>
+            <div class="card-body">
+                {% if request.summary %}
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="fw-bold">Свод #{{ request.summary.id }}</div>
+                            <span class="badge bg-{% if request.summary.status == 'completed' %}success{% elif request.summary.status == 'sent' %}info{% elif request.summary.status == 'ready' %}warning{% else %}secondary{% endif %}">
+                                {{ request.summary.get_status_display }}
+                            </span>
+                            {% if request.summary.total_offers > 0 %}
+                                <div class="mt-2">
+                                    <small class="text-muted">{{ request.summary.total_offers }} предложений</small>
+                                    {% if request.summary.best_premium %}
+                                        <br><small class="text-success">Лучшая цена: {{ request.summary.best_premium|floatformat:2 }} ₽</small>
+                                    {% endif %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        <a href="{% url 'summaries:summary_detail' request.summary.pk %}" class="btn btn-outline-primary btn-sm">
+                            <i class="bi bi-eye"></i> Открыть свод
+                        </a>
+                    </div>
+                {% elif request.can_create_summary %}
+                    <div class="text-center py-3">
+                        <p class="text-muted mb-3">Свод предложений не создан</p>
+                        <a href="{% url 'summaries:create_summary' request.pk %}" class="btn btn-success">
+                            <i class="bi bi-plus-circle"></i> Создать свод
+                        </a>
+                    </div>
+                {% else %}
+                    <div class="text-center py-3">
+                        <p class="text-muted mb-0">{{ request.get_summary_status }}</p>
+                        {% if request.status == 'email_generated' %}
+                            <small class="text-muted">Сначала отправьте письма страховщикам</small>
+                        {% endif %}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Ответы от страховых компаний -->
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-reply"></i> Ответы компаний</h6>
+            </div>
+            <div class="card-body">
+                {% if request.responses.all %}
+                    {% for response in request.responses.all %}
+                        <div class="border-bottom pb-2 mb-2">
+                            <div class="fw-bold">{{ response.company_name }}</div>
+                            <small class="text-muted">{% timezone "Europe/Moscow" %}{{ response.received_at|date:"d.m.Y H:i" }}{% endtimezone %} (МСК)</small>
+                            {% if response.insurance_sum %}
+                                <div class="mt-1">
+                                    <small>Сумма: {{ response.insurance_sum|floatformat:2 }} ₽</small>
+                                </div>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted mb-0">Ответов пока нет</p>
+                    <small class="text-muted">Позднее здесь будет блок для загрузки ответов от страховых компаний</small>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

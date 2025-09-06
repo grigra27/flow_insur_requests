@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+
+{% block title %}Доступ запрещен{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card border-danger">
+                <div class="card-header bg-danger text-white">
+                    <h4 class="mb-0">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        Доступ запрещен
+                    </h4>
+                </div>
+                <div class="card-body text-center">
+                    <div class="mb-4">
+                        <i class="fas fa-lock fa-5x text-danger mb-3"></i>
+                        <h5>У вас недостаточно прав для доступа к этой странице</h5>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <strong>Требуемая роль:</strong> {{ required_role }}<br>
+                        <strong>Ваша роль:</strong> {{ user_role }}
+                    </div>
+                    
+                    <p class="text-muted">
+                        Если вы считаете, что это ошибка, обратитесь к администратору системы.
+                    </p>
+                    
+                    <div class="mt-4">
+                        <a href="{% url 'insurance_requests:request_list' %}" class="btn btn-primary">
+                            <i class="fas fa-arrow-left"></i>
+                            Вернуться к списку заявок
+                        </a>
+                        <a href="{% url 'logout' %}" class="btn btn-secondary ml-2">
+                            <i class="fas fa-sign-out-alt"></i>
+                            Выйти из системы
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.card-header {
+    border-bottom: 2px solid #dc3545;
+}
+
+.fa-lock {
+    opacity: 0.7;
+}
+
+.alert-info {
+    border-left: 4px solid #17a2b8;
+}
+
+.btn {
+    min-width: 150px;
+}
+</style>
+{% endblock %}

@@ -1,0 +1,216 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Вход в систему - Страховые заявки</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="{% static 'css/login.css' %}" rel="stylesheet">
+</head>
+<body class="login-body">
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <div class="login-icon">
+                    <i class="fas fa-shield-alt"></i>
+                </div>
+                <h2 class="login-title">он-лайн брокер флоу</h2>
+                <p class="login-subtitle">Войдите в свою учетную запись</p>
+            </div>
+            
+            <form method="post" class="login-form" id="loginForm">
+                {% csrf_token %}
+                
+                {% if messages %}
+                    {% for message in messages %}
+                        <div class="alert alert-{{ message.tags }}">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+                
+                {% if form.errors %}
+                    <div class="alert alert-danger">
+                        {% for field, errors in form.errors.items %}
+                            {% for error in errors %}
+                                <div>{{ error }}</div>
+                            {% endfor %}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+                
+                <div class="form-group">
+                    <label for="{{ form.username.id_for_label }}" class="form-label">
+                        <i class="fas fa-user"></i> Логин
+                    </label>
+                    {{ form.username }}
+                    <div class="input-icon">
+                        <i class="fas fa-user"></i>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="{{ form.password.id_for_label }}" class="form-label">
+                        <i class="fas fa-lock"></i> Пароль
+                    </label>
+                    {{ form.password }}
+                    <div class="input-icon">
+                        <i class="fas fa-lock"></i>
+                    </div>
+                </div>
+                
+                <button type="submit" class="btn login-btn" id="loginButton">
+                    <i class="fas fa-sign-in-alt"></i>
+                    Войти
+                </button>
+            </form>
+            
+            <div class="test-credentials">
+                <h6><i class="fas fa-info-circle"></i> Тестовые учетные записи</h6>
+                <div class="credential-item">
+                    <strong>Администратор:</strong> admin / admin123
+                </div>
+                <div class="credential-item">
+                    <strong>Пользователь:</strong> user / user123
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Enhanced login form functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.getElementById('loginForm');
+            const loginButton = document.getElementById('loginButton');
+            const inputs = document.querySelectorAll('input[type="text"], input[type="password"]');
+            
+            // Add Bootstrap classes to form inputs
+            inputs.forEach(input => {
+                input.classList.add('form-control');
+                
+                // Add focus/blur effects
+                input.addEventListener('focus', function() {
+                    this.parentElement.classList.add('focused');
+                });
+                
+                input.addEventListener('blur', function() {
+                    if (!this.value) {
+                        this.parentElement.classList.remove('focused');
+                    }
+                });
+                
+                // Real-time validation
+                input.addEventListener('input', function() {
+                    validateField(this);
+                });
+            });
+            
+            // Form submission with loading state
+            form.addEventListener('submit', function(e) {
+                if (!validateForm()) {
+                    e.preventDefault();
+                    return false;
+                }
+                
+                // Add loading state
+                loginButton.classList.add('loading');
+                loginButton.disabled = true;
+                
+                // Remove loading state after timeout (fallback)
+                setTimeout(() => {
+                    loginButton.classList.remove('loading');
+                    loginButton.disabled = false;
+                }, 5000);
+            });
+            
+            // Client-side validation functions
+            function validateField(field) {
+                const value = field.value.trim();
+                const fieldGroup = field.parentElement;
+                
+                // Remove existing error states
+                fieldGroup.classList.remove('error');
+                
+                if (field.type === 'text' && field.name === 'username') {
+                    if (value.length < 3) {
+                        showFieldError(fieldGroup, 'Логин должен содержать минимум 3 символа');
+                        return false;
+                    }
+                }
+                
+                if (field.type === 'password') {
+                    if (value.length < 6) {
+                        showFieldError(fieldGroup, 'Пароль должен содержать минимум 6 символов');
+                        return false;
+                    }
+                }
+                
+                hideFieldError(fieldGroup);
+                return true;
+            }
+            
+            function validateForm() {
+                let isValid = true;
+                inputs.forEach(input => {
+                    if (!validateField(input)) {
+                        isValid = false;
+                    }
+                });
+                return isValid;
+            }
+            
+            function showFieldError(fieldGroup, message) {
+                fieldGroup.classList.add('error');
+                
+                // Remove existing error message
+                const existingError = fieldGroup.querySelector('.field-error');
+                if (existingError) {
+                    existingError.remove();
+                }
+                
+                // Add new error message
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'field-error';
+                errorDiv.style.color = '#dc3545';
+                errorDiv.style.fontSize = '12px';
+                errorDiv.style.marginTop = '5px';
+                errorDiv.textContent = message;
+                fieldGroup.appendChild(errorDiv);
+            }
+            
+            function hideFieldError(fieldGroup) {
+                fieldGroup.classList.remove('error');
+                const errorDiv = fieldGroup.querySelector('.field-error');
+                if (errorDiv) {
+                    errorDiv.remove();
+                }
+            }
+            
+            // Auto-focus first empty field
+            const firstEmptyInput = Array.from(inputs).find(input => !input.value);
+            if (firstEmptyInput) {
+                firstEmptyInput.focus();
+            }
+            
+            // Keyboard shortcuts
+            document.addEventListener('keydown', function(e) {
+                // Enter key submits form
+                if (e.key === 'Enter' && document.activeElement.tagName !== 'BUTTON') {
+                    form.submit();
+                }
+                
+                // Escape key clears form
+                if (e.key === 'Escape') {
+                    inputs.forEach(input => {
+                        input.value = '';
+                        hideFieldError(input.parentElement);
+                    });
+                    inputs[0].focus();
+                }
+            });
+        });
+    </script>
+</body>
+</html>

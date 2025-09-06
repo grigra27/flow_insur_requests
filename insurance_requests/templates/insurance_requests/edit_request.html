@@ -1,0 +1,417 @@
+{% extends 'base.html' %}
+{% load tz %}
+
+{% block title %}Редактирование {{ request.get_display_name }} - {{ block.super }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0"><i class="bi bi-pencil"></i> Редактирование {{ request.get_display_name }}</h4>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+
+                    {% if form.non_field_errors %}
+                    <div class="alert alert-danger">
+                        {% for error in form.non_field_errors %}
+                        <div>{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ form.client_name.id_for_label }}" class="form-label">
+                                    {{ form.client_name.label }}
+                                </label>
+                                {{ form.client_name }}
+                                {% if form.client_name.errors %}
+                                <div class="text-danger">
+                                    {% for error in form.client_name.errors %}
+                                    <small>{{ error }}</small>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ form.inn.id_for_label }}" class="form-label">
+                                    {{ form.inn.label }}
+                                </label>
+                                {{ form.inn }}
+                                {% if form.inn.errors %}
+                                <div class="text-danger">
+                                    {% for error in form.inn.errors %}
+                                    <small>{{ error }}</small>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ form.insurance_type.id_for_label }}" class="form-label">
+                                    {{ form.insurance_type.label }}
+                                </label>
+                                {{ form.insurance_type }}
+                                {% if form.insurance_type.errors %}
+                                <div class="text-danger">
+                                    {% for error in form.insurance_type.errors %}
+                                    <small>{{ error }}</small>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ form.insurance_start_date.id_for_label }}" class="form-label">
+                                    {{ form.insurance_start_date.label }}
+                                </label>
+                                {{ form.insurance_start_date }}
+                                {% if form.insurance_start_date.help_text %}
+                                <div class="form-text" id="start-date-help">{{ form.insurance_start_date.help_text }}
+                                </div>
+                                {% endif %}
+                                {% if form.insurance_start_date.errors %}
+                                <div class="text-danger">
+                                    {% for error in form.insurance_start_date.errors %}
+                                    <small>{{ error }}</small>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ form.insurance_end_date.id_for_label }}" class="form-label">
+                                    {{ form.insurance_end_date.label }}
+                                </label>
+                                {{ form.insurance_end_date }}
+                                {% if form.insurance_end_date.help_text %}
+                                <div class="form-text" id="end-date-help">{{ form.insurance_end_date.help_text }}</div>
+                                {% endif %}
+                                {% if form.insurance_end_date.errors %}
+                                <div class="text-danger">
+                                    {% for error in form.insurance_end_date.errors %}
+                                    <small>{{ error }}</small>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <!-- Empty column for layout balance -->
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ form.branch.id_for_label }}" class="form-label">
+                                    {{ form.branch.label }}
+                                </label>
+                                {{ form.branch }}
+                                {% if form.branch.errors %}
+                                <div class="text-danger">
+                                    {% for error in form.branch.errors %}
+                                    <small>{{ error }}</small>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ form.dfa_number.id_for_label }}" class="form-label">
+                                    {{ form.dfa_number.label }}
+                                </label>
+                                {{ form.dfa_number }}
+                                {% if form.dfa_number.errors %}
+                                <div class="text-danger">
+                                    {% for error in form.dfa_number.errors %}
+                                    <small>{{ error }}</small>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="{{ form.vehicle_info.id_for_label }}" class="form-label">
+                            {{ form.vehicle_info.label }}
+                        </label>
+                        {{ form.vehicle_info }}
+                        {% if form.vehicle_info.errors %}
+                        <div class="text-danger">
+                            {% for error in form.vehicle_info.errors %}
+                            <small>{{ error }}</small>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="{{ form.response_deadline.id_for_label }}" class="form-label">
+                            {{ form.response_deadline.label }}
+                        </label>
+                        {{ form.response_deadline }}
+                        <div class="form-text">Время указывается в московском часовом поясе (МСК)</div>
+                        {% if form.response_deadline.errors %}
+                        <div class="text-danger">
+                            {% for error in form.response_deadline.errors %}
+                            <small>{{ error }}</small>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="form-check mb-3">
+                                {{ form.has_franchise }}
+                                <label class="form-check-label" for="{{ form.has_franchise.id_for_label }}">
+                                    {{ form.has_franchise.label }}
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="col-md-3">
+                            <div class="form-check mb-3">
+                                {{ form.has_installment }}
+                                <label class="form-check-label" for="{{ form.has_installment.id_for_label }}">
+                                    {{ form.has_installment.label }}
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="col-md-3">
+                            <div class="form-check mb-3">
+                                {{ form.has_autostart }}
+                                <label class="form-check-label" for="{{ form.has_autostart.id_for_label }}">
+                                    {{ form.has_autostart.label }}
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="col-md-3">
+                            <div class="form-check mb-3">
+                                {{ form.has_casco_ce }}
+                                <label class="form-check-label" for="{{ form.has_casco_ce.id_for_label }}">
+                                    {{ form.has_casco_ce.label }}
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{% url 'insurance_requests:request_detail' request.pk %}" class="btn btn-secondary">
+                            <i class="bi bi-x-circle"></i> Отмена
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-circle"></i> Сохранить изменения
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const startDateInput = document.getElementById('{{ form.insurance_start_date.id_for_label }}');
+        const endDateInput = document.getElementById('{{ form.insurance_end_date.id_for_label }}');
+        const form = document.querySelector('form');
+
+        // Функция для отображения ошибок валидации
+        function showFieldError(field, message) {
+            // Удаляем предыдущие ошибки
+            const existingError = field.parentNode.querySelector('.client-validation-error');
+            if (existingError) {
+                existingError.remove();
+            }
+
+            // Добавляем новую ошибку
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'text-danger client-validation-error';
+            errorDiv.innerHTML = '<small>' + message + '</small>';
+            field.parentNode.appendChild(errorDiv);
+
+            // Добавляем класс ошибки к полю
+            field.classList.add('is-invalid');
+        }
+
+        // Функция для очистки ошибок валидации
+        function clearFieldError(field) {
+            const existingError = field.parentNode.querySelector('.client-validation-error');
+            if (existingError) {
+                existingError.remove();
+            }
+            field.classList.remove('is-invalid');
+        }
+
+        // Функция валидации дат
+        function validateDates() {
+            let isValid = true;
+
+            // Очищаем предыдущие ошибки
+            clearFieldError(startDateInput);
+            clearFieldError(endDateInput);
+
+            const startDate = startDateInput.value ? new Date(startDateInput.value) : null;
+            const endDate = endDateInput.value ? new Date(endDateInput.value) : null;
+            const today = new Date();
+            const fiveYearsAgo = new Date(today.getFullYear() - 5, today.getMonth(), today.getDate());
+            const tenYearsAhead = new Date(today.getFullYear() + 10, today.getMonth(), today.getDate());
+
+            // Валидация даты начала
+            if (startDate) {
+                if (startDate < fiveYearsAgo) {
+                    showFieldError(startDateInput, 'Дата начала страхования не может быть более 5 лет назад');
+                    isValid = false;
+                }
+            }
+
+            // Валидация даты окончания
+            if (endDate) {
+                if (endDate > tenYearsAhead) {
+                    showFieldError(endDateInput, 'Дата окончания страхования не может быть более 10 лет в будущем');
+                    isValid = false;
+                }
+            }
+
+            // Валидация соотношения дат
+            if (startDate && endDate) {
+                if (startDate >= endDate) {
+                    showFieldError(endDateInput, 'Дата окончания должна быть позже даты начала');
+                    isValid = false;
+                }
+
+                // Проверка минимального периода (1 день)
+                const diffTime = Math.abs(endDate - startDate);
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                if (diffDays < 1) {
+                    showFieldError(endDateInput, 'Период страхования должен составлять минимум 1 день');
+                    isValid = false;
+                }
+            }
+
+            return isValid;
+        }
+
+        // Обработчики событий для валидации в реальном времени
+        if (startDateInput) {
+            startDateInput.addEventListener('change', validateDates);
+            startDateInput.addEventListener('blur', validateDates);
+
+            // Улучшение доступности
+            startDateInput.setAttribute('aria-describedby', 'start-date-help');
+            startDateInput.setAttribute('aria-label', 'Дата начала страхования');
+        }
+
+        if (endDateInput) {
+            endDateInput.addEventListener('change', validateDates);
+            endDateInput.addEventListener('blur', validateDates);
+
+            // Улучшение доступности
+            endDateInput.setAttribute('aria-describedby', 'end-date-help');
+            endDateInput.setAttribute('aria-label', 'Дата окончания страхования');
+
+            // Автоматическое обновление минимальной даты окончания при изменении даты начала
+            if (startDateInput) {
+                startDateInput.addEventListener('change', function () {
+                    if (this.value) {
+                        const startDate = new Date(this.value);
+                        const nextDay = new Date(startDate);
+                        nextDay.setDate(nextDay.getDate() + 1);
+                        endDateInput.min = nextDay.toISOString().split('T')[0];
+                    }
+                });
+            }
+        }
+
+        // Валидация при отправке формы
+        if (form) {
+            form.addEventListener('submit', function (e) {
+                if (!validateDates()) {
+                    e.preventDefault();
+
+                    // Прокручиваем к первому полю с ошибкой
+                    const firstError = document.querySelector('.is-invalid');
+                    if (firstError) {
+                        firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        firstError.focus();
+                    }
+
+                    // Показываем общее сообщение об ошибке
+                    const alertDiv = document.createElement('div');
+                    alertDiv.className = 'alert alert-warning alert-dismissible fade show';
+                    alertDiv.innerHTML = `
+                    <strong>Внимание!</strong> Пожалуйста, исправьте ошибки в полях дат перед сохранением.
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Закрыть"></button>
+                `;
+
+                    // Вставляем предупреждение в начало формы
+                    const existingAlert = form.querySelector('.alert-warning');
+                    if (existingAlert) {
+                        existingAlert.remove();
+                    }
+                    form.insertBefore(alertDiv, form.firstChild);
+                }
+            });
+        }
+
+        // Инициализация валидации при загрузке страницы
+        validateDates();
+    });
+</script>
+
+<style>
+    /* Дополнительные стили для улучшения UX */
+    .date-input:focus {
+        border-color: #0d6efd;
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+    }
+
+    .date-input.is-invalid {
+        border-color: #dc3545;
+        box-shadow: 0 0 0 0.25rem rgba(220, 53, 69, 0.25);
+    }
+
+    .client-validation-error {
+        margin-top: 0.25rem;
+    }
+
+    /* Улучшение доступности для screen readers */
+    .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+    }
+</style>
+{% endblock %}

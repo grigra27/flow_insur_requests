@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+
+{% block title %}Загрузка Excel файла - {{ block.super }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0"><i class="bi bi-upload"></i> Загрузка Excel файла с заявкой</h4>
+            </div>
+            <div class="card-body">
+                <form method="post" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.excel_file.id_for_label }}" class="form-label">
+                            {{ form.excel_file.label }}
+                        </label>
+                        {{ form.excel_file }}
+                        {% if form.excel_file.help_text %}
+                            <div class="form-text">{{ form.excel_file.help_text }}</div>
+                        {% endif %}
+                        {% if form.excel_file.errors %}
+                            <div class="text-danger">
+                                {% for error in form.excel_file.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i>
+                        <strong>Требования к файлу:</strong>
+                        <ul class="mb-0 mt-2">
+                            <li>Формат: .xls или .xlsx</li>
+                            <li>Максимальный размер: 10 МБ</li>
+                            <li>Данные должны быть в стандартном формате заявки</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{% url 'insurance_requests:request_list' %}" class="btn btn-secondary">
+                            <i class="bi bi-arrow-left"></i> Назад
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-upload"></i> Загрузить и обработать
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <div class="mt-4">
+            <h5>Структура Excel файла</h5>
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Ячейка</th>
+                            <th>Поле</th>
+                            <th>Описание</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>D7</td><td>Имя клиента</td><td>Название организации или ФИО</td></tr>
+                        <tr><td>D9</td><td>ИНН</td><td>ИНН клиента (10 или 12 цифр)</td></tr>
+                        <tr><td>D21/D22</td><td>Тип страхования</td><td>D21 - КАСКО, D22 - спецтехника, обе пустые - другое</td></tr>
+                        <tr><td>M15</td><td>Дата начала страхования</td><td>Дата начала страхования</td></tr>
+                        <tr><td>N15</td><td>Дата окончания страхования</td><td>Дата окончания страхования</td></tr>
+                        <tr><td>D29</td><td>Франшиза</td><td>Наличие значения = есть франшиза</td></tr>
+                        <tr><td>F34</td><td>Рассрочка</td><td>Наличие значения = НЕТ рассрочки</td></tr>
+                        <tr><td>M24</td><td>Автозапуск</td><td>Значение "нет" = нет автозапуска</td></tr>
+                        <tr><td>HIJ2</td><td>Номер ДФА</td><td>Номер договора финансовой аренды</td></tr>
+                        <tr><td>CDEF4</td><td>Филиал</td><td>Название филиала</td></tr>
+                        <tr><td>CDEFGHI43/45/47/49</td><td>Информация о ТС</td><td>Описание предмета лизинга</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

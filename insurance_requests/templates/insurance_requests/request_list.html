@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+{% load tz %}
+
+{% block title %}Список заявок - {{ block.super }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="bi bi-list-ul"></i> Мои заявки</h1>
+    <a href="{% url 'insurance_requests:upload_excel' %}" class="btn btn-primary">
+        <i class="bi bi-upload"></i> Загрузить новую заявку
+    </a>
+</div>
+
+{% if requests %}
+    <div class="row">
+        {% for request in requests %}
+            <div class="col-md-6 col-lg-4 mb-4">
+                <div class="card h-100">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">{{ request.get_display_name }}</h6>
+                        <span class="badge bg-{% if request.status == 'completed' %}success{% elif request.status == 'error' %}danger{% elif request.status == 'email_sent' %}info{% else %}secondary{% endif %}">
+                            {{ request.get_status_display }}
+                        </span>
+                    </div>
+                    <div class="card-body">
+                        <h6 class="card-title">{{ request.client_name }}</h6>
+                        <p class="card-text">
+                            <small class="text-muted">
+                                <i class="bi bi-calendar"></i> {% timezone "Europe/Moscow" %}{{ request.created_at|date:"d.m.Y H:i" }}{% endtimezone %} (МСК)<br>
+                                <i class="bi bi-shield"></i> {{ request.insurance_type }}<br>
+                                <i class="bi bi-clock"></i> 
+                                {% if request.insurance_start_date and request.insurance_end_date %}
+                                    {{ request.insurance_start_date|date:"d.m.Y" }} - {{ request.insurance_end_date|date:"d.m.Y" }}
+                                {% else %}
+                                    {{ request.insurance_period|default:"Период не указан" }}
+                                {% endif %}<br>
+                                <i class="bi bi-building"></i> {{ request.branch|default:"Не указан"|truncatechars:30 }}<br>
+                                <i class="bi bi-file-text"></i> ДФА: {{ request.dfa_number|default:"Не указан"|truncatechars:20 }}
+                            </small>
+                        </p>
+                        
+                        {% if request.has_franchise %}
+                            <span class="badge bg-warning text-dark me-1">Франшиза</span>
+                        {% endif %}
+                        {% if request.has_installment %}
+                            <span class="badge bg-info text-dark me-1">Рассрочка</span>
+                        {% endif %}
+                        {% if request.has_autostart %}
+                            <span class="badge bg-secondary me-1">Автозапуск</span>
+                        {% endif %}
+                    </div>
+                    <div class="card-footer">
+                        <a href="{% url 'insurance_requests:request_detail' request.pk %}" class="btn btn-outline-primary btn-sm">
+                            <i class="bi bi-eye"></i> Подробнее
+                        </a>
+                        {% if request.status == 'uploaded' %}
+                            <a href="{% url 'insurance_requests:generate_email' request.pk %}" class="btn btn-success btn-sm">
+                                <i class="bi bi-envelope"></i> Создать письмо
+                            </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="text-center py-5">
+        <i class="bi bi-inbox display-1 text-muted"></i>
+        <h3 class="mt-3">Заявок пока нет</h3>
+        <p class="text-muted">Загрузите Excel файл с заявкой, чтобы начать работу</p>
+        <a href="{% url 'insurance_requests:upload_excel' %}" class="btn btn-primary">
+            <i class="bi bi-upload"></i> Загрузить заявку
+        </a>
+    </div>
+{% endif %}
+{% endblock %}
