@@ -61,8 +61,8 @@
 
 1. **Клонирование репозитория**
 ```bash
-git clone https://github.com/your-repo/insurance-system.git
-cd insurance-system
+git clone https://github.com/grigra27/flow_insur_requests.git
+cd flow_insur_requests
 ```
 
 2. **Создание виртуального окружения**
@@ -108,8 +108,8 @@ python manage.py runserver
 
 ```bash
 # Клонирование и настройка
-git clone https://github.com/your-repo/insurance-system.git
-cd insurance-system
+git clone https://github.com/grigra27/flow_insur_requests.git
+cd flow_insur_requests
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
@@ -253,10 +253,10 @@ CELERY_RESULT_BACKEND=redis://localhost:6379/0
 - Консольный email backend
 - Минимальные настройки безопасности
 
-#### Тестирование
+#### Staging
 - Используйте отдельную базу данных
 - DEBUG=False
-- Тестовый email backend
+- Консольный email backend
 - Базовые настройки безопасности
 
 #### Продакшен
@@ -282,19 +282,13 @@ venv\Scripts\activate  # Windows
 pip install -r requirements.txt
 ```
 
-3. **Запуск тестов**
+3. **Проверка конфигурации**
 ```bash
-# Все тесты
-python manage.py test
+# Проверка настроек Django
+python manage.py check
 
-# Конкретное приложение
-python manage.py test insurance_requests
-
-# С подробным выводом
-python manage.py test --verbosity=2
-
-# Конкретный тест
-python manage.py test insurance_requests.test_authentication_system
+# Проверка готовности к деплою
+python manage.py check --deploy
 ```
 
 4. **Создание миграций**
@@ -652,37 +646,22 @@ sudo crontab -e
 # Добавьте: 0 12 * * * /usr/bin/certbot renew --quiet
 ```
 
-## Тестирование
+## Проверка системы
 
-### Запуск тестов
-
-```bash
-# Все тесты
-python manage.py test
-
-# Конкретные тесты новых функций
-python manage.py test insurance_requests.test_authentication_system
-python manage.py test insurance_requests.test_form_enhancements
-python manage.py test insurance_requests.test_enhanced_email_templates
-python manage.py test insurance_requests.test_new_insurance_type
-python manage.py test insurance_requests.test_end_to_end_workflow
-
-# Тесты с покрытием
-pip install coverage
-coverage run --source='.' manage.py test insurance_requests
-coverage report
-coverage html
-```
-
-### Нагрузочное тестирование
+### Диагностика
 
 ```bash
-# Установите Apache Bench
-sudo apt-get install apache2-utils
+# Проверка конфигурации Django
+python manage.py check
 
-# Тестируйте производительность
-ab -n 100 -c 10 http://your-domain.com/login/
-ab -n 100 -c 10 -C "sessionid=your-session-id" http://your-domain.com/
+# Проверка готовности к деплою
+python manage.py check --deploy
+
+# Проверка миграций
+python manage.py showmigrations
+
+# Проверка подключения к базе данных
+python manage.py dbshell
 ```
 
 ## Устранение неполадок
@@ -742,8 +721,8 @@ python manage.py loaddata insurance_requests/fixtures/sample_data.json
 ### Ручное создание данных
 
 ```bash
-# Создайте тестовые данные
-python manage.py create_test_data
+# Создайте демонстрационные данные
+python manage.py create_demo_data
 
 # Или используйте Django shell
 python manage.py shell
@@ -751,7 +730,7 @@ python manage.py shell
 >>> from django.contrib.auth.models import User
 >>> user = User.objects.first()
 >>> InsuranceRequest.objects.create(
-...     client_name="Тестовый клиент",
+...     client_name="Демо клиент",
 ...     inn="1234567890",
 ...     insurance_type="КАСКО",
 ...     created_by=user

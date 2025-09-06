@@ -107,7 +107,7 @@ su - deploy
 # Клонируйте репозиторий
 cd /opt
 git clone https://github.com/grigra27/flow_insur_requests.git
-cd insurance-system
+cd flow_insur_requests
 
 # Создайте файл с переменными окружения
 cp .env.example .env.prod
@@ -127,11 +127,10 @@ sudo /opt/setup-ssl.sh your-domain.com
 - `.github/workflows/staging.yml` - деплой в staging
 
 #### 2. Процесс деплоя
-1. **Тестирование** - запуск тестов
-2. **Сборка** - создание Docker образа
-3. **Деплой** - развертывание на сервере
-4. **Проверка** - health check
-5. **Откат** - при неудаче
+1. **Сборка** - создание Docker образа
+2. **Деплой** - развертывание на сервере
+3. **Проверка** - health check
+4. **Откат** - при неудаче
 
 ### Конфигурация Docker
 
@@ -323,7 +322,7 @@ docker-compose -f docker-compose.prod.yml exec web python manage.py check --depl
 # Проверка миграций
 docker-compose -f docker-compose.prod.yml exec web python manage.py showmigrations
 
-# Тест подключения к базе
+# Подключение к базе данных
 docker-compose -f docker-compose.prod.yml exec web python manage.py dbshell
 ```
 
@@ -366,8 +365,8 @@ web:
 pip install --upgrade -r requirements.txt
 pip freeze > requirements.txt
 
-# Тестирование
-python manage.py test
+# Проверка конфигурации
+python manage.py check
 
 # Коммит и пуш
 git add requirements.txt
@@ -381,7 +380,7 @@ git push
 python -m django --version
 
 # Обновить в requirements.txt
-# Протестировать локально
+# Проверить локально
 # Деплой через staging
 ```
 
@@ -389,8 +388,6 @@ python -m django --version
 
 ### Контакты
 - **Разработчик**: Григорий Грачев
-- **Email**: your-email@example.com
-- **Slack**: #insurance-system
 
 ### Документация
 - **API**: `/api/docs/`

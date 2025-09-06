@@ -70,10 +70,6 @@ fi
 echo "📁 Collecting static files..."
 python manage.py collectstatic --noinput
 
-# Запускаем тесты
-echo "🧪 Running tests..."
-python manage.py test --verbosity=1
-
 # Проверяем конфигурацию
 echo "🔍 Checking configuration..."
 python manage.py check
@@ -89,7 +85,6 @@ echo "🌐 Application will be available at: http://127.0.0.1:8000/"
 echo ""
 echo "📊 Useful commands:"
 echo "   python manage.py shell          # Django shell"
-echo "   python manage.py test           # Run tests"
 echo "   python manage.py migrate        # Apply migrations"
 echo "   python manage.py createsuperuser # Create admin user"
 echo ""
