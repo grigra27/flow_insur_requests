@@ -51,6 +51,7 @@ jobs:
         username: ${{ secrets.DO_USERNAME }}
         key: ${{ secrets.DO_SSH_KEY }}
         port: ${{ secrets.DO_PORT }}
+        passphrase: ${{ secrets.DO_PASSPHRASE }}
         script: |
           # Переходим в директорию проекта
           cd /opt/insurance-system
