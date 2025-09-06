@@ -24,17 +24,24 @@ COPY . .
 # Создаем необходимые директории
 RUN mkdir -p logs media staticfiles
 
+# Копируем и делаем исполняемым entrypoint скрипт
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 # Устанавливаем права на файлы
 RUN chown -R app:app /app
 
 # Переключаемся на пользователя app
 USER app
 
-# Собираем статические файлы
-RUN python manage.py collectstatic --noinput
+# Собираем статические файлы (устанавливаем временные переменные для сборки)
+RUN SECRET_KEY=temp-build-key DEBUG=False ALLOWED_HOSTS=localhost python manage.py collectstatic --noinput
 
 # Открываем порт
 EXPOSE 8000
+
+# Устанавливаем entrypoint
+ENTRYPOINT ["/entrypoint.sh"]
 
 # Команда по умолчанию
 CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "3", "onlineservice.wsgi:application"]

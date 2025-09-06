@@ -134,12 +134,32 @@ sudo /opt/setup-ssl.sh your-domain.com
 
 ### Конфигурация Docker
 
+#### Dockerfile особенности
+- **Многоэтапная сборка**: оптимизация размера образа
+- **Entrypoint скрипт**: автоматические миграции и настройка
+- **Статические файлы**: собираются во время сборки с временными переменными
+- **Пользователь app**: безопасность контейнера
+- **Health checks**: проверка работоспособности
+
+#### Сборка образа
+```bash
+# Локальная сборка
+./build.sh
+
+# Или вручную
+docker build -t flow-insur-requests .
+
+# Проверка образа
+docker run --rm -p 8000:8000 --env-file .env flow-insur-requests
+```
+
 #### Production (docker-compose.prod.yml)
 - PostgreSQL с persistent storage
 - Redis для Celery
 - Nginx с SSL
 - Health checks
 - Restart policies
+- Автоматическое создание суперпользователя
 
 #### Staging (docker-compose.staging.yml)
 - Отдельная база данных

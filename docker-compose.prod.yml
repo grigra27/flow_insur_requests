@@ -50,20 +50,20 @@ services:
       - EMAIL_USE_TLS=${EMAIL_USE_TLS}
       - EMAIL_HOST_USER=${EMAIL_HOST_USER}
       - EMAIL_HOST_PASSWORD=${EMAIL_HOST_PASSWORD}
+      - COLLECT_STATIC=${COLLECT_STATIC:-false}
+      - DJANGO_SUPERUSER_USERNAME=${DJANGO_SUPERUSER_USERNAME}
+      - DJANGO_SUPERUSER_EMAIL=${DJANGO_SUPERUSER_EMAIL}
+      - DJANGO_SUPERUSER_PASSWORD=${DJANGO_SUPERUSER_PASSWORD}
     volumes:
       - media_data:/app/media
       - logs_data:/app/logs
+      - staticfiles_data:/app/staticfiles
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
     restart: unless-stopped
-    command: >
-      sh -c "python manage.py migrate &&
-             python manage.py setup_user_groups &&
-             python manage.py collectstatic --noinput &&
-             gunicorn --bind 0.0.0.0:8000 --workers 3 --timeout 30 --keepalive 2 onlineservice.wsgi:application"
 
   celery:
     image: ${DOCKER_IMAGE}
