@@ -71,5 +71,9 @@ jobs:
           docker-compose down
           docker-compose up -d
           
+          # Проверяем статус сервисов
+          sleep 10
+          docker-compose ps
+          
           # Очищаем старые образы
           docker image prune -f
