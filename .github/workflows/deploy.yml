@@ -50,16 +50,23 @@ jobs:
           # Создаем .env файл
           cat > .env << EOF
           SECRET_KEY=${{ secrets.SECRET_KEY }}
+          DEBUG=False
           DB_NAME=${{ secrets.DB_NAME }}
           DB_USER=${{ secrets.DB_USER }}
           DB_PASSWORD=${{ secrets.DB_PASSWORD }}
           ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }}
+          CSRF_COOKIE_SECURE=True
+          SESSION_COOKIE_SECURE=True
+          SECURE_SSL_REDIRECT=False
+          CSRF_TRUSTED_ORIGINS=https://onbr.site,https://www.onbr.site
           EMAIL_BACKEND=${{ secrets.EMAIL_BACKEND }}
           EMAIL_HOST=${{ secrets.EMAIL_HOST }}
           EMAIL_PORT=${{ secrets.EMAIL_PORT }}
           EMAIL_USE_TLS=${{ secrets.EMAIL_USE_TLS }}
           EMAIL_HOST_USER=${{ secrets.EMAIL_HOST_USER }}
           EMAIL_HOST_PASSWORD=${{ secrets.EMAIL_HOST_PASSWORD }}
+          CELERY_BROKER_URL=redis://redis:6379/0
+          CELERY_RESULT_BACKEND=redis://redis:6379/0
           DOCKER_IMAGE=${{ env.DOCKER_IMAGE }}
           EOF
           
