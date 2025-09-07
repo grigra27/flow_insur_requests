@@ -1,16 +1,14 @@
-name: Deploy to Digital Ocean
+name: Deploy to Production
 
 on:
   push:
     branches: [ main ]
-  workflow_dispatch:
 
 env:
-  DOCKER_IMAGE: ghcr.io/${{ github.repository }}:${{ github.sha }}
-  DOCKER_IMAGE_LATEST: ghcr.io/${{ github.repository }}:latest
+  DOCKER_IMAGE: ghcr.io/${{ github.repository }}:latest
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
     
     steps:
@@ -31,18 +29,9 @@ jobs:
       with:
         context: .
         push: true
-        tags: |
-          ${{ env.DOCKER_IMAGE }}
-          ${{ env.DOCKER_IMAGE_LATEST }}
+        tags: ${{ env.DOCKER_IMAGE }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    
-    steps:
-    - uses: actions/checkout@v4
 
     - name: Deploy to Digital Ocean
       uses: appleboy/ssh-action@v1.0.0
@@ -51,22 +40,14 @@ jobs:
         username: ${{ secrets.DO_USERNAME }}
         key: ${{ secrets.DO_SSH_KEY }}
         port: ${{ secrets.DO_PORT }}
-        passphrase: ${{ secrets.DO_PASSPHRASE }}
         script: |
-          # Переходим в директорию проекта
           cd /opt/insurance-system
           
-          # Создаем бэкап текущей версии
-          echo "Creating backup..."
-          docker-compose -f docker-compose.prod.yml exec -T web python manage.py dumpdata > backup_$(date +%Y%m%d_%H%M%S).json
-          
           # Обновляем код
-          echo "Updating code..."
           git pull origin main
           
-          # Обновляем переменные окружения
-          echo "Updating environment variables..."
-          cat > .env.prod << EOF
+          # Создаем .env файл
+          cat > .env << EOF
           SECRET_KEY=${{ secrets.SECRET_KEY }}
           DB_NAME=${{ secrets.DB_NAME }}
           DB_USER=${{ secrets.DB_USER }}
@@ -81,37 +62,13 @@ jobs:
           DOCKER_IMAGE=${{ env.DOCKER_IMAGE }}
           EOF
           
-          # Логинимся в GitHub Container Registry
-          echo "Logging in to GitHub Container Registry..."
+          # Логинимся и загружаем образ
           echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-          
-          # Загружаем новый образ
-          echo "Pulling new image..."
           docker pull ${{ env.DOCKER_IMAGE }}
           
-          # Запускаем новую версию
-          echo "Starting new version..."
-          docker-compose -f docker-compose.prod.yml --env-file .env.prod up -d
+          # Перезапускаем сервисы
+          docker-compose down
+          docker-compose up -d
           
-          # Ждем запуска
-          echo "Waiting for services to start..."
-          sleep 30
-          
-          # Проверяем здоровье приложения
-          echo "Checking application health..."
-          if curl -f http://localhost/health/ > /dev/null 2>&1; then
-            echo "✅ Deployment successful!"
-            
-            # Очищаем старые образы
-            docker image prune -f
-            
-          else
-            echo "❌ Health check failed! Rolling back..."
-            
-            # Откатываемся к предыдущей версии
-            docker-compose -f docker-compose.prod.yml --env-file .env.prod down
-            docker tag ${{ env.DOCKER_IMAGE_LATEST }} ${{ env.DOCKER_IMAGE }}
-            docker-compose -f docker-compose.prod.yml --env-file .env.prod up -d
-            
-            exit 1
-          fi
+          # Очищаем старые образы
+          docker image prune -f

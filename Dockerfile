@@ -44,4 +44,4 @@ EXPOSE 8000
 ENTRYPOINT ["/entrypoint.sh"]
 
 # Команда по умолчанию
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "3", "onlineservice.wsgi:application"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "2", "onlineservice.wsgi:application"]
