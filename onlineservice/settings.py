@@ -96,7 +96,7 @@ if 'sqlite' in db_engine:
 elif 'postgresql' in db_engine:
     DATABASES['default']['OPTIONS'] = {
         'connect_timeout': 10,
-        'options': '-c default_transaction_isolation=read committed'
+        'options': "-c default_transaction_isolation='read committed'"
     }
 
 # Password validation
