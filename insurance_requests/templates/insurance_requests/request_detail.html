@@ -166,19 +166,42 @@
             <div class="card-body">
                 {% if request.attachments.all %}
                     {% for attachment in request.attachments.all %}
-                        <div class="d-flex align-items-center mb-2">
-                            <i class="bi bi-file-earmark-excel text-success me-2"></i>
-                            <div class="flex-grow-1">
-                                <div class="fw-bold">{{ attachment.original_filename }}</div>
-                                <small class="text-muted">{% timezone "Europe/Moscow" %}{{ attachment.uploaded_at|date:"d.m.Y H:i" }}{% endtimezone %} (МСК)</small>
+                        <div class="border rounded p-3 mb-3">
+                            <div class="d-flex align-items-center mb-2">
+                                <i class="bi bi-file-earmark-excel text-success me-2"></i>
+                                <div class="flex-grow-1">
+                                    <div class="fw-bold">{{ attachment.original_filename }}</div>
+                                    <small class="text-muted">
+                                        {% timezone "Europe/Moscow" %}{{ attachment.uploaded_at|date:"d.m.Y H:i" }}{% endtimezone %} (МСК)
+                                        {% if attachment.file_type %} • {{ attachment.file_type|upper }}{% endif %}
+                                    </small>
+                                </div>
+                                <div class="btn-group" role="group">
+                                    <a href="{% url 'insurance_requests:serve_attachment' attachment.id %}" 
+                                       class="btn btn-outline-secondary btn-sm" 
+                                       title="Просмотр файла">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                    <a href="{% url 'insurance_requests:download_attachment' attachment.id %}" 
+                                       class="btn btn-outline-primary btn-sm" 
+                                       title="Скачать файл">
+                                        <i class="bi bi-download"></i>
+                                    </a>
+                                </div>
                             </div>
-                            <a href="{{ attachment.file.url }}" class="btn btn-outline-primary btn-sm" download>
-                                <i class="bi bi-download"></i>
-                            </a>
+                            <div class="mt-2">
+                                <small class="text-muted">
+                                    <i class="bi bi-shield-check text-success"></i>
+                                    Файл передан по защищенному HTTPS соединению
+                                </small>
+                            </div>
                         </div>
                     {% endfor %}
                 {% else %}
-                    <p class="text-muted mb-0">Вложений нет</p>
+                    <p class="text-muted mb-0">
+                        <i class="bi bi-info-circle"></i>
+                        Вложений нет
+                    </p>
                 {% endif %}
             </div>
         </div>

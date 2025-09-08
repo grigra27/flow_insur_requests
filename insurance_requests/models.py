@@ -5,9 +5,10 @@ from datetime import timedelta
 from typing import Dict, Any
 import json
 import pytz
+from core.query_optimization import OptimizedQueryMixin
 
 
-class InsuranceRequest(models.Model):
+class InsuranceRequest(models.Model, OptimizedQueryMixin):
     """Модель страховой заявки"""
     
     STATUS_CHOICES = [

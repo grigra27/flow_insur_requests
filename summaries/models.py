@@ -2,9 +2,10 @@ from django.db import models
 from django.contrib.auth.models import User
 from insurance_requests.models import InsuranceRequest
 from decimal import Decimal
+from core.query_optimization import OptimizedQueryMixin
 
 
-class InsuranceSummary(models.Model):
+class InsuranceSummary(models.Model, OptimizedQueryMixin):
     """Модель свода предложений по заявке"""
     
     STATUS_CHOICES = [

@@ -1,0 +1,379 @@
+{% extends 'base.html' %}
+
+{% block title %}System Monitoring Dashboard{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="h3 mb-4">System Monitoring Dashboard</h1>
+            
+            <!-- Time Period Selector -->
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="timePeriod">Analysis Period:</label>
+                        <select id="timePeriod" class="form-control" onchange="updateDashboard()">
+                            <option value="1">Last 1 hour</option>
+                            <option value="6">Last 6 hours</option>
+                            <option value="24" selected>Last 24 hours</option>
+                            <option value="168">Last 7 days</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-6 text-right">
+                    <button class="btn btn-primary" onclick="refreshDashboard()">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                    <button class="btn btn-warning" onclick="performMaintenance()">
+                        <i class="fas fa-tools"></i> Log Maintenance
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Alerts -->
+            <div id="alerts-container"></div>
+            
+            <!-- Summary Cards -->
+            <div class="row mb-4">
+                <div class="col-md-2">
+                    <div class="card text-white bg-info">
+                        <div class="card-body">
+                            <div class="card-title">Slow Requests</div>
+                            <h4 id="slow-requests-count">-</h4>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="card text-white bg-warning">
+                        <div class="card-body">
+                            <div class="card-title">Security Events</div>
+                            <h4 id="security-events-count">-</h4>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="card text-white bg-success">
+                        <div class="card-body">
+                            <div class="card-title">File Uploads</div>
+                            <h4 id="file-uploads-count">-</h4>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="card text-white bg-primary">
+                        <div class="card-body">
+                            <div class="card-title">Upload Success</div>
+                            <h4 id="upload-success-rate">-</h4>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="card text-white bg-danger">
+                        <div class="card-body">
+                            <div class="card-title">Total Errors</div>
+                            <h4 id="total-errors-count">-</h4>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="card text-white bg-dark">
+                        <div class="card-body">
+                            <div class="card-title">Error Rate/Hour</div>
+                            <h4 id="error-rate">-</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Detailed Sections -->
+            <div class="row">
+                <!-- Performance Section -->
+                <div class="col-md-6 mb-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Performance Metrics</h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="performance-content">
+                                <p class="text-muted">Loading performance data...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Security Section -->
+                <div class="col-md-6 mb-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Security Events</h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="security-content">
+                                <p class="text-muted">Loading security data...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <!-- File Upload Section -->
+                <div class="col-md-6 mb-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>File Upload Statistics</h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="uploads-content">
+                                <p class="text-muted">Loading upload data...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Log Files Section -->
+                <div class="col-md-6 mb-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Log File Statistics</h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="logs-content">
+                                <p class="text-muted">Loading log statistics...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Dashboard JavaScript
+let currentPeriod = 24;
+
+function updateDashboard() {
+    currentPeriod = document.getElementById('timePeriod').value;
+    refreshDashboard();
+}
+
+function refreshDashboard() {
+    loadSummary();
+    loadPerformanceData();
+    loadSecurityData();
+    loadUploadData();
+    loadLogData();
+}
+
+function loadSummary() {
+    fetch(`/monitoring/api/summary/?hours=${currentPeriod}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                console.error('Error loading summary:', data.error);
+                return;
+            }
+            
+            // Update summary cards
+            document.getElementById('slow-requests-count').textContent = data.metrics.slow_requests;
+            document.getElementById('security-events-count').textContent = data.metrics.security_events;
+            document.getElementById('file-uploads-count').textContent = data.metrics.file_uploads;
+            document.getElementById('upload-success-rate').textContent = data.metrics.upload_success_rate.toFixed(1) + '%';
+            document.getElementById('total-errors-count').textContent = data.metrics.total_errors;
+            document.getElementById('error-rate').textContent = data.metrics.error_rate.toFixed(2);
+            
+            // Display alerts
+            displayAlerts(data.alerts);
+        })
+        .catch(error => {
+            console.error('Error loading summary:', error);
+        });
+}
+
+function loadPerformanceData() {
+    fetch(`/monitoring/api/performance/?hours=${currentPeriod}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                document.getElementById('performance-content').innerHTML = 
+                    `<p class="text-danger">Error: ${data.error}</p>`;
+                return;
+            }
+            
+            let html = `<p><strong>Total slow requests:</strong> ${data.total_slow_requests}</p>`;
+            
+            if (data.chart_data.slow_endpoints.length > 0) {
+                html += '<h6>Slowest Endpoints:</h6><ul>';
+                data.chart_data.slow_endpoints.slice(0, 5).forEach(endpoint => {
+                    html += `<li>${endpoint.endpoint}: ${endpoint.avg_time}s avg (${endpoint.count} requests)</li>`;
+                });
+                html += '</ul>';
+            } else {
+                html += '<p class="text-success">No slow endpoints detected</p>';
+            }
+            
+            document.getElementById('performance-content').innerHTML = html;
+        })
+        .catch(error => {
+            document.getElementById('performance-content').innerHTML = 
+                `<p class="text-danger">Error loading performance data</p>`;
+        });
+}
+
+function loadSecurityData() {
+    fetch(`/monitoring/api/security/?hours=${currentPeriod}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                document.getElementById('security-content').innerHTML = 
+                    `<p class="text-danger">Error: ${data.error}</p>`;
+                return;
+            }
+            
+            let html = `<p><strong>Total events:</strong> ${data.total_events}</p>`;
+            
+            if (data.high_risk_ips.length > 0) {
+                html += `<p class="text-danger"><strong>High Risk IPs:</strong> ${data.high_risk_ips.join(', ')}</p>`;
+            }
+            
+            if (data.chart_data.suspicious_ips.length > 0) {
+                html += '<h6>Top Suspicious IPs:</h6><ul>';
+                data.chart_data.suspicious_ips.slice(0, 5).forEach(ip => {
+                    html += `<li>${ip.ip}: ${ip.count} events</li>`;
+                });
+                html += '</ul>';
+            } else {
+                html += '<p class="text-success">No suspicious activity detected</p>';
+            }
+            
+            document.getElementById('security-content').innerHTML = html;
+        })
+        .catch(error => {
+            document.getElementById('security-content').innerHTML = 
+                `<p class="text-danger">Error loading security data</p>`;
+        });
+}
+
+function loadUploadData() {
+    fetch(`/monitoring/api/uploads/?hours=${currentPeriod}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                document.getElementById('uploads-content').innerHTML = 
+                    `<p class="text-danger">Error: ${data.error}</p>`;
+                return;
+            }
+            
+            if (data.message) {
+                document.getElementById('uploads-content').innerHTML = 
+                    `<p class="text-muted">${data.message}</p>`;
+                return;
+            }
+            
+            const stats = data.chart_data;
+            let html = `
+                <p><strong>Total uploads:</strong> ${stats.upload_stats.total}</p>
+                <p><strong>Failed uploads:</strong> ${stats.upload_stats.failed}</p>
+                <p><strong>Success rate:</strong> ${stats.upload_stats.success_rate.toFixed(1)}%</p>
+                <p><strong>Average size:</strong> ${stats.size_stats.average_mb} MB</p>
+                <p><strong>Average duration:</strong> ${stats.performance_stats.avg_duration}s</p>
+                <p><strong>Average speed:</strong> ${stats.performance_stats.avg_speed_mbps} MB/s</p>
+            `;
+            
+            document.getElementById('uploads-content').innerHTML = html;
+        })
+        .catch(error => {
+            document.getElementById('uploads-content').innerHTML = 
+                `<p class="text-danger">Error loading upload data</p>`;
+        });
+}
+
+function loadLogData() {
+    fetch('/monitoring/api/logs/')
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                document.getElementById('logs-content').innerHTML = 
+                    `<p class="text-danger">Error: ${data.error}</p>`;
+                return;
+            }
+            
+            let html = `
+                <p><strong>Total files:</strong> ${data.total_files}</p>
+                <p><strong>Total size:</strong> ${data.total_size_mb} MB</p>
+                <p><strong>Compressed:</strong> ${data.compressed_files}</p>
+                <p><strong>Uncompressed:</strong> ${data.uncompressed_files}</p>
+            `;
+            
+            if (data.largest_file) {
+                html += `<p><strong>Largest file:</strong> ${data.largest_file.name} (${data.largest_file.size_mb} MB)</p>`;
+            }
+            
+            document.getElementById('logs-content').innerHTML = html;
+        })
+        .catch(error => {
+            document.getElementById('logs-content').innerHTML = 
+                `<p class="text-danger">Error loading log data</p>`;
+        });
+}
+
+function displayAlerts(alerts) {
+    const container = document.getElementById('alerts-container');
+    
+    if (alerts.length === 0) {
+        container.innerHTML = '';
+        return;
+    }
+    
+    let html = '';
+    alerts.forEach(alert => {
+        html += `
+            <div class="alert alert-${alert.type} alert-dismissible fade show" role="alert">
+                ${alert.message}
+                <button type="button" class="close" data-dismiss="alert">
+                    <span>&times;</span>
+                </button>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+}
+
+function performMaintenance() {
+    if (!confirm('Are you sure you want to perform log maintenance? This will rotate, compress, and clean up old log files.')) {
+        return;
+    }
+    
+    fetch('/monitoring/api/maintenance/', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(`Log maintenance completed successfully!\nRotated: ${data.stats.rotated_files}\nCompressed: ${data.stats.compressed_files}\nRemoved: ${data.stats.removed_files}`);
+            loadLogData(); // Refresh log statistics
+        } else {
+            alert(`Error performing maintenance: ${data.error}`);
+        }
+    })
+    .catch(error => {
+        alert('Error performing maintenance: ' + error);
+    });
+}
+
+// Initialize dashboard
+document.addEventListener('DOMContentLoaded', function() {
+    refreshDashboard();
+    
+    // Auto-refresh every 5 minutes
+    setInterval(refreshDashboard, 5 * 60 * 1000);
+});
+</script>
+{% endblock %}

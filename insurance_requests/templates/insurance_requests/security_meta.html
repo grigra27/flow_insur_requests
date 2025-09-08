@@ -1,0 +1,40 @@
+{% comment %}
+Security-related meta tags and headers for HTML head section.
+{% endcomment %}
+
+{% if not debug %}
+<!-- Security Meta Tags -->
+<meta http-equiv="X-Content-Type-Options" content="nosniff">
+<meta http-equiv="X-Frame-Options" content="DENY">
+<meta http-equiv="X-XSS-Protection" content="1; mode=block">
+<meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
+
+{% if secure_ssl_redirect %}
+<!-- HTTPS Security -->
+<meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+{% endif %}
+
+<!-- DNS Prefetch Control -->
+<meta http-equiv="x-dns-prefetch-control" content="off">
+
+<!-- Disable automatic translation -->
+<meta name="google" content="notranslate">
+
+<!-- Prevent search engine indexing of sensitive pages -->
+{% if request.path|slice:":7" == "/admin/" or "login" in request.path %}
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
+{% endif %}
+
+{% endif %}
+
+{% if csp_nonce %}
+<!-- CSP Nonce available for inline scripts: {{ csp_nonce }} -->
+{% endif %}
+
+<!-- Preconnect to external domains for performance -->
+<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+
+<!-- Resource hints for better performance -->
+<link rel="dns-prefetch" href="//fonts.googleapis.com">
+<link rel="dns-prefetch" href="//cdn.jsdelivr.net">

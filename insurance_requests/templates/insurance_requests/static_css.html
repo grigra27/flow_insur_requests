@@ -1,0 +1,4 @@
+{% load static %}
+{% if preload %}<link rel="preload" href="{{ url }}" as="style" onload="this.onload=null;this.rel='stylesheet'">
+<noscript><link rel="stylesheet" href="{{ url }}" media="{{ media }}"{% if integrity %} integrity="{{ integrity }}" crossorigin="anonymous"{% endif %}></noscript>
+{% else %}<link rel="stylesheet" href="{{ url }}" media="{{ media }}"{% if integrity %} integrity="{{ integrity }}" crossorigin="anonymous"{% endif %}>{% endif %}

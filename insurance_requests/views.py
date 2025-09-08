@@ -101,106 +101,180 @@ def access_denied_view(request):
 
 @user_required
 def request_list(request):
-    """Список всех заявок"""
-    requests = InsuranceRequest.objects.all().order_by('-created_at')
+    """Список всех заявок с оптимизированными запросами"""
+    requests = InsuranceRequest.objects.select_related('created_by').prefetch_related(
+        'attachments', 'responses'
+    ).order_by('-created_at')
+    
+    # Add filtering capabilities for better performance
+    status_filter = request.GET.get('status')
+    if status_filter:
+        requests = requests.filter(status=status_filter)
+    
+    insurance_type_filter = request.GET.get('insurance_type')
+    if insurance_type_filter:
+        requests = requests.filter(insurance_type=insurance_type_filter)
+    
+    branch_filter = request.GET.get('branch')
+    if branch_filter:
+        requests = requests.filter(branch__icontains=branch_filter)
+    
     return render(request, 'insurance_requests/request_list.html', {
-        'requests': requests
+        'requests': requests,
+        'status_choices': InsuranceRequest.STATUS_CHOICES,
+        'insurance_type_choices': InsuranceRequest.INSURANCE_TYPE_CHOICES,
     })
 
 
 @user_required
 def upload_excel(request):
-    """Загрузка Excel файла и создание заявки"""
+    """Загрузка Excel файла и создание заявки с улучшенной обработкой для HTTPS"""
     if request.method == 'POST':
         form = ExcelUploadForm(request.POST, request.FILES)
         if form.is_valid():
+            excel_file = form.cleaned_data['excel_file']
+            tmp_file_path = None
+            
             try:
-                # Сохраняем загруженный файл временно
-                excel_file = form.cleaned_data['excel_file']
+                # Логируем начало обработки файла
+                logger.info(f"Starting file upload processing for user {request.user.username}, file: {excel_file.name}, size: {excel_file.size} bytes")
                 
-                # Создаем временный файл
-                with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as tmp_file:
-                    for chunk in excel_file.chunks():
+                # Создаем безопасный временный файл с правильными разрешениями
+                file_extension = os.path.splitext(excel_file.name)[1].lower()
+                with tempfile.NamedTemporaryFile(delete=False, suffix=file_extension, prefix='upload_') as tmp_file:
+                    # Записываем файл по частям для больших файлов
+                    total_size = 0
+                    for chunk in excel_file.chunks(chunk_size=8192):  # 8KB chunks
                         tmp_file.write(chunk)
+                        total_size += len(chunk)
+                        
+                        # Проверяем, что размер не превышает ожидаемый
+                        if total_size > excel_file.size * 1.1:  # 10% буфер
+                            raise ValidationError('Размер файла превышает заявленный')
+                    
                     tmp_file_path = tmp_file.name
                 
+                # Устанавливаем безопасные разрешения для временного файла
+                os.chmod(tmp_file_path, 0o600)
+                
                 try:
-                    # Читаем данные из Excel
+                    # Читаем данные из Excel с дополнительной обработкой ошибок
                     reader = ExcelReader(tmp_file_path)
                     excel_data = reader.read_insurance_request()
                     
-                    # Обрабатываем дату ответа
+                    # Валидируем извлеченные данные
+                    if not excel_data.get('client_name') or excel_data.get('client_name').strip() == '':
+                        raise ValidationError('Не удалось извлечь имя клиента из файла')
+                    
+                    # Обрабатываем дату ответа с улучшенной логикой
                     response_deadline = None
                     if excel_data.get('response_deadline'):
                         try:
                             from datetime import datetime
-                            date_str = str(excel_data.get('response_deadline'))
-                            # Пробуем разные форматы дат
-                            for fmt in ['%d.%m.%Y', '%Y-%m-%d', '%d/%m/%Y']:
-                                try:
-                                    response_deadline = datetime.strptime(date_str, fmt)
-                                    break
-                                except ValueError:
-                                    continue
-                        except Exception:
-                            pass
+                            deadline_value = excel_data.get('response_deadline')
+                            
+                            if hasattr(deadline_value, 'strftime'):
+                                response_deadline = deadline_value
+                            else:
+                                date_str = str(deadline_value)
+                                # Пробуем разные форматы дат
+                                for fmt in ['%d.%m.%Y %H:%M', '%d.%m.%Y', '%Y-%m-%d', '%d/%m/%Y']:
+                                    try:
+                                        response_deadline = datetime.strptime(date_str, fmt)
+                                        break
+                                    except ValueError:
+                                        continue
+                        except Exception as e:
+                            logger.warning(f"Could not parse response deadline: {str(e)}")
                     
-                    # Обрабатываем response_deadline из excel_data если он есть
-                    if not response_deadline and excel_data.get('response_deadline'):
+                    # Если дата не извлечена, используем значение по умолчанию
+                    if not response_deadline:
                         response_deadline = excel_data.get('response_deadline')
                     
-                    # Подготавливаем additional_data, преобразуя datetime в строку для JSON
+                    # Подготавливаем additional_data с безопасной сериализацией
                     additional_data = {}
                     for key, value in excel_data.items():
-                        if hasattr(value, 'strftime'):  # datetime объект
-                            additional_data[key] = value.strftime('%Y-%m-%d %H:%M:%S')
-                        else:
-                            additional_data[key] = value
+                        try:
+                            if hasattr(value, 'strftime'):  # datetime объект
+                                additional_data[key] = value.strftime('%Y-%m-%d %H:%M:%S')
+                            elif value is not None:
+                                additional_data[key] = str(value)
+                            else:
+                                additional_data[key] = None
+                        except Exception as e:
+                            logger.warning(f"Could not serialize additional_data key '{key}': {str(e)}")
+                            additional_data[key] = str(value) if value is not None else None
                     
-                    # Валидируем тип страхования
+                    # Валидируем тип страхования с обновленными типами
                     insurance_type = excel_data.get('insurance_type', 'КАСКО')
-                    valid_types = ['КАСКО', 'страхование спецтехники', 'другое']
+                    valid_types = ['КАСКО', 'страхование спецтехники', 'страхование имущества', 'другое']
                     if insurance_type not in valid_types:
                         logger.warning(f"Invalid insurance type '{insurance_type}' from Excel, defaulting to 'КАСКО'")
                         insurance_type = 'КАСКО'
                     
-                    # Создаем заявку
-                    insurance_request = InsuranceRequest.objects.create(
-                        client_name=excel_data.get('client_name', ''),
-                        inn=excel_data.get('inn', ''),
-                        insurance_type=insurance_type,
-                        insurance_period=excel_data.get('insurance_period', 'с 01.01.2024 по 01.01.2025'),
-                        insurance_start_date=excel_data.get('insurance_start_date'),
-                        insurance_end_date=excel_data.get('insurance_end_date'),
-                        vehicle_info=excel_data.get('vehicle_info', ''),
-                        dfa_number=excel_data.get('dfa_number', ''),
-                        branch=excel_data.get('branch', ''),
-                        has_franchise=bool(excel_data.get('has_franchise')),
-                        has_installment=bool(excel_data.get('has_installment')),
-                        has_autostart=bool(excel_data.get('has_autostart')),
-                        response_deadline=response_deadline,
-                        additional_data=additional_data,
-                        created_by=request.user
-                    )
+                    # Создаем заявку с транзакцией для атомарности
+                    from django.db import transaction
+                    with transaction.atomic():
+                        insurance_request = InsuranceRequest.objects.create(
+                            client_name=excel_data.get('client_name', '').strip(),
+                            inn=excel_data.get('inn', '').strip(),
+                            insurance_type=insurance_type,
+                            insurance_period=excel_data.get('insurance_period', 'с 01.01.2024 по 01.01.2025'),
+                            insurance_start_date=excel_data.get('insurance_start_date'),
+                            insurance_end_date=excel_data.get('insurance_end_date'),
+                            vehicle_info=excel_data.get('vehicle_info', '').strip(),
+                            dfa_number=excel_data.get('dfa_number', '').strip(),
+                            branch=excel_data.get('branch', '').strip(),
+                            has_franchise=bool(excel_data.get('has_franchise')),
+                            has_installment=bool(excel_data.get('has_installment')),
+                            has_autostart=bool(excel_data.get('has_autostart')),
+                            response_deadline=response_deadline,
+                            additional_data=additional_data,
+                            created_by=request.user
+                        )
+                        
+                        # Сохраняем файл как вложение с безопасным именем
+                        safe_filename = _sanitize_filename(excel_file.name)
+                        attachment = RequestAttachment.objects.create(
+                            request=insurance_request,
+                            file=excel_file,
+                            original_filename=safe_filename,
+                            file_type=os.path.splitext(excel_file.name)[1].lower()
+                        )
                     
-                    # Сохраняем файл как вложение
-                    attachment = RequestAttachment.objects.create(
-                        request=insurance_request,
-                        file=excel_file,
-                        original_filename=excel_file.name,
-                        file_type=os.path.splitext(excel_file.name)[1]
-                    )
+                    # Логируем успешное создание заявки
+                    logger.info(f"Successfully created insurance request #{insurance_request.id} from file {excel_file.name} by user {request.user.username}")
                     
-                    messages.success(request, f'Заявка #{insurance_request.id} успешно создана')
+                    messages.success(request, f'Заявка #{insurance_request.id} успешно создана из файла "{safe_filename}"')
                     return redirect('insurance_requests:request_detail', pk=insurance_request.pk)
                     
-                finally:
-                    # Удаляем временный файл
-                    os.unlink(tmp_file_path)
+                except ValidationError as e:
+                    logger.warning(f"Validation error processing Excel file {excel_file.name}: {str(e)}")
+                    messages.error(request, f'Ошибка валидации файла: {str(e)}')
+                except Exception as e:
+                    logger.error(f"Error reading Excel file {excel_file.name}: {str(e)}")
+                    messages.error(request, f'Ошибка при чтении файла: Проверьте формат и содержимое файла')
                     
+            except ValidationError as e:
+                logger.warning(f"File upload validation error for {excel_file.name}: {str(e)}")
+                messages.error(request, str(e))
             except Exception as e:
-                logger.error(f"Error processing Excel file: {str(e)}")
-                messages.error(request, f'Ошибка при обработке файла: {str(e)}')
+                logger.error(f"Unexpected error processing file upload {excel_file.name}: {str(e)}")
+                messages.error(request, 'Произошла неожиданная ошибка при обработке файла. Попробуйте еще раз или обратитесь к администратору.')
+            finally:
+                # Безопасно удаляем временный файл
+                if tmp_file_path and os.path.exists(tmp_file_path):
+                    try:
+                        os.unlink(tmp_file_path)
+                        logger.debug(f"Cleaned up temporary file: {tmp_file_path}")
+                    except Exception as e:
+                        logger.warning(f"Could not clean up temporary file {tmp_file_path}: {str(e)}")
+        else:
+            # Логируем ошибки формы
+            logger.warning(f"Form validation errors in file upload: {form.errors}")
+            for field, errors in form.errors.items():
+                for error in errors:
+                    messages.error(request, f'{field}: {error}')
     else:
         form = ExcelUploadForm()
     
@@ -208,11 +282,29 @@ def upload_excel(request):
         'form': form
     })
 
+def _sanitize_filename(filename):
+    """Очищает имя файла от потенциально опасных символов"""
+    import re
+    # Удаляем путь, если он есть
+    filename = os.path.basename(filename)
+    # Заменяем опасные символы на безопасные
+    filename = re.sub(r'[<>:"/\\|?*]', '_', filename)
+    # Ограничиваем длину
+    if len(filename) > 255:
+        name, ext = os.path.splitext(filename)
+        filename = name[:255-len(ext)] + ext
+    return filename
+
 
 @user_required
 def request_detail(request, pk):
-    """Детальная информация о заявке"""
-    insurance_request = get_object_or_404(InsuranceRequest, pk=pk)
+    """Детальная информация о заявке с оптимизированными запросами"""
+    insurance_request = get_object_or_404(
+        InsuranceRequest.objects.select_related('created_by').prefetch_related(
+            'attachments', 'responses__attachments'
+        ), 
+        pk=pk
+    )
     
     return render(request, 'insurance_requests/request_detail.html', {
         'request': insurance_request

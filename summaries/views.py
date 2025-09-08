@@ -18,17 +18,31 @@ logger = logging.getLogger(__name__)
 
 @user_required
 def summary_list(request):
-    """Список всех сводов"""
-    summaries = InsuranceSummary.objects.select_related('request').order_by('-created_at')
+    """Список всех сводов с оптимизированными запросами"""
+    summaries = InsuranceSummary.objects.select_related(
+        'request', 'request__created_by'
+    ).prefetch_related('offers').order_by('-created_at')
+    
+    # Add filtering capabilities for better performance
+    status_filter = request.GET.get('status')
+    if status_filter:
+        summaries = summaries.filter(status=status_filter)
+    
     return render(request, 'summaries/summary_list.html', {
-        'summaries': summaries
+        'summaries': summaries,
+        'status_choices': InsuranceSummary.STATUS_CHOICES,
     })
 
 
 @user_required
 def summary_detail(request, pk):
-    """Детальная информация о своде"""
-    summary = get_object_or_404(InsuranceSummary, pk=pk)
+    """Детальная информация о своде с оптимизированными запросами"""
+    summary = get_object_or_404(
+        InsuranceSummary.objects.select_related(
+            'request', 'request__created_by'
+        ).prefetch_related('offers'), 
+        pk=pk
+    )
     offers = summary.offers.all().order_by('insurance_premium')
     
     return render(request, 'summaries/summary_detail.html', {
@@ -197,28 +211,54 @@ def delete_offer(request, offer_id):
 
 @admin_required
 def summary_statistics(request):
-    """Статистика по сводам"""
-    from django.db.models import Count, Avg, Min, Max
+    """Статистика по сводам с оптимизированными запросами"""
+    from django.db.models import Count, Avg, Min, Max, Q
+    from django.db.models.functions import TruncMonth
+    
+    # Use single query with conditional aggregation for better performance
+    stats_query = InsuranceSummary.objects.aggregate(
+        total_summaries=Count('id'),
+        collecting=Count('id', filter=Q(status='collecting')),
+        ready=Count('id', filter=Q(status='ready')),
+        sent=Count('id', filter=Q(status='sent')),
+        completed=Count('id', filter=Q(status='completed')),
+        avg_offers_per_summary=Avg('total_offers'),
+        min_premium=Min('best_premium'),
+        max_premium=Max('best_premium'),
+        avg_premium=Avg('best_premium'),
+    )
     
     stats = {
-        'total_summaries': InsuranceSummary.objects.count(),
-        'collecting': InsuranceSummary.objects.filter(status='collecting').count(),
-        'ready': InsuranceSummary.objects.filter(status='ready').count(),
-        'sent': InsuranceSummary.objects.filter(status='sent').count(),
-        'completed': InsuranceSummary.objects.filter(status='completed').count(),
-        'avg_offers_per_summary': InsuranceSummary.objects.aggregate(
-            avg=Avg('total_offers')
-        )['avg'] or 0,
+        'total_summaries': stats_query['total_summaries'] or 0,
+        'collecting': stats_query['collecting'] or 0,
+        'ready': stats_query['ready'] or 0,
+        'sent': stats_query['sent'] or 0,
+        'completed': stats_query['completed'] or 0,
+        'avg_offers_per_summary': stats_query['avg_offers_per_summary'] or 0,
+        'min_premium': stats_query['min_premium'] or 0,
+        'max_premium': stats_query['max_premium'] or 0,
+        'avg_premium': stats_query['avg_premium'] or 0,
         'total_offers': InsuranceOffer.objects.count(),
     }
     
-    # Топ компаний по количеству предложений
-    top_companies = InsuranceOffer.objects.values('company_name').annotate(
+    # Топ компаний по количеству предложений с оптимизированным запросом
+    top_companies = InsuranceOffer.objects.filter(is_valid=True).values('company_name').annotate(
         count=Count('id'),
-        avg_premium=Avg('insurance_premium')
+        avg_premium=Avg('insurance_premium'),
+        min_premium=Min('insurance_premium'),
+        max_premium=Max('insurance_premium')
     ).order_by('-count')[:10]
+    
+    # Monthly statistics for trends
+    monthly_stats = InsuranceSummary.objects.annotate(
+        month=TruncMonth('created_at')
+    ).values('month').annotate(
+        count=Count('id'),
+        avg_offers=Avg('total_offers')
+    ).order_by('-month')[:12]
     
     return render(request, 'summaries/statistics.html', {
         'stats': stats,
-        'top_companies': top_companies
+        'top_companies': top_companies,
+        'monthly_stats': monthly_stats,
     })

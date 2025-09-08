@@ -133,19 +133,20 @@ class CustomAuthenticationForm(AuthenticationForm):
 
 
 class ExcelUploadForm(forms.Form):
-    """Форма для загрузки Excel файла с заявкой"""
+    """Форма для загрузки Excel файла с заявкой с улучшенной валидацией"""
     
     excel_file = forms.FileField(
         label='Excel файл с заявкой',
-        help_text='Загрузите файл в формате .xls или .xlsx',
+        help_text='Загрузите файл в формате .xls или .xlsx (максимум 50MB)',
         widget=forms.FileInput(attrs={
             'class': 'form-control',
-            'accept': '.xls,.xlsx'
+            'accept': '.xls,.xlsx',
+            'data-max-size': '52428800'  # 50MB in bytes
         })
     )
     
     def clean_excel_file(self):
-        """Валидация загружаемого файла"""
+        """Расширенная валидация загружаемого файла для HTTPS контекста"""
         file = self.cleaned_data.get('excel_file')
         
         if not file:
@@ -156,9 +157,50 @@ class ExcelUploadForm(forms.Form):
         if ext not in ['.xls', '.xlsx']:
             raise ValidationError('Поддерживаются только файлы .xls и .xlsx')
         
-        # Проверяем размер файла (максимум 10MB)
-        if file.size > 10 * 1024 * 1024:
-            raise ValidationError('Размер файла не должен превышать 10MB')
+        # Проверяем размер файла (максимум 50MB для HTTPS)
+        max_size = 50 * 1024 * 1024  # 50MB
+        if file.size > max_size:
+            raise ValidationError(f'Размер файла не должен превышать 50MB. Текущий размер: {file.size / (1024*1024):.1f}MB')
+        
+        # Проверяем минимальный размер файла
+        min_size = 1024  # 1KB
+        if file.size < min_size:
+            raise ValidationError('Файл слишком мал. Возможно, файл поврежден')
+        
+        # Проверяем имя файла на безопасность
+        import re
+        safe_filename_pattern = re.compile(r'^[a-zA-Z0-9._\-\s\u0400-\u04FF]+$')
+        if not safe_filename_pattern.match(file.name):
+            raise ValidationError('Имя файла содержит недопустимые символы')
+        
+        # Проверяем длину имени файла
+        if len(file.name) > 255:
+            raise ValidationError('Имя файла слишком длинное (максимум 255 символов)')
+        
+        # Проверяем MIME тип для дополнительной безопасности
+        import magic
+        try:
+            file_content = file.read(2048)  # Читаем первые 2KB для определения типа
+            file.seek(0)  # Возвращаем указатель в начало
+            
+            mime_type = magic.from_buffer(file_content, mime=True)
+            allowed_mime_types = [
+                'application/vnd.ms-excel',
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'application/octet-stream'  # Иногда Excel файлы определяются как octet-stream
+            ]
+            
+            if mime_type not in allowed_mime_types:
+                raise ValidationError(f'Недопустимый тип файла: {mime_type}. Загрузите файл Excel (.xls или .xlsx)')
+                
+        except ImportError:
+            # Если python-magic не установлен, пропускаем проверку MIME типа
+            pass
+        except Exception as e:
+            # Если произошла ошибка при проверке MIME типа, логируем её но не блокируем загрузку
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Could not verify MIME type for file {file.name}: {str(e)}")
         
         return file
 

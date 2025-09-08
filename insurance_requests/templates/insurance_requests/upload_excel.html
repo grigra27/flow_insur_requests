@@ -10,7 +10,7 @@
                 <h4 class="mb-0"><i class="bi bi-upload"></i> Загрузка Excel файла с заявкой</h4>
             </div>
             <div class="card-body">
-                <form method="post" enctype="multipart/form-data">
+                <form method="post" enctype="multipart/form-data" id="uploadForm">
                     {% csrf_token %}
                     
                     <div class="mb-3">
@@ -28,6 +28,25 @@
                                 {% endfor %}
                             </div>
                         {% endif %}
+                        
+                        <!-- File info display -->
+                        <div id="fileInfo" class="mt-2" style="display: none;">
+                            <small class="text-muted">
+                                <i class="bi bi-file-earmark"></i>
+                                <span id="fileName"></span> 
+                                (<span id="fileSize"></span>)
+                            </small>
+                        </div>
+                        
+                        <!-- Upload progress -->
+                        <div id="uploadProgress" class="mt-2" style="display: none;">
+                            <div class="progress">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                     role="progressbar" style="width: 0%">
+                                    <span id="progressText">0%</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     
                     <div class="alert alert-info">
@@ -35,16 +54,24 @@
                         <strong>Требования к файлу:</strong>
                         <ul class="mb-0 mt-2">
                             <li>Формат: .xls или .xlsx</li>
-                            <li>Максимальный размер: 10 МБ</li>
+                            <li>Максимальный размер: 50 МБ</li>
                             <li>Данные должны быть в стандартном формате заявки</li>
+                            <li>Файл должен содержать корректные данные клиента</li>
                         </ul>
+                    </div>
+                    
+                    <!-- Security notice for HTTPS -->
+                    <div class="alert alert-success">
+                        <i class="bi bi-shield-check"></i>
+                        <strong>Безопасность:</strong>
+                        Все файлы передаются по защищенному HTTPS соединению и проходят проверку безопасности.
                     </div>
                     
                     <div class="d-grid gap-2 d-md-flex justify-content-md-end">
                         <a href="{% url 'insurance_requests:request_list' %}" class="btn btn-secondary">
                             <i class="bi bi-arrow-left"></i> Назад
                         </a>
-                        <button type="submit" class="btn btn-primary">
+                        <button type="submit" class="btn btn-primary" id="submitBtn">
                             <i class="bi bi-upload"></i> Загрузить и обработать
                         </button>
                     </div>
@@ -66,7 +93,7 @@
                     <tbody>
                         <tr><td>D7</td><td>Имя клиента</td><td>Название организации или ФИО</td></tr>
                         <tr><td>D9</td><td>ИНН</td><td>ИНН клиента (10 или 12 цифр)</td></tr>
-                        <tr><td>D21/D22</td><td>Тип страхования</td><td>D21 - КАСКО, D22 - спецтехника, обе пустые - другое</td></tr>
+                        <tr><td>D21/D22/D23</td><td>Тип страхования</td><td>D21 - КАСКО, D22 - спецтехника, D23 - имущество</td></tr>
                         <tr><td>M15</td><td>Дата начала страхования</td><td>Дата начала страхования</td></tr>
                         <tr><td>N15</td><td>Дата окончания страхования</td><td>Дата окончания страхования</td></tr>
                         <tr><td>D29</td><td>Франшиза</td><td>Наличие значения = есть франшиза</td></tr>
@@ -81,4 +108,163 @@
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const fileInput = document.getElementById('{{ form.excel_file.id_for_label }}');
+    const fileInfo = document.getElementById('fileInfo');
+    const fileName = document.getElementById('fileName');
+    const fileSize = document.getElementById('fileSize');
+    const uploadForm = document.getElementById('uploadForm');
+    const submitBtn = document.getElementById('submitBtn');
+    const uploadProgress = document.getElementById('uploadProgress');
+    const progressBar = uploadProgress.querySelector('.progress-bar');
+    const progressText = document.getElementById('progressText');
+    
+    // File selection handler
+    fileInput.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            // Display file info
+            fileName.textContent = file.name;
+            fileSize.textContent = formatFileSize(file.size);
+            fileInfo.style.display = 'block';
+            
+            // Validate file
+            validateFile(file);
+        } else {
+            fileInfo.style.display = 'none';
+        }
+    });
+    
+    // Form submission handler
+    uploadForm.addEventListener('submit', function(e) {
+        const file = fileInput.files[0];
+        if (!file) {
+            e.preventDefault();
+            alert('Пожалуйста, выберите файл для загрузки');
+            return;
+        }
+        
+        // Show progress and disable submit button
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Обработка...';
+        uploadProgress.style.display = 'block';
+        
+        // Simulate progress (since we can't track actual upload progress easily)
+        simulateProgress();
+    });
+    
+    function validateFile(file) {
+        const maxSize = 50 * 1024 * 1024; // 50MB
+        const allowedTypes = ['.xls', '.xlsx'];
+        const fileExt = '.' + file.name.split('.').pop().toLowerCase();
+        
+        // Clear previous validation messages
+        const existingAlert = document.querySelector('.file-validation-alert');
+        if (existingAlert) {
+            existingAlert.remove();
+        }
+        
+        let isValid = true;
+        let errorMessage = '';
+        
+        // Check file size
+        if (file.size > maxSize) {
+            isValid = false;
+            errorMessage = `Файл слишком большой (${formatFileSize(file.size)}). Максимальный размер: 50 МБ`;
+        }
+        
+        // Check file type
+        if (!allowedTypes.includes(fileExt)) {
+            isValid = false;
+            errorMessage = `Неподдерживаемый тип файла (${fileExt}). Разрешены только .xls и .xlsx файлы`;
+        }
+        
+        // Check minimum size
+        if (file.size < 1024) {
+            isValid = false;
+            errorMessage = 'Файл слишком мал. Возможно, файл поврежден';
+        }
+        
+        if (!isValid) {
+            // Show error
+            const alert = document.createElement('div');
+            alert.className = 'alert alert-danger file-validation-alert mt-2';
+            alert.innerHTML = `<i class="bi bi-exclamation-triangle"></i> ${errorMessage}`;
+            fileInfo.appendChild(alert);
+            
+            submitBtn.disabled = true;
+        } else {
+            submitBtn.disabled = false;
+        }
+    }
+    
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+    
+    function simulateProgress() {
+        let progress = 0;
+        const interval = setInterval(function() {
+            progress += Math.random() * 15;
+            if (progress > 90) {
+                progress = 90;
+            }
+            
+            progressBar.style.width = progress + '%';
+            progressText.textContent = Math.round(progress) + '%';
+            
+            if (progress >= 90) {
+                clearInterval(interval);
+                progressText.textContent = 'Обработка файла...';
+            }
+        }, 200);
+    }
+    
+    // Drag and drop functionality
+    const dropZone = fileInput.parentElement;
+    
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, preventDefaults, false);
+    });
+    
+    function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+    
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dropZone.addEventListener(eventName, highlight, false);
+    });
+    
+    ['dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, unhighlight, false);
+    });
+    
+    function highlight(e) {
+        dropZone.classList.add('border-primary', 'bg-light');
+    }
+    
+    function unhighlight(e) {
+        dropZone.classList.remove('border-primary', 'bg-light');
+    }
+    
+    dropZone.addEventListener('drop', handleDrop, false);
+    
+    function handleDrop(e) {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        
+        if (files.length > 0) {
+            fileInput.files = files;
+            fileInput.dispatchEvent(new Event('change'));
+        }
+    }
+});
+</script>
 {% endblock %}
