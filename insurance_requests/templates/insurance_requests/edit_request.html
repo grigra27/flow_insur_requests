@@ -75,6 +75,27 @@
 
                         <div class="col-md-6">
                             <div class="mb-3">
+                                <label for="{{ form.insurance_period.id_for_label }}" class="form-label">
+                                    {{ form.insurance_period.label }}
+                                </label>
+                                {{ form.insurance_period }}
+                                {% if form.insurance_period.help_text %}
+                                <div class="form-text">{{ form.insurance_period.help_text }}</div>
+                                {% endif %}
+                                {% if form.insurance_period.errors %}
+                                <div class="text-danger">
+                                    {% for error in form.insurance_period.errors %}
+                                    <small>{{ error }}</small>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
                                 <label for="{{ form.insurance_start_date.id_for_label }}" class="form-label">
                                     {{ form.insurance_start_date.label }}
                                 </label>
@@ -92,9 +113,7 @@
                                 {% endif %}
                             </div>
                         </div>
-                    </div>
 
-                    <div class="row">
                         <div class="col-md-6">
                             <div class="mb-3">
                                 <label for="{{ form.insurance_end_date.id_for_label }}" class="form-label">
@@ -112,10 +131,6 @@
                                 </div>
                                 {% endif %}
                             </div>
-                        </div>
-
-                        <div class="col-md-6">
-                            <!-- Empty column for layout balance -->
                         </div>
                     </div>
 

@@ -19,7 +19,7 @@ class InsuranceRequestFormTests(TestCase):
             'client_name': 'Test Client',
             'inn': '1234567890',
             'insurance_type': 'КАСКО',
-            'insurance_period': '12',
+            'insurance_period': 'с 01.01.2024 по 31.12.2024',
             'vehicle_info': 'Test vehicle info',
             'dfa_number': 'DFA123456',
             'branch': 'Казань',  # Valid branch choice
@@ -76,6 +76,200 @@ class InsuranceRequestFormTests(TestCase):
         form = InsuranceRequestForm(data=data)
         self.assertTrue(form.is_valid())
         self.assertEqual(len(form.cleaned_data['dfa_number']), 100)
+    
+    def test_insurance_period_field_included_in_form(self):
+        """Test that insurance_period field is included in form fields"""
+        form = InsuranceRequestForm()
+        self.assertIn('insurance_period', form.fields)
+        
+        # Check that the field has correct widget attributes
+        widget = form.fields['insurance_period'].widget
+        self.assertEqual(widget.attrs.get('class'), 'form-control')
+        self.assertTrue(widget.attrs.get('readonly'))
+    
+    def test_form_initialization_with_existing_insurance_period(self):
+        """Test form initialization preserves existing insurance_period value"""
+        # Create an instance with insurance_period
+        instance = InsuranceRequest(
+            client_name='Test Client',
+            inn='1234567890',
+            insurance_type='КАСКО',
+            insurance_period='с 15.03.2024 по 14.03.2025',
+            branch='Москва'
+        )
+        
+        form = InsuranceRequestForm(instance=instance)
+        self.assertEqual(form.initial['insurance_period'], 'с 15.03.2024 по 14.03.2025')
+    
+    def test_form_initialization_generates_period_from_dates(self):
+        """Test form initialization generates insurance_period from dates when period is empty"""
+        from datetime import date
+        
+        instance = InsuranceRequest(
+            client_name='Test Client',
+            inn='1234567890',
+            insurance_type='КАСКО',
+            insurance_period='',  # Empty period
+            insurance_start_date=date(2024, 6, 1),
+            insurance_end_date=date(2024, 12, 31),
+            branch='Москва'
+        )
+        
+        form = InsuranceRequestForm(instance=instance)
+        self.assertEqual(form.initial['insurance_period'], 'с 01.06.2024 по 31.12.2024')
+    
+    def test_form_initialization_handles_partial_dates(self):
+        """Test form initialization handles cases with only start or end date"""
+        from datetime import date
+        
+        # Only start date
+        instance_start_only = InsuranceRequest(
+            client_name='Test Client',
+            inn='1234567890',
+            insurance_type='КАСКО',
+            insurance_period='',
+            insurance_start_date=date(2024, 6, 1),
+            insurance_end_date=None,
+            branch='Москва'
+        )
+        
+        form = InsuranceRequestForm(instance=instance_start_only)
+        self.assertEqual(form.initial['insurance_period'], 'с 01.06.2024 по не указано')
+        
+        # Only end date
+        instance_end_only = InsuranceRequest(
+            client_name='Test Client',
+            inn='1234567890',
+            insurance_type='КАСКО',
+            insurance_period='',
+            insurance_start_date=None,
+            insurance_end_date=date(2024, 12, 31),
+            branch='Москва'
+        )
+        
+        form = InsuranceRequestForm(instance=instance_end_only)
+        self.assertEqual(form.initial['insurance_period'], 'с не указано по 31.12.2024')
+    
+    def test_form_initialization_fallback_for_no_period_or_dates(self):
+        """Test form initialization fallback when no period or dates available"""
+        instance = InsuranceRequest(
+            client_name='Test Client',
+            inn='1234567890',
+            insurance_type='КАСКО',
+            insurance_period='',
+            insurance_start_date=None,
+            insurance_end_date=None,
+            branch='Москва'
+        )
+        
+        form = InsuranceRequestForm(instance=instance)
+        self.assertEqual(form.initial['insurance_period'], 'Период не указан')
+    
+    def test_form_save_preserves_insurance_period(self):
+        """Test that form save preserves the insurance_period field value"""
+        data = self.valid_data.copy()
+        data['insurance_period'] = 'с 10.05.2024 по 09.05.2025'
+        
+        form = InsuranceRequestForm(data=data)
+        self.assertTrue(form.is_valid())
+        
+        instance = form.save()
+        self.assertEqual(instance.insurance_period, 'с 10.05.2024 по 09.05.2025')
+    
+    def test_form_save_generates_period_when_empty(self):
+        """Test that form save generates period from dates when insurance_period is empty"""
+        from datetime import date
+        
+        data = self.valid_data.copy()
+        data['insurance_period'] = ''  # Empty period
+        data['insurance_start_date'] = date(2024, 8, 15)
+        data['insurance_end_date'] = date(2025, 8, 14)
+        
+        form = InsuranceRequestForm(data=data)
+        self.assertTrue(form.is_valid())
+        
+        instance = form.save()
+        self.assertEqual(instance.insurance_period, 'с 15.08.2024 по 14.08.2025')
+    
+    def test_form_validation_error_preserves_insurance_period(self):
+        """Test that insurance_period value is preserved when form validation fails"""
+        data = self.valid_data.copy()
+        data['insurance_period'] = 'с 01.01.2024 по 31.12.2024'
+        data['inn'] = 'invalid_inn'  # This will cause validation error
+        
+        form = InsuranceRequestForm(data=data)
+        self.assertFalse(form.is_valid())
+        self.assertIn('inn', form.errors)
+        
+        # Insurance period should still be in cleaned_data
+        self.assertEqual(form.data['insurance_period'], 'с 01.01.2024 по 31.12.2024')
+    
+    def test_insurance_period_widget_readonly_by_default(self):
+        """Test that insurance_period widget is readonly by default"""
+        form = InsuranceRequestForm()
+        widget = form.fields['insurance_period'].widget
+        
+        # Check widget attributes
+        self.assertEqual(widget.attrs.get('class'), 'form-control')
+        self.assertTrue(widget.attrs.get('readonly'))
+        self.assertEqual(widget.attrs.get('title'), 'Период страхования как он был распознан из файла')
+        self.assertEqual(widget.attrs.get('data-bs-toggle'), 'tooltip')
+        self.assertEqual(widget.attrs.get('data-bs-placement'), 'top')
+        self.assertIn('background-color: #f8f9fa', widget.attrs.get('style', ''))
+    
+    def test_insurance_period_widget_editable_configuration(self):
+        """Test insurance_period widget configuration for editable mode"""
+        form = InsuranceRequestForm(editable_insurance_period=True)
+        widget = form.fields['insurance_period'].widget
+        
+        # Check widget attributes for editable mode
+        self.assertEqual(widget.attrs.get('class'), 'form-control')
+        self.assertNotIn('readonly', widget.attrs)
+        self.assertEqual(widget.attrs.get('placeholder'), 'например: с 01.01.2024 по 31.12.2024')
+        self.assertEqual(widget.attrs.get('maxlength'), '100')
+        self.assertEqual(widget.attrs.get('autocomplete'), 'off')
+        self.assertEqual(form.fields['insurance_period'].help_text, 'Период страхования (можно редактировать)')
+    
+    def test_set_insurance_period_editable_method(self):
+        """Test the set_insurance_period_editable method"""
+        form = InsuranceRequestForm()
+        
+        # Initially readonly
+        self.assertTrue(form.fields['insurance_period'].widget.attrs.get('readonly'))
+        
+        # Make editable
+        form.set_insurance_period_editable(True)
+        widget = form.fields['insurance_period'].widget
+        self.assertNotIn('readonly', widget.attrs)
+        self.assertEqual(widget.attrs.get('maxlength'), '100')
+        
+        # Make readonly again
+        form.set_insurance_period_editable(False)
+        widget = form.fields['insurance_period'].widget
+        self.assertTrue(widget.attrs.get('readonly'))
+        self.assertIn('background-color: #f8f9fa', widget.attrs.get('style', ''))
+    
+    def test_insurance_period_validation_when_editable(self):
+        """Test insurance_period field validation when editable"""
+        # Test with valid period
+        data = self.valid_data.copy()
+        data['insurance_period'] = 'с 01.01.2024 по 31.12.2024'
+        
+        form = InsuranceRequestForm(data=data, editable_insurance_period=True)
+        self.assertTrue(form.is_valid())
+        self.assertEqual(form.cleaned_data['insurance_period'], 'с 01.01.2024 по 31.12.2024')
+        
+        # Test with too long period
+        data['insurance_period'] = 'A' * 101  # 101 characters
+        form = InsuranceRequestForm(data=data, editable_insurance_period=True)
+        self.assertFalse(form.is_valid())
+        self.assertIn('insurance_period', form.errors)
+        
+        # Test with too short period
+        data['insurance_period'] = 'ABC'  # Less than 5 characters
+        form = InsuranceRequestForm(data=data, editable_insurance_period=True)
+        self.assertFalse(form.is_valid())
+        self.assertIn('insurance_period', form.errors)
     
     def test_branch_invalid_choice_validation(self):
         """Test branch field validation with invalid choice"""
@@ -278,6 +472,198 @@ class TemplateRenderingTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'A' * 200)  # Full branch name
+
+
+class MonthYearFilteringTests(TestCase):
+    """Tests for month and year filtering functionality"""
+    
+    def setUp(self):
+        """Set up test data"""
+        from django.contrib.auth.models import Group
+        from datetime import datetime, timedelta
+        
+        self.user = User.objects.create_user(
+            username='testuser',
+            password='testpass123'
+        )
+        
+        # Add user to 'Пользователи' group for access
+        users_group, created = Group.objects.get_or_create(name='Пользователи')
+        self.user.groups.add(users_group)
+        
+        # Create requests with different dates and branches
+        self.request_jan_2024 = InsuranceRequest.objects.create(
+            client_name='Client January 2024',
+            inn='1111111111',
+            insurance_type='КАСКО',
+            insurance_period='12 месяцев',
+            branch='Москва',
+            dfa_number='DFA-JAN-2024',
+            created_by=self.user
+        )
+        # Manually set created_at to January 2024
+        self.request_jan_2024.created_at = datetime(2024, 1, 15)
+        self.request_jan_2024.save()
+        
+        self.request_feb_2024 = InsuranceRequest.objects.create(
+            client_name='Client February 2024',
+            inn='2222222222',
+            insurance_type='страхование спецтехники',
+            insurance_period='6 месяцев',
+            branch='Казань',
+            dfa_number='DFA-FEB-2024',
+            created_by=self.user
+        )
+        # Manually set created_at to February 2024
+        self.request_feb_2024.created_at = datetime(2024, 2, 20)
+        self.request_feb_2024.save()
+        
+        self.request_jan_2025 = InsuranceRequest.objects.create(
+            client_name='Client January 2025',
+            inn='3333333333',
+            insurance_type='другое',
+            insurance_period='3 месяца',
+            branch='Москва',
+            dfa_number='DFA-JAN-2025',
+            created_by=self.user
+        )
+        # Manually set created_at to January 2025
+        self.request_jan_2025.created_at = datetime(2025, 1, 10)
+        self.request_jan_2025.save()
+        
+        self.client = Client()
+        self.client.login(username='testuser', password='testpass123')
+    
+    def test_month_year_filter_form_displays(self):
+        """Test that month and year filter form is displayed in template"""
+        response = self.client.get(reverse('insurance_requests:request_list'))
+        
+        self.assertEqual(response.status_code, 200)
+        # Check that form elements are present
+        self.assertContains(response, 'name="month"')
+        self.assertContains(response, 'name="year"')
+        self.assertContains(response, 'Все месяцы')
+        self.assertContains(response, 'Все годы')
+        self.assertContains(response, 'Применить')
+        self.assertContains(response, 'Сбросить')
+    
+    def test_filter_by_month_only(self):
+        """Test filtering by month only"""
+        response = self.client.get(reverse('insurance_requests:request_list'), {'month': '1'})
+        
+        self.assertEqual(response.status_code, 200)
+        # Should show both January requests (2024 and 2025)
+        self.assertContains(response, 'Client January 2024')
+        self.assertContains(response, 'Client January 2025')
+        # Should not show February request
+        self.assertNotContains(response, 'Client February 2024')
+    
+    def test_filter_by_year_only(self):
+        """Test filtering by year only"""
+        response = self.client.get(reverse('insurance_requests:request_list'), {'year': '2024'})
+        
+        self.assertEqual(response.status_code, 200)
+        # Should show both 2024 requests
+        self.assertContains(response, 'Client January 2024')
+        self.assertContains(response, 'Client February 2024')
+        # Should not show 2025 request
+        self.assertNotContains(response, 'Client January 2025')
+    
+    def test_filter_by_month_and_year(self):
+        """Test filtering by both month and year"""
+        response = self.client.get(reverse('insurance_requests:request_list'), {'month': '1', 'year': '2024'})
+        
+        self.assertEqual(response.status_code, 200)
+        # Should show only January 2024 request
+        self.assertContains(response, 'Client January 2024')
+        # Should not show other requests
+        self.assertNotContains(response, 'Client February 2024')
+        self.assertNotContains(response, 'Client January 2025')
+    
+    def test_filter_preserves_branch_parameter(self):
+        """Test that date filters preserve branch parameter"""
+        response = self.client.get(reverse('insurance_requests:request_list'), {
+            'branch': 'Москва',
+            'month': '1',
+            'year': '2024'
+        })
+        
+        self.assertEqual(response.status_code, 200)
+        # Should show only January 2024 Moscow request
+        self.assertContains(response, 'Client January 2024')
+        # Should not show other requests
+        self.assertNotContains(response, 'Client February 2024')  # Different branch
+        self.assertNotContains(response, 'Client January 2025')  # Different year
+    
+    def test_branch_filter_preserves_date_parameters(self):
+        """Test that branch filter preserves date parameters in URLs"""
+        response = self.client.get(reverse('insurance_requests:request_list'), {
+            'month': '1',
+            'year': '2024'
+        })
+        
+        self.assertEqual(response.status_code, 200)
+        # Check that branch tab URLs preserve month and year parameters
+        # Try both escaped and unescaped versions
+        has_escaped = 'month=1&amp;year=2024' in response.content.decode()
+        has_unescaped = 'month=1&year=2024' in response.content.decode()
+        self.assertTrue(has_escaped or has_unescaped, 
+                       "Month and year parameters should be preserved in branch tab URLs")
+    
+    def test_invalid_month_parameter_ignored(self):
+        """Test that invalid month parameter is ignored"""
+        response = self.client.get(reverse('insurance_requests:request_list'), {'month': '13'})
+        
+        self.assertEqual(response.status_code, 200)
+        # Should show all requests (invalid month ignored)
+        self.assertContains(response, 'Client January 2024')
+        self.assertContains(response, 'Client February 2024')
+        self.assertContains(response, 'Client January 2025')
+    
+    def test_invalid_year_parameter_ignored(self):
+        """Test that invalid year parameter is ignored"""
+        response = self.client.get(reverse('insurance_requests:request_list'), {'year': 'invalid'})
+        
+        self.assertEqual(response.status_code, 200)
+        # Should show all requests (invalid year ignored)
+        self.assertContains(response, 'Client January 2024')
+        self.assertContains(response, 'Client February 2024')
+        self.assertContains(response, 'Client January 2025')
+    
+    def test_no_results_message_with_filters(self):
+        """Test no results message when filters return no matches"""
+        response = self.client.get(reverse('insurance_requests:request_list'), {
+            'month': '12',  # December - no requests in December
+            'year': '2024'
+        })
+        
+        self.assertEqual(response.status_code, 200)
+        # Should show no results message
+        self.assertContains(response, 'Заявки не найдены')
+        self.assertContains(response, 'По выбранным фильтрам заявки не найдены')
+        self.assertContains(response, 'Сбросить фильтры')
+    
+    def test_context_data_includes_filter_variables(self):
+        """Test that context includes all necessary filter variables"""
+        response = self.client.get(reverse('insurance_requests:request_list'), {
+            'branch': 'Москва',
+            'month': '1',
+            'year': '2024'
+        })
+        
+        self.assertEqual(response.status_code, 200)
+        context = response.context
+        
+        # Check filter context variables
+        self.assertEqual(context['current_branch'], 'Москва')
+        self.assertEqual(context['current_month'], 1)
+        self.assertEqual(context['current_year'], 2024)
+        self.assertTrue(context['has_filters'])
+        
+        # Check that available options are provided
+        self.assertIn('available_branches', context)
+        self.assertIn('available_years', context)
+        self.assertIn('months', context)
 
 
 class FormSubmissionAndPersistenceTests(TestCase):

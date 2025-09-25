@@ -101,11 +101,91 @@ def access_denied_view(request):
 
 @user_required
 def request_list(request):
-    """Список всех заявок"""
-    requests = InsuranceRequest.objects.all().order_by('-created_at')
-    return render(request, 'insurance_requests/request_list.html', {
-        'requests': requests
-    })
+    """Список всех заявок с поддержкой фильтрации по филиалу и дате"""
+    # Получаем параметры фильтрации из GET запроса
+    branch_filter = request.GET.get('branch', '').strip()
+    month_filter = request.GET.get('month', '').strip()
+    year_filter = request.GET.get('year', '').strip()
+    
+    # Начинаем с базового QuerySet
+    queryset = InsuranceRequest.objects.all()
+    
+    # Применяем фильтр по филиалу
+    if branch_filter:
+        queryset = queryset.filter(branch=branch_filter)
+    
+    # Применяем фильтры по дате
+    if year_filter:
+        try:
+            year_int = int(year_filter)
+            queryset = queryset.filter(created_at__year=year_int)
+        except ValueError:
+            # Игнорируем некорректные значения года
+            pass
+    
+    if month_filter:
+        try:
+            month_int = int(month_filter)
+            if 1 <= month_int <= 12:
+                queryset = queryset.filter(created_at__month=month_int)
+        except ValueError:
+            # Игнорируем некорректные значения месяца
+            pass
+    
+    # Сортируем по дате создания (новые сначала)
+    requests = queryset.order_by('-created_at')
+    
+    # Генерируем данные для фильтров
+    # Получаем все доступные филиалы
+    available_branches = InsuranceRequest.objects.values_list('branch', flat=True)\
+                                                .distinct()\
+                                                .exclude(branch__isnull=True)\
+                                                .exclude(branch__exact='')\
+                                                .order_by('branch')
+    
+    # Получаем доступные годы из дат создания заявок
+    available_years = InsuranceRequest.objects.dates('created_at', 'year', order='DESC')\
+                                             .values_list('created_at__year', flat=True)
+    available_years = list(set(available_years))  # Убираем дубликаты
+    available_years.sort(reverse=True)  # Сортируем по убыванию (новые годы сначала)
+    
+    # Список месяцев для выпадающего списка
+    months = [
+        (1, 'Январь'), (2, 'Февраль'), (3, 'Март'), (4, 'Апрель'),
+        (5, 'Май'), (6, 'Июнь'), (7, 'Июль'), (8, 'Август'),
+        (9, 'Сентябрь'), (10, 'Октябрь'), (11, 'Ноябрь'), (12, 'Декабрь')
+    ]
+    
+    # Преобразуем параметры фильтров в числа для сравнения в шаблоне
+    current_month = None
+    current_year = None
+    
+    if month_filter:
+        try:
+            current_month = int(month_filter)
+        except ValueError:
+            pass
+    
+    if year_filter:
+        try:
+            current_year = int(year_filter)
+        except ValueError:
+            pass
+    
+    context = {
+        'requests': requests,
+        'available_branches': available_branches,
+        'available_years': available_years,
+        'months': months,
+        'current_branch': branch_filter,
+        'current_month': current_month,
+        'current_year': current_year,
+        # Дополнительные данные для удобства работы с фильтрами
+        'has_filters': bool(branch_filter or month_filter or year_filter),
+        'total_requests': requests.count(),
+    }
+    
+    return render(request, 'insurance_requests/request_list.html', context)
 
 
 @user_required
