@@ -64,6 +64,9 @@ class InsuranceRequest(models.Model):
     # Дополнительные данные в JSON формате
     additional_data = models.JSONField(default=dict, blank=True, verbose_name='Дополнительные данные')
     
+    # Примечание
+    notes = models.TextField(blank=True, verbose_name='Примечание')
+    
     class Meta:
         verbose_name = 'Страховая заявка'
         verbose_name_plural = 'Страховые заявки'
@@ -138,6 +141,7 @@ class InsuranceRequest(models.Model):
             'has_installment': self.has_installment,
             'has_autostart': self.has_autostart,
             'has_casco_ce': self.has_casco_ce,
+            'notes': self.notes,
             'response_deadline': moscow_deadline.strftime('%H:%M %d.%m.%Y') if moscow_deadline else None,
         }
     

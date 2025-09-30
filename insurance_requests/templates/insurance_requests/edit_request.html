@@ -93,46 +93,7 @@
                         </div>
                     </div>
 
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="{{ form.insurance_start_date.id_for_label }}" class="form-label">
-                                    {{ form.insurance_start_date.label }}
-                                </label>
-                                {{ form.insurance_start_date }}
-                                {% if form.insurance_start_date.help_text %}
-                                <div class="form-text" id="start-date-help">{{ form.insurance_start_date.help_text }}
-                                </div>
-                                {% endif %}
-                                {% if form.insurance_start_date.errors %}
-                                <div class="text-danger">
-                                    {% for error in form.insurance_start_date.errors %}
-                                    <small>{{ error }}</small>
-                                    {% endfor %}
-                                </div>
-                                {% endif %}
-                            </div>
-                        </div>
 
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="{{ form.insurance_end_date.id_for_label }}" class="form-label">
-                                    {{ form.insurance_end_date.label }}
-                                </label>
-                                {{ form.insurance_end_date }}
-                                {% if form.insurance_end_date.help_text %}
-                                <div class="form-text" id="end-date-help">{{ form.insurance_end_date.help_text }}</div>
-                                {% endif %}
-                                {% if form.insurance_end_date.errors %}
-                                <div class="text-danger">
-                                    {% for error in form.insurance_end_date.errors %}
-                                    <small>{{ error }}</small>
-                                    {% endfor %}
-                                </div>
-                                {% endif %}
-                            </div>
-                        </div>
-                    </div>
 
                     <div class="row">
                         <div class="col-md-6">
@@ -197,6 +158,23 @@
                         {% endif %}
                     </div>
 
+                    <div class="mb-3 notes-field">
+                        <label for="{{ form.notes.id_for_label }}" class="form-label">
+                            {{ form.notes.label }}
+                        </label>
+                        {{ form.notes }}
+                        {% if form.notes.help_text %}
+                        <div class="form-text" id="notes-help">{{ form.notes.help_text }}</div>
+                        {% endif %}
+                        {% if form.notes.errors %}
+                        <div class="text-danger">
+                            {% for error in form.notes.errors %}
+                            <small>{{ error }}</small>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+
                     <div class="row">
                         <div class="col-md-3">
                             <div class="form-check mb-3">
@@ -253,8 +231,7 @@
 {% block extra_js %}
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        const startDateInput = document.getElementById('{{ form.insurance_start_date.id_for_label }}');
-        const endDateInput = document.getElementById('{{ form.insurance_end_date.id_for_label }}');
+        const notesInput = document.getElementById('{{ form.notes.id_for_label }}');
         const form = document.querySelector('form');
 
         // Функция для отображения ошибок валидации
@@ -284,90 +261,111 @@
             field.classList.remove('is-invalid');
         }
 
-        // Функция валидации дат
-        function validateDates() {
+        // Функция валидации примечаний
+        function validateNotes() {
             let isValid = true;
 
-            // Очищаем предыдущие ошибки
-            clearFieldError(startDateInput);
-            clearFieldError(endDateInput);
+            if (notesInput) {
+                // Очищаем предыдущие ошибки
+                clearFieldError(notesInput);
 
-            const startDate = startDateInput.value ? new Date(startDateInput.value) : null;
-            const endDate = endDateInput.value ? new Date(endDateInput.value) : null;
-            const today = new Date();
-            const fiveYearsAgo = new Date(today.getFullYear() - 5, today.getMonth(), today.getDate());
-            const tenYearsAhead = new Date(today.getFullYear() + 10, today.getMonth(), today.getDate());
+                const notesValue = notesInput.value.trim();
 
-            // Валидация даты начала
-            if (startDate) {
-                if (startDate < fiveYearsAgo) {
-                    showFieldError(startDateInput, 'Дата начала страхования не может быть более 5 лет назад');
-                    isValid = false;
-                }
-            }
-
-            // Валидация даты окончания
-            if (endDate) {
-                if (endDate > tenYearsAhead) {
-                    showFieldError(endDateInput, 'Дата окончания страхования не может быть более 10 лет в будущем');
-                    isValid = false;
-                }
-            }
-
-            // Валидация соотношения дат
-            if (startDate && endDate) {
-                if (startDate >= endDate) {
-                    showFieldError(endDateInput, 'Дата окончания должна быть позже даты начала');
+                // Проверка максимальной длины
+                if (notesValue.length > 2000) {
+                    showFieldError(notesInput, 'Примечание не должно превышать 2000 символов');
                     isValid = false;
                 }
 
-                // Проверка минимального периода (1 день)
-                const diffTime = Math.abs(endDate - startDate);
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                if (diffDays < 1) {
-                    showFieldError(endDateInput, 'Период страхования должен составлять минимум 1 день');
+                // Проверка минимальной длины (если поле не пустое)
+                if (notesValue.length > 0 && notesValue.length < 3) {
+                    showFieldError(notesInput, 'Примечание должно содержать минимум 3 символа');
                     isValid = false;
                 }
+
+                // Проверка на потенциально опасный контент
+                const dangerousPatterns = [
+                    /<script[^>]*>/i,
+                    /<\/script>/i,
+                    /javascript:/i,
+                    /<iframe[^>]*>/i,
+                    /<object[^>]*>/i,
+                    /<embed[^>]*>/i
+                ];
+
+                for (const pattern of dangerousPatterns) {
+                    if (pattern.test(notesValue)) {
+                        showFieldError(notesInput, 'Примечание содержит недопустимые элементы');
+                        isValid = false;
+                        break;
+                    }
+                }
+
+                // Обновляем счетчик символов
+                updateCharacterCount();
             }
 
             return isValid;
         }
 
-        // Обработчики событий для валидации в реальном времени
-        if (startDateInput) {
-            startDateInput.addEventListener('change', validateDates);
-            startDateInput.addEventListener('blur', validateDates);
-
-            // Улучшение доступности
-            startDateInput.setAttribute('aria-describedby', 'start-date-help');
-            startDateInput.setAttribute('aria-label', 'Дата начала страхования');
+        // Функция для обновления счетчика символов
+        function updateCharacterCount() {
+            if (notesInput) {
+                const currentLength = notesInput.value.length;
+                const maxLength = 2000;
+                
+                let counterElement = document.getElementById('notes-char-counter');
+                if (!counterElement) {
+                    counterElement = document.createElement('div');
+                    counterElement.id = 'notes-char-counter';
+                    counterElement.className = 'form-text text-end';
+                    notesInput.parentNode.appendChild(counterElement);
+                }
+                
+                counterElement.textContent = `${currentLength}/${maxLength} символов`;
+                
+                // Изменяем цвет при приближении к лимиту
+                if (currentLength > maxLength * 0.9) {
+                    counterElement.className = 'form-text text-end text-warning';
+                } else if (currentLength > maxLength) {
+                    counterElement.className = 'form-text text-end text-danger';
+                } else {
+                    counterElement.className = 'form-text text-end text-muted';
+                }
+            }
         }
 
-        if (endDateInput) {
-            endDateInput.addEventListener('change', validateDates);
-            endDateInput.addEventListener('blur', validateDates);
+
+
+
+
+        // Обработчики событий для поля примечаний
+        if (notesInput) {
+            // Валидация при вводе текста
+            notesInput.addEventListener('input', function() {
+                updateCharacterCount();
+                // Задержка валидации для лучшего UX
+                clearTimeout(this.validationTimeout);
+                this.validationTimeout = setTimeout(validateNotes, 500);
+            });
+
+            // Валидация при потере фокуса
+            notesInput.addEventListener('blur', validateNotes);
 
             // Улучшение доступности
-            endDateInput.setAttribute('aria-describedby', 'end-date-help');
-            endDateInput.setAttribute('aria-label', 'Дата окончания страхования');
+            notesInput.setAttribute('aria-label', 'Примечания к заявке');
+            notesInput.setAttribute('aria-describedby', 'notes-help notes-char-counter');
 
-            // Автоматическое обновление минимальной даты окончания при изменении даты начала
-            if (startDateInput) {
-                startDateInput.addEventListener('change', function () {
-                    if (this.value) {
-                        const startDate = new Date(this.value);
-                        const nextDay = new Date(startDate);
-                        nextDay.setDate(nextDay.getDate() + 1);
-                        endDateInput.min = nextDay.toISOString().split('T')[0];
-                    }
-                });
-            }
+            // Инициализация счетчика символов
+            updateCharacterCount();
         }
 
         // Валидация при отправке формы
         if (form) {
             form.addEventListener('submit', function (e) {
-                if (!validateDates()) {
+                const notesValid = validateNotes();
+                
+                if (!notesValid) {
                     e.preventDefault();
 
                     // Прокручиваем к первому полю с ошибкой
@@ -380,8 +378,13 @@
                     // Показываем общее сообщение об ошибке
                     const alertDiv = document.createElement('div');
                     alertDiv.className = 'alert alert-warning alert-dismissible fade show';
-                    alertDiv.innerHTML = `
-                    <strong>Внимание!</strong> Пожалуйста, исправьте ошибки в полях дат перед сохранением.
+                    let errorMessage = '<strong>Внимание!</strong> Пожалуйста, исправьте ошибки в полях перед сохранением:';
+                    
+                    if (!notesValid) {
+                        errorMessage += '<br>• Проверьте содержимое поля примечаний';
+                    }
+                    
+                    alertDiv.innerHTML = errorMessage + `
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Закрыть"></button>
                 `;
 
@@ -396,24 +399,45 @@
         }
 
         // Инициализация валидации при загрузке страницы
-        validateDates();
+        if (notesInput) {
+            validateNotes();
+        }
     });
 </script>
 
 <style>
     /* Дополнительные стили для улучшения UX */
-    .date-input:focus {
+    .client-validation-error {
+        margin-top: 0.25rem;
+    }
+
+    /* Стили для поля примечаний */
+    .notes-field textarea {
+        resize: vertical;
+        min-height: 100px;
+    }
+
+    .notes-field textarea:focus {
         border-color: #0d6efd;
         box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
     }
 
-    .date-input.is-invalid {
+    .notes-field textarea.is-invalid {
         border-color: #dc3545;
         box-shadow: 0 0 0 0.25rem rgba(220, 53, 69, 0.25);
     }
 
-    .client-validation-error {
+    #notes-char-counter {
+        font-size: 0.875rem;
         margin-top: 0.25rem;
+    }
+
+    #notes-char-counter.text-warning {
+        font-weight: 500;
+    }
+
+    #notes-char-counter.text-danger {
+        font-weight: 600;
     }
 
     /* Улучшение доступности для screen readers */

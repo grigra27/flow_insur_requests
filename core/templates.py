@@ -47,7 +47,7 @@ class EmailTemplateGenerator:
 
 Высылаем заявку на расчет тарифов ${ins_type}${casco_type_ce}
 ${franshiza_text}${installment_text}${avtozapusk_text}
-Срок страхования: ${formatted_period}.
+Необходимый период страхования: ${insurance_period_text}.
 
 Для проверки клиента обратите внимание на его ИНН – ${inn}.
 Данные просим вписать в прилагаемую таблицу, с занесением данных за каждый период страхования (по годам). Просим в таблице не использовать формулы, просто заполнить предлагаемые параметры.
@@ -144,6 +144,9 @@ ${franshiza_text}${installment_text}${avtozapusk_text}
         # Форматируем период страхования для нового формата
         formatted_period = self._format_insurance_period(start_date, end_date)
         
+        # Получаем текстовое описание периода страхования (новая логика)
+        insurance_period_text = self._format_insurance_period_text(data)
+        
         # Базовые данные
         template_data = {
             'ins_type': insurance_description,
@@ -152,6 +155,7 @@ ${franshiza_text}${installment_text}${avtozapusk_text}
             'insurance_start_date': formatted_start_date,
             'insurance_end_date': formatted_end_date,
             'formatted_period': formatted_period,
+            'insurance_period_text': insurance_period_text,  # Новое поле для текстового описания
             'response_time': response_time,
         }
         
@@ -265,6 +269,45 @@ ${franshiza_text}${installment_text}${avtozapusk_text}
         # Если ничего нет, возвращаем значение по умолчанию
         return "с 01.01.2024 по 01.01.2025"
     
+    def _format_insurance_period_text(self, data: Dict[str, Any]) -> str:
+        """
+        Форматирует текстовое описание периода страхования для использования в email.
+        Поддерживает новую логику с текстовыми значениями и обратную совместимость.
+        
+        Args:
+            data: Данные заявки
+            
+        Returns:
+            Текстовое описание периода страхования
+        """
+        # Получаем значение поля insurance_period
+        insurance_period = data.get('insurance_period', '')
+        
+        # Если это новый формат (текстовые значения)
+        if insurance_period in ['1 год', 'на весь срок лизинга']:
+            return insurance_period
+        
+        # Если поле пустое, пытаемся определить по датам (обратная совместимость)
+        if not insurance_period or insurance_period.strip() == '':
+            start_date = data.get('insurance_start_date')
+            end_date = data.get('insurance_end_date')
+            
+            if start_date and end_date:
+                # Если есть конкретные даты, используем их
+                return self._format_insurance_period(start_date, end_date)
+            else:
+                # Если нет ни текстового описания, ни дат
+                return "не указан"
+        
+        # Для старых записей с датами в поле insurance_period
+        # Проверяем, содержит ли строка даты
+        if 'по' in insurance_period and ('.' in insurance_period or '/' in insurance_period):
+            # Это старый формат с датами, возвращаем как есть
+            return insurance_period
+        
+        # Если это что-то другое, возвращаем как есть
+        return insurance_period
+
     def _format_response_deadline_for_email(self, data: Dict[str, Any]) -> str:
         """
         Форматирует срок ответа для использования в email с московским временем.

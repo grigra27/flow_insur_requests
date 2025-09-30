@@ -93,22 +93,20 @@ class ExcelReader:
         # Определяем тип страхования
         insurance_type = self._determine_insurance_type_openpyxl(sheet)
         
-        # Извлекаем отдельные даты страхования
-        date_start_raw = self._get_cell_value(sheet, 'M15')
-        date_end_raw = self._get_cell_value(sheet, 'N15')
+        # Определяем период страхования по новой логике N17/N18
+        insurance_period = self._determine_insurance_period_openpyxl(sheet)
         
-        # Парсим даты в объекты date
-        insurance_start_date = self._parse_date(date_start_raw)
-        insurance_end_date = self._parse_date(date_end_raw)
-        
-        # Формируем период страхования для обратной совместимости
-        insurance_period = self._format_insurance_period(date_start_raw, date_end_raw)
+        # Для обратной совместимости устанавливаем даты как None
+        # так как теперь используется текстовое описание периода
+        insurance_start_date = None
+        insurance_end_date = None
         
         # Определяем срок ответа (текущее время + 3 часа)
         response_deadline = timezone.now() + timedelta(hours=3)
         
-        # Определяем наличие франшизы (если D29 не пустая, то есть франшиза)
-        has_franchise = bool(self._get_cell_value(sheet, 'D29'))
+        # Определяем наличие франшизы (если D29 не пустая, то франшизы НЕТ)
+        d29_value = self._get_cell_value(sheet, 'D29')
+        has_franchise = not bool(d29_value and str(d29_value).strip())
         
         # Определяем рассрочку (если F34 не пустая, то рассрочки НЕТ)
         has_installment = not bool(self._get_cell_value(sheet, 'F34'))
@@ -150,23 +148,20 @@ class ExcelReader:
         # Определяем тип страхования
         insurance_type = self._determine_insurance_type_pandas(df)
         
-        # Извлекаем отдельные даты страхования
-        date_start_raw = self._safe_get_cell(df, 14, 12)  # M15
-        date_end_raw = self._safe_get_cell(df, 14, 13)    # N15
+        # Определяем период страхования по новой логике N17/N18
+        insurance_period = self._determine_insurance_period_pandas(df)
         
-        # Парсим даты в объекты date
-        insurance_start_date = self._parse_date(date_start_raw)
-        insurance_end_date = self._parse_date(date_end_raw)
-        
-        # Формируем период страхования для обратной совместимости
-        insurance_period = self._format_insurance_period(date_start_raw, date_end_raw)
+        # Для обратной совместимости устанавливаем даты как None
+        # так как теперь используется текстовое описание периода
+        insurance_start_date = None
+        insurance_end_date = None
         
         # Определяем срок ответа (текущее время + 3 часа)
         response_deadline = timezone.now() + timedelta(hours=3)
         
-        # Определяем наличие франшизы (если D29 не пустая, то есть франшиза)
+        # Определяем наличие франшизы (если D29 не пустая, то франшизы НЕТ)
         franchise_value = self._safe_get_cell(df, 28, 3)  # D29
-        has_franchise = bool(franchise_value)
+        has_franchise = not bool(franchise_value and str(franchise_value).strip())
         
         # Определяем рассрочку (если F34 не пустая, то рассрочки НЕТ)
         installment_value = self._safe_get_cell(df, 33, 5)  # F34
@@ -280,17 +275,61 @@ class ExcelReader:
         
         return insurance_type
 
+    def _determine_insurance_period_openpyxl(self, sheet) -> str:
+        """
+        Определяет период страхования на основе ячеек N17 и N18 (openpyxl)
+        
+        Логика:
+        1. Если N17 содержит любое значение -> "1 год"
+        2. Если N17 пустая, но N18 содержит значение -> "на весь срок лизинга"
+        3. Если обе ячейки пустые -> пустая строка
+        """
+        n17_value = self._get_cell_value(sheet, 'N17')
+        n18_value = self._get_cell_value(sheet, 'N18')
+        
+        # Проверяем, что значение не пустое (не None и не пустая строка)
+        n17_has_value = n17_value is not None and str(n17_value).strip() != ''
+        n18_has_value = n18_value is not None and str(n18_value).strip() != ''
+        
+        if n17_has_value:
+            return "1 год"
+        elif n18_has_value:
+            return "на весь срок лизинга"
+        else:
+            return ""
+
+    def _determine_insurance_period_pandas(self, df) -> str:
+        """
+        Определяет период страхования на основе ячеек N17 и N18 (pandas)
+        
+        Логика:
+        1. Если N17 содержит любое значение -> "1 год"
+        2. Если N17 пустая, но N18 содержит значение -> "на весь срок лизинга"
+        3. Если обе ячейки пустые -> пустая строка
+        """
+        n17_value = self._safe_get_cell(df, 16, 13)  # N17 (индексы с 0)
+        n18_value = self._safe_get_cell(df, 17, 13)  # N18
+        
+        # Проверяем, что значение не пустое (не None и не пустая строка)
+        n17_has_value = n17_value is not None and str(n17_value).strip() != ''
+        n18_has_value = n18_value is not None and str(n18_value).strip() != ''
+        
+        if n17_has_value:
+            return "1 год"
+        elif n18_has_value:
+            return "на весь срок лизинга"
+        else:
+            return ""
+
     def _get_default_data(self) -> Dict[str, Any]:
         """Возвращает данные по умолчанию с валидным типом страхования"""
-        from datetime import date
-        
         return {
             'client_name': 'Тестовый клиент',
             'inn': '1234567890',
             'insurance_type': 'КАСКО',  # Используем допустимое значение
-            'insurance_period': 'с 01.01.2024 по 01.01.2025',
-            'insurance_start_date': date(2024, 1, 1),
-            'insurance_end_date': date(2025, 1, 1),
+            'insurance_period': '1 год',  # Используем новый формат периода
+            'insurance_start_date': None,  # Теперь не используем конкретные даты
+            'insurance_end_date': None,    # Теперь не используем конкретные даты
             'vehicle_info': 'Информация о предмете лизинга не указана',
             'dfa_number': 'Номер ДФА не указан',
             'branch': 'Филиал не указан',
@@ -300,19 +339,7 @@ class ExcelReader:
             'response_deadline': timezone.now() + timedelta(hours=3),
         }
     
-    def _format_insurance_period(self, date_start: Optional[str], date_end: Optional[str]) -> str:
-        """Форматирует период страхования в формате 'с даты 1 по дату 2'"""
-        if not date_start or not date_end:
-            return 'с 01.01.2024 по 01.01.2025'
-        
-        try:
-            # Пробуем разные форматы дат
-            start_formatted = self._parse_and_format_date(date_start)
-            end_formatted = self._parse_and_format_date(date_end)
-            
-            return f'с {start_formatted} по {end_formatted}'
-        except Exception:
-            return f'с {date_start} по {date_end}'
+
     
     def _parse_date(self, date_value) -> Optional[datetime.date]:
         """
@@ -354,25 +381,7 @@ class ExcelReader:
         logger.warning(f"Could not parse date: {date_str}")
         return None
     
-    def _parse_and_format_date(self, date_str: str) -> str:
-        """Парсит и форматирует дату в формат DD.MM.YYYY"""
-        if not date_str:
-            return '01.01.2024'
-        
-        date_str = str(date_str).strip()
-        
-        # Пробуем разные форматы
-        formats = ['%d.%m.%Y', '%Y-%m-%d', '%d/%m/%Y', '%m/%d/%Y']
-        
-        for fmt in formats:
-            try:
-                parsed_date = datetime.strptime(date_str, fmt)
-                return parsed_date.strftime('%d.%m.%Y')
-            except ValueError:
-                continue
-        
-        # Если не удалось распарсить, возвращаем как есть
-        return date_str
+
     
     def _find_leasing_object_info_pandas(self, df) -> str:
         """Ищет информацию о предмете лизинга в указанных ячейках"""

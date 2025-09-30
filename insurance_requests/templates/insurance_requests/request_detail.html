@@ -85,6 +85,14 @@
                     <p class="text-muted">{{ request.vehicle_info }}</p>
                 {% endif %}
                 
+                {% if request.notes %}
+                    <hr>
+                    <h6>Примечание:</h6>
+                    <div class="bg-light p-3 rounded">
+                        <pre class="mb-0" style="white-space: pre-wrap; font-family: inherit; font-size: 0.9rem;">{{ request.notes|escape }}</pre>
+                    </div>
+                {% endif %}
+                
                 <!-- Дополнительные параметры -->
                 <hr>
                 <h6>Дополнительные параметры:</h6>
@@ -98,7 +106,10 @@
                     {% if request.has_autostart %}
                         <span class="badge bg-secondary">Автозапуск</span>
                     {% endif %}
-                    {% if not request.has_franchise and not request.has_installment and not request.has_autostart %}
+                    {% if request.has_casco_ce %}
+                        <span class="badge bg-primary">КАСКО кат. C/E</span>
+                    {% endif %}
+                    {% if not request.has_franchise and not request.has_installment and not request.has_autostart and not request.has_casco_ce %}
                         <span class="text-muted">Дополнительных параметров нет</span>
                     {% endif %}
                 </div>

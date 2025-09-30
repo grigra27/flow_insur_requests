@@ -137,10 +137,10 @@ class ExcelUploadForm(forms.Form):
     
     excel_file = forms.FileField(
         label='Excel файл с заявкой',
-        help_text='Загрузите файл в формате .xls или .xlsx',
+        help_text='Загрузите файл в формате .xls, .xlsx или .xltx',
         widget=forms.FileInput(attrs={
             'class': 'form-control',
-            'accept': '.xls,.xlsx'
+            'accept': '.xls,.xlsx,.xltx'
         })
     )
     
@@ -153,8 +153,8 @@ class ExcelUploadForm(forms.Form):
         
         # Проверяем расширение файла
         ext = os.path.splitext(file.name)[1].lower()
-        if ext not in ['.xls', '.xlsx']:
-            raise ValidationError('Поддерживаются только файлы .xls и .xlsx')
+        if ext not in ['.xls', '.xlsx', '.xltx']:
+            raise ValidationError('Поддерживаются только файлы .xls, .xlsx и .xltx')
         
         # Проверяем размер файла (максимум 10MB)
         if file.size > 10 * 1024 * 1024:
@@ -224,11 +224,26 @@ class InsuranceRequestForm(forms.ModelForm):
         ('Архангельск', 'Архангельск'),
     ]
     
+    # Варианты периода страхования
+    INSURANCE_PERIOD_CHOICES = [
+        ('', '-- Выберите период --'),
+        ('1 год', '1 год'),
+        ('на весь срок лизинга', 'на весь срок лизинга'),
+    ]
+    
     # Переопределяем поле филиала как выпадающий список
     branch = forms.ChoiceField(
         choices=BRANCH_CHOICES,
         required=False,
         label='Филиал',
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+    
+    # Переопределяем поле периода страхования как выпадающий список
+    insurance_period = forms.ChoiceField(
+        choices=INSURANCE_PERIOD_CHOICES,
+        required=False,
+        label='Срок страхования',
         widget=forms.Select(attrs={'class': 'form-control'})
     )
     
@@ -246,9 +261,9 @@ class InsuranceRequestForm(forms.ModelForm):
         model = InsuranceRequest
         fields = [
             'client_name', 'inn', 'insurance_type', 'insurance_period',
-            'insurance_start_date', 'insurance_end_date',
             'vehicle_info', 'dfa_number', 'branch', 'has_franchise', 
-            'has_installment', 'has_autostart', 'has_casco_ce', 'response_deadline'
+            'has_installment', 'has_autostart', 'has_casco_ce', 'response_deadline',
+            'notes'
         ]
         
         widgets = {
@@ -258,27 +273,14 @@ class InsuranceRequestForm(forms.ModelForm):
                 choices=InsuranceRequest.INSURANCE_TYPE_CHOICES,
                 attrs={'class': 'form-control'}
             ),
-            'insurance_period': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'например: с 01.01.2024 по 31.12.2024',
-                'readonly': True,
-                'title': 'Период страхования как он был распознан из файла',
-                'data-bs-toggle': 'tooltip',
-                'data-bs-placement': 'top'
-            }),
-            'insurance_start_date': forms.DateInput(attrs={
-                'class': 'form-control date-input',
-                'type': 'date',
-                'placeholder': 'дд.мм.гггг'
-            }),
-            'insurance_end_date': forms.DateInput(attrs={
-                'class': 'form-control date-input',
-                'type': 'date',
-                'placeholder': 'дд.мм.гггг'
-            }),
             'vehicle_info': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
             'dfa_number': forms.TextInput(attrs={'class': 'form-control', 'maxlength': '100'}),
-
+            'notes': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 4,
+                'placeholder': 'Введите дополнительные примечания к заявке...',
+                'maxlength': '2000'
+            }),
             'has_franchise': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'has_installment': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'has_autostart': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
@@ -287,40 +289,30 @@ class InsuranceRequestForm(forms.ModelForm):
         }
     
     def __init__(self, *args, **kwargs):
-        # Extract custom parameters for widget configuration
-        editable_insurance_period = kwargs.pop('editable_insurance_period', False)
-        
         super().__init__(*args, **kwargs)
         
-        # Добавляем help text для полей дат
-        self.fields['insurance_start_date'].help_text = 'Дата начала действия страхования'
-        self.fields['insurance_end_date'].help_text = 'Дата окончания действия страхования'
-        self.fields['insurance_period'].help_text = 'Период страхования как он был распознан из файла'
+        # Добавляем help text для поля периода страхования
+        self.fields['insurance_period'].help_text = 'Выберите необходимый период страхования'
         
-        # Make insurance_period not required since we can generate it from dates
+        # Добавляем help text для поля примечаний
+        self.fields['notes'].help_text = 'Дополнительные примечания и комментарии к заявке (необязательно)'
+        self.fields['notes'].required = False
+        
+        # Make insurance_period not required for backward compatibility
         self.fields['insurance_period'].required = False
-        
-        # Configure insurance_period widget based on editable parameter
-        self._configure_insurance_period_widget(editable_insurance_period)
         
         # Ensure proper pre-population of all fields when editing existing instance
         if self.instance:
-            # Handle insurance_period field - preserve original recognized value
+            # Handle insurance_period field - preserve original recognized value or set to empty for selection
             if self.instance.insurance_period and self.instance.insurance_period.strip():
-                self.initial['insurance_period'] = self.instance.insurance_period
-            else:
-                # Fallback: generate from dates if available
-                if self.instance.insurance_start_date and self.instance.insurance_end_date:
-                    period_str = f"с {self.instance.insurance_start_date.strftime('%d.%m.%Y')} по {self.instance.insurance_end_date.strftime('%d.%m.%Y')}"
-                    self.initial['insurance_period'] = period_str
-                elif self.instance.insurance_start_date:
-                    period_str = f"с {self.instance.insurance_start_date.strftime('%d.%m.%Y')} по не указано"
-                    self.initial['insurance_period'] = period_str
-                elif self.instance.insurance_end_date:
-                    period_str = f"с не указано по {self.instance.insurance_end_date.strftime('%d.%m.%Y')}"
-                    self.initial['insurance_period'] = period_str
+                # Check if the current value matches one of our choices
+                period_value = self.instance.insurance_period.strip()
+                valid_periods = [choice[0] for choice in self.INSURANCE_PERIOD_CHOICES if choice[0]]
+                if period_value in valid_periods:
+                    self.initial['insurance_period'] = period_value
                 else:
-                    self.initial['insurance_period'] = "Период не указан"
+                    # For backward compatibility with old date-based periods, set to empty
+                    self.initial['insurance_period'] = ''
             
             # Handle branch field - ensure it's properly selected if it matches a choice
             if self.instance.branch:
@@ -339,11 +331,9 @@ class InsuranceRequestForm(forms.ModelForm):
                 if hasattr(self.instance, field_name):
                     self.fields[field_name].initial = getattr(self.instance, field_name)
             
-            # Ensure date fields are properly formatted
-            if self.instance.insurance_start_date:
-                self.fields['insurance_start_date'].initial = self.instance.insurance_start_date
-            if self.instance.insurance_end_date:
-                self.fields['insurance_end_date'].initial = self.instance.insurance_end_date
+            # Ensure notes field is properly initialized
+            if hasattr(self.instance, 'notes') and self.instance.notes:
+                self.fields['notes'].initial = self.instance.notes
     
     def __getitem__(self, name):
         """Override to handle special cases for field values"""
@@ -365,68 +355,9 @@ class InsuranceRequestForm(forms.ModelForm):
         
         return field
     
-    def _configure_insurance_period_widget(self, editable=False):
-        """Configure the insurance_period widget for editable or read-only display"""
-        base_attrs = {
-            'class': 'form-control',
-            'title': 'Период страхования как он был распознан из файла',
-            'data-bs-toggle': 'tooltip',
-            'data-bs-placement': 'top'
-        }
-        
-        if editable:
-            # Editable text input configuration
-            widget_attrs = {
-                **base_attrs,
-                'placeholder': 'например: с 01.01.2024 по 31.12.2024',
-                'maxlength': '100',
-                'autocomplete': 'off'
-            }
-            self.fields['insurance_period'].widget = forms.TextInput(attrs=widget_attrs)
-            self.fields['insurance_period'].help_text = 'Период страхования (можно редактировать)'
-        else:
-            # Read-only display configuration
-            widget_attrs = {
-                **base_attrs,
-                'readonly': True,
-                'placeholder': 'Период будет отображен после загрузки данных',
-                'style': 'background-color: #f8f9fa; cursor: not-allowed;'
-            }
-            self.fields['insurance_period'].widget = forms.TextInput(attrs=widget_attrs)
-            self.fields['insurance_period'].help_text = 'Период страхования как он был распознан из файла (только для чтения)'
+
     
-    def set_insurance_period_editable(self, editable=True):
-        """Public method to change insurance_period field editability after form initialization"""
-        self._configure_insurance_period_widget(editable)
-        return self
-    
-    def clean_insurance_start_date(self):
-        """Валидация даты начала страхования"""
-        start_date = self.cleaned_data.get('insurance_start_date')
-        
-        if start_date:
-            # Проверяем, что дата не слишком далеко в прошлом (более 5 лет)
-            from datetime import date, timedelta
-            five_years_ago = date.today() - timedelta(days=5*365)
-            
-            if start_date < five_years_ago:
-                raise ValidationError('Дата начала страхования не может быть более 5 лет назад')
-        
-        return start_date
-    
-    def clean_insurance_end_date(self):
-        """Валидация даты окончания страхования"""
-        end_date = self.cleaned_data.get('insurance_end_date')
-        
-        if end_date:
-            # Проверяем, что дата не слишком далеко в будущем (более 10 лет)
-            from datetime import date, timedelta
-            ten_years_ahead = date.today() + timedelta(days=10*365)
-            
-            if end_date > ten_years_ahead:
-                raise ValidationError('Дата окончания страхования не может быть более 10 лет в будущем')
-        
-        return end_date
+
     
     def clean_response_deadline(self):
         """Валидация срока ответа с учетом московского времени"""
@@ -468,18 +399,15 @@ class InsuranceRequestForm(forms.ModelForm):
         """Валидация периода страхования"""
         insurance_period = self.cleaned_data.get('insurance_period')
         
+        # Поле не обязательно, но если заполнено, должно быть валидным
         if insurance_period:
             # Trim whitespace
             insurance_period = insurance_period.strip()
             
-            # Check maximum length
-            if len(insurance_period) > 100:
-                raise ValidationError('Период страхования не должен превышать 100 символов')
-            
-            # Basic format validation - should contain some date-like information
-            # This is a lenient check to allow various formats
-            if insurance_period and len(insurance_period) < 5:
-                raise ValidationError('Период страхования должен содержать более подробную информацию')
+            # Проверяем, что выбрано одно из допустимых значений
+            valid_periods = [choice[0] for choice in self.INSURANCE_PERIOD_CHOICES if choice[0]]
+            if insurance_period not in valid_periods:
+                raise ValidationError('Выберите один из предложенных вариантов периода страхования')
         
         return insurance_period
     
@@ -490,48 +418,54 @@ class InsuranceRequestForm(forms.ModelForm):
         # No additional validation needed
         return branch
     
-    def clean(self):
-        """Валидация дат страхования"""
-        cleaned_data = super().clean()
-        start_date = cleaned_data.get('insurance_start_date')
-        end_date = cleaned_data.get('insurance_end_date')
+    def clean_notes(self):
+        """Валидация поля примечаний"""
+        notes = self.cleaned_data.get('notes', '')
         
-        if start_date and end_date:
-            if start_date >= end_date:
-                raise ValidationError({
-                    'insurance_end_date': 'Дата окончания страхования должна быть позже даты начала'
-                })
+        if notes:
+            # Trim whitespace
+            notes = notes.strip()
             
-            # Проверяем, что период не слишком короткий (менее 1 дня)
-            if (end_date - start_date).days < 1:
-                raise ValidationError({
-                    'insurance_end_date': 'Период страхования должен составлять минимум 1 день'
-                })
+            # Check maximum length
+            if len(notes) > 2000:
+                raise ValidationError('Примечание не должно превышать 2000 символов')
+            
+            # Basic XSS protection - remove potentially dangerous HTML tags
+            import re
+            # Remove script tags and their content
+            notes = re.sub(r'<script[^>]*>.*?</script>', '', notes, flags=re.IGNORECASE | re.DOTALL)
+            # Remove other potentially dangerous tags
+            dangerous_tags = ['script', 'iframe', 'object', 'embed', 'form', 'input', 'button']
+            for tag in dangerous_tags:
+                notes = re.sub(f'<{tag}[^>]*>', '', notes, flags=re.IGNORECASE)
+                notes = re.sub(f'</{tag}>', '', notes, flags=re.IGNORECASE)
+            
+            # Remove javascript: and data: URLs
+            notes = re.sub(r'javascript:', '', notes, flags=re.IGNORECASE)
+            notes = re.sub(r'data:', '', notes, flags=re.IGNORECASE)
+            
+            # Check for minimum meaningful content (if not empty)
+            if notes and len(notes.strip()) < 3:
+                raise ValidationError('Примечание должно содержать минимум 3 символа')
         
+        return notes
+    
+    def clean(self):
+        """Общая валидация формы"""
+        cleaned_data = super().clean()
         return cleaned_data
     
     def save(self, commit=True):
-        """Сохранение с сохранением оригинального insurance_period или обновлением из дат"""
+        """Сохранение формы"""
         instance = super().save(commit=False)
         
-        # Preserve the insurance_period field value if it was provided in the form
+        # Сохраняем выбранный период страхования
         insurance_period = self.cleaned_data.get('insurance_period')
         if insurance_period and insurance_period.strip():
-            # Keep the original/edited insurance_period value
             instance.insurance_period = insurance_period
-        else:
-            # Fallback: generate from dates if insurance_period is empty
-            start_date = self.cleaned_data.get('insurance_start_date')
-            end_date = self.cleaned_data.get('insurance_end_date')
-            
-            if start_date and end_date:
-                instance.insurance_period = f"с {start_date.strftime('%d.%m.%Y')} по {end_date.strftime('%d.%m.%Y')}"
-            elif start_date:
-                instance.insurance_period = f"с {start_date.strftime('%d.%m.%Y')} по не указано"
-            elif end_date:
-                instance.insurance_period = f"с не указано по {end_date.strftime('%d.%m.%Y')}"
-            else:
-                instance.insurance_period = "Период не указан"
+        # Если период не выбран, оставляем существующее значение или пустую строку
+        elif not instance.insurance_period:
+            instance.insurance_period = ""
         
         if commit:
             instance.save()
