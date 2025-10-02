@@ -101,14 +101,41 @@ def access_denied_view(request):
 
 @user_required
 def request_list(request):
-    """Список всех заявок с поддержкой фильтрации по филиалу и дате"""
+    """Список всех заявок с поддержкой фильтрации по филиалу, дате и номеру ДФА"""
     # Получаем параметры фильтрации из GET запроса
     branch_filter = request.GET.get('branch', '').strip()
     month_filter = request.GET.get('month', '').strip()
     year_filter = request.GET.get('year', '').strip()
+    dfa_filter = request.GET.get('dfa_filter', '').strip()
     
     # Начинаем с базового QuerySet
     queryset = InsuranceRequest.objects.all()
+    
+    # Применяем фильтр по номеру ДФА с улучшенной обработкой ошибок
+    dfa_filter_error = None
+    if dfa_filter:
+        try:
+            # Валидация длины входных данных (максимум 100 символов)
+            if len(dfa_filter) > 100:
+                dfa_filter_error = f"Номер ДФА слишком длинный ({len(dfa_filter)} символов). Максимум 100 символов."
+                logger.warning(f"DFA filter input too long: {len(dfa_filter)} characters from user {request.user.username}")
+                # Обрезаем до 100 символов для продолжения работы
+                dfa_filter = dfa_filter[:100]
+            
+            # Проверяем, что после обрезки пробелов строка не пустая
+            if dfa_filter:
+                # Применяем фильтр с обработкой исключений базы данных
+                queryset = queryset.filter(dfa_number__icontains=dfa_filter)
+                logger.debug(f"Applied DFA filter '{dfa_filter}' by user {request.user.username}")
+            else:
+                logger.debug(f"Empty DFA filter after stripping whitespace by user {request.user.username}")
+                
+        except Exception as e:
+            # Логируем ошибку базы данных и продолжаем без DFA фильтра
+            logger.error(f"Database error applying DFA filter '{dfa_filter}' by user {request.user.username}: {str(e)}")
+            dfa_filter_error = "Ошибка при применении фильтра по номеру ДФА. Попробуйте другой запрос."
+            # Сбрасываем dfa_filter чтобы не показывать некорректное значение в форме
+            dfa_filter = ""
     
     # Применяем фильтр по филиалу
     if branch_filter:
@@ -180,8 +207,10 @@ def request_list(request):
         'current_branch': branch_filter,
         'current_month': current_month,
         'current_year': current_year,
+        'current_dfa_filter': dfa_filter,
+        'dfa_filter_error': dfa_filter_error,
         # Дополнительные данные для удобства работы с фильтрами
-        'has_filters': bool(branch_filter or month_filter or year_filter),
+        'has_filters': bool(branch_filter or month_filter or year_filter or dfa_filter),
         'total_requests': requests.count(),
     }
     

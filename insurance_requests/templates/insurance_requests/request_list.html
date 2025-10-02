@@ -17,7 +17,7 @@
     <ul class="nav nav-tabs">
         <li class="nav-item">
             <a class="nav-link {% if not current_branch %}active{% endif %}" 
-               href="?{% if current_month %}month={{ current_month }}&{% endif %}{% if current_year %}year={{ current_year }}{% endif %}">
+               href="?{% if current_dfa_filter %}dfa_filter={{ current_dfa_filter|urlencode }}&{% endif %}{% if current_month %}month={{ current_month }}&{% endif %}{% if current_year %}year={{ current_year }}{% endif %}">
                 <i class="bi bi-list-ul"></i> Все заявки
                 {% if not current_branch %}
                     <span class="badge bg-primary ms-1">{{ total_requests }}</span>
@@ -27,7 +27,7 @@
         {% for branch in available_branches %}
         <li class="nav-item">
             <a class="nav-link {% if current_branch == branch %}active{% endif %}" 
-               href="?branch={{ branch|urlencode }}{% if current_month %}&month={{ current_month }}{% endif %}{% if current_year %}&year={{ current_year }}{% endif %}">
+               href="?branch={{ branch|urlencode }}{% if current_dfa_filter %}&dfa_filter={{ current_dfa_filter|urlencode }}{% endif %}{% if current_month %}&month={{ current_month }}{% endif %}{% if current_year %}&year={{ current_year }}{% endif %}">
                 <i class="bi bi-building"></i> {{ branch }}
                 {% if current_branch == branch %}
                     <span class="badge bg-primary ms-1">{{ total_requests }}</span>
@@ -44,6 +44,24 @@
             {% if current_branch %}
                 <input type="hidden" name="branch" value="{{ current_branch }}">
             {% endif %}
+            
+            <div class="col-md-3">
+                <label for="dfa-filter" class="form-label">
+                    <i class="bi bi-hash"></i> Номер ДФА
+                </label>
+                <input type="text" 
+                       name="dfa_filter" 
+                       id="dfa-filter" 
+                       class="form-control{% if dfa_filter_error %} is-invalid{% endif %}"
+                       value="{{ current_dfa_filter }}"
+                       placeholder="Введите номер или часть номера"
+                       maxlength="100">
+                {% if dfa_filter_error %}
+                    <div class="invalid-feedback">
+                        <i class="bi bi-exclamation-triangle"></i> {{ dfa_filter_error }}
+                    </div>
+                {% endif %}
+            </div>
             
             <div class="col-md-3">
                 <label for="month-select" class="form-label">
@@ -86,9 +104,10 @@
             <div class="col-md-3">
                 <small class="text-muted">
                     <i class="bi bi-info-circle"></i> 
-                    Показано заявок: {{ total_requests }}
-                    {% if current_branch %} из филиала "{{ current_branch }}"{% endif %}
-                    {% if current_month and current_year %} за {{ current_month|date:"F" }} {{ current_year }}{% elif current_year %} за {{ current_year }} год{% elif current_month %} за {{ current_month|date:"F" }}{% endif %}
+                    Показано заявок: <strong>{{ total_requests }}</strong>
+                    {% if current_branch %}<br>Филиал: <strong>{{ current_branch|escape }}</strong>{% endif %}
+                    {% if current_month and current_year %}<br>Период: <strong>{{ current_month|date:"F" }} {{ current_year }}</strong>{% elif current_year %}<br>Год: <strong>{{ current_year }}</strong>{% elif current_month %}<br>Месяц: <strong>{{ current_month|date:"F" }}</strong>{% endif %}
+                    {% if current_dfa_filter %}<br>Номер ДФА содержит: <strong>{{ current_dfa_filter|escape }}</strong>{% endif %}
                 </small>
             </div>
             {% endif %}
@@ -98,6 +117,39 @@
 {% endif %}
 
 {% if requests %}
+    <!-- Active Filters Summary -->
+    {% if has_filters %}
+    <div class="alert alert-info mb-3" role="alert">
+        <div class="d-flex align-items-center">
+            <i class="bi bi-funnel me-2"></i>
+            <div class="flex-grow-1">
+                <strong>Активные фильтры:</strong>
+                <span class="ms-2">
+                    {% if current_branch %}
+                        <span class="badge bg-primary me-1">Филиал: {{ current_branch|escape }}</span>
+                    {% endif %}
+                    {% if current_month and current_year %}
+                        <span class="badge bg-primary me-1">Период: {{ current_month|date:"F" }} {{ current_year }}</span>
+                    {% elif current_year %}
+                        <span class="badge bg-primary me-1">Год: {{ current_year }}</span>
+                    {% elif current_month %}
+                        <span class="badge bg-primary me-1">Месяц: {{ current_month|date:"F" }}</span>
+                    {% endif %}
+                    {% if current_dfa_filter %}
+                        <span class="badge bg-success me-1">ДФА: {{ current_dfa_filter|escape }}</span>
+                    {% endif %}
+                </span>
+                <span class="text-muted ms-2">
+                    (найдено: <strong>{{ total_requests }}</strong> {{ total_requests|pluralize:"заявка,заявки,заявок" }})
+                </span>
+            </div>
+            <a href="{% url 'insurance_requests:request_list' %}" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-x-circle"></i> Сбросить все
+            </a>
+        </div>
+    </div>
+    {% endif %}
+    
     <div class="table-responsive">
         <table class="table table-striped table-hover">
             <thead class="table-dark">
@@ -196,19 +248,32 @@
         {% if has_filters %}
             <i class="bi bi-search display-1 text-muted"></i>
             <h3 class="mt-3">Заявки не найдены</h3>
-            <p class="text-muted">
-                По выбранным фильтрам заявки не найдены.
-                {% if current_branch %}
-                    <br>Филиал: <strong>{{ current_branch }}</strong>
-                {% endif %}
-                {% if current_month and current_year %}
-                    <br>Период: <strong>{{ current_month|date:"F" }} {{ current_year }}</strong>
-                {% elif current_year %}
-                    <br>Год: <strong>{{ current_year }}</strong>
-                {% elif current_month %}
-                    <br>Месяц: <strong>{{ current_month|date:"F" }}</strong>
-                {% endif %}
-            </p>
+            <div class="alert alert-warning mt-3" role="alert">
+                <h5 class="alert-heading">
+                    <i class="bi bi-exclamation-triangle"></i> Результаты поиска
+                </h5>
+                <p class="mb-2">По указанным критериям поиска заявки не найдены:</p>
+                <ul class="mb-3">
+                    {% if current_branch %}
+                        <li>Филиал: <strong>{{ current_branch|escape }}</strong></li>
+                    {% endif %}
+                    {% if current_month and current_year %}
+                        <li>Период: <strong>{{ current_month|date:"F" }} {{ current_year }}</strong></li>
+                    {% elif current_year %}
+                        <li>Год: <strong>{{ current_year }}</strong></li>
+                    {% elif current_month %}
+                        <li>Месяц: <strong>{{ current_month|date:"F" }}</strong></li>
+                    {% endif %}
+                    {% if current_dfa_filter %}
+                        <li>Номер ДФА содержит: <strong>{{ current_dfa_filter|escape }}</strong></li>
+                    {% endif %}
+                </ul>
+                <p class="mb-0">
+                    <small class="text-muted">
+                        Попробуйте изменить критерии поиска или сбросить фильтры для просмотра всех заявок.
+                    </small>
+                </p>
+            </div>
             <div class="mt-3">
                 <a href="{% url 'insurance_requests:request_list' %}" class="btn btn-outline-primary">
                     <i class="bi bi-arrow-clockwise"></i> Сбросить фильтры
