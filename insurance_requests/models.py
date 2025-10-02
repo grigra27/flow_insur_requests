@@ -75,8 +75,8 @@ class InsuranceRequest(models.Model):
     def get_display_name(self):
         """Возвращает отображаемое название заявки с использованием номера ДФА"""
         if self.dfa_number and self.dfa_number.strip() and self.dfa_number != 'Номер ДФА не указан':
-            return f"Заявка {self.dfa_number}"
-        return f"Заявка #{self.id}"
+            return f"{self.dfa_number}"
+        return f"#{self.id}"
     
     @property
     def insurance_period_formatted(self):
