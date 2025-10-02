@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 # Маппинг полных названий филиалов на сокращенные
 BRANCH_MAPPING = {
     "Казанский филиал": "Казань",
-    "Нижегородский филиал": "Нижний Новгород",
+    "Нижегородский  филиал": "Нижний Новгород",
     "Краснодарский филиал": "Краснодар",
     "Санкт-Петербург": "Санкт-Петербург",
     "Мурманский филиал": "Мурманск",
@@ -115,6 +115,9 @@ class ExcelReader:
         autostart_value = self._get_cell_value(sheet, 'M24')
         has_autostart = bool(autostart_value) and str(autostart_value).lower().strip() != 'нет'
         
+        # Определяем КАСКО кат. C/E на основе строки 45
+        has_casco_ce = self._determine_casco_ce_openpyxl(sheet)
+        
         # Извлекаем название клиента из D7
         client_name = self._get_cell_value(sheet, 'D7') or 'Клиент не указан'
         
@@ -140,6 +143,7 @@ class ExcelReader:
             'has_franchise': has_franchise,
             'has_installment': has_installment,
             'has_autostart': has_autostart,
+            'has_casco_ce': has_casco_ce,
             'response_deadline': response_deadline,
         }
     
@@ -171,6 +175,9 @@ class ExcelReader:
         autostart_value = self._safe_get_cell(df, 23, 12)  # M24
         has_autostart = bool(autostart_value) and str(autostart_value).lower().strip() != 'нет'
         
+        # Определяем КАСКО кат. C/E на основе строки 45
+        has_casco_ce = self._determine_casco_ce_pandas(df)
+        
         # Извлекаем название клиента из D7 (индекс 6, 3)
         client_name = self._safe_get_cell(df, 6, 3) or 'Клиент не указан'
         
@@ -196,6 +203,7 @@ class ExcelReader:
             'has_franchise': has_franchise,
             'has_installment': has_installment,
             'has_autostart': has_autostart,
+            'has_casco_ce': has_casco_ce,
             'response_deadline': response_deadline,
         }
     
@@ -321,6 +329,72 @@ class ExcelReader:
         else:
             return ""
 
+    def _determine_casco_ce_openpyxl(self, sheet) -> bool:
+        """
+        Определяет наличие КАСКО кат. C/E на основе строки 45 столбцов CDEFGHI (openpyxl)
+        
+        Логика:
+        Если любая из ячеек C45, D45, E45, F45, G45, H45, I45 содержит непустое значение,
+        то has_casco_ce = True, иначе False
+        
+        Returns:
+            bool: True если найдено непустое значение в любой из проверяемых ячеек
+        """
+        try:
+            # Ячейки для проверки в строке 45
+            cells_to_check = ['C45', 'D45', 'E45', 'F45', 'G45', 'H45', 'I45']
+            
+            for cell_address in cells_to_check:
+                value = self._get_cell_value(sheet, cell_address)
+                # Проверяем, что значение не пустое (не None и не пустая строка)
+                if value is not None and str(value).strip() != '':
+                    logger.debug(f"Found CASCO C/E indicator in cell {cell_address}: {value}")
+                    return True
+            
+            logger.debug("No CASCO C/E indicators found in row 45")
+            return False
+            
+        except Exception as e:
+            logger.warning(f"Error determining CASCO C/E status (openpyxl): {str(e)}")
+            return False
+
+    def _determine_casco_ce_pandas(self, df) -> bool:
+        """
+        Определяет наличие КАСКО кат. C/E на основе строки 45 столбцов CDEFGHI (pandas)
+        
+        Логика:
+        Если любая из ячеек C45, D45, E45, F45, G45, H45, I45 содержит непустое значение,
+        то has_casco_ce = True, иначе False
+        
+        Returns:
+            bool: True если найдено непустое значение в любой из проверяемых ячеек
+        """
+        try:
+            # Ячейки для проверки в строке 45 (индекс 44): столбцы C-I (индексы 2-8)
+            cells_to_check = [
+                (44, 2),  # C45
+                (44, 3),  # D45
+                (44, 4),  # E45
+                (44, 5),  # F45
+                (44, 6),  # G45
+                (44, 7),  # H45
+                (44, 8),  # I45
+            ]
+            
+            for row, col in cells_to_check:
+                value = self._safe_get_cell(df, row, col)
+                # Проверяем, что значение не пустое (не None и не пустая строка)
+                if value is not None and str(value).strip() != '':
+                    logger.debug(f"Found CASCO C/E indicator in cell row {row+1}, col {col+1}: {value}")
+                    return True
+            
+            logger.debug("No CASCO C/E indicators found in row 45")
+            return False
+            
+        except Exception as e:
+            logger.warning(f"Error determining CASCO C/E status (pandas): {str(e)}")
+            return False
+
     def _get_default_data(self) -> Dict[str, Any]:
         """Возвращает данные по умолчанию с валидным типом страхования"""
         return {
@@ -336,6 +410,7 @@ class ExcelReader:
             'has_franchise': False,
             'has_installment': False,
             'has_autostart': False,
+            'has_casco_ce': False,
             'response_deadline': timezone.now() + timedelta(hours=3),
         }
     

@@ -209,6 +209,13 @@ def upload_excel(request):
                     reader = ExcelReader(tmp_file_path)
                     excel_data = reader.read_insurance_request()
                     
+                    # Дополнительная проверка и логирование для CASCO C/E
+                    has_casco_ce = excel_data.get('has_casco_ce', False)
+                    if has_casco_ce:
+                        logger.info(f"CASCO C/E automatically detected for file: {excel_file.name}")
+                    else:
+                        logger.debug(f"No CASCO C/E indicators found in file: {excel_file.name}")
+                    
                     # Обрабатываем дату ответа
                     response_deadline = None
                     if excel_data.get('response_deadline'):
@@ -258,6 +265,7 @@ def upload_excel(request):
                         has_franchise=bool(excel_data.get('has_franchise')),
                         has_installment=bool(excel_data.get('has_installment')),
                         has_autostart=bool(excel_data.get('has_autostart')),
+                        has_casco_ce=bool(excel_data.get('has_casco_ce', False)),
                         response_deadline=response_deadline,
                         additional_data=additional_data,
                         created_by=request.user

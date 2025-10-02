@@ -763,6 +763,32 @@ python manage.py shell
 4. Завершенная заявка (страхование имущества)
 5. Заявка с ошибкой (КАСКО с C/E)
 
+## Документация
+
+### Руководства по развертыванию
+
+- **[DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)** - Краткое руководство по развертыванию
+- **[docs/DEPLOYMENT_GUIDE_COMPLETE.md](docs/DEPLOYMENT_GUIDE_COMPLETE.md)** - Полное руководство по развертыванию
+- **[docs/FAVICON_DEPLOYMENT_GUIDE.md](docs/FAVICON_DEPLOYMENT_GUIDE.md)** - Руководство по настройке favicon
+
+### Дополнительная документация
+
+- **[docs/AUTHENTICATION_SYSTEM.md](docs/AUTHENTICATION_SYSTEM.md)** - Система аутентификации
+- **[docs/DEPLOYMENT_CHECKLIST.md](docs/DEPLOYMENT_CHECKLIST.md)** - Чек-лист развертывания
+- **[EXCEL_PROCESSING.md](EXCEL_PROCESSING.md)** - Обработка Excel файлов
+
+### Структура документации
+
+```
+docs/
+├── DEPLOYMENT_GUIDE_COMPLETE.md    # Полное руководство по развертыванию
+├── FAVICON_DEPLOYMENT_GUIDE.md     # Настройка favicon
+├── AUTHENTICATION_SYSTEM.md        # Система аутентификации
+├── DEPLOYMENT_CHECKLIST.md         # Чек-лист развертывания
+├── DEPLOYMENT_INSTRUCTIONS.md      # Инструкции по развертыванию
+└── README_DEPLOYMENT.md            # README для развертывания
+```
+
 ## Автор
 
 **Григорий Грачев**  

@@ -330,9 +330,41 @@ python manage.py collectstatic --noinput
 # Проверьте создание файлов
 ls -la staticfiles/css/
 ls -la staticfiles/admin/
+
+# Проверьте наличие favicon
+ls -la staticfiles/favicon*
+# Должны быть файлы: favicon.ico, favicon-16x16.png, favicon-32x32.png
 ```
 
-### Шаг 6: Загрузка начальных данных
+### Шаг 6: Настройка favicon
+
+```bash
+# Проверьте наличие файлов favicon в директории static/
+ls -la static/favicon*
+
+# Файлы должны включать:
+# - favicon.ico (основной файл)
+# - favicon-16x16.png (для современных браузеров)
+# - favicon-32x32.png (для высокого разрешения)
+
+# Если файлы отсутствуют, скопируйте их из исходников проекта
+# или создайте новые с помощью онлайн-генераторов favicon
+
+# Соберите статические файлы для включения favicon
+python manage.py collectstatic --noinput
+
+# Проверьте, что файлы скопированы в staticfiles/
+ls -la staticfiles/favicon*
+
+# Проверьте базовый шаблон на наличие ссылок на favicon
+grep -n "favicon" templates/base.html
+
+# Должны быть строки вида:
+# <link rel="icon" type="image/x-icon" href="{% static 'favicon.ico' %}">
+# <link rel="shortcut icon" type="image/x-icon" href="{% static 'favicon.ico' %}">
+```
+
+### Шаг 7: Загрузка начальных данных
 
 ```bash
 # Загрузите фикстуры (если есть)
@@ -565,6 +597,15 @@ server {
         alias /path/to/your/staticfiles/favicon.ico;
         expires 1y;
         add_header Cache-Control "public";
+        access_log off;
+    }
+    
+    # Additional favicon formats
+    location ~ ^/favicon-(\d+x\d+)\.png$ {
+        alias /path/to/your/staticfiles/favicon-$1.png;
+        expires 1y;
+        add_header Cache-Control "public";
+        access_log off;
     }
 
     # Robots.txt
@@ -689,6 +730,13 @@ coverage html
    - Сгенерируйте письмо для каждого типа страхования
    - Проверьте расширенные описания
    - Проверьте новый формат дат
+
+4. **Favicon**:
+   - Откройте любую страницу системы в браузере
+   - Проверьте отображение иконки в заголовке вкладки
+   - Добавьте страницу в закладки и проверьте иконку
+   - Протестируйте в разных браузерах (Chrome, Firefox, Safari, Edge)
+   - Проверьте прямой доступ к файлу: `http://your-domain.com/favicon.ico`
 
 #### Тестирование производительности
 ```bash
@@ -935,6 +983,10 @@ python manage.py collectstatic --clear --noinput
 
 # Проверьте конфигурацию Nginx
 sudo nginx -t
+
+# Проверьте наличие favicon файлов
+ls -la staticfiles/favicon*
+curl -I http://your-domain.com/favicon.ico
 ```
 
 #### 4. Проблемы с аутентификацией
@@ -950,6 +1002,31 @@ python manage.py setup_user_groups
 
 # Проверьте middleware
 grep -n "AuthenticationMiddleware" onlineservice/settings.py
+```
+
+#### 5. Проблемы с favicon
+```bash
+# Проверьте наличие файлов favicon
+ls -la static/favicon*
+ls -la staticfiles/favicon*
+
+# Если файлы отсутствуют в staticfiles, пересоберите статические файлы
+python manage.py collectstatic --noinput
+
+# Проверьте доступность через веб-сервер
+curl -I http://your-domain.com/favicon.ico
+curl -I http://your-domain.com/static/favicon.ico
+
+# Проверьте конфигурацию Nginx для favicon
+sudo nginx -t
+grep -A 5 "favicon" /etc/nginx/sites-available/insurance_system
+
+# Проверьте логи Nginx на 404 ошибки
+sudo tail -f /var/log/nginx/error.log | grep favicon
+
+# Проверьте права доступа к файлам favicon
+sudo chown www-data:www-data staticfiles/favicon*
+sudo chmod 644 staticfiles/favicon*
 ```
 
 ### Диагностические команды
@@ -981,6 +1058,14 @@ python manage.py shell -c "
 from django.core.mail import send_mail
 send_mail('Test', 'Test message', 'from@example.com', ['to@example.com'])
 "
+
+# Проверка favicon файлов
+ls -la static/favicon* staticfiles/favicon*
+curl -I http://your-domain.com/favicon.ico
+curl -I http://your-domain.com/static/favicon.ico
+
+# Проверка базового шаблона на наличие favicon
+grep -n "favicon\|icon" templates/base.html
 ```
 
 ## Откат изменений
@@ -1087,12 +1172,13 @@ sudo systemctl status nginx
 - [ ] Настроена база данных
 - [ ] Применены миграции
 - [ ] Созданы группы пользователей
-- [ ] Собраны статические файлы
+- [ ] Настроен favicon (файлы в static/, ссылки в base.html)
+- [ ] Собраны статические файлы (включая favicon)
 - [ ] Настроена конфигурация для продакшена
 - [ ] Запущены тесты
 - [ ] Настроен мониторинг
 - [ ] Настроено резервное копирование
-- [ ] Протестирована система
+- [ ] Протестирована система (включая favicon)
 - [ ] Документированы процедуры
 
 ### Поддержка
