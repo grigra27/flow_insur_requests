@@ -4,9 +4,15 @@
 
 Система автоматически извлекает данные из Excel файлов заявок на страхование. Поддерживаются форматы .xls, .xlsx и .xltx.
 
-## Структура Excel файла
+**Новая функциональность (версия 3.0+)**: Система поддерживает два типа заявок:
+- **Заявка от юридического лица** - стандартная структура файла
+- **Заявка от ИП** - структура с дополнительной строкой в позиции 8, что смещает данные ниже этой строки на одну позицию вниз
 
-### Основные ячейки для извлечения данных
+## Типы заявок и структура файлов
+
+### Заявка от юридического лица (стандартная)
+
+Используется существующая структура файла без изменений.
 
 | Ячейка/Диапазон | Описание | Пример значения |
 |-----------------|----------|-----------------|
@@ -23,6 +29,51 @@
 | F34 | Рассрочки нет | `любое значение` |
 | M24 | Автозапуск | `нет` или другое значение |
 | CDEFGHI45 | КАСКО категория C/E | `любое значение в любой ячейке` |
+
+### Заявка от ИП (с смещением строк)
+
+В заявках от ИП добавляется дополнительная строка в позиции 8, что приводит к смещению всех данных ниже 8-й строки на одну позицию вниз.
+
+| Ячейка/Диапазон | Описание | Пример значения | Изменение |
+|-----------------|----------|-----------------|-----------|
+| HIJ2 | Номер ДФА | `ТС-20212-ГА-КЗ` | Без изменений |
+| CDEF4 | Филиал | `Казанский филиал` | Без изменений |
+| D7 (объединенная D-F) | Название клиента | `ИП Иванов И.И.` | Без изменений |
+| **D10** (объединенная D-F) | ИНН клиента | `123456789012` | **Было D9** |
+| **D22** | Тип страхования "КАСКО" | `любое значение` | **Было D21** |
+| **D23** | Тип страхования "спецтехника" | `любое значение` | **Было D22** |
+| **N18** | Период "1 год" | `любое значение` | **Было N17** |
+| **N19** | Период "на весь срок лизинга" | `любое значение` | **Было N18** |
+| CDEFGHI43-49 | Информация о предмете лизинга | `специальный, грузовой бортовой...` | Без изменений |
+| **D30** | Франшизы НЕТ | `любое значение` | **Было D29** |
+| **F35** | Рассрочки нет | `любое значение` | **Было F34** |
+| **M25** | Автозапуск | `нет` или другое значение | **Было M24** |
+| CDEFGHI45 | КАСКО категория C/E | `любое значение в любой ячейке` | Без изменений |
+
+### Логика смещения строк
+
+Система автоматически применяет следующую логику:
+
+```python
+def _get_adjusted_row(self, row_number: int) -> int:
+    """
+    Возвращает скорректированный номер строки с учетом типа заявки
+    
+    Args:
+        row_number: Базовый номер строки для заявки от юр.лица
+        
+    Returns:
+        Скорректированный номер строки
+    """
+    if self.application_type == 'individual_entrepreneur' and row_number > 8:
+        return row_number + 1
+    return row_number
+```
+
+**Правила смещения:**
+- Строки 1-8: остаются без изменений для всех типов заявок
+- Строки 9 и выше: для заявок от ИП смещаются на +1 позицию
+- Столбцы: остаются без изменений для всех типов заявок
 
 ### Новые функции (версия 2.0+)
 
@@ -184,18 +235,46 @@ logger.error(f"Failed to process Excel file: {str(e)}")
 ```python
 from core.excel_utils import ExcelReader
 
-# Создание экземпляра читателя
-reader = ExcelReader()
+# Создание экземпляра читателя для заявки от юр.лица (по умолчанию)
+reader = ExcelReader('/path/to/file.xlsx', application_type='legal_entity')
+
+# Создание экземпляра читателя для заявки от ИП
+reader_ip = ExcelReader('/path/to/file.xlsx', application_type='individual_entrepreneur')
 
 # Обработка файла
 try:
-    data = reader.read_excel_file('/path/to/file.xlsx')
+    data = reader.read_excel_file()
     print(f"Клиент: {data['client_name']}")
     print(f"ДФА: {data['dfa_number']}")
     print(f"Тип страхования: {data['insurance_type']}")
     print(f"КАСКО C/E: {data['has_casco_ce']}")
+    print(f"Тип заявки: {reader.application_type}")
 except Exception as e:
     print(f"Ошибка обработки: {str(e)}")
+```
+
+### Сравнение извлечения данных для разных типов заявок
+
+```python
+from core.excel_utils import ExcelReader
+
+# Обработка одного и того же файла как разных типов заявок
+file_path = '/path/to/application.xlsx'
+
+# Как заявка от юр.лица
+legal_reader = ExcelReader(file_path, application_type='legal_entity')
+legal_data = legal_reader.read_excel_file()
+
+# Как заявка от ИП
+ip_reader = ExcelReader(file_path, application_type='individual_entrepreneur')
+ip_data = ip_reader.read_excel_file()
+
+# Сравнение результатов
+print("Сравнение извлеченных данных:")
+print(f"ИНН (юр.лицо): {legal_data['inn']} (из ячейки D9)")
+print(f"ИНН (ИП): {ip_data['inn']} (из ячейки D10)")
+print(f"Тип страхования (юр.лицо): {legal_data['insurance_type']} (из D21/D22)")
+print(f"Тип страхования (ИП): {ip_data['insurance_type']} (из D22/D23)")
 ```
 
 ### Обработка в Django view
@@ -205,39 +284,52 @@ from django.shortcuts import render, redirect
 from django.contrib import messages
 from core.excel_utils import ExcelReader
 from .models import InsuranceRequest
+from .forms import ExcelUploadForm
 
 def upload_excel(request):
-    if request.method == 'POST' and request.FILES.get('excel_file'):
-        excel_file = request.FILES['excel_file']
+    if request.method == 'POST':
+        form = ExcelUploadForm(request.POST, request.FILES)
         
-        try:
-            # Обработка Excel файла
-            reader = ExcelReader()
-            data = reader.read_excel_file(excel_file)
+        if form.is_valid():
+            excel_file = form.cleaned_data['excel_file']
+            application_type = form.cleaned_data['application_type']
             
-            # Создание заявки
-            insurance_request = InsuranceRequest.objects.create(
-                dfa_number=data['dfa_number'],
-                branch=data['branch'],
-                client_name=data['client_name'],
-                inn=data['inn'],
-                insurance_type=data['insurance_type'],
-                insurance_period=data['insurance_period'],
-                leasing_subject_info=data['leasing_subject_info'],
-                has_franchise=data['has_franchise'],
-                has_installment=data['has_installment'],
-                has_autostart=data['has_autostart'],
-                has_casco_ce=data['has_casco_ce'],  # Автоматически определено
-                created_by=request.user
-            )
-            
-            messages.success(request, f'Заявка {insurance_request.dfa_number} успешно создана')
-            return redirect('request_detail', pk=insurance_request.pk)
-            
-        except Exception as e:
-            messages.error(request, f'Ошибка обработки файла: {str(e)}')
+            try:
+                # Обработка Excel файла с указанием типа заявки
+                reader = ExcelReader(excel_file, application_type=application_type)
+                data = reader.read_excel_file()
+                
+                # Логирование выбранного типа заявки
+                logger.info(f"Processing {application_type} application: {excel_file.name}")
+                
+                # Создание заявки
+                insurance_request = InsuranceRequest.objects.create(
+                    dfa_number=data['dfa_number'],
+                    branch=data['branch'],
+                    client_name=data['client_name'],
+                    inn=data['inn'],
+                    insurance_type=data['insurance_type'],
+                    insurance_period=data['insurance_period'],
+                    leasing_subject_info=data['leasing_subject_info'],
+                    has_franchise=data['has_franchise'],
+                    has_installment=data['has_installment'],
+                    has_autostart=data['has_autostart'],
+                    has_casco_ce=data['has_casco_ce'],  # Автоматически определено
+                    created_by=request.user
+                )
+                
+                success_msg = f'Заявка {insurance_request.dfa_number} успешно создана (тип: {application_type})'
+                messages.success(request, success_msg)
+                return redirect('request_detail', pk=insurance_request.pk)
+                
+            except Exception as e:
+                error_msg = f'Ошибка обработки файла (тип: {application_type}): {str(e)}'
+                messages.error(request, error_msg)
+                logger.error(f"Excel processing error for {application_type}: {str(e)}")
+    else:
+        form = ExcelUploadForm()
     
-    return render(request, 'upload_excel.html')
+    return render(request, 'upload_excel.html', {'form': form})
 ```
 
 ## Тестирование
@@ -248,64 +340,179 @@ def upload_excel(request):
 import openpyxl
 from openpyxl import Workbook
 
-def create_test_excel_file():
-    """Создает тестовый Excel файл с данными"""
+def create_test_legal_entity_file():
+    """Создает тестовый Excel файл для заявки от юр.лица"""
     wb = Workbook()
     ws = wb.active
     
-    # Основные данные
+    # Основные данные (стандартные ячейки)
     ws['H2'] = 'ТС-20212-ГА-КЗ'  # ДФА
     ws['C4'] = 'Казанский филиал'  # Филиал
     ws['D7'] = 'ООО "ТЕСТ КЛИЕНТ"'  # Клиент
-    ws['D9'] = '1234567890'  # ИНН
-    ws['D21'] = 'КАСКО'  # Тип страхования
-    ws['N17'] = '1 год'  # Период
+    ws['D9'] = '1234567890'  # ИНН (стандартная позиция)
+    ws['D21'] = 'КАСКО'  # Тип страхования (стандартная позиция)
+    ws['N17'] = '1 год'  # Период (стандартная позиция)
+    ws['D29'] = ''  # Франшиза (стандартная позиция)
+    ws['F34'] = ''  # Рассрочка (стандартная позиция)
+    ws['M24'] = 'нет'  # Автозапуск (стандартная позиция)
     ws['C45'] = 'C/E'  # КАСКО C/E
     
     # Информация о предмете лизинга
     ws['D43'] = 'легковой автомобиль'
     ws['E44'] = 'LADA Vesta'
     
-    wb.save('test_file.xlsx')
-    return 'test_file.xlsx'
+    wb.save('test_legal_entity.xlsx')
+    return 'test_legal_entity.xlsx'
+
+def create_test_ip_file():
+    """Создает тестовый Excel файл для заявки от ИП"""
+    wb = Workbook()
+    ws = wb.active
+    
+    # Основные данные
+    ws['H2'] = 'ТС-20212-ГА-КЗ'  # ДФА (без изменений)
+    ws['C4'] = 'Казанский филиал'  # Филиал (без изменений)
+    ws['D7'] = 'ИП Иванов И.И.'  # Клиент (без изменений)
+    
+    # Добавляем дополнительную строку в позиции 8
+    ws['D8'] = 'Дополнительная информация для ИП'
+    
+    # Данные смещены на одну строку вниз
+    ws['D10'] = '123456789012'  # ИНН (было D9)
+    ws['D22'] = 'КАСКО'  # Тип страхования (было D21)
+    ws['N18'] = '1 год'  # Период (было N17)
+    ws['D30'] = ''  # Франшиза (было D29)
+    ws['F35'] = ''  # Рассрочка (было F34)
+    ws['M25'] = 'нет'  # Автозапуск (было M24)
+    ws['C45'] = 'C/E'  # КАСКО C/E (без изменений)
+    
+    # Информация о предмете лизинга (без изменений)
+    ws['D43'] = 'легковой автомобиль'
+    ws['E44'] = 'LADA Vesta'
+    
+    wb.save('test_ip.xlsx')
+    return 'test_ip.xlsx'
+
+def create_comparison_test_files():
+    """Создает пару файлов для сравнения типов заявок"""
+    legal_file = create_test_legal_entity_file()
+    ip_file = create_test_ip_file()
+    
+    return {
+        'legal_entity': legal_file,
+        'individual_entrepreneur': ip_file
+    }
 ```
 
 ### Unit тесты
 
 ```python
 import unittest
+import os
 from core.excel_utils import ExcelReader
+from django.core.exceptions import ValidationError
 
 class TestExcelReader(unittest.TestCase):
     
     def setUp(self):
-        self.reader = ExcelReader()
-        self.test_file = create_test_excel_file()
+        self.test_files = create_comparison_test_files()
+        self.legal_file = self.test_files['legal_entity']
+        self.ip_file = self.test_files['individual_entrepreneur']
     
-    def test_basic_data_extraction(self):
-        """Тест базового извлечения данных"""
-        data = self.reader.read_excel_file(self.test_file)
+    def test_legal_entity_data_extraction(self):
+        """Тест извлечения данных из заявки от юр.лица"""
+        reader = ExcelReader(self.legal_file, application_type='legal_entity')
+        data = reader.read_excel_file()
         
         self.assertEqual(data['dfa_number'], 'ТС-20212-ГА-КЗ')
         self.assertEqual(data['client_name'], 'ООО "ТЕСТ КЛИЕНТ"')
+        self.assertEqual(data['inn'], '1234567890')
         self.assertEqual(data['insurance_type'], 'КАСКО')
     
-    def test_casco_ce_detection(self):
-        """Тест автоматического определения КАСКО C/E"""
-        data = self.reader.read_excel_file(self.test_file)
+    def test_ip_data_extraction(self):
+        """Тест извлечения данных из заявки от ИП"""
+        reader = ExcelReader(self.ip_file, application_type='individual_entrepreneur')
+        data = reader.read_excel_file()
         
-        self.assertTrue(data['has_casco_ce'])
+        self.assertEqual(data['dfa_number'], 'ТС-20212-ГА-КЗ')
+        self.assertEqual(data['client_name'], 'ИП Иванов И.И.')
+        self.assertEqual(data['inn'], '123456789012')  # Из ячейки D10 вместо D9
+        self.assertEqual(data['insurance_type'], 'КАСКО')
+    
+    def test_row_adjustment_logic(self):
+        """Тест логики смещения строк"""
+        legal_reader = ExcelReader(self.legal_file, application_type='legal_entity')
+        ip_reader = ExcelReader(self.ip_file, application_type='individual_entrepreneur')
+        
+        # Проверяем, что строки до 8 включительно не смещаются
+        self.assertEqual(legal_reader._get_adjusted_row(7), 7)
+        self.assertEqual(ip_reader._get_adjusted_row(7), 7)
+        self.assertEqual(legal_reader._get_adjusted_row(8), 8)
+        self.assertEqual(ip_reader._get_adjusted_row(8), 8)
+        
+        # Проверяем, что строки после 8 смещаются только для ИП
+        self.assertEqual(legal_reader._get_adjusted_row(9), 9)
+        self.assertEqual(ip_reader._get_adjusted_row(9), 10)
+        self.assertEqual(legal_reader._get_adjusted_row(21), 21)
+        self.assertEqual(ip_reader._get_adjusted_row(21), 22)
+    
+    def test_application_type_comparison(self):
+        """Тест сравнения результатов для разных типов заявок"""
+        # Используем один файл, но обрабатываем как разные типы
+        legal_reader = ExcelReader(self.legal_file, application_type='legal_entity')
+        legal_data = legal_reader.read_excel_file()
+        
+        # Обрабатываем тот же файл как заявку от ИП
+        ip_reader = ExcelReader(self.legal_file, application_type='individual_entrepreneur')
+        ip_data = ip_reader.read_excel_file()
+        
+        # ИНН должен извлекаться из разных ячеек
+        self.assertNotEqual(legal_data['inn'], ip_data['inn'])
+        
+        # Данные, которые не зависят от смещения, должны быть одинаковыми
+        self.assertEqual(legal_data['dfa_number'], ip_data['dfa_number'])
+        self.assertEqual(legal_data['client_name'], ip_data['client_name'])
+    
+    def test_casco_ce_detection(self):
+        """Тест автоматического определения КАСКО C/E для разных типов заявок"""
+        legal_reader = ExcelReader(self.legal_file, application_type='legal_entity')
+        legal_data = legal_reader.read_excel_file()
+        
+        ip_reader = ExcelReader(self.ip_file, application_type='individual_entrepreneur')
+        ip_data = ip_reader.read_excel_file()
+        
+        # КАСКО C/E должно определяться одинаково для обоих типов
+        self.assertTrue(legal_data['has_casco_ce'])
+        self.assertTrue(ip_data['has_casco_ce'])
+    
+    def test_backward_compatibility(self):
+        """Тест обратной совместимости - по умолчанию используется тип 'legal_entity'"""
+        # Создание читателя без указания типа заявки
+        reader = ExcelReader(self.legal_file)
+        self.assertEqual(reader.application_type, 'legal_entity')
+        
+        # Данные должны извлекаться корректно
+        data = reader.read_excel_file()
+        self.assertEqual(data['inn'], '1234567890')
+    
+    def test_invalid_application_type(self):
+        """Тест обработки некорректного типа заявки"""
+        with self.assertRaises(ValueError):
+            ExcelReader(self.legal_file, application_type='invalid_type')
     
     def test_empty_file_handling(self):
         """Тест обработки пустого файла"""
         empty_file = create_empty_excel_file()
+        reader = ExcelReader(empty_file, application_type='legal_entity')
         
         with self.assertRaises(ValidationError):
-            self.reader.read_excel_file(empty_file)
+            reader.read_excel_file()
     
     def tearDown(self):
         # Очистка тестовых файлов
-        os.remove(self.test_file)
+        for file_path in self.test_files.values():
+            if os.path.exists(file_path):
+                os.remove(file_path)
 ```
 
 ## Производительность
@@ -485,8 +692,100 @@ class ExcelReader:
         return data
 ```
 
+## Выбор типа заявки в интерфейсе
+
+### Форма загрузки Excel файла
+
+Начиная с версии 3.0, пользователи должны выбирать тип заявки перед загрузкой файла:
+
+```python
+# forms.py
+from django import forms
+
+class ExcelUploadForm(forms.Form):
+    APPLICATION_TYPE_CHOICES = [
+        ('legal_entity', 'Заявка от юр.лица'),
+        ('individual_entrepreneur', 'Заявка от ИП'),
+    ]
+    
+    application_type = forms.ChoiceField(
+        choices=APPLICATION_TYPE_CHOICES,
+        label='Тип заявки',
+        widget=forms.Select(attrs={'class': 'form-control'}),
+        help_text='Выберите тип загружаемой заявки для корректной обработки данных'
+    )
+    
+    excel_file = forms.FileField(
+        label='Excel файл',
+        widget=forms.FileInput(attrs={'class': 'form-control', 'accept': '.xls,.xlsx,.xltx'})
+    )
+```
+
+### Валидация формы
+
+```python
+def clean_application_type(self):
+    application_type = self.cleaned_data.get('application_type')
+    
+    if not application_type:
+        raise forms.ValidationError('Необходимо выбрать тип заявки')
+    
+    if application_type not in ['legal_entity', 'individual_entrepreneur']:
+        raise forms.ValidationError('Некорректный тип заявки')
+    
+    return application_type
+```
+
+### Отображение различий в шаблоне
+
+В шаблоне `upload_excel.html` отображается таблица с различиями между типами заявок:
+
+- **Желтым фоном** выделены строки, где есть различия между типами
+- **Красным цветом** выделены ячейки, которые отличаются для заявок от ИП
+- Приводятся примеры корректного заполнения для каждого типа
+
+## Миграция и обновление
+
+### Обновление существующего кода
+
+При обновлении до версии 3.0 необходимо:
+
+1. **Обновить вызовы ExcelReader**:
+   ```python
+   # Старый код
+   reader = ExcelReader()
+   data = reader.read_excel_file(file_path)
+   
+   # Новый код
+   reader = ExcelReader(file_path, application_type='legal_entity')
+   data = reader.read_excel_file()
+   ```
+
+2. **Обновить формы загрузки**:
+   - Добавить поле выбора типа заявки
+   - Обновить валидацию формы
+   - Передавать тип заявки в ExcelReader
+
+3. **Обновить тесты**:
+   - Добавить тесты для обоих типов заявок
+   - Проверить логику смещения строк
+   - Убедиться в обратной совместимости
+
+### Обратная совместимость
+
+Система сохраняет обратную совместимость:
+- По умолчанию используется тип `legal_entity`
+- Существующий код продолжает работать без изменений
+- Все существующие заявки обрабатываются корректно
+
 ---
 
-**Версия документа**: 2.0  
-**Дата обновления**: $(date +%d.%m.%Y)  
+**Версия документа**: 3.0  
+**Дата обновления**: 03.10.2025  
 **Автор**: Команда разработки системы управления страховыми заявками
+
+### История изменений
+
+- **v3.0** (03.10.2025): Добавлена поддержка заявок от ИП с логикой смещения строк
+- **v2.0**: Добавлено автоматическое определение КАСКО C/E
+- **v1.0**: Базовая функциональность обработки Excel файлов

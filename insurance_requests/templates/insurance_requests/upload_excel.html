@@ -14,6 +14,23 @@
                     {% csrf_token %}
                     
                     <div class="mb-3">
+                        <label for="{{ form.application_type.id_for_label }}" class="form-label">
+                            {{ form.application_type.label }}
+                        </label>
+                        {{ form.application_type }}
+                        {% if form.application_type.help_text %}
+                            <div class="form-text">{{ form.application_type.help_text }}</div>
+                        {% endif %}
+                        {% if form.application_type.errors %}
+                            <div class="text-danger">
+                                {% for error in form.application_type.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
                         <label for="{{ form.excel_file.id_for_label }}" class="form-label">
                             {{ form.excel_file.label }}
                         </label>
@@ -53,30 +70,143 @@
         </div>
         
         <div class="mt-4">
-            <h5>Структура Excel файла</h5>
+            <h5>Структура Excel файла - сравнение типов заявок</h5>
             <div class="table-responsive">
                 <table class="table table-sm table-bordered">
                     <thead class="table-light">
                         <tr>
-                            <th>Ячейка</th>
                             <th>Поле</th>
+                            <th><i class="bi bi-building"></i> Заявка от юр.лица</th>
+                            <th><i class="bi bi-person"></i> Заявка от ИП</th>
                             <th>Описание</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <tr><td>D7</td><td>Имя клиента</td><td>Название организации или ФИО</td></tr>
-                        <tr><td>D9</td><td>ИНН</td><td>ИНН клиента (10 или 12 цифр)</td></tr>
-                        <tr><td>D21/D22</td><td>Тип страхования</td><td>D21 - КАСКО, D22 - спецтехника, обе пустые - другое</td></tr>
-                        <tr><td>N17</td><td>Период страхования "1 год"</td><td>Наличие отметки = страхование на 1 год</td></tr>
-                        <tr><td>N18</td><td>Период страхования "на весь срок лизинга"</td><td>Наличие отметки = страхование на весь срок лизинга</td></tr>
-                        <tr><td>D29</td><td>Франшиза</td><td>Наличие значения = НЕТ франшизы</td></tr>
-                        <tr><td>F34</td><td>Рассрочка</td><td>Наличие значения = НЕТ рассрочки</td></tr>
-                        <tr><td>M24</td><td>Автозапуск</td><td>Значение "нет" = нет автозапуска</td></tr>
-                        <tr><td>HIJ2</td><td>Номер ДФА</td><td>Номер договора финансовой аренды</td></tr>
-                        <tr><td>CDEF4</td><td>Филиал</td><td>Название филиала</td></tr>
-                        <tr><td>CDEFGHI43/45/47/49</td><td>Информация о ТС</td><td>Описание предмета лизинга</td></tr>
+                        <tr>
+                            <td><strong>Имя клиента</strong></td>
+                            <td>D7</td>
+                            <td>D7</td>
+                            <td>Название организации или ФИО</td>
+                        </tr>
+                        <tr class="table-warning">
+                            <td><strong>ИНН</strong></td>
+                            <td>D9</td>
+                            <td><span class="text-danger">D10</span></td>
+                            <td>ИНН клиента (10 или 12 цифр)</td>
+                        </tr>
+                        <tr class="table-warning">
+                            <td><strong>Тип страхования</strong></td>
+                            <td>D21/D22</td>
+                            <td><span class="text-danger">D22/D23</span></td>
+                            <td>КАСКО / спецтехника / другое</td>
+                        </tr>
+                        <tr class="table-warning">
+                            <td><strong>Период "1 год"</strong></td>
+                            <td>N17</td>
+                            <td><span class="text-danger">N18</span></td>
+                            <td>Наличие отметки = страхование на 1 год</td>
+                        </tr>
+                        <tr class="table-warning">
+                            <td><strong>Период "весь срок лизинга"</strong></td>
+                            <td>N18</td>
+                            <td><span class="text-danger">N19</span></td>
+                            <td>Наличие отметки = страхование на весь срок лизинга</td>
+                        </tr>
+                        <tr class="table-warning">
+                            <td><strong>Франшиза</strong></td>
+                            <td>D29</td>
+                            <td><span class="text-danger">D30</span></td>
+                            <td>Наличие значения = НЕТ франшизы</td>
+                        </tr>
+                        <tr class="table-warning">
+                            <td><strong>Рассрочка</strong></td>
+                            <td>F34</td>
+                            <td><span class="text-danger">F35</span></td>
+                            <td>Наличие значения = НЕТ рассрочки</td>
+                        </tr>
+                        <tr class="table-warning">
+                            <td><strong>Автозапуск</strong></td>
+                            <td>M24</td>
+                            <td><span class="text-danger">M25</span></td>
+                            <td>Значение "нет" = нет автозапуска</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Номер ДФА</strong></td>
+                            <td>HIJ2</td>
+                            <td>HIJ2</td>
+                            <td>Номер договора финансовой аренды</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Филиал</strong></td>
+                            <td>CDEF4</td>
+                            <td>CDEF4</td>
+                            <td>Название филиала</td>
+                        </tr>
+                        <tr class="table-warning">
+                            <td><strong>Информация о ТС</strong></td>
+                            <td>CDEFGHI43/45/47/49</td>
+                            <td><span class="text-danger">CDEFGHI44/46/48/50</span></td>
+                            <td>Описание предмета лизинга</td>
+                        </tr>
                     </tbody>
                 </table>
+            </div>
+            
+            <div class="alert alert-light mt-3">
+                <i class="bi bi-lightbulb"></i>
+                <strong>Пояснение:</strong>
+                <ul class="mb-0 mt-2">
+                    <li><span class="text-danger">Красным цветом</span> выделены ячейки, которые отличаются для заявок от ИП</li>
+                    <li><span class="bg-warning px-1">Желтым фоном</span> выделены строки, где есть различия между типами заявок</li>
+                    <li>Заявки от ИП имеют дополнительную строку в позиции 8, что смещает все данные ниже этой строки на одну позицию вниз</li>
+                    <li>Данные в строках 1-8 остаются в тех же ячейках для обоих типов заявок</li>
+                </ul>
+            </div>
+            
+            <div class="row mt-4">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header bg-primary text-white">
+                            <h6 class="mb-0"><i class="bi bi-building"></i> Пример заявки от юр.лица</h6>
+                        </div>
+                        <div class="card-body">
+                            <small class="text-muted">Стандартная структура файла:</small>
+                            <div class="mt-2">
+                                <code>D7: ООО "АЛТЫН ЯР"</code><br>
+                                <code>D9: 1234567890</code> <span class="text-muted">(ИНН 10 цифр)</span><br>
+                                <code>D21: КАСКО</code> <span class="text-muted">(тип страхования)</span><br>
+                                <code>N17: ✓</code> <span class="text-muted">(период 1 год)</span><br>
+                                <code>D29: </code> <span class="text-muted">(пусто = НЕТ франшизы)</span><br>
+                                <code>M24: нет</code> <span class="text-muted">(автозапуск)</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header bg-success text-white">
+                            <h6 class="mb-0"><i class="bi bi-person"></i> Пример заявки от ИП</h6>
+                        </div>
+                        <div class="card-body">
+                            <small class="text-muted">Структура с дополнительной строкой 8:</small>
+                            <div class="mt-2">
+                                <code>D7: ИП Иванов И.И.</code><br>
+                                <code>D8: Дополнительная информация</code> <span class="badge bg-warning text-dark">НОВАЯ СТРОКА</span><br>
+                                <code>D10: 123456789012</code> <span class="text-muted">(ИНН 12 цифр)</span><br>
+                                <code>D22: КАСКО</code> <span class="text-muted">(смещено с D21)</span><br>
+                                <code>N18: ✓</code> <span class="text-muted">(смещено с N17)</span><br>
+                                <code>D30: </code> <span class="text-muted">(смещено с D29)</span><br>
+                                <code>M25: нет</code> <span class="text-muted">(смещено с M24)</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="alert alert-warning mt-3">
+                <i class="bi bi-exclamation-triangle"></i>
+                <strong>Внимание!</strong> Неправильный выбор типа заявки приведет к извлечению данных из неправильных ячеек. 
+                Всегда проверяйте соответствие выбранного типа структуре загружаемого файла.
             </div>
         </div>
     </div>

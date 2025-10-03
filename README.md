@@ -773,6 +773,7 @@ python manage.py shell
 
 ### Дополнительная документация
 
+- **[docs/USER_MANUAL.md](docs/USER_MANUAL.md)** - Руководство пользователя ([HTML](docs/USER_MANUAL.html) | [PDF](docs/USER_MANUAL.pdf))
 - **[docs/AUTHENTICATION_SYSTEM.md](docs/AUTHENTICATION_SYSTEM.md)** - Система аутентификации
 - **[docs/DEPLOYMENT_CHECKLIST.md](docs/DEPLOYMENT_CHECKLIST.md)** - Чек-лист развертывания
 - **[EXCEL_PROCESSING.md](EXCEL_PROCESSING.md)** - Обработка Excel файлов
@@ -781,6 +782,9 @@ python manage.py shell
 
 ```
 docs/
+├── USER_MANUAL.md                  # Руководство пользователя (Markdown)
+├── USER_MANUAL.html                # Руководство пользователя (HTML)
+├── USER_MANUAL.pdf                 # Руководство пользователя (PDF)
 ├── DEPLOYMENT_GUIDE_COMPLETE.md    # Полное руководство по развертыванию
 ├── FAVICON_DEPLOYMENT_GUIDE.md     # Настройка favicon
 ├── AUTHENTICATION_SYSTEM.md        # Система аутентификации

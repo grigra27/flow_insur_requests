@@ -17,7 +17,7 @@
     <ul class="nav nav-tabs">
         <li class="nav-item">
             <a class="nav-link {% if not current_branch %}active{% endif %}" 
-               href="?{% if current_dfa_filter %}dfa_filter={{ current_dfa_filter|urlencode }}&{% endif %}{% if current_month %}month={{ current_month }}&{% endif %}{% if current_year %}year={{ current_year }}{% endif %}">
+               href="?{% if current_dfa_filter %}dfa_filter={{ current_dfa_filter|urlencode }}&{% endif %}{% if current_month %}month={{ current_month }}&{% endif %}{% if current_year %}year={{ current_year }}{% endif %}"
                 <i class="bi bi-list-ul"></i> Все заявки
                 {% if not current_branch %}
                     <span class="badge bg-primary ms-1">{{ total_requests }}</span>
@@ -27,7 +27,7 @@
         {% for branch in available_branches %}
         <li class="nav-item">
             <a class="nav-link {% if current_branch == branch %}active{% endif %}" 
-               href="?branch={{ branch|urlencode }}{% if current_dfa_filter %}&dfa_filter={{ current_dfa_filter|urlencode }}{% endif %}{% if current_month %}&month={{ current_month }}{% endif %}{% if current_year %}&year={{ current_year }}{% endif %}">
+               href="?branch={{ branch|urlencode }}{% if current_dfa_filter %}&dfa_filter={{ current_dfa_filter|urlencode }}{% endif %}{% if current_month %}&month={{ current_month }}{% endif %}{% if current_year %}&year={{ current_year }}{% endif %}"
                 <i class="bi bi-building"></i> {{ branch }}
                 {% if current_branch == branch %}
                     <span class="badge bg-primary ms-1">{{ total_requests }}</span>
@@ -243,6 +243,163 @@
             </tbody>
         </table>
     </div>
+    
+    <!-- Pagination Controls -->
+    {% if is_paginated %}
+    <nav aria-label="Навигация по страницам" class="mt-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div class="pagination-info">
+                <small class="text-muted">
+                    <i class="bi bi-info-circle"></i>
+                    Показано {{ page_obj.start_index }}-{{ page_obj.end_index }} из {{ paginator.count }} {{ paginator.count|pluralize:"заявки,заявок,заявок" }}
+                </small>
+            </div>
+            <div class="pagination-summary d-none d-md-block">
+                <small class="text-muted">
+                    Страница {{ page_obj.number }} из {{ paginator.num_pages }}
+                </small>
+            </div>
+        </div>
+        
+        <ul class="pagination justify-content-center flex-wrap">
+            <!-- Previous Button -->
+            {% if page_obj.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if current_branch %}&branch={{ current_branch|urlencode }}{% endif %}{% if current_dfa_filter %}&dfa_filter={{ current_dfa_filter|urlencode }}{% endif %}{% if current_month %}&month={{ current_month }}{% endif %}{% if current_year %}&year={{ current_year }}{% endif %}" aria-label="Предыдущая">
+                        <span aria-hidden="true">&laquo;</span>
+                        <span class="d-none d-sm-inline ms-1">Предыдущая</span>
+                    </a>
+                </li>
+            {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link">
+                        <span aria-hidden="true">&laquo;</span>
+                        <span class="d-none d-sm-inline ms-1">Предыдущая</span>
+                    </span>
+                </li>
+            {% endif %}
+            
+            <!-- Page Numbers with Ellipsis Logic -->
+            {% if paginator.num_pages <= 7 %}
+                <!-- Show all pages if 7 or fewer -->
+                {% for num in paginator.page_range %}
+                    {% if page_obj.number == num %}
+                        <li class="page-item active" aria-current="page">
+                            <span class="page-link">{{ num }}</span>
+                        </li>
+                    {% else %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ num }}{% if current_branch %}&branch={{ current_branch|urlencode }}{% endif %}{% if current_dfa_filter %}&dfa_filter={{ current_dfa_filter|urlencode }}{% endif %}{% if current_month %}&month={{ current_month }}{% endif %}{% if current_year %}&year={{ current_year }}{% endif %}">{{ num }}</a>
+                        </li>
+                    {% endif %}
+                {% endfor %}
+            {% else %}
+                <!-- Show condensed pagination with ellipsis -->
+                <!-- Always show first page -->
+                {% if page_obj.number != 1 %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page=1{% if current_branch %}&branch={{ current_branch|urlencode }}{% endif %}{% if current_dfa_filter %}&dfa_filter={{ current_dfa_filter|urlencode }}{% endif %}{% if current_month %}&month={{ current_month }}{% endif %}{% if current_year %}&year={{ current_year }}{% endif %}">1</a>
+                    </li>
+                {% else %}
+                    <li class="page-item active" aria-current="page">
+                        <span class="page-link">1</span>
+                    </li>
+                {% endif %}
+                
+                <!-- Show ellipsis if current page is far from start -->
+                {% if page_obj.number > 4 %}
+                    <li class="page-item disabled">
+                        <span class="page-link">...</span>
+                    </li>
+                {% endif %}
+                
+                <!-- Show pages around current page -->
+                {% for num in paginator.page_range %}
+                    {% if num > 1 and num < paginator.num_pages %}
+                        {% if num >= page_obj.number|add:"-2" and num <= page_obj.number|add:"2" %}
+                            {% if page_obj.number == num %}
+                                <li class="page-item active" aria-current="page">
+                                    <span class="page-link">{{ num }}</span>
+                                </li>
+                            {% else %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ num }}{% if current_branch %}&branch={{ current_branch|urlencode }}{% endif %}{% if current_dfa_filter %}&dfa_filter={{ current_dfa_filter|urlencode }}{% endif %}{% if current_month %}&month={{ current_month }}{% endif %}{% if current_year %}&year={{ current_year }}{% endif %}">{{ num }}</a>
+                                </li>
+                            {% endif %}
+                        {% endif %}
+                    {% endif %}
+                {% endfor %}
+                
+                <!-- Show ellipsis if current page is far from end -->
+                {% if page_obj.number < paginator.num_pages|add:"-3" %}
+                    <li class="page-item disabled">
+                        <span class="page-link">...</span>
+                    </li>
+                {% endif %}
+                
+                <!-- Always show last page -->
+                {% if paginator.num_pages > 1 %}
+                    {% if page_obj.number != paginator.num_pages %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ paginator.num_pages }}{% if current_branch %}&branch={{ current_branch|urlencode }}{% endif %}{% if current_dfa_filter %}&dfa_filter={{ current_dfa_filter|urlencode }}{% endif %}{% if current_month %}&month={{ current_month }}{% endif %}{% if current_year %}&year={{ current_year }}{% endif %}">{{ paginator.num_pages }}</a>
+                        </li>
+                    {% else %}
+                        <li class="page-item active" aria-current="page">
+                            <span class="page-link">{{ paginator.num_pages }}</span>
+                        </li>
+                    {% endif %}
+                {% endif %}
+            {% endif %}
+            
+            <!-- Next Button -->
+            {% if page_obj.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if current_branch %}&branch={{ current_branch|urlencode }}{% endif %}{% if current_dfa_filter %}&dfa_filter={{ current_dfa_filter|urlencode }}{% endif %}{% if current_month %}&month={{ current_month }}{% endif %}{% if current_year %}&year={{ current_year }}{% endif %}" aria-label="Следующая">
+                        <span class="d-none d-sm-inline me-1">Следующая</span>
+                        <span aria-hidden="true">&raquo;</span>
+                    </a>
+                </li>
+            {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link">
+                        <span class="d-none d-sm-inline me-1">Следующая</span>
+                        <span aria-hidden="true">&raquo;</span>
+                    </span>
+                </li>
+            {% endif %}
+        </ul>
+        
+        <!-- Mobile-friendly page jump -->
+        <div class="d-md-none mt-3">
+            <form method="GET" class="d-flex justify-content-center">
+                <!-- Preserve all current filters -->
+                {% if current_branch %}
+                    <input type="hidden" name="branch" value="{{ current_branch }}">
+                {% endif %}
+                {% if current_dfa_filter %}
+                    <input type="hidden" name="dfa_filter" value="{{ current_dfa_filter }}">
+                {% endif %}
+                {% if current_month %}
+                    <input type="hidden" name="month" value="{{ current_month }}">
+                {% endif %}
+                {% if current_year %}
+                    <input type="hidden" name="year" value="{{ current_year }}">
+                {% endif %}
+                
+                <div class="input-group" style="max-width: 200px;">
+                    <span class="input-group-text">Стр.</span>
+                    <input type="number" name="page" class="form-control" 
+                           value="{{ page_obj.number }}" 
+                           min="1" max="{{ paginator.num_pages }}"
+                           aria-label="Номер страницы">
+                    <button class="btn btn-outline-secondary" type="submit">
+                        <i class="bi bi-arrow-right"></i>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </nav>
+    {% endif %}
 {% else %}
     <div class="text-center py-5">
         {% if has_filters %}

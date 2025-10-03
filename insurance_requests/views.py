@@ -9,6 +9,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_http_methods
 from django.core.files.storage import default_storage
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.conf import settings
 import os
 import tempfile
@@ -160,7 +161,20 @@ def request_list(request):
             pass
     
     # Сортируем по дате создания (новые сначала)
-    requests = queryset.order_by('-created_at')
+    queryset = queryset.order_by('-created_at')
+    
+    # Применяем пагинацию
+    paginator = Paginator(queryset, 30)  # 30 заявок на страницу
+    page_number = request.GET.get('page')
+    
+    try:
+        requests = paginator.get_page(page_number)
+    except PageNotAnInteger:
+        # Если номер страницы не является числом, показываем первую страницу
+        requests = paginator.get_page(1)
+    except EmptyPage:
+        # Если номер страницы больше максимального, показываем последнюю страницу
+        requests = paginator.get_page(paginator.num_pages)
     
     # Генерируем данные для фильтров
     # Получаем все доступные филиалы
@@ -211,7 +225,11 @@ def request_list(request):
         'dfa_filter_error': dfa_filter_error,
         # Дополнительные данные для удобства работы с фильтрами
         'has_filters': bool(branch_filter or month_filter or year_filter or dfa_filter),
-        'total_requests': requests.count(),
+        'total_requests': paginator.count,
+        # Данные пагинации
+        'paginator': paginator,
+        'page_obj': requests,
+        'is_paginated': paginator.num_pages > 1,
     }
     
     return render(request, 'insurance_requests/request_list.html', context)
@@ -219,13 +237,28 @@ def request_list(request):
 
 @user_required
 def upload_excel(request):
-    """Загрузка Excel файла и создание заявки"""
+    """Загрузка Excel файла и создание заявки с улучшенной обработкой ошибок"""
     if request.method == 'POST':
         form = ExcelUploadForm(request.POST, request.FILES)
         if form.is_valid():
+            excel_file = None
+            application_type = None
             try:
                 # Сохраняем загруженный файл временно
                 excel_file = form.cleaned_data['excel_file']
+                
+                # Получаем тип заявки из формы с fallback
+                application_type = form.cleaned_data.get('application_type', 'legal_entity')
+                
+                # Дополнительная валидация типа заявки
+                valid_types = ['legal_entity', 'individual_entrepreneur']
+                if application_type not in valid_types:
+                    logger.warning(f"Invalid application type '{application_type}' received, falling back to 'legal_entity'")
+                    application_type = 'legal_entity'
+                
+                # Логируем выбранный тип заявки для диагностики
+                app_type_display = "заявка от ИП" if application_type == 'individual_entrepreneur' else "заявка от юр.лица"
+                logger.info(f"Processing Excel file '{excel_file.name}' with application_type: {application_type} ({app_type_display}) by user {request.user.username}")
                 
                 # Создаем временный файл
                 with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as tmp_file:
@@ -234,16 +267,16 @@ def upload_excel(request):
                     tmp_file_path = tmp_file.name
                 
                 try:
-                    # Читаем данные из Excel
-                    reader = ExcelReader(tmp_file_path)
+                    # Читаем данные из Excel с передачей типа заявки
+                    reader = ExcelReader(tmp_file_path, application_type=application_type)
                     excel_data = reader.read_insurance_request()
                     
                     # Дополнительная проверка и логирование для CASCO C/E
                     has_casco_ce = excel_data.get('has_casco_ce', False)
                     if has_casco_ce:
-                        logger.info(f"CASCO C/E automatically detected for file: {excel_file.name}")
+                        logger.info(f"CASCO C/E automatically detected for file: {excel_file.name} (application_type: {application_type}, {app_type_display})")
                     else:
-                        logger.debug(f"No CASCO C/E indicators found in file: {excel_file.name}")
+                        logger.debug(f"No CASCO C/E indicators found in file: {excel_file.name} (application_type: {application_type}, {app_type_display})")
                     
                     # Обрабатываем дату ответа
                     response_deadline = None
@@ -258,8 +291,8 @@ def upload_excel(request):
                                     break
                                 except ValueError:
                                     continue
-                        except Exception:
-                            pass
+                        except Exception as date_error:
+                            logger.warning(f"Error parsing response deadline from {excel_file.name} (application_type: {application_type}, {app_type_display}): {str(date_error)}")
                     
                     # Обрабатываем response_deadline из excel_data если он есть
                     if not response_deadline and excel_data.get('response_deadline'):
@@ -273,11 +306,14 @@ def upload_excel(request):
                         else:
                             additional_data[key] = value
                     
+                    # Добавляем информацию о типе заявки в additional_data для диагностики
+                    additional_data['application_type'] = application_type
+                    
                     # Валидируем тип страхования
                     insurance_type = excel_data.get('insurance_type', 'КАСКО')
-                    valid_types = ['КАСКО', 'страхование спецтехники', 'другое']
-                    if insurance_type not in valid_types:
-                        logger.warning(f"Invalid insurance type '{insurance_type}' from Excel, defaulting to 'КАСКО'")
+                    valid_insurance_types = ['КАСКО', 'страхование спецтехники', 'страхование имущества', 'другое']
+                    if insurance_type not in valid_insurance_types:
+                        logger.warning(f"Invalid insurance type '{insurance_type}' from Excel file {excel_file.name} (application_type: {application_type}, {app_type_display}), defaulting to 'КАСКО'")
                         insurance_type = 'КАСКО'
                     
                     # Создаем заявку
@@ -308,16 +344,57 @@ def upload_excel(request):
                         file_type=os.path.splitext(excel_file.name)[1]
                     )
                     
-                    messages.success(request, f'Заявка #{insurance_request.id} успешно создана')
+                    # Логируем успешное создание заявки
+                    logger.info(f"Successfully created request #{insurance_request.id} from file {excel_file.name} (application_type: {application_type}, {app_type_display}) by user {request.user.username}")
+                    
+                    messages.success(request, f'Заявка #{insurance_request.id} успешно создана из файла типа "{app_type_display}"')
                     return redirect('insurance_requests:request_detail', pk=insurance_request.pk)
                     
                 finally:
                     # Удаляем временный файл
-                    os.unlink(tmp_file_path)
+                    if 'tmp_file_path' in locals():
+                        try:
+                            os.unlink(tmp_file_path)
+                        except Exception as cleanup_error:
+                            logger.warning(f"Error cleaning up temporary file: {str(cleanup_error)}")
                     
             except Exception as e:
-                logger.error(f"Error processing Excel file: {str(e)}")
-                messages.error(request, f'Ошибка при обработке файла: {str(e)}')
+                # Улучшенная обработка ошибок с информацией о типе заявки
+                error_context = []
+                if excel_file:
+                    error_context.append(f"файл: {excel_file.name}")
+                if application_type:
+                    app_type_display = "заявка от ИП" if application_type == 'individual_entrepreneur' else "заявка от юр.лица"
+                    error_context.append(f"тип: {app_type_display}")
+                
+                context_str = f" ({', '.join(error_context)})" if error_context else ""
+                
+                logger.error(f"Error processing Excel file{context_str}: {str(e)}", exc_info=True)
+                
+                # Определяем тип ошибки для более информативного сообщения
+                if "Permission denied" in str(e) or "access" in str(e).lower():
+                    error_msg = f'Ошибка доступа к файлу{context_str}. Убедитесь, что файл не открыт в другой программе и попробуйте снова.'
+                elif "corrupted" in str(e).lower() or "invalid" in str(e).lower():
+                    error_msg = f'Файл поврежден или имеет неверный формат{context_str}. Проверьте целостность файла и попробуйте снова.'
+                elif "memory" in str(e).lower() or "size" in str(e).lower():
+                    error_msg = f'Файл слишком большой для обработки{context_str}. Попробуйте уменьшить размер файла.'
+                else:
+                    error_msg = f'Ошибка при обработке файла{context_str}: {str(e)}'
+                
+                messages.error(request, error_msg)
+        else:
+            # Обработка ошибок валидации формы
+            logger.warning(f"Form validation failed for user {request.user.username}: {form.errors}")
+            
+            # Добавляем информативные сообщения об ошибках
+            for field, errors in form.errors.items():
+                for error in errors:
+                    if field == 'application_type':
+                        messages.error(request, f'Ошибка выбора типа заявки: {error}')
+                    elif field == 'excel_file':
+                        messages.error(request, f'Ошибка файла: {error}')
+                    else:
+                        messages.error(request, f'Ошибка в поле {field}: {error}')
     else:
         form = ExcelUploadForm()
     

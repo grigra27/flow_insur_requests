@@ -61,32 +61,149 @@ def map_branch_name(full_branch_name: str) -> str:
 class ExcelReader:
     """Класс для чтения данных из Excel файлов"""
     
-    def __init__(self, file_path: str):
+    def __init__(self, file_path: str, application_type: str = 'legal_entity'):
         self.file_path = file_path
+        
+        # Валидация и fallback для типа заявки
+        valid_types = ['legal_entity', 'individual_entrepreneur']
+        if application_type not in valid_types:
+            logger.warning(f"Invalid application_type '{application_type}' provided to ExcelReader, falling back to 'legal_entity'")
+            application_type = 'legal_entity'
+        
+        self.application_type = application_type
+        
+        # Логируем выбранный тип заявки при начале обработки
+        app_type_display = "заявка от ИП" if application_type == 'individual_entrepreneur' else "заявка от юр.лица"
+        logger.info(f"Initializing ExcelReader with application_type: {application_type} ({app_type_display}) for file: {file_path}")
+        
+        # Инициализируем счетчик примененных смещений для диагностики
+        self._row_adjustments_applied = 0
+    
+    def _get_adjusted_row(self, row_number: int) -> int:
+        """
+        Возвращает скорректированный номер строки с учетом типа заявки.
+        
+        Для заявок от ИП: если строка > 8, то добавляется смещение +1
+        Для заявок от юр.лиц: номер строки остается неизменным
+        
+        Args:
+            row_number: Базовый номер строки
+            
+        Returns:
+            Скорректированный номер строки
+        """
+        if self.application_type == 'individual_entrepreneur' and row_number > 8:
+            adjusted_row = row_number + 1
+            self._row_adjustments_applied += 1
+            logger.debug(f"Row adjustment applied: {row_number} -> {adjusted_row} (IP application, total adjustments: {self._row_adjustments_applied})")
+            return adjusted_row
+        else:
+            logger.debug(f"No row adjustment: {row_number} (legal entity or row <= 8)")
+            return row_number
+    
+    def _get_cell_with_adjustment_openpyxl(self, sheet, column: str, row: int) -> Optional[str]:
+        """
+        Получает значение ячейки с учетом смещения строк для openpyxl.
+        
+        Args:
+            sheet: Лист Excel (openpyxl)
+            column: Буква столбца (A, B, C, ...)
+            row: Базовый номер строки
+            
+        Returns:
+            Значение ячейки или None
+        """
+        try:
+            adjusted_row = self._get_adjusted_row(row)
+            cell_address = f"{column}{adjusted_row}"
+            value = self._get_cell_value(sheet, cell_address)
+            
+            # Логируем для диагностики только если применено смещение
+            if self.application_type == 'individual_entrepreneur' and row > 8:
+                logger.debug(f"Cell {column}{row} -> {cell_address} (IP adjustment), value: {value}")
+            
+            return value
+        except Exception as e:
+            app_type_display = "заявка от ИП" if self.application_type == 'individual_entrepreneur' else "заявка от юр.лица"
+            logger.error(f"Error reading cell {column}{row} for {app_type_display} (application_type: {self.application_type}): {str(e)}")
+            return None
+    
+    def _get_cell_with_adjustment_pandas(self, df, row: int, col: int) -> Optional[str]:
+        """
+        Получает значение ячейки с учетом смещения строк для pandas.
+        
+        Args:
+            df: DataFrame
+            row: Базовый номер строки (1-based)
+            col: Номер столбца (0-based)
+            
+        Returns:
+            Значение ячейки или None
+        """
+        try:
+            adjusted_row = self._get_adjusted_row(row)
+            # Преобразуем в 0-based индекс для pandas
+            pandas_row_index = adjusted_row - 1
+            value = self._safe_get_cell(df, pandas_row_index, col)
+            
+            # Логируем для диагностики только если применено смещение
+            if self.application_type == 'individual_entrepreneur' and row > 8:
+                logger.debug(f"Cell row {row} col {col} -> row {adjusted_row} col {col} (IP adjustment), value: {value}")
+            
+            return value
+        except Exception as e:
+            app_type_display = "заявка от ИП" if self.application_type == 'individual_entrepreneur' else "заявка от юр.лица"
+            logger.error(f"Error reading cell row {row} col {col} for {app_type_display} (application_type: {self.application_type}): {str(e)}")
+            return None
         
     def read_insurance_request(self) -> Dict[str, Any]:
         """
-        Читает данные страховой заявки из Excel файла
+        Читает данные страховой заявки из Excel файла с улучшенной обработкой ошибок
         Возвращает словарь с извлеченными данными
         """
+        app_type_display = "заявка от ИП" if self.application_type == 'individual_entrepreneur' else "заявка от юр.лица"
+        
         try:
+            logger.info(f"Starting to read Excel file {self.file_path} as {app_type_display}")
+            
             # Пробуем сначала с openpyxl для .xlsx файлов
             try:
                 workbook = load_workbook(self.file_path, data_only=True)
                 sheet = workbook.active
+                logger.debug(f"Successfully loaded workbook with openpyxl for {app_type_display}")
                 data = self._extract_data_openpyxl(sheet)
-            except Exception:
+            except Exception as openpyxl_error:
+                logger.debug(f"openpyxl failed for {app_type_display}, trying pandas: {str(openpyxl_error)}")
                 # Если не получилось, пробуем с pandas для .xls файлов
-                df = pd.read_excel(self.file_path, sheet_name=0, header=None)
-                data = self._extract_data_pandas(df)
+                try:
+                    df = pd.read_excel(self.file_path, sheet_name=0, header=None)
+                    logger.debug(f"Successfully loaded workbook with pandas for {app_type_display}")
+                    data = self._extract_data_pandas(df)
+                except Exception as pandas_error:
+                    logger.error(f"Both openpyxl and pandas failed for {app_type_display}. openpyxl: {str(openpyxl_error)}, pandas: {str(pandas_error)}")
+                    raise Exception(f"Не удалось прочитать файл как {app_type_display}. Проверьте формат файла и целостность данных.")
             
-            logger.info(f"Successfully read data from {self.file_path}")
+            # Логируем информацию о примененных смещениях строк
+            if self.application_type == 'individual_entrepreneur':
+                logger.info(f"Successfully read data from {self.file_path} as {app_type_display}. Applied {self._row_adjustments_applied} row adjustments.")
+            else:
+                logger.info(f"Successfully read data from {self.file_path} as {app_type_display}. No row adjustments needed.")
+            
             return data
             
         except Exception as e:
-            logger.error(f"Error reading Excel file {self.file_path}: {str(e)}")
-            # Возвращаем данные по умолчанию, чтобы не ломать процесс
-            return self._get_default_data()
+            error_msg = f"Ошибка чтения Excel файла {self.file_path} как {app_type_display} (application_type: {self.application_type}): {str(e)}"
+            logger.error(error_msg)
+            
+            # Возвращаем данные по умолчанию с информацией об ошибке
+            default_data = self._get_default_data()
+            default_data['error_info'] = {
+                'application_type': self.application_type,
+                'error_message': str(e),
+                'fallback_used': True,
+                'row_adjustments_applied': getattr(self, '_row_adjustments_applied', 0)
+            }
+            return default_data
     
     def _extract_data_openpyxl(self, sheet) -> Dict[str, Any]:
         """Извлекает данные используя openpyxl (для .xlsx файлов)"""
@@ -105,21 +222,21 @@ class ExcelReader:
         response_deadline = timezone.now() + timedelta(hours=3)
         
         # Определяем наличие франшизы (если D29 не пустая, то франшизы НЕТ)
-        d29_value = self._get_cell_value(sheet, 'D29')
+        d29_value = self._get_cell_with_adjustment_openpyxl(sheet, 'D', 29)
         has_franchise = not bool(d29_value and str(d29_value).strip())
         
         # Определяем рассрочку (если F34 не пустая, то рассрочки НЕТ)
-        has_installment = not bool(self._get_cell_value(sheet, 'F34'))
+        has_installment = not bool(self._get_cell_with_adjustment_openpyxl(sheet, 'F', 34))
         
         # Определяем автозапуск (если M24 = "нет", то автозапуска нет)
-        autostart_value = self._get_cell_value(sheet, 'M24')
+        autostart_value = self._get_cell_with_adjustment_openpyxl(sheet, 'M', 24)
         has_autostart = bool(autostart_value) and str(autostart_value).lower().strip() != 'нет'
         
         # Определяем КАСКО кат. C/E на основе строки 45
         has_casco_ce = self._determine_casco_ce_openpyxl(sheet)
         
         # Извлекаем название клиента из D7
-        client_name = self._get_cell_value(sheet, 'D7') or 'Клиент не указан'
+        client_name = self._get_cell_with_adjustment_openpyxl(sheet, 'D', 7) or 'Клиент не указан'
         
         # Извлекаем информацию о предмете лизинга
         vehicle_info = self._find_leasing_object_info_openpyxl(sheet)
@@ -132,7 +249,7 @@ class ExcelReader:
         
         return {
             'client_name': client_name,
-            'inn': self._get_cell_value(sheet, 'D9') or '',
+            'inn': self._get_cell_with_adjustment_openpyxl(sheet, 'D', 9) or '',
             'insurance_type': insurance_type,
             'insurance_period': insurance_period,
             'insurance_start_date': insurance_start_date,
@@ -164,22 +281,22 @@ class ExcelReader:
         response_deadline = timezone.now() + timedelta(hours=3)
         
         # Определяем наличие франшизы (если D29 не пустая, то франшизы НЕТ)
-        franchise_value = self._safe_get_cell(df, 28, 3)  # D29
+        franchise_value = self._get_cell_with_adjustment_pandas(df, 29, 3)  # D29
         has_franchise = not bool(franchise_value and str(franchise_value).strip())
         
         # Определяем рассрочку (если F34 не пустая, то рассрочки НЕТ)
-        installment_value = self._safe_get_cell(df, 33, 5)  # F34
+        installment_value = self._get_cell_with_adjustment_pandas(df, 34, 5)  # F34
         has_installment = not bool(installment_value)
         
         # Определяем автозапуск (если M24 = "нет", то автозапуска нет)
-        autostart_value = self._safe_get_cell(df, 23, 12)  # M24
+        autostart_value = self._get_cell_with_adjustment_pandas(df, 24, 12)  # M24
         has_autostart = bool(autostart_value) and str(autostart_value).lower().strip() != 'нет'
         
         # Определяем КАСКО кат. C/E на основе строки 45
         has_casco_ce = self._determine_casco_ce_pandas(df)
         
         # Извлекаем название клиента из D7 (индекс 6, 3)
-        client_name = self._safe_get_cell(df, 6, 3) or 'Клиент не указан'
+        client_name = self._get_cell_with_adjustment_pandas(df, 7, 3) or 'Клиент не указан'
         
         # Извлекаем информацию о предмете лизинга
         vehicle_info = self._find_leasing_object_info_pandas(df)
@@ -192,7 +309,7 @@ class ExcelReader:
         
         return {
             'client_name': client_name,
-            'inn': self._safe_get_cell(df, 8, 3) or '',  # D9
+            'inn': self._get_cell_with_adjustment_pandas(df, 9, 3) or '',  # D9
             'insurance_type': insurance_type,
             'insurance_period': insurance_period,
             'insurance_start_date': insurance_start_date,
@@ -209,79 +326,89 @@ class ExcelReader:
     
     def _determine_insurance_type_openpyxl(self, sheet) -> str:
         """
-        Определяет тип страхования на основе ячеек D21, D22 и D23 (openpyxl)
+        Определяет тип страхования на основе ячеек D21 и D22 (openpyxl)
         
         Логика:
         1. Если D21 содержит любое значение -> "КАСКО"
         2. Если D21 пустая, но D22 содержит значение -> "страхование спецтехники"
-        3. Если D21 и D22 пустые, но D23 содержит значение -> "страхование имущества"
-        4. Если все ячейки пустые -> "другое"
+        3. Если обе ячейки пустые -> "другое"
+        
+        Примечание: "страхование имущества" не определяется автоматически и должно устанавливаться вручную менеджерами
         
         Возвращает только допустимые значения согласно INSURANCE_TYPE_CHOICES
         """
-        d21_value = self._get_cell_value(sheet, 'D21')
-        d22_value = self._get_cell_value(sheet, 'D22')
-        d23_value = self._get_cell_value(sheet, 'D23')
+        app_type_display = "заявка от ИП" if self.application_type == 'individual_entrepreneur' else "заявка от юр.лица"
         
-        # Проверяем, что значение не пустое (не None и не пустая строка)
-        d21_has_value = d21_value is not None and str(d21_value).strip() != ''
-        d22_has_value = d22_value is not None and str(d22_value).strip() != ''
-        d23_has_value = d23_value is not None and str(d23_value).strip() != ''
-        
-        if d21_has_value:
-            insurance_type = 'КАСКО'
-        elif d22_has_value:
-            insurance_type = 'страхование спецтехники'
-        elif d23_has_value:
-            insurance_type = 'страхование имущества'
-        else:
-            insurance_type = 'другое'
-        
-        # Валидируем, что тип соответствует допустимым значениям
-        valid_types = ['КАСКО', 'страхование спецтехники', 'страхование имущества', 'другое']
-        if insurance_type not in valid_types:
-            logger.warning(f"Invalid insurance type '{insurance_type}', defaulting to 'другое'")
-            insurance_type = 'другое'
-        
-        return insurance_type
+        try:
+            d21_value = self._get_cell_with_adjustment_openpyxl(sheet, 'D', 21)
+            d22_value = self._get_cell_with_adjustment_openpyxl(sheet, 'D', 22)
+            
+            # Используем новый helper метод для проверки значений
+            d21_has_value = self._has_value(d21_value)
+            d22_has_value = self._has_value(d22_value)
+            
+            if d21_has_value:
+                insurance_type = 'КАСКО'
+            elif d22_has_value:
+                insurance_type = 'страхование спецтехники'
+            else:
+                insurance_type = 'другое'
+            
+            # Валидируем, что тип соответствует допустимым значениям
+            valid_types = ['КАСКО', 'страхование спецтехники', 'страхование имущества', 'другое']
+            if insurance_type not in valid_types:
+                logger.warning(f"Invalid insurance type '{insurance_type}' for {app_type_display} (application_type: {self.application_type}), defaulting to 'другое'")
+                insurance_type = 'другое'
+            
+            logger.info(f"Determined insurance type '{insurance_type}' for {app_type_display} (application_type: {self.application_type}) (D21: {d21_value}, D22: {d22_value})")
+            return insurance_type
+            
+        except Exception as e:
+            logger.error(f"Error determining insurance type for {app_type_display} (application_type: {self.application_type}): {str(e)}")
+            return 'другое'
     
     def _determine_insurance_type_pandas(self, df) -> str:
         """
-        Определяет тип страхования на основе ячеек D21, D22 и D23 (pandas)
+        Определяет тип страхования на основе ячеек D21 и D22 (pandas)
         
         Логика:
         1. Если D21 содержит любое значение -> "КАСКО"
         2. Если D21 пустая, но D22 содержит значение -> "страхование спецтехники"
-        3. Если D21 и D22 пустые, но D23 содержит значение -> "страхование имущества"
-        4. Если все ячейки пустые -> "другое"
+        3. Если обе ячейки пустые -> "другое"
+        
+        Примечание: "страхование имущества" не определяется автоматически и должно устанавливаться вручную менеджерами
         
         Возвращает только допустимые значения согласно INSURANCE_TYPE_CHOICES
         """
-        d21_value = self._safe_get_cell(df, 20, 3)  # D21 (индексы с 0)
-        d22_value = self._safe_get_cell(df, 21, 3)  # D22
-        d23_value = self._safe_get_cell(df, 22, 3)  # D23
+        app_type_display = "заявка от ИП" if self.application_type == 'individual_entrepreneur' else "заявка от юр.лица"
         
-        # Проверяем, что значение не пустое (не None и не пустая строка)
-        d21_has_value = d21_value is not None and str(d21_value).strip() != ''
-        d22_has_value = d22_value is not None and str(d22_value).strip() != ''
-        d23_has_value = d23_value is not None and str(d23_value).strip() != ''
-        
-        if d21_has_value:
-            insurance_type = 'КАСКО'
-        elif d22_has_value:
-            insurance_type = 'страхование спецтехники'
-        elif d23_has_value:
-            insurance_type = 'страхование имущества'
-        else:
-            insurance_type = 'другое'
-        
-        # Валидируем, что тип соответствует допустимым значениям
-        valid_types = ['КАСКО', 'страхование спецтехники', 'страхование имущества', 'другое']
-        if insurance_type not in valid_types:
-            logger.warning(f"Invalid insurance type '{insurance_type}', defaulting to 'другое'")
-            insurance_type = 'другое'
-        
-        return insurance_type
+        try:
+            d21_value = self._get_cell_with_adjustment_pandas(df, 21, 3)  # D21
+            d22_value = self._get_cell_with_adjustment_pandas(df, 22, 3)  # D22
+            
+            # Используем новый helper метод для проверки значений
+            d21_has_value = self._has_value(d21_value)
+            d22_has_value = self._has_value(d22_value)
+            
+            if d21_has_value:
+                insurance_type = 'КАСКО'
+            elif d22_has_value:
+                insurance_type = 'страхование спецтехники'
+            else:
+                insurance_type = 'другое'
+            
+            # Валидируем, что тип соответствует допустимым значениям
+            valid_types = ['КАСКО', 'страхование спецтехники', 'страхование имущества', 'другое']
+            if insurance_type not in valid_types:
+                logger.warning(f"Invalid insurance type '{insurance_type}' for {app_type_display} (application_type: {self.application_type}), defaulting to 'другое'")
+                insurance_type = 'другое'
+            
+            logger.info(f"Determined insurance type '{insurance_type}' for {app_type_display} (application_type: {self.application_type}) (D21: {d21_value}, D22: {d22_value})")
+            return insurance_type
+            
+        except Exception as e:
+            logger.error(f"Error determining insurance type for {app_type_display} (application_type: {self.application_type}): {str(e)}")
+            return 'другое'
 
     def _determine_insurance_period_openpyxl(self, sheet) -> str:
         """
@@ -292,8 +419,8 @@ class ExcelReader:
         2. Если N17 пустая, но N18 содержит значение -> "на весь срок лизинга"
         3. Если обе ячейки пустые -> пустая строка
         """
-        n17_value = self._get_cell_value(sheet, 'N17')
-        n18_value = self._get_cell_value(sheet, 'N18')
+        n17_value = self._get_cell_with_adjustment_openpyxl(sheet, 'N', 17)
+        n18_value = self._get_cell_with_adjustment_openpyxl(sheet, 'N', 18)
         
         # Проверяем, что значение не пустое (не None и не пустая строка)
         n17_has_value = n17_value is not None and str(n17_value).strip() != ''
@@ -315,8 +442,8 @@ class ExcelReader:
         2. Если N17 пустая, но N18 содержит значение -> "на весь срок лизинга"
         3. Если обе ячейки пустые -> пустая строка
         """
-        n17_value = self._safe_get_cell(df, 16, 13)  # N17 (индексы с 0)
-        n18_value = self._safe_get_cell(df, 17, 13)  # N18
+        n17_value = self._get_cell_with_adjustment_pandas(df, 17, 13)  # N17
+        n18_value = self._get_cell_with_adjustment_pandas(df, 18, 13)  # N18
         
         # Проверяем, что значение не пустое (не None и не пустая строка)
         n17_has_value = n17_value is not None and str(n17_value).strip() != ''
@@ -341,21 +468,22 @@ class ExcelReader:
             bool: True если найдено непустое значение в любой из проверяемых ячеек
         """
         try:
-            # Ячейки для проверки в строке 45
-            cells_to_check = ['C45', 'D45', 'E45', 'F45', 'G45', 'H45', 'I45']
+            # Столбцы для проверки в строке 45
+            columns_to_check = ['C', 'D', 'E', 'F', 'G', 'H', 'I']
             
-            for cell_address in cells_to_check:
-                value = self._get_cell_value(sheet, cell_address)
+            for column in columns_to_check:
+                value = self._get_cell_with_adjustment_openpyxl(sheet, column, 45)
                 # Проверяем, что значение не пустое (не None и не пустая строка)
                 if value is not None and str(value).strip() != '':
-                    logger.debug(f"Found CASCO C/E indicator in cell {cell_address}: {value}")
+                    adjusted_row = self._get_adjusted_row(45)
+                    logger.debug(f"Found CASCO C/E indicator in cell {column}{adjusted_row}: {value}")
                     return True
             
             logger.debug("No CASCO C/E indicators found in row 45")
             return False
             
         except Exception as e:
-            logger.warning(f"Error determining CASCO C/E status (openpyxl): {str(e)}")
+            logger.warning(f"Error determining CASCO C/E status (openpyxl) for application_type {self.application_type}: {str(e)}")
             return False
 
     def _determine_casco_ce_pandas(self, df) -> bool:
@@ -370,48 +498,44 @@ class ExcelReader:
             bool: True если найдено непустое значение в любой из проверяемых ячеек
         """
         try:
-            # Ячейки для проверки в строке 45 (индекс 44): столбцы C-I (индексы 2-8)
-            cells_to_check = [
-                (44, 2),  # C45
-                (44, 3),  # D45
-                (44, 4),  # E45
-                (44, 5),  # F45
-                (44, 6),  # G45
-                (44, 7),  # H45
-                (44, 8),  # I45
-            ]
+            # Столбцы для проверки в строке 45: столбцы C-I (индексы 2-8)
+            columns_to_check = [2, 3, 4, 5, 6, 7, 8]  # C, D, E, F, G, H, I
             
-            for row, col in cells_to_check:
-                value = self._safe_get_cell(df, row, col)
+            for col in columns_to_check:
+                value = self._get_cell_with_adjustment_pandas(df, 45, col)
                 # Проверяем, что значение не пустое (не None и не пустая строка)
                 if value is not None and str(value).strip() != '':
-                    logger.debug(f"Found CASCO C/E indicator in cell row {row+1}, col {col+1}: {value}")
+                    adjusted_row = self._get_adjusted_row(45)
+                    logger.debug(f"Found CASCO C/E indicator in cell row {adjusted_row}, col {col+1}: {value}")
                     return True
             
             logger.debug("No CASCO C/E indicators found in row 45")
             return False
             
         except Exception as e:
-            logger.warning(f"Error determining CASCO C/E status (pandas): {str(e)}")
+            logger.warning(f"Error determining CASCO C/E status (pandas) for application_type {self.application_type}: {str(e)}")
             return False
 
     def _get_default_data(self) -> Dict[str, Any]:
-        """Возвращает данные по умолчанию с валидным типом страхования"""
+        """Возвращает данные по умолчанию с валидным типом страхования и информацией о типе заявки"""
+        app_type_display = "заявка от ИП" if self.application_type == 'individual_entrepreneur' else "заявка от юр.лица"
+        
         return {
-            'client_name': 'Тестовый клиент',
+            'client_name': f'Клиент не указан ({app_type_display})',
             'inn': '1234567890',
             'insurance_type': 'КАСКО',  # Используем допустимое значение
             'insurance_period': '1 год',  # Используем новый формат периода
             'insurance_start_date': None,  # Теперь не используем конкретные даты
             'insurance_end_date': None,    # Теперь не используем конкретные даты
-            'vehicle_info': 'Информация о предмете лизинга не указана',
-            'dfa_number': 'Номер ДФА не указан',
-            'branch': 'Филиал не указан',
+            'vehicle_info': f'Информация о предмете лизинга не указана ({app_type_display})',
+            'dfa_number': f'Номер ДФА не указан ({app_type_display})',
+            'branch': f'Филиал не указан ({app_type_display})',
             'has_franchise': False,
             'has_installment': False,
             'has_autostart': False,
             'has_casco_ce': False,
             'response_deadline': timezone.now() + timedelta(hours=3),
+            'application_type': self.application_type,
         }
     
 
@@ -460,24 +584,17 @@ class ExcelReader:
     
     def _find_leasing_object_info_pandas(self, df) -> str:
         """Ищет информацию о предмете лизинга в указанных ячейках"""
-        # Ячейки для поиска: CDEFGHI43, CDEFGHI45, CDEFGHI47, CDEFGHI49
-        vehicle_cells = [
-            # Строка 43 (индекс 42): C-I (индексы 2-8)
-            (42, 2), (42, 3), (42, 4), (42, 5), (42, 6), (42, 7), (42, 8),
-            # Строка 45 (индекс 44): C-I (индексы 2-8)
-            (44, 2), (44, 3), (44, 4), (44, 5), (44, 6), (44, 7), (44, 8),
-            # Строка 47 (индекс 46): C-I (индексы 2-8)
-            (46, 2), (46, 3), (46, 4), (46, 5), (46, 6), (46, 7), (46, 8),
-            # Строка 49 (индекс 48): C-I (индексы 2-8)
-            (48, 2), (48, 3), (48, 4), (48, 5), (48, 6), (48, 7), (48, 8),
-        ]
+        # Строки и столбцы для поиска: CDEFGHI43, CDEFGHI45, CDEFGHI47, CDEFGHI49
+        rows_to_check = [43, 45, 47, 49]
+        columns_to_check = [2, 3, 4, 5, 6, 7, 8]  # C-I (индексы 2-8)
         
         vehicle_info_parts = []
         
-        for row, col in vehicle_cells:
-            value = self._safe_get_cell(df, row, col)
-            if value and str(value).strip():
-                vehicle_info_parts.append(str(value).strip())
+        for row in rows_to_check:
+            for col in columns_to_check:
+                value = self._get_cell_with_adjustment_pandas(df, row, col)
+                if value and str(value).strip():
+                    vehicle_info_parts.append(str(value).strip())
         
         # Объединяем найденную информацию
         if vehicle_info_parts:
@@ -487,12 +604,12 @@ class ExcelReader:
     
     def _find_dfa_number_pandas(self, df) -> str:
         """Извлекает номер ДФА из ячеек HIJ2"""
-        # Ячейки HIJ2 (индексы: строка 1, столбцы 7,8,9)
-        dfa_cells = [(1, 7), (1, 8), (1, 9)]  # H2, I2, J2
+        # Ячейки HIJ2: строка 2, столбцы H,I,J (индексы 7,8,9)
+        columns_to_check = [7, 8, 9]  # H, I, J
         dfa_parts = []
         
-        for row, col in dfa_cells:
-            value = self._safe_get_cell(df, row, col)
+        for col in columns_to_check:
+            value = self._get_cell_with_adjustment_pandas(df, 2, col)
             if value and str(value).strip():
                 dfa_parts.append(str(value).strip())
         
@@ -500,12 +617,12 @@ class ExcelReader:
     
     def _find_branch_pandas(self, df) -> str:
         """Извлекает филиал из ячеек CDEF4"""
-        # Ячейки CDEF4 (индексы: строка 3, столбцы 2,3,4,5)
-        branch_cells = [(3, 2), (3, 3), (3, 4), (3, 5)]  # C4, D4, E4, F4
+        # Ячейки CDEF4: строка 4, столбцы C,D,E,F (индексы 2,3,4,5)
+        columns_to_check = [2, 3, 4, 5]  # C, D, E, F
         branch_parts = []
         
-        for row, col in branch_cells:
-            value = self._safe_get_cell(df, row, col)
+        for col in columns_to_check:
+            value = self._get_cell_with_adjustment_pandas(df, 4, col)
             if value and str(value).strip():
                 branch_parts.append(str(value).strip())
         
@@ -516,20 +633,17 @@ class ExcelReader:
     
     def _find_leasing_object_info_openpyxl(self, sheet) -> str:
         """Ищет информацию о предмете лизинга в указанных ячейках (openpyxl)"""
-        # Ячейки для поиска: CDEFGHI43, CDEFGHI45, CDEFGHI47, CDEFGHI49
-        vehicle_cells = [
-            'C43', 'D43', 'E43', 'F43', 'G43', 'H43', 'I43',
-            'C45', 'D45', 'E45', 'F45', 'G45', 'H45', 'I45',
-            'C47', 'D47', 'E47', 'F47', 'G47', 'H47', 'I47',
-            'C49', 'D49', 'E49', 'F49', 'G49', 'H49', 'I49',
-        ]
+        # Строки и столбцы для поиска: CDEFGHI43, CDEFGHI45, CDEFGHI47, CDEFGHI49
+        rows_to_check = [43, 45, 47, 49]
+        columns_to_check = ['C', 'D', 'E', 'F', 'G', 'H', 'I']
         
         vehicle_info_parts = []
         
-        for cell_address in vehicle_cells:
-            value = self._get_cell_value(sheet, cell_address)
-            if value and str(value).strip():
-                vehicle_info_parts.append(str(value).strip())
+        for row in rows_to_check:
+            for column in columns_to_check:
+                value = self._get_cell_with_adjustment_openpyxl(sheet, column, row)
+                if value and str(value).strip():
+                    vehicle_info_parts.append(str(value).strip())
         
         # Объединяем найденную информацию
         if vehicle_info_parts:
@@ -539,12 +653,12 @@ class ExcelReader:
     
     def _find_dfa_number_openpyxl(self, sheet) -> str:
         """Извлекает номер ДФА из ячеек HIJ2 (openpyxl)"""
-        # Ячейки HIJ2
-        dfa_cells = ['H2', 'I2', 'J2']
+        # Ячейки HIJ2: строка 2, столбцы H,I,J
+        columns_to_check = ['H', 'I', 'J']
         dfa_parts = []
         
-        for cell_address in dfa_cells:
-            value = self._get_cell_value(sheet, cell_address)
+        for column in columns_to_check:
+            value = self._get_cell_with_adjustment_openpyxl(sheet, column, 2)
             if value and str(value).strip():
                 dfa_parts.append(str(value).strip())
         
@@ -552,12 +666,12 @@ class ExcelReader:
     
     def _find_branch_openpyxl(self, sheet) -> str:
         """Извлекает филиал из ячеек CDEF4 (openpyxl)"""
-        # Ячейки CDEF4
-        branch_cells = ['C4', 'D4', 'E4', 'F4']
+        # Ячейки CDEF4: строка 4, столбцы C,D,E,F
+        columns_to_check = ['C', 'D', 'E', 'F']
         branch_parts = []
         
-        for cell_address in branch_cells:
-            value = self._get_cell_value(sheet, cell_address)
+        for column in columns_to_check:
+            value = self._get_cell_with_adjustment_openpyxl(sheet, column, 4)
             if value and str(value).strip():
                 branch_parts.append(str(value).strip())
         
@@ -591,6 +705,32 @@ class ExcelReader:
             return False
         value_str = str(value).lower().strip()
         return value_str in ['да', 'yes', '1', 'true', 'истина', '+']
+    
+    def _has_value(self, value) -> bool:
+        """
+        Проверяет, содержит ли значение непустые данные.
+        
+        Args:
+            value: Значение для проверки
+            
+        Returns:
+            bool: True если значение не пустое, False иначе
+        """
+        if value is None:
+            return False
+        
+        # Специальная обработка для boolean False
+        if isinstance(value, bool) and value is False:
+            return False
+        
+        # Преобразуем в строку и убираем пробелы
+        str_value = str(value).strip()
+        
+        # Проверяем на пустую строку или специальные значения
+        if str_value == '' or str_value.lower() in ['none', 'nan', 'null', 'false']:
+            return False
+            
+        return True
     
     def _get_cell_value(self, sheet, cell_address: str) -> Optional[str]:
         """Безопасно получает значение ячейки"""

@@ -10,7 +10,10 @@ from .models import InsuranceRequest, RequestAttachment
 import os
 import re
 import pytz
+import logging
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 
 class CustomAuthenticationForm(AuthenticationForm):
@@ -135,6 +138,20 @@ class CustomAuthenticationForm(AuthenticationForm):
 class ExcelUploadForm(forms.Form):
     """Форма для загрузки Excel файла с заявкой"""
     
+    # Варианты типов заявок
+    APPLICATION_TYPE_CHOICES = [
+        ('legal_entity', 'Заявка от юр.лица'),
+        ('individual_entrepreneur', 'Заявка от ИП'),
+    ]
+    
+    application_type = forms.ChoiceField(
+        choices=[('', '-- Выберите тип заявки --')] + APPLICATION_TYPE_CHOICES,
+        label='Тип заявки',
+        widget=forms.Select(attrs={'class': 'form-control'}),
+        help_text='Выберите тип загружаемой заявки. Заявки от ИП имеют дополнительную строку в позиции 8, что влияет на расположение данных в файле.',
+        required=True
+    )
+    
     excel_file = forms.FileField(
         label='Excel файл с заявкой',
         help_text='Загрузите файл в формате .xls, .xlsx или .xltx',
@@ -144,23 +161,72 @@ class ExcelUploadForm(forms.Form):
         })
     )
     
+    def clean_application_type(self):
+        """Валидация типа заявки с улучшенными сообщениями об ошибках"""
+        application_type = self.cleaned_data.get('application_type')
+        
+        if not application_type:
+            raise ValidationError(
+                'Необходимо выбрать тип заявки. Выберите "Заявка от юр.лица" или "Заявка от ИП" '
+                'в зависимости от структуры вашего Excel файла.'
+            )
+        
+        # Проверяем, что выбрано одно из допустимых значений
+        valid_types = [choice[0] for choice in self.APPLICATION_TYPE_CHOICES]
+        if application_type not in valid_types:
+            # Реализуем fallback на тип "юр.лицо" при некорректных данных
+            logger.warning(f"Invalid application type '{application_type}' provided, falling back to 'legal_entity'")
+            return 'legal_entity'
+        
+        return application_type
+    
     def clean_excel_file(self):
-        """Валидация загружаемого файла"""
+        """Валидация загружаемого файла с улучшенными сообщениями об ошибках"""
         file = self.cleaned_data.get('excel_file')
         
         if not file:
-            raise ValidationError('Файл не выбран')
+            raise ValidationError('Файл не выбран. Пожалуйста, выберите Excel файл для загрузки.')
         
         # Проверяем расширение файла
         ext = os.path.splitext(file.name)[1].lower()
         if ext not in ['.xls', '.xlsx', '.xltx']:
-            raise ValidationError('Поддерживаются только файлы .xls, .xlsx и .xltx')
+            raise ValidationError(
+                f'Неподдерживаемый формат файла: {ext}. '
+                'Поддерживаются только файлы форматов .xls, .xlsx и .xltx. '
+                'Пожалуйста, сохраните ваш файл в одном из поддерживаемых форматов.'
+            )
         
         # Проверяем размер файла (максимум 10MB)
         if file.size > 10 * 1024 * 1024:
-            raise ValidationError('Размер файла не должен превышать 10MB')
+            size_mb = file.size / (1024 * 1024)
+            raise ValidationError(
+                f'Размер файла слишком большой: {size_mb:.1f}MB. '
+                'Максимально допустимый размер файла: 10MB. '
+                'Пожалуйста, уменьшите размер файла или обратитесь к администратору.'
+            )
         
         return file
+    
+    def clean(self):
+        """Общая валидация формы с проверкой совместимости типа заявки и файла"""
+        cleaned_data = super().clean()
+        application_type = cleaned_data.get('application_type')
+        excel_file = cleaned_data.get('excel_file')
+        
+        # Если оба поля валидны, проводим дополнительные проверки
+        if application_type and excel_file:
+            # Логируем выбранный тип для диагностики
+            logger.info(f"Form validation: application_type='{application_type}', file='{excel_file.name}'")
+            
+            # Проверяем, что тип заявки корректный (дополнительная проверка)
+            valid_types = [choice[0] for choice in self.APPLICATION_TYPE_CHOICES]
+            if application_type not in valid_types:
+                # Применяем fallback и предупреждаем пользователя
+                cleaned_data['application_type'] = 'legal_entity'
+                logger.warning(f"Invalid application type '{application_type}' in form clean, using fallback 'legal_entity'")
+                # Не вызываем ValidationError, просто исправляем значение
+        
+        return cleaned_data
 
 
 class DateTimeLocalWidget(forms.DateTimeInput):
