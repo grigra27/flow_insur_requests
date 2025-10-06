@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="{{ page.lang | default: site.lang | default: "en" }}">
+
+  {%- include head.html -%}
+
+  <body>
+
+    {%- include header.html -%}
+
+    <main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <div class="content-container">
+          <!-- Боковое оглавление -->
+          <nav class="toc-sidebar" id="toc-sidebar">
+            <div class="toc-header">
+              <h3>Содержание</h3>
+              <button class="toc-toggle" id="toc-toggle" aria-label="Скрыть/показать оглавление">
+                <span></span>
+                <span></span>
+                <span></span>
+              </button>
+            </div>
+            <div class="toc-content" id="toc-content">
+              <!-- Оглавление будет сгенерировано JavaScript -->
+            </div>
+          </nav>
+
+          <!-- Основной контент -->
+          <article class="main-content">
+            {{ content }}
+          </article>
+        </div>
+      </div>
+    </main>
+
+    {%- include footer.html -%}
+
+    <!-- Кнопка "Наверх" -->
+    <button class="back-to-top" id="back-to-top" aria-label="Наверх"></button>
+
+    <!-- JavaScript для генерации оглавления -->
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {
+        generateTOC();
+        setupSmoothScrolling();
+        setupTOCToggle();
+        highlightCurrentSection();
+        setupBackToTop();
+      });
+
+      function generateTOC() {
+        const tocContent = document.getElementById('toc-content');
+        const headings = document.querySelectorAll('.main-content h2, .main-content h3, .main-content h4');
+        
+        if (headings.length === 0) return;
+
+        let tocHTML = '<ul class="toc-list">';
+        
+        headings.forEach(function(heading, index) {
+          const level = parseInt(heading.tagName.charAt(1));
+          const text = heading.textContent;
+          const id = heading.id || 'heading-' + index;
+          
+          // Создаем ID если его нет
+          if (!heading.id) {
+            heading.id = id;
+          }
+          
+          const className = 'toc-level-' + level;
+          tocHTML += `<li class="${className}"><a href="#${id}" class="toc-link">${text}</a></li>`;
+        });
+        
+        tocHTML += '</ul>';
+        tocContent.innerHTML = tocHTML;
+      }
+
+      function setupSmoothScrolling() {
+        document.querySelectorAll('.toc-link').forEach(function(link) {
+          link.addEventListener('click', function(e) {
+            e.preventDefault();
+            const targetId = this.getAttribute('href').substring(1);
+            const targetElement = document.getElementById(targetId);
+            
+            if (targetElement) {
+              targetElement.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start'
+              });
+              
+              // Обновляем активную ссылку
+              updateActiveLink(this);
+            }
+          });
+        });
+      }
+
+      function setupTOCToggle() {
+        const toggle = document.getElementById('toc-toggle');
+        const sidebar = document.getElementById('toc-sidebar');
+        
+        toggle.addEventListener('click', function() {
+          sidebar.classList.toggle('collapsed');
+          
+          // Сохраняем состояние в localStorage
+          const isCollapsed = sidebar.classList.contains('collapsed');
+          localStorage.setItem('toc-collapsed', isCollapsed);
+        });
+        
+        // Восстанавливаем состояние из localStorage
+        const savedState = localStorage.getItem('toc-collapsed');
+        if (savedState === 'true') {
+          sidebar.classList.add('collapsed');
+        }
+      }
+
+      function highlightCurrentSection() {
+        const headings = document.querySelectorAll('.main-content h2, .main-content h3, .main-content h4');
+        const tocLinks = document.querySelectorAll('.toc-link');
+        
+        function updateActiveSection() {
+          let currentSection = null;
+          const scrollPosition = window.scrollY + 100; // Offset для лучшего UX
+          
+          headings.forEach(function(heading) {
+            if (heading.offsetTop <= scrollPosition) {
+              currentSection = heading;
+            }
+          });
+          
+          // Убираем активный класс со всех ссылок
+          tocLinks.forEach(function(link) {
+            link.classList.remove('active');
+          });
+          
+          // Добавляем активный класс к текущей секции
+          if (currentSection) {
+            const activeLink = document.querySelector(`.toc-link[href="#${currentSection.id}"]`);
+            if (activeLink) {
+              activeLink.classList.add('active');
+            }
+          }
+        }
+        
+        // Обновляем при скролле
+        window.addEventListener('scroll', updateActiveSection);
+        // Обновляем при загрузке
+        updateActiveSection();
+      }
+
+      function updateActiveLink(clickedLink) {
+        document.querySelectorAll('.toc-link').forEach(function(link) {
+          link.classList.remove('active');
+        });
+        clickedLink.classList.add('active');
+      }
+
+      function setupBackToTop() {
+        const backToTopButton = document.getElementById('back-to-top');
+        
+        // Показываем/скрываем кнопку при скролле
+        window.addEventListener('scroll', function() {
+          if (window.scrollY > 300) {
+            backToTopButton.classList.add('visible');
+          } else {
+            backToTopButton.classList.remove('visible');
+          }
+        });
+        
+        // Обработчик клика
+        backToTopButton.addEventListener('click', function() {
+          window.scrollTo({
+            top: 0,
+            behavior: 'smooth'
+          });
+        });
+      }
+    </script>
+
+  </body>
+
+</html>
