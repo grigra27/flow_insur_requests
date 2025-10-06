@@ -14,6 +14,23 @@
                     {% csrf_token %}
                     
                     <div class="mb-3">
+                        <label for="{{ form.application_format.id_for_label }}" class="form-label">
+                            {{ form.application_format.label }}
+                        </label>
+                        {{ form.application_format }}
+                        {% if form.application_format.help_text %}
+                            <div class="form-text">{{ form.application_format.help_text }}</div>
+                        {% endif %}
+                        {% if form.application_format.errors %}
+                            <div class="text-danger">
+                                {% for error in form.application_format.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
                         <label for="{{ form.application_type.id_for_label }}" class="form-label">
                             {{ form.application_type.label }}
                         </label>
@@ -53,7 +70,8 @@
                         <ul class="mb-0 mt-2">
                             <li>Формат: .xls, .xlsx или .xltx</li>
                             <li>Максимальный размер: 10 МБ</li>
-                            <li>Данные должны быть в стандартном формате заявки</li>
+                            <li>Данные должны быть в соответствующем формате заявки (КАСКО/спецтехника или имущество)</li>
+                            <li><strong>Важно:</strong> Выберите правильный формат заявки перед загрузкой файла</li>
                         </ul>
                     </div>
                     
@@ -70,7 +88,12 @@
         </div>
         
         <div class="mt-4">
-            <h5>Структура Excel файла - сравнение типов заявок</h5>
+            <h5>Структура Excel файла - формат КАСКО/спецтехника</h5>
+            <div class="alert alert-warning">
+                <i class="bi bi-exclamation-triangle"></i>
+                <strong>Внимание!</strong> Таблица ниже показывает структуру для формата <strong>"КАСКО/спецтехника"</strong>. 
+                Для формата <strong>"имущество"</strong> используется другая структура извлечения данных.
+            </div>
             <div class="table-responsive">
                 <table class="table table-sm table-bordered">
                     <thead class="table-light">
@@ -176,7 +199,7 @@
                                 <code>D9: 1234567890</code> <span class="text-muted">(ИНН 10 цифр)</span><br>
                                 <code>D21: КАСКО</code> <span class="text-muted">(тип страхования)</span><br>
                                 <code>N17: ✓</code> <span class="text-muted">(период 1 год)</span><br>
-                                <code>D29: </code> <span class="text-muted">(пусто = НЕТ франшизы)</span><br>
+                                <code>D29: </code> <span class="text-muted">(есть значение = НЕТ франшизы)</span><br>
                                 <code>M24: нет</code> <span class="text-muted">(автозапуск)</span>
                             </div>
                         </div>
@@ -203,10 +226,55 @@
                 </div>
             </div>
             
+            <div class="mt-4">
+                <h5>Структура Excel файла - формат имущество</h5>
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i>
+                    <strong>Формат "имущество"</strong> использует другую логику извлечения данных:
+                </div>
+                
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Поле</th>
+                                <th><i class="bi bi-building"></i> Заявка от юр.лица</th>
+                                <th><i class="bi bi-person"></i> Заявка от ИП</th>
+                                <th>Описание</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr class="table-success">
+                                <td><strong>Тип страхования</strong></td>
+                                <td>B22</td>
+                                <td><span class="text-danger">B23</span></td>
+                                <td>Если есть значение → "страхование имущества", иначе → "другое"</td>
+                            </tr>
+                            <tr class="table-success">
+                                <td><strong>Информация об имуществе</strong></td>
+                                <td>CDEFGHIJ42</td>
+                                <td><span class="text-danger">CDEFGHIJ43</span></td>
+                                <td>Описание застрахованного имущества (одна строка, включая столбец J)</td>
+                            </tr>
+                            <tr class="table-success">
+                                <td><strong>Автозапуск</strong></td>
+                                <td colspan="2" class="text-center">Всегда "НЕТ"</td>
+                                <td>Для имущества автозапуск не применяется</td>
+                            </tr>
+                            <tr>
+                                <td colspan="4" class="table-secondary text-center">
+                                    <em>Остальные поля (клиент, ИНН, ДФА, филиал, франшиза, рассрочка) извлекаются так же, как в формате КАСКО/спецтехника</em>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
             <div class="alert alert-warning mt-3">
                 <i class="bi bi-exclamation-triangle"></i>
-                <strong>Внимание!</strong> Неправильный выбор типа заявки приведет к извлечению данных из неправильных ячеек. 
-                Всегда проверяйте соответствие выбранного типа структуре загружаемого файла.
+                <strong>Внимание!</strong> Неправильный выбор формата или типа заявки приведет к извлечению данных из неправильных ячеек. 
+                Всегда проверяйте соответствие выбранных параметров структуре загружаемого файла.
             </div>
         </div>
     </div>

@@ -11,6 +11,7 @@ from django.views.decorators.http import require_http_methods
 from django.core.files.storage import default_storage
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.conf import settings
+from django.utils import timezone
 import os
 import tempfile
 import logging
@@ -23,6 +24,42 @@ from core.templates import EmailTemplateGenerator
 from core.mail_utils import EmailSender, EmailMessage, EmailConfig
 
 logger = logging.getLogger(__name__)
+
+
+def _get_format_context_for_logging(application_type=None, application_format=None):
+    """
+    Создает строку контекста формата для логирования в views
+    
+    Args:
+        application_type: Тип заявки ('legal_entity' или 'individual_entrepreneur')
+        application_format: Формат заявки ('casco_equipment' или 'property')
+        
+    Returns:
+        str: Строка формата "Format: имущество, Type: заявка от ИП"
+    """
+    if not application_type or not application_format:
+        return "Format: unknown, Type: unknown"
+    
+    app_type_display = "заявка от ИП" if application_type == 'individual_entrepreneur' else "заявка от юр.лица"
+    format_display = "КАСКО/спецтехника" if application_format == 'casco_equipment' else "имущество"
+    return f"Format: {format_display}, Type: {app_type_display}"
+
+
+def _get_detailed_format_context_for_logging(application_type=None, application_format=None):
+    """
+    Создает детальную строку контекста формата для логирования в views
+    
+    Args:
+        application_type: Тип заявки ('legal_entity' или 'individual_entrepreneur')
+        application_format: Формат заявки ('casco_equipment' или 'property')
+        
+    Returns:
+        str: Строка формата "application_type: individual_entrepreneur, application_format: property"
+    """
+    if not application_type or not application_format:
+        return "application_type: unknown, application_format: unknown"
+    
+    return f"application_type: {application_type}, application_format: {application_format}"
 
 
 def login_view(request):
@@ -119,7 +156,7 @@ def request_list(request):
             # Валидация длины входных данных (максимум 100 символов)
             if len(dfa_filter) > 100:
                 dfa_filter_error = f"Номер ДФА слишком длинный ({len(dfa_filter)} символов). Максимум 100 символов."
-                logger.warning(f"DFA filter input too long: {len(dfa_filter)} characters from user {request.user.username}")
+                logger.warning(f"DFA filter input too long: {len(dfa_filter)} characters from user {request.user.username} | Filter operation")
                 # Обрезаем до 100 символов для продолжения работы
                 dfa_filter = dfa_filter[:100]
             
@@ -127,13 +164,13 @@ def request_list(request):
             if dfa_filter:
                 # Применяем фильтр с обработкой исключений базы данных
                 queryset = queryset.filter(dfa_number__icontains=dfa_filter)
-                logger.debug(f"Applied DFA filter '{dfa_filter}' by user {request.user.username}")
+                logger.debug(f"Applied DFA filter '{dfa_filter}' by user {request.user.username} | Filter operation")
             else:
-                logger.debug(f"Empty DFA filter after stripping whitespace by user {request.user.username}")
+                logger.debug(f"Empty DFA filter after stripping whitespace by user {request.user.username} | Filter operation")
                 
         except Exception as e:
             # Логируем ошибку базы данных и продолжаем без DFA фильтра
-            logger.error(f"Database error applying DFA filter '{dfa_filter}' by user {request.user.username}: {str(e)}")
+            logger.error(f"Database error applying DFA filter '{dfa_filter}' by user {request.user.username}: {str(e)} | Filter operation")
             dfa_filter_error = "Ошибка при применении фильтра по номеру ДФА. Попробуйте другой запрос."
             # Сбрасываем dfa_filter чтобы не показывать некорректное значение в форме
             dfa_filter = ""
@@ -253,12 +290,24 @@ def upload_excel(request):
                 # Дополнительная валидация типа заявки
                 valid_types = ['legal_entity', 'individual_entrepreneur']
                 if application_type not in valid_types:
-                    logger.warning(f"Invalid application type '{application_type}' received, falling back to 'legal_entity'")
+                    format_context = _get_format_context_for_logging(application_type, None)
+                    logger.warning(f"Invalid application type '{application_type}' received, falling back to 'legal_entity' | {format_context}")
                     application_type = 'legal_entity'
                 
-                # Логируем выбранный тип заявки для диагностики
-                app_type_display = "заявка от ИП" if application_type == 'individual_entrepreneur' else "заявка от юр.лица"
-                logger.info(f"Processing Excel file '{excel_file.name}' with application_type: {application_type} ({app_type_display}) by user {request.user.username}")
+                # Получаем формат заявки из формы с fallback для обратной совместимости
+                application_format = form.cleaned_data.get('application_format', 'casco_equipment')
+                
+                # Дополнительная валидация формата заявки
+                valid_formats = ['casco_equipment', 'property']
+                if application_format not in valid_formats:
+                    format_context = _get_format_context_for_logging(application_type, application_format)
+                    logger.warning(f"Invalid application format '{application_format}' received, falling back to 'casco_equipment' | {format_context}")
+                    application_format = 'casco_equipment'
+                
+                # Логируем выбранный тип и формат заявки для диагностики
+                format_context = _get_format_context_for_logging(application_type, application_format)
+                detailed_context = _get_detailed_format_context_for_logging(application_type, application_format)
+                logger.info(f"Processing Excel file '{excel_file.name}' ({detailed_context}) by user {request.user.username} | {format_context}")
                 
                 # Создаем временный файл
                 with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as tmp_file:
@@ -267,16 +316,16 @@ def upload_excel(request):
                     tmp_file_path = tmp_file.name
                 
                 try:
-                    # Читаем данные из Excel с передачей типа заявки
-                    reader = ExcelReader(tmp_file_path, application_type=application_type)
+                    # Читаем данные из Excel с передачей типа и формата заявки
+                    reader = ExcelReader(tmp_file_path, application_type=application_type, application_format=application_format)
                     excel_data = reader.read_insurance_request()
                     
                     # Дополнительная проверка и логирование для CASCO C/E
                     has_casco_ce = excel_data.get('has_casco_ce', False)
                     if has_casco_ce:
-                        logger.info(f"CASCO C/E automatically detected for file: {excel_file.name} (application_type: {application_type}, {app_type_display})")
+                        logger.info(f"CASCO C/E automatically detected for file: {excel_file.name} ({detailed_context}) | {format_context}")
                     else:
-                        logger.debug(f"No CASCO C/E indicators found in file: {excel_file.name} (application_type: {application_type}, {app_type_display})")
+                        logger.debug(f"No CASCO C/E indicators found in file: {excel_file.name} ({detailed_context}) | {format_context}")
                     
                     # Обрабатываем дату ответа
                     response_deadline = None
@@ -292,7 +341,7 @@ def upload_excel(request):
                                 except ValueError:
                                     continue
                         except Exception as date_error:
-                            logger.warning(f"Error parsing response deadline from {excel_file.name} (application_type: {application_type}, {app_type_display}): {str(date_error)}")
+                            logger.warning(f"Error parsing response deadline from {excel_file.name} ({detailed_context}): {str(date_error)} | {format_context}")
                     
                     # Обрабатываем response_deadline из excel_data если он есть
                     if not response_deadline and excel_data.get('response_deadline'):
@@ -306,14 +355,19 @@ def upload_excel(request):
                         else:
                             additional_data[key] = value
                     
-                    # Добавляем информацию о типе заявки в additional_data для диагностики
+                    # Добавляем расширенную информацию о типе и формате заявки в additional_data для диагностики
                     additional_data['application_type'] = application_type
+                    additional_data['application_format'] = application_format
+                    additional_data['format_context'] = format_context
+                    additional_data['detailed_context'] = detailed_context
+                    additional_data['processed_by_user'] = request.user.username
+                    additional_data['processing_timestamp'] = timezone.now().isoformat()
                     
                     # Валидируем тип страхования
                     insurance_type = excel_data.get('insurance_type', 'КАСКО')
                     valid_insurance_types = ['КАСКО', 'страхование спецтехники', 'страхование имущества', 'другое']
                     if insurance_type not in valid_insurance_types:
-                        logger.warning(f"Invalid insurance type '{insurance_type}' from Excel file {excel_file.name} (application_type: {application_type}, {app_type_display}), defaulting to 'КАСКО'")
+                        logger.warning(f"Invalid insurance type '{insurance_type}' from Excel file {excel_file.name} ({detailed_context}), defaulting to 'КАСКО' | {format_context}")
                         insurance_type = 'КАСКО'
                     
                     # Создаем заявку
@@ -344,10 +398,17 @@ def upload_excel(request):
                         file_type=os.path.splitext(excel_file.name)[1]
                     )
                     
-                    # Логируем успешное создание заявки
-                    logger.info(f"Successfully created request #{insurance_request.id} from file {excel_file.name} (application_type: {application_type}, {app_type_display}) by user {request.user.username}")
+                    # Логируем успешное создание заявки с полной информацией о формате
+                    logger.info(f"Successfully created request #{insurance_request.id} from file '{excel_file.name}' ({detailed_context}) by user {request.user.username} | {format_context}")
                     
-                    messages.success(request, f'Заявка #{insurance_request.id} успешно создана из файла типа "{app_type_display}"')
+                    # Улучшенное сообщение об успехе с информацией о формате
+                    app_type_display = "заявка от ИП" if application_type == 'individual_entrepreneur' else "заявка от юр.лица"
+                    format_display = "КАСКО/спецтехника" if application_format == 'casco_equipment' else "имущество"
+                    success_message = f'Заявка #{insurance_request.id} успешно создана из файла "{excel_file.name}" формата "{format_display}" типа "{app_type_display}"'
+                    messages.success(request, success_message)
+                    
+                    # Дополнительное логирование для диагностики
+                    logger.info(f"Success message displayed: {success_message} | {format_context}")
                     return redirect('insurance_requests:request_detail', pk=insurance_request.pk)
                     
                 finally:
@@ -356,45 +417,80 @@ def upload_excel(request):
                         try:
                             os.unlink(tmp_file_path)
                         except Exception as cleanup_error:
-                            logger.warning(f"Error cleaning up temporary file: {str(cleanup_error)}")
+                            logger.warning(f"Error cleaning up temporary file: {str(cleanup_error)} | {format_context}")
                     
             except Exception as e:
-                # Улучшенная обработка ошибок с информацией о типе заявки
+                # Улучшенная обработка ошибок с полной информацией о формате и типе заявки
                 error_context = []
                 if excel_file:
                     error_context.append(f"файл: {excel_file.name}")
-                if application_type:
+                
+                # Создаем контекст формата для логирования
+                format_context = _get_format_context_for_logging(
+                    application_type if 'application_type' in locals() else None,
+                    application_format if 'application_format' in locals() else None
+                )
+                detailed_context = _get_detailed_format_context_for_logging(
+                    application_type if 'application_type' in locals() else None,
+                    application_format if 'application_format' in locals() else None
+                )
+                
+                if 'application_type' in locals():
                     app_type_display = "заявка от ИП" if application_type == 'individual_entrepreneur' else "заявка от юр.лица"
                     error_context.append(f"тип: {app_type_display}")
+                if 'application_format' in locals():
+                    format_display = "КАСКО/спецтехника" if application_format == 'casco_equipment' else "имущество"
+                    error_context.append(f"формат: {format_display}")
                 
                 context_str = f" ({', '.join(error_context)})" if error_context else ""
                 
-                logger.error(f"Error processing Excel file{context_str}: {str(e)}", exc_info=True)
+                # Расширенное логирование ошибки с полным контекстом
+                logger.error(f"Error processing Excel file{context_str} by user {request.user.username}: {str(e)} | {format_context}", exc_info=True)
                 
-                # Определяем тип ошибки для более информативного сообщения
+                # Определяем тип ошибки для более информативного сообщения с контекстом формата
                 if "Permission denied" in str(e) or "access" in str(e).lower():
                     error_msg = f'Ошибка доступа к файлу{context_str}. Убедитесь, что файл не открыт в другой программе и попробуйте снова.'
                 elif "corrupted" in str(e).lower() or "invalid" in str(e).lower():
                     error_msg = f'Файл поврежден или имеет неверный формат{context_str}. Проверьте целостность файла и попробуйте снова.'
                 elif "memory" in str(e).lower() or "size" in str(e).lower():
                     error_msg = f'Файл слишком большой для обработки{context_str}. Попробуйте уменьшить размер файла.'
+                elif "не удалось прочитать файл" in str(e).lower():
+                    error_msg = f'Не удалось прочитать файл{context_str}. Проверьте, что выбран правильный формат заявки и файл соответствует ожидаемой структуре.'
                 else:
                     error_msg = f'Ошибка при обработке файла{context_str}: {str(e)}'
                 
+                # Логируем отображаемое пользователю сообщение для диагностики
+                logger.error(f"Error message displayed to user {request.user.username}: {error_msg} | {format_context}")
+                
                 messages.error(request, error_msg)
         else:
-            # Обработка ошибок валидации формы
-            logger.warning(f"Form validation failed for user {request.user.username}: {form.errors}")
+            # Обработка ошибок валидации формы с улучшенным контекстом
+            # Пытаемся извлечь контекст формата из данных формы для логирования
+            form_application_type = request.POST.get('application_type')
+            form_application_format = request.POST.get('application_format')
+            form_format_context = _get_format_context_for_logging(form_application_type, form_application_format)
             
-            # Добавляем информативные сообщения об ошибках
+            logger.warning(f"Form validation failed for user {request.user.username}: {form.errors} | {form_format_context}")
+            
+            # Добавляем информативные сообщения об ошибках с контекстом формата
             for field, errors in form.errors.items():
                 for error in errors:
                     if field == 'application_type':
-                        messages.error(request, f'Ошибка выбора типа заявки: {error}')
+                        error_msg = f'Ошибка выбора типа заявки: {error}'
+                        messages.error(request, error_msg)
+                        logger.warning(f"Application type validation error for user {request.user.username}: {error} | {form_format_context}")
+                    elif field == 'application_format':
+                        error_msg = f'Ошибка выбора формата заявки: {error}'
+                        messages.error(request, error_msg)
+                        logger.warning(f"Application format validation error for user {request.user.username}: {error} | {form_format_context}")
                     elif field == 'excel_file':
-                        messages.error(request, f'Ошибка файла: {error}')
+                        error_msg = f'Ошибка файла: {error}'
+                        messages.error(request, error_msg)
+                        logger.warning(f"Excel file validation error for user {request.user.username}: {error} | {form_format_context}")
                     else:
-                        messages.error(request, f'Ошибка в поле {field}: {error}')
+                        error_msg = f'Ошибка в поле {field}: {error}'
+                        messages.error(request, error_msg)
+                        logger.warning(f"Field validation error for user {request.user.username} in field {field}: {error} | {form_format_context}")
     else:
         form = ExcelUploadForm()
     
@@ -422,18 +518,49 @@ def edit_request(request, pk):
         form = InsuranceRequestForm(request.POST, instance=insurance_request)
         if form.is_valid():
             updated_request = form.save()
-            messages.success(request, 'Заявка успешно обновлена')
-            logger.info(f"Request {pk} updated by user {request.user.username}")
+            
+            # Получаем информацию о формате для логирования
+            format_info = ""
+            format_context = "Format: unknown, Type: unknown"
+            if updated_request.additional_data:
+                application_type = updated_request.additional_data.get('application_type')
+                application_format = updated_request.additional_data.get('application_format')
+                format_context = _get_format_context_for_logging(application_type, application_format)
+                
+                format_display = updated_request.additional_data.get('application_format_display', 'неизвестно')
+                type_display = updated_request.additional_data.get('application_type_display', 'неизвестно')
+                format_info = f" (формат: {format_display}, тип: {type_display})"
+            
+            success_message = f'Заявка #{pk} успешно обновлена{format_info}'
+            messages.success(request, success_message)
+            logger.info(f"Request {pk} updated by user {request.user.username}{format_info} | {format_context}")
             return redirect('insurance_requests:request_detail', pk=pk)
         else:
-            # Log form errors for debugging
-            logger.warning(f"Form validation errors for request {pk}: {form.errors}")
+            # Log form errors for debugging with format information
+            format_info = ""
+            format_context = "Format: unknown, Type: unknown"
+            if insurance_request.additional_data:
+                application_type = insurance_request.additional_data.get('application_type')
+                application_format = insurance_request.additional_data.get('application_format')
+                format_context = _get_format_context_for_logging(application_type, application_format)
+                
+                format_display = insurance_request.additional_data.get('application_format_display', 'неизвестно')
+                type_display = insurance_request.additional_data.get('application_type_display', 'неизвестно')
+                format_info = f" (формат: {format_display}, тип: {type_display})"
+            
+            logger.warning(f"Form validation errors for request {pk}{format_info}: {form.errors} | {format_context}")
     else:
         # Initialize form with instance data
         form = InsuranceRequestForm(instance=insurance_request)
         
-        # Log successful form initialization for debugging
-        logger.debug(f"Form initialized for request {pk} with data: {insurance_request.to_dict()}")
+        # Log successful form initialization for debugging with format context
+        format_context = "Format: unknown, Type: unknown"
+        if insurance_request.additional_data:
+            application_type = insurance_request.additional_data.get('application_type')
+            application_format = insurance_request.additional_data.get('application_format')
+            format_context = _get_format_context_for_logging(application_type, application_format)
+        
+        logger.debug(f"Form initialized for request {pk} with data: {insurance_request.to_dict()} | {format_context}")
     
     return render(request, 'insurance_requests/edit_request.html', {
         'form': form,
@@ -460,11 +587,38 @@ def generate_email(request, pk):
         insurance_request.status = 'email_generated'
         insurance_request.save()
         
-        messages.success(request, 'Письмо успешно сгенерировано')
+        # Получаем информацию о формате из additional_data для логирования
+        format_info = ""
+        format_context = "Format: unknown, Type: unknown"
+        if insurance_request.additional_data:
+            application_type = insurance_request.additional_data.get('application_type')
+            application_format = insurance_request.additional_data.get('application_format')
+            format_context = _get_format_context_for_logging(application_type, application_format)
+            
+            format_display = insurance_request.additional_data.get('application_format_display', 'неизвестно')
+            type_display = insurance_request.additional_data.get('application_type_display', 'неизвестно')
+            format_info = f" (формат: {format_display}, тип: {type_display})"
+        
+        success_message = f'Письмо успешно сгенерировано для заявки #{pk}{format_info}'
+        messages.success(request, success_message)
+        logger.info(f"Email generated successfully for request {pk}{format_info} by user {request.user.username} | {format_context}")
         
     except Exception as e:
-        logger.error(f"Error generating email for request {pk}: {str(e)}")
-        messages.error(request, f'Ошибка при генерации письма: {str(e)}')
+        # Получаем информацию о формате для ошибки
+        format_info = ""
+        format_context = "Format: unknown, Type: unknown"
+        if insurance_request.additional_data:
+            application_type = insurance_request.additional_data.get('application_type')
+            application_format = insurance_request.additional_data.get('application_format')
+            format_context = _get_format_context_for_logging(application_type, application_format)
+            
+            format_display = insurance_request.additional_data.get('application_format_display', 'неизвестно')
+            type_display = insurance_request.additional_data.get('application_type_display', 'неизвестно')
+            format_info = f" (формат: {format_display}, тип: {type_display})"
+        
+        error_message = f'Ошибка при генерации письма для заявки #{pk}{format_info}: {str(e)}'
+        logger.error(f"Error generating email for request {pk}{format_info}: {str(e)} | {format_context}")
+        messages.error(request, error_message)
     
     return redirect('insurance_requests:request_detail', pk=pk)
 
@@ -529,8 +683,23 @@ def send_email(request, pk):
         insurance_request.email_sent_at = moscow_now
         insurance_request.save()
         
+        # Получаем информацию о формате для логирования успеха
+        format_context = "Format: unknown, Type: unknown"
+        if insurance_request.additional_data:
+            application_type = insurance_request.additional_data.get('application_type')
+            application_format = insurance_request.additional_data.get('application_format')
+            format_context = _get_format_context_for_logging(application_type, application_format)
+        
+        logger.info(f"Email sent successfully for request {pk} | {format_context}")
         return JsonResponse({'success': True, 'message': 'Письмо отправлено'})
         
     except Exception as e:
-        logger.error(f"Error sending email for request {pk}: {str(e)}")
+        # Получаем информацию о формате для логирования ошибки
+        format_context = "Format: unknown, Type: unknown"
+        if insurance_request.additional_data:
+            application_type = insurance_request.additional_data.get('application_type')
+            application_format = insurance_request.additional_data.get('application_format')
+            format_context = _get_format_context_for_logging(application_type, application_format)
+        
+        logger.error(f"Error sending email for request {pk}: {str(e)} | {format_context}")
         return JsonResponse({'success': False, 'error': str(e)})

@@ -64,6 +64,18 @@
                             <dt class="col-sm-4">Создана:</dt>
                             <dd class="col-sm-8">{% timezone "Europe/Moscow" %}{{ request.created_at|date:"d.m.Y H:i" }}{% endtimezone %} (МСК)</dd>
                             
+                            {% if request.additional_data.application_format_display %}
+                            <dt class="col-sm-4">Формат заявки:</dt>
+                            <dd class="col-sm-8">
+                                <span class="badge bg-{% if request.additional_data.application_format == 'property' %}info{% else %}secondary{% endif %}">
+                                    {{ request.additional_data.application_format_display }}
+                                </span>
+                                {% if request.additional_data.application_type_display %}
+                                    <br><small class="text-muted">{{ request.additional_data.application_type_display }}</small>
+                                {% endif %}
+                            </dd>
+                            {% endif %}
+                            
                             <dt class="col-sm-4">Обновлена:</dt>
                             <dd class="col-sm-8">{% timezone "Europe/Moscow" %}{{ request.updated_at|date:"d.m.Y H:i" }}{% endtimezone %} (МСК)</dd>
                             

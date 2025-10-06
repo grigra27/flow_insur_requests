@@ -144,6 +144,21 @@ class ExcelUploadForm(forms.Form):
         ('individual_entrepreneur', 'Заявка от ИП'),
     ]
     
+    # Варианты форматов заявок
+    APPLICATION_FORMAT_CHOICES = [
+        ('', '-- Выберите формат заявки --'),
+        ('casco_equipment', 'КАСКО/спецтехника'),
+        ('property', 'имущество'),
+    ]
+    
+    application_format = forms.ChoiceField(
+        choices=APPLICATION_FORMAT_CHOICES,
+        label='Формат заявки',
+        widget=forms.Select(attrs={'class': 'form-control'}),
+        help_text='Выберите формат загружаемой заявки. КАСКО/спецтехника - для автострахования и спецтехники, имущество - для страхования имущества.',
+        required=True
+    )
+    
     application_type = forms.ChoiceField(
         choices=[('', '-- Выберите тип заявки --')] + APPLICATION_TYPE_CHOICES,
         label='Тип заявки',
@@ -160,6 +175,25 @@ class ExcelUploadForm(forms.Form):
             'accept': '.xls,.xlsx,.xltx'
         })
     )
+    
+    def clean_application_format(self):
+        """Валидация формата заявки с улучшенными сообщениями об ошибках"""
+        application_format = self.cleaned_data.get('application_format')
+        
+        if not application_format:
+            raise ValidationError(
+                'Необходимо выбрать формат заявки. Выберите "КАСКО/спецтехника" для автострахования '
+                'и спецтехники или "имущество" для страхования имущества.'
+            )
+        
+        # Проверяем, что выбрано одно из допустимых значений
+        valid_formats = [choice[0] for choice in self.APPLICATION_FORMAT_CHOICES if choice[0]]
+        if application_format not in valid_formats:
+            # Реализуем fallback на формат "КАСКО/спецтехника" при некорректных данных
+            logger.warning(f"Invalid application format '{application_format}' provided, falling back to 'casco_equipment'")
+            return 'casco_equipment'
+        
+        return application_format
     
     def clean_application_type(self):
         """Валидация типа заявки с улучшенными сообщениями об ошибках"""
@@ -208,15 +242,23 @@ class ExcelUploadForm(forms.Form):
         return file
     
     def clean(self):
-        """Общая валидация формы с проверкой совместимости типа заявки и файла"""
+        """Общая валидация формы с проверкой совместимости формата, типа заявки и файла"""
         cleaned_data = super().clean()
+        application_format = cleaned_data.get('application_format')
         application_type = cleaned_data.get('application_type')
         excel_file = cleaned_data.get('excel_file')
         
-        # Если оба поля валидны, проводим дополнительные проверки
-        if application_type and excel_file:
-            # Логируем выбранный тип для диагностики
-            logger.info(f"Form validation: application_type='{application_type}', file='{excel_file.name}'")
+        # Если все поля валидны, проводим дополнительные проверки
+        if application_format and application_type and excel_file:
+            # Логируем выбранные параметры для диагностики
+            logger.info(f"Form validation: application_format='{application_format}', application_type='{application_type}', file='{excel_file.name}'")
+            
+            # Проверяем, что формат заявки корректный (дополнительная проверка)
+            valid_formats = [choice[0] for choice in self.APPLICATION_FORMAT_CHOICES if choice[0]]
+            if application_format not in valid_formats:
+                # Применяем fallback и предупреждаем пользователя
+                cleaned_data['application_format'] = 'casco_equipment'
+                logger.warning(f"Invalid application format '{application_format}' in form clean, using fallback 'casco_equipment'")
             
             # Проверяем, что тип заявки корректный (дополнительная проверка)
             valid_types = [choice[0] for choice in self.APPLICATION_TYPE_CHOICES]
@@ -224,8 +266,11 @@ class ExcelUploadForm(forms.Form):
                 # Применяем fallback и предупреждаем пользователя
                 cleaned_data['application_type'] = 'legal_entity'
                 logger.warning(f"Invalid application type '{application_type}' in form clean, using fallback 'legal_entity'")
-                # Не вызываем ValidationError, просто исправляем значение
-        
+            
+            # Валидация совместимости формата и типа заявки
+            # Все форматы совместимы с обоими типами заявок (юр.лицо и ИП)
+            # Дополнительных ограничений совместимости нет согласно требованиям
+            
         return cleaned_data
 
 
