@@ -1,0 +1,53 @@
+# GitHub Pages configuration
+title: "Руководство пользователя - Он-лайн брокер ФЛОУ"
+description: "Подробное руководство по работе с системой управления страховыми заявками"
+
+# Theme
+theme: minima
+
+# Plugins
+plugins:
+  - jekyll-feed
+  - jekyll-sitemap
+
+# Markdown settings
+markdown: kramdown
+kramdown:
+  input: GFM
+  syntax_highlighter: rouge
+
+# Navigation
+header_pages:
+  - index.md
+
+# Exclude files
+exclude:
+  - .DS_Store
+  - USER_MANUAL.md
+  - DEPLOYMENT_GUIDE_COMPLETE.md
+  - DEPLOYMENT_INSTRUCTIONS.md
+  - PDF_CONVERSION_GUIDE.md
+  - USER_MANUAL_UPDATE_INSTRUCTIONS.md
+
+# Language
+lang: ru
+
+# Author
+author:
+  name: "Grigorii Grachev"
+
+# Social links (optional)
+# github_username: username
+# twitter_username: username
+
+# Google Analytics (optional)
+# google_analytics: UA-NNNNNNNN-N
+
+# Show excerpts on homepage
+show_excerpts: false
+
+# Date format
+date_format: "%d.%m.%Y"
+
+# Timezone
+timezone: Europe/Moscow
