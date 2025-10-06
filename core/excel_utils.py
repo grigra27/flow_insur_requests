@@ -4,7 +4,7 @@
 from typing import Dict, Any, Optional
 import pandas as pd
 from openpyxl import load_workbook
-from datetime import datetime, timedelta, date
+from datetime import timedelta
 from django.utils import timezone
 import logging
 
@@ -281,11 +281,6 @@ class ExcelReader:
         # Определяем период страхования по новой логике N17/N18 (одинаково для всех форматов)
         insurance_period = self._determine_insurance_period_openpyxl(sheet)
         
-        # Для обратной совместимости устанавливаем даты как None
-        # так как теперь используется текстовое описание периода
-        insurance_start_date = None
-        insurance_end_date = None
-        
         # Определяем срок ответа (текущее время + 3 часа) (одинаково для всех форматов)
         response_deadline = timezone.now() + timedelta(hours=3)
         
@@ -310,8 +305,6 @@ class ExcelReader:
             'inn': self._get_cell_with_adjustment_openpyxl(sheet, 'D', 9) or '',
             'insurance_type': insurance_type,
             'insurance_period': insurance_period,
-            'insurance_start_date': insurance_start_date,
-            'insurance_end_date': insurance_end_date,
             'vehicle_info': vehicle_info,
             'dfa_number': dfa_number,
             'branch': branch,
@@ -358,11 +351,6 @@ class ExcelReader:
         # Определяем период страхования по новой логике N17/N18 (одинаково для всех форматов)
         insurance_period = self._determine_insurance_period_pandas(df)
         
-        # Для обратной совместимости устанавливаем даты как None
-        # так как теперь используется текстовое описание периода
-        insurance_start_date = None
-        insurance_end_date = None
-        
         # Определяем срок ответа (текущее время + 3 часа) (одинаково для всех форматов)
         response_deadline = timezone.now() + timedelta(hours=3)
         
@@ -388,8 +376,6 @@ class ExcelReader:
             'inn': self._get_cell_with_adjustment_pandas(df, 9, 3) or '',  # D9
             'insurance_type': insurance_type,
             'insurance_period': insurance_period,
-            'insurance_start_date': insurance_start_date,
-            'insurance_end_date': insurance_end_date,
             'vehicle_info': vehicle_info,
             'dfa_number': dfa_number,
             'branch': branch,
@@ -698,8 +684,6 @@ class ExcelReader:
             'inn': '1234567890',
             'insurance_type': 'КАСКО',  # Используем допустимое значение
             'insurance_period': '1 год',  # Используем новый формат периода
-            'insurance_start_date': None,  # Теперь не используем конкретные даты
-            'insurance_end_date': None,    # Теперь не используем конкретные даты
             'vehicle_info': f'Информация о предмете лизинга не указана ({app_type_display}, {format_display})',
             'dfa_number': f'Номер ДФА не указан ({app_type_display}, {format_display})',
             'branch': f'Филиал не указан ({app_type_display}, {format_display})',
@@ -711,48 +695,6 @@ class ExcelReader:
             'application_type': self.application_type,
             'application_format': self.application_format,
         }
-    
-
-    
-    def _parse_date(self, date_value) -> Optional[datetime.date]:
-        """
-        Парсит дату из различных форматов и возвращает объект date.
-        Поддерживает форматы: DD.MM.YYYY, YYYY-MM-DD, DD/MM/YYYY, MM/DD/YYYY
-        """
-        if not date_value:
-            return None
-        
-        # Если это уже объект datetime или date
-        if isinstance(date_value, datetime):
-            return date_value.date()
-        elif hasattr(date_value, 'date') and callable(date_value.date):
-            return date_value.date()
-        
-        date_str = str(date_value).strip()
-        if not date_str or date_str.lower() in ['none', 'nan', '']:
-            return None
-        
-        # Пробуем разные форматы дат
-        formats = [
-            '%d.%m.%Y',    # DD.MM.YYYY
-            '%Y-%m-%d',    # YYYY-MM-DD
-            '%d/%m/%Y',    # DD/MM/YYYY
-            '%m/%d/%Y',    # MM/DD/YYYY
-            '%d.%m.%y',    # DD.MM.YY
-            '%d/%m/%y',    # DD/MM/YY
-            '%Y/%m/%d',    # YYYY/MM/DD
-        ]
-        
-        for fmt in formats:
-            try:
-                parsed_date = datetime.strptime(date_str, fmt)
-                return parsed_date.date()
-            except ValueError:
-                continue
-        
-        # Если не удалось распарсить, логируем и возвращаем None
-        logger.warning(f"Could not parse date: {date_str}")
-        return None
     
 
     

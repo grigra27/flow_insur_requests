@@ -1,9 +1,9 @@
 """
-Тесты для новой логики периода страхования в email шаблонах
+Тесты для стандартизированной логики периода страхования в email шаблонах
 """
 import unittest
 from unittest.mock import patch, MagicMock
-from datetime import datetime, date
+from datetime import datetime
 from django.test import TestCase
 from django.utils import timezone
 import pytz
@@ -12,14 +12,14 @@ from core.templates import EmailTemplateGenerator
 
 
 class TestEmailTemplatePeriodLogic(TestCase):
-    """Тесты для новой логики определения периода страхования в email шаблонах"""
+    """Тесты для стандартизированной логики определения периода страхования в email шаблонах"""
     
     def setUp(self):
         """Настройка тестов"""
         self.generator = EmailTemplateGenerator()
     
-    def test_new_period_format_one_year(self):
-        """Тест обработки нового формата периода '1 год'"""
+    def test_standardized_period_format_one_year(self):
+        """Тест обработки стандартизированного формата периода '1 год'"""
         data = {
             'insurance_type': 'КАСКО',
             'insurance_period': '1 год',
@@ -33,12 +33,11 @@ class TestEmailTemplatePeriodLogic(TestCase):
         
         email_body = self.generator.generate_email_body(data)
         
-        # Проверяем, что используется новый формат
+        # Проверяем, что используется стандартизированный формат
         self.assertIn('Необходимый период страхования: 1 год', email_body)
-        self.assertNotIn('Срок страхования:', email_body)
     
-    def test_new_period_format_full_lease_term(self):
-        """Тест обработки нового формата периода 'на весь срок лизинга'"""
+    def test_standardized_period_format_full_lease_term(self):
+        """Тест обработки стандартизированного формата периода 'на весь срок лизинга'"""
         data = {
             'insurance_type': 'КАСКО',
             'insurance_period': 'на весь срок лизинга',
@@ -52,49 +51,10 @@ class TestEmailTemplatePeriodLogic(TestCase):
         
         email_body = self.generator.generate_email_body(data)
         
-        # Проверяем, что используется новый формат
+        # Проверяем, что используется стандартизированный формат
         self.assertIn('Необходимый период страхования: на весь срок лизинга', email_body)
-        self.assertNotIn('Срок страхования:', email_body)
     
-    def test_empty_period_with_dates_backward_compatibility(self):
-        """Тест обратной совместимости с пустым периодом но с датами"""
-        data = {
-            'insurance_type': 'КАСКО',
-            'insurance_period': '',
-            'insurance_start_date': date(2024, 1, 1),
-            'insurance_end_date': date(2024, 12, 31),
-            'inn': '1234567890',
-            'response_deadline': datetime.now(),
-            'has_franchise': False,
-            'has_installment': False,
-            'has_autostart': False,
-            'has_casco_ce': False,
-        }
-        
-        email_body = self.generator.generate_email_body(data)
-        
-        # Проверяем, что используется формат с датами для обратной совместимости
-        self.assertIn('Необходимый период страхования: с 01.01.2024 по 31.12.2024', email_body)
-    
-    def test_old_period_format_with_dates_backward_compatibility(self):
-        """Тест обратной совместимости со старым форматом с датами"""
-        data = {
-            'insurance_type': 'КАСКО',
-            'insurance_period': 'с 01.01.2024 по 31.12.2024',
-            'inn': '1234567890',
-            'response_deadline': datetime.now(),
-            'has_franchise': False,
-            'has_installment': False,
-            'has_autostart': False,
-            'has_casco_ce': False,
-        }
-        
-        email_body = self.generator.generate_email_body(data)
-        
-        # Проверяем, что старый формат сохраняется
-        self.assertIn('Необходимый период страхования: с 01.01.2024 по 31.12.2024', email_body)
-    
-    def test_no_period_data_fallback(self):
+    def test_empty_period_fallback(self):
         """Тест fallback когда нет данных о периоде"""
         data = {
             'insurance_type': 'КАСКО',
@@ -112,8 +72,8 @@ class TestEmailTemplatePeriodLogic(TestCase):
         # Проверяем, что используется fallback
         self.assertIn('Необходимый период страхования: не указан', email_body)
     
-    def test_format_insurance_period_text_new_format(self):
-        """Тест метода _format_insurance_period_text с новым форматом"""
+    def test_format_insurance_period_text_standardized_format(self):
+        """Тест метода _format_insurance_period_text со стандартизированным форматом"""
         # Тест с "1 год"
         data = {'insurance_period': '1 год'}
         result = self.generator._format_insurance_period_text(data)
@@ -123,30 +83,14 @@ class TestEmailTemplatePeriodLogic(TestCase):
         data = {'insurance_period': 'на весь срок лизинга'}
         result = self.generator._format_insurance_period_text(data)
         self.assertEqual(result, 'на весь срок лизинга')
-    
-    def test_format_insurance_period_text_backward_compatibility(self):
-        """Тест метода _format_insurance_period_text с обратной совместимостью"""
-        # Тест с пустым периодом и датами
-        data = {
-            'insurance_period': '',
-            'insurance_start_date': date(2024, 1, 1),
-            'insurance_end_date': date(2024, 12, 31)
-        }
-        result = self.generator._format_insurance_period_text(data)
-        self.assertEqual(result, 'с 01.01.2024 по 31.12.2024')
         
-        # Тест со старым форматом дат
-        data = {'insurance_period': 'с 01.01.2024 по 31.12.2024'}
-        result = self.generator._format_insurance_period_text(data)
-        self.assertEqual(result, 'с 01.01.2024 по 31.12.2024')
-        
-        # Тест с полностью пустыми данными
+        # Тест с пустыми данными
         data = {'insurance_period': ''}
         result = self.generator._format_insurance_period_text(data)
         self.assertEqual(result, 'не указан')
     
-    def test_template_data_contains_new_field(self):
-        """Тест что template_data содержит новое поле insurance_period_text"""
+    def test_template_data_contains_period_field(self):
+        """Тест что template_data содержит поле insurance_period_text"""
         data = {
             'insurance_type': 'КАСКО',
             'insurance_period': '1 год',
@@ -156,12 +100,12 @@ class TestEmailTemplatePeriodLogic(TestCase):
         
         template_data = self.generator._prepare_template_data(data)
         
-        # Проверяем, что новое поле присутствует
+        # Проверяем, что поле присутствует
         self.assertIn('insurance_period_text', template_data)
         self.assertEqual(template_data['insurance_period_text'], '1 год')
     
-    def test_email_generation_with_all_new_features(self):
-        """Тест генерации email с новым периодом и всеми дополнительными параметрами"""
+    def test_email_generation_with_all_features(self):
+        """Тест генерации email со стандартизированным периодом и всеми дополнительными параметрами"""
         data = {
             'insurance_type': 'КАСКО',
             'insurance_period': 'на весь срок лизинга',
@@ -188,7 +132,7 @@ class TestEmailTemplatePeriodLogic(TestCase):
             'dfa_number': 'ДФА-123',
             'branch': 'Москва',
             'vehicle_info': 'Toyota Camry',
-            'insurance_period': '1 год',  # Новый формат не должен влиять на тему
+            'insurance_period': '1 год',
         }
         
         subject = self.generator.generate_subject(data)
@@ -201,7 +145,7 @@ class TestEmailTemplatePeriodLogic(TestCase):
         # Тест с строковым значением (уже отформатировано)
         data = {
             'response_deadline': '14:30 15.01.2024 г.',
-            'insurance_period': '1 год',  # Новый формат не должен влиять на время ответа
+            'insurance_period': '1 год',
         }
         
         result = self.generator._format_response_deadline_for_email(data)

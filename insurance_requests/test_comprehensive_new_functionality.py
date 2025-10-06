@@ -452,8 +452,6 @@ class NewPeriodDeterminationLogicTests(TestCase):
             
             # Check that the new period logic is used
             self.assertEqual(result['insurance_period'], '1 год')
-            self.assertIsNone(result['insurance_start_date'])
-            self.assertIsNone(result['insurance_end_date'])
     
     def test_extract_data_pandas_uses_new_period_logic(self):
         """Test that _extract_data_pandas uses the new period determination"""
@@ -473,8 +471,6 @@ class NewPeriodDeterminationLogicTests(TestCase):
             
             # Check that the new period logic is used
             self.assertEqual(result['insurance_period'], 'на весь срок лизинга')
-            self.assertIsNone(result['insurance_start_date'])
-            self.assertIsNone(result['insurance_end_date'])
 
 
 class InvertedFranchiseLogicTests(TestCase):

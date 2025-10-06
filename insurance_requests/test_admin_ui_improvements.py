@@ -83,16 +83,7 @@ class InsurancePeriodValidationTests(TestCase):
                 self.assertFalse(form.is_valid(), f"Period '{period}' should be invalid")
                 self.assertIn('insurance_period_custom', form.errors)
     
-    def test_insurance_period_date_logic_validation(self):
-        """Test validation of date logic in insurance period"""
-        # Start date after end date
-        form_data = self.base_form_data.copy()
-        form_data['insurance_period_custom'] = 'с 31.12.2025 по 01.01.2025'
-        
-        form = InsuranceRequestForm(data=form_data)
-        self.assertFalse(form.is_valid())
-        self.assertIn('insurance_period_custom', form.errors)
-        self.assertIn('раньше', str(form.errors['insurance_period_custom']))
+
     
     def test_empty_insurance_period_is_valid(self):
         """Test that empty insurance period is valid"""

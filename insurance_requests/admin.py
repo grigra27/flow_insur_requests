@@ -31,7 +31,7 @@ class InsuranceRequestAdmin(admin.ModelAdmin):
     # Поля только для чтения
     readonly_fields = [
         'created_at', 'updated_at', 'email_sent_at',
-        'get_insurance_period_display', 'get_attachments_count'
+        'get_attachments_count'
     ]
     
     # Массовые операции для управления статусами и сроками ответа
@@ -51,8 +51,7 @@ class InsuranceRequestAdmin(admin.ModelAdmin):
         }),
         ('Страхование', {
             'fields': (
-                'insurance_type', 'insurance_start_date', 'insurance_end_date',
-                'get_insurance_period_display', 'vehicle_info'
+                'insurance_type', 'insurance_period', 'vehicle_info'
             )
         }),
         ('Параметры', {
@@ -95,10 +94,7 @@ class InsuranceRequestAdmin(admin.ModelAdmin):
     response_deadline_moscow.short_description = 'Срок ответа (МСК)'
     response_deadline_moscow.admin_order_field = 'response_deadline'
     
-    def get_insurance_period_display(self, obj):
-        """Отображает форматированный период страхования"""
-        return obj.insurance_period_formatted
-    get_insurance_period_display.short_description = 'Период страхования'
+
     
     def get_attachments_count(self, obj):
         """Отображает количество вложений с ссылкой на них"""

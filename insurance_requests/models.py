@@ -27,6 +27,11 @@ class InsuranceRequest(models.Model):
         ('другое', 'другое'),
     ]
     
+    INSURANCE_PERIOD_CHOICES = [
+        ('1 год', '1 год'),
+        ('на весь срок лизинга', 'на весь срок лизинга'),
+    ]
+    
     # Основные поля
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Дата создания')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='Дата обновления')
@@ -42,9 +47,12 @@ class InsuranceRequest(models.Model):
         default='КАСКО', 
         verbose_name='Тип страхования'
     )
-    insurance_period = models.CharField(max_length=200, verbose_name='Срок страхования')
-    insurance_start_date = models.DateField(null=True, blank=True, verbose_name='Дата начала страхования')
-    insurance_end_date = models.DateField(null=True, blank=True, verbose_name='Дата окончания страхования')
+    insurance_period = models.CharField(
+        max_length=50, 
+        choices=INSURANCE_PERIOD_CHOICES,
+        blank=True,
+        verbose_name='Срок страхования'
+    )
     vehicle_info = models.TextField(blank=True, verbose_name='Информация о предмете лизинга')
     dfa_number = models.CharField(max_length=100, blank=True, verbose_name='Номер ДФА')
     branch = models.CharField(max_length=255, blank=True, verbose_name='Филиал')
@@ -78,18 +86,7 @@ class InsuranceRequest(models.Model):
             return f"{self.dfa_number}"
         return f"#{self.id}"
     
-    @property
-    def insurance_period_formatted(self):
-        """
-        Свойство для обратной совместимости - форматирует две даты как "с [date1] по [date2]"
-        Если новые поля заполнены, использует их, иначе возвращает старое поле
-        """
-        if self.insurance_start_date and self.insurance_end_date:
-            return f"с {self.insurance_start_date.strftime('%d.%m.%Y')} по {self.insurance_end_date.strftime('%d.%m.%Y')}"
-        elif self.insurance_period:
-            return self.insurance_period
-        else:
-            return "Период не указан"
+
     
     def __str__(self):
         return f"{self.get_display_name()} - {self.client_name} ({self.get_status_display()})"
@@ -131,9 +128,7 @@ class InsuranceRequest(models.Model):
             'client_name': self.client_name,
             'inn': self.inn,
             'insurance_type': self.insurance_type,
-            'insurance_period': self.insurance_period_formatted,
-            'insurance_start_date': self.insurance_start_date,
-            'insurance_end_date': self.insurance_end_date,
+            'insurance_period': self.insurance_period or 'не указан',
             'vehicle_info': self.vehicle_info,
             'dfa_number': self.dfa_number,
             'branch': self.branch,

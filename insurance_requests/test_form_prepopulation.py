@@ -3,7 +3,7 @@ Unit tests for form pre-population functionality
 """
 from django.test import TestCase
 from django.contrib.auth.models import User
-from datetime import date, datetime
+from datetime import datetime
 import pytz
 
 from .models import InsuranceRequest
@@ -30,8 +30,7 @@ class FormPrePopulationTestCase(TestCase):
             inn='1234567890',
             insurance_type='страхование спецтехники',
             branch='Санкт-Петербург',
-            insurance_start_date=date(2024, 6, 1),
-            insurance_end_date=date(2025, 5, 31),
+            insurance_period='1 год',
             vehicle_info='Test vehicle information',
             dfa_number='DFA123',
             has_franchise=True,
@@ -50,8 +49,7 @@ class FormPrePopulationTestCase(TestCase):
         self.assertEqual(form['inn'].value(), '1234567890')
         self.assertEqual(form['insurance_type'].value(), 'страхование спецтехники')
         self.assertEqual(form['branch'].value(), 'Санкт-Петербург')
-        self.assertEqual(form['insurance_start_date'].value(), date(2024, 6, 1))
-        self.assertEqual(form['insurance_end_date'].value(), date(2025, 5, 31))
+        self.assertEqual(form['insurance_period'].value(), '1 год')
         self.assertEqual(form['vehicle_info'].value(), 'Test vehicle information')
         self.assertEqual(form['dfa_number'].value(), 'DFA123')
         self.assertEqual(form['has_franchise'].value(), True)
@@ -138,8 +136,7 @@ class FormPrePopulationTestCase(TestCase):
         self.assertEqual(form['has_installment'].value(), False)
         self.assertEqual(form['has_autostart'].value(), False)
         self.assertEqual(form['has_casco_ce'].value(), False)
-        self.assertIsNone(form['insurance_start_date'].value())
-        self.assertIsNone(form['insurance_end_date'].value())
+        self.assertEqual(form['insurance_period'].value(), '')
         # Note: response_deadline gets auto-set by the model's save method, so it won't be None
     
     def test_boolean_fields_prepopulation(self):
@@ -180,33 +177,24 @@ class FormPrePopulationTestCase(TestCase):
         self.assertEqual(form_false['has_autostart'].value(), False)
         self.assertEqual(form_false['has_casco_ce'].value(), False)
     
-    def test_date_fields_prepopulation(self):
-        """Test that date fields are correctly pre-populated"""
-        start_date = date(2024, 1, 15)
-        end_date = date(2024, 12, 15)
-        
+    def test_insurance_period_prepopulation(self):
+        """Test that insurance period field is correctly pre-populated"""
         request = InsuranceRequest.objects.create(
-            client_name='Date Test',
+            client_name='Period Test',
             inn='7777777777',
             insurance_type='КАСКО',
-            insurance_start_date=start_date,
-            insurance_end_date=end_date,
+            insurance_period='на весь срок лизинга',
             created_by=self.user
         )
         
         form = InsuranceRequestForm(instance=request)
         
-        self.assertEqual(form['insurance_start_date'].value(), start_date)
-        self.assertEqual(form['insurance_end_date'].value(), end_date)
+        self.assertEqual(form['insurance_period'].value(), 'на весь срок лизинга')
         
-        # Check HTML rendering - Django formats dates as DD.MM.YYYY by default
-        start_html = str(form['insurance_start_date'])
-        end_html = str(form['insurance_end_date'])
-        
-        self.assertIn('15.01.2024', start_html)
-        self.assertIn('15.12.2024', end_html)
-        self.assertIn('type="date"', start_html)
-        self.assertIn('type="date"', end_html)
+        # Check HTML rendering
+        period_html = str(form['insurance_period'])
+        self.assertIn('на весь срок лизинга', period_html)
+        self.assertIn('selected', period_html)
     
     def test_form_validation_with_prepopulated_data(self):
         """Test that form validation works correctly with pre-populated data"""
@@ -215,8 +203,7 @@ class FormPrePopulationTestCase(TestCase):
             inn='8888888888',
             insurance_type='КАСКО',
             branch='Казань',
-            insurance_start_date=date(2024, 1, 1),
-            insurance_end_date=date(2024, 12, 31),
+            insurance_period='1 год',
             created_by=self.user
         )
         
@@ -229,8 +216,7 @@ class FormPrePopulationTestCase(TestCase):
             'inn': '8888888888',
             'insurance_type': 'КАСКО',
             'branch': 'Москва',
-            'insurance_start_date': '2024-02-01',
-            'insurance_end_date': '2024-12-31',
+            'insurance_period': 'на весь срок лизинга',
             'vehicle_info': '',
             'dfa_number': '',
             'has_franchise': False,

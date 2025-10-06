@@ -123,9 +123,6 @@ ${franshiza_text}${installment_text}${avtozapusk_text}
         Returns:
             Подготовленные данные для шаблона
         """
-        # Форматируем период страхования (старый формат для обратной совместимости)
-        insurance_period = self._format_insurance_period_for_email(data)
-        
         # Форматируем время ответа в московском часовом поясе
         response_time = self._format_response_deadline_for_email(data)
         
@@ -133,29 +130,14 @@ ${franshiza_text}${installment_text}${avtozapusk_text}
         insurance_type = data.get('insurance_type', 'КАСКО')
         insurance_description = self._get_insurance_type_description(insurance_type)
         
-        # Получаем отдельные даты страхования
-        start_date = data.get('insurance_start_date')
-        end_date = data.get('insurance_end_date')
-        
-        # Форматируем отдельные даты для нового формата
-        formatted_start_date = self._format_date(start_date) if start_date else 'не указано'
-        formatted_end_date = self._format_date(end_date) if end_date else 'не указано'
-        
-        # Форматируем период страхования для нового формата
-        formatted_period = self._format_insurance_period(start_date, end_date)
-        
-        # Получаем текстовое описание периода страхования (новая логика)
+        # Получаем текстовое описание периода страхования
         insurance_period_text = self._format_insurance_period_text(data)
         
         # Базовые данные
         template_data = {
             'ins_type': insurance_description,
             'inn': data.get('inn', '[ИНН не указан]'),
-            'srok': insurance_period,  # Старый формат для обратной совместимости
-            'insurance_start_date': formatted_start_date,
-            'insurance_end_date': formatted_end_date,
-            'formatted_period': formatted_period,
-            'insurance_period_text': insurance_period_text,  # Новое поле для текстового описания
+            'insurance_period_text': insurance_period_text,
             'response_time': response_time,
         }
         
@@ -188,125 +170,17 @@ ${franshiza_text}${installment_text}${avtozapusk_text}
         
         return template_data
     
-    def _format_date(self, date_obj) -> str:
-        """
-        Форматирует дату в формат DD.MM.YYYY
-        
-        Args:
-            date_obj: Объект даты или строка
-            
-        Returns:
-            Отформатированная дата в формате DD.MM.YYYY
-        """
-        if not date_obj:
-            return 'не указано'
-        
-        # Если это объект date, форматируем его
-        if hasattr(date_obj, 'strftime'):
-            return date_obj.strftime('%d.%m.%Y')
-        
-        # Если это строка, возвращаем как есть
-        return str(date_obj)
-    
-    def _format_insurance_period(self, start_date, end_date) -> str:
-        """
-        Форматирует период страхования для нового формата
-        
-        Args:
-            start_date: Дата начала страхования
-            end_date: Дата окончания страхования
-            
-        Returns:
-            Отформатированный период страхования
-        """
-        if start_date and end_date:
-            start_str = self._format_date(start_date)
-            end_str = self._format_date(end_date)
-            return f"с {start_str} по {end_str}"
-        elif start_date:
-            start_str = self._format_date(start_date)
-            return f"с {start_str} по не указано"
-        elif end_date:
-            end_str = self._format_date(end_date)
-            return f"с не указано по {end_str}"
-        else:
-            return "не указан"
-    
-    def _format_insurance_period_for_email(self, data: Dict[str, Any]) -> str:
-        """
-        Форматирует период страхования для использования в email.
-        Использует новые поля дат, если они доступны, иначе старое поле.
-        
-        Args:
-            data: Данные заявки
-            
-        Returns:
-            Отформатированный период страхования в формате "с [date1] по [date2]"
-        """
-        # Проверяем, есть ли отдельные даты
-        start_date = data.get('insurance_start_date')
-        end_date = data.get('insurance_end_date')
-        
-        if start_date and end_date:
-            # Если это объекты date, форматируем их
-            if hasattr(start_date, 'strftime'):
-                start_str = start_date.strftime('%d.%m.%Y')
-            else:
-                start_str = str(start_date)
-            
-            if hasattr(end_date, 'strftime'):
-                end_str = end_date.strftime('%d.%m.%Y')
-            else:
-                end_str = str(end_date)
-            
-            return f"с {start_str} по {end_str}"
-        
-        # Fallback на старое поле insurance_period
-        insurance_period = data.get('insurance_period')
-        if insurance_period:
-            return str(insurance_period)
-        
-        # Если ничего нет, возвращаем значение по умолчанию
-        return "с 01.01.2024 по 01.01.2025"
-    
     def _format_insurance_period_text(self, data: Dict[str, Any]) -> str:
         """
-        Форматирует текстовое описание периода страхования для использования в email.
-        Поддерживает новую логику с текстовыми значениями и обратную совместимость.
-        
-        Args:
-            data: Данные заявки
-            
-        Returns:
-            Текстовое описание периода страхования
+        Форматирует период страхования для использования в email.
+        Поддерживает только стандартизированные варианты.
         """
-        # Получаем значение поля insurance_period
-        insurance_period = data.get('insurance_period', '')
+        insurance_period = data.get('insurance_period', '').strip()
         
-        # Если это новый формат (текстовые значения)
         if insurance_period in ['1 год', 'на весь срок лизинга']:
             return insurance_period
         
-        # Если поле пустое, пытаемся определить по датам (обратная совместимость)
-        if not insurance_period or insurance_period.strip() == '':
-            start_date = data.get('insurance_start_date')
-            end_date = data.get('insurance_end_date')
-            
-            if start_date and end_date:
-                # Если есть конкретные даты, используем их
-                return self._format_insurance_period(start_date, end_date)
-            else:
-                # Если нет ни текстового описания, ни дат
-                return "не указан"
-        
-        # Для старых записей с датами в поле insurance_period
-        # Проверяем, содержит ли строка даты
-        if 'по' in insurance_period and ('.' in insurance_period or '/' in insurance_period):
-            # Это старый формат с датами, возвращаем как есть
-            return insurance_period
-        
-        # Если это что-то другое, возвращаем как есть
-        return insurance_period
+        return "не указан"
 
     def _format_response_deadline_for_email(self, data: Dict[str, Any]) -> str:
         """

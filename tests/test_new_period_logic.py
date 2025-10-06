@@ -129,8 +129,8 @@ class TestNewPeriodLogic(unittest.TestCase):
             result = self.excel_reader._determine_insurance_period_openpyxl(mock_sheet)
             self.assertEqual(result, "на весь срок лизинга")  # Should use N18
     
-    def test_extract_data_openpyxl_uses_new_period_logic(self):
-        """Test that _extract_data_openpyxl uses the new period determination"""
+    def test_extract_data_openpyxl_uses_standardized_period_logic(self):
+        """Test that _extract_data_openpyxl uses the standardized period determination"""
         mock_sheet = Mock()
         
         # Mock all the methods that _extract_data_openpyxl calls
@@ -147,13 +147,11 @@ class TestNewPeriodLogic(unittest.TestCase):
             
             result = self.excel_reader._extract_data_openpyxl(mock_sheet)
             
-            # Check that the new period logic is used
+            # Check that the standardized period logic is used
             self.assertEqual(result['insurance_period'], '1 год')
-            self.assertIsNone(result['insurance_start_date'])
-            self.assertIsNone(result['insurance_end_date'])
     
-    def test_extract_data_pandas_uses_new_period_logic(self):
-        """Test that _extract_data_pandas uses the new period determination"""
+    def test_extract_data_pandas_uses_standardized_period_logic(self):
+        """Test that _extract_data_pandas uses the standardized period determination"""
         mock_df = Mock()
         
         # Mock all the methods that _extract_data_pandas calls
@@ -170,10 +168,8 @@ class TestNewPeriodLogic(unittest.TestCase):
             
             result = self.excel_reader._extract_data_pandas(mock_df)
             
-            # Check that the new period logic is used
+            # Check that the standardized period logic is used
             self.assertEqual(result['insurance_period'], 'на весь срок лизинга')
-            self.assertIsNone(result['insurance_start_date'])
-            self.assertIsNone(result['insurance_end_date'])
 
 
 if __name__ == '__main__':

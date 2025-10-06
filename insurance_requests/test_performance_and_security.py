@@ -502,8 +502,7 @@ class FormValidationAndDataIntegrityTests(TestCase):
             'client_name': 'Test Client',
             'inn': '1234567890',
             'insurance_type': 'КАСКО',
-            'insurance_start_date': date.today(),
-            'insurance_end_date': date.today() + timedelta(days=365),
+            'insurance_period': '1 год',
             'vehicle_info': 'Test vehicle',
             'dfa_number': 'DFA123',
             'branch': 'Test Branch',
@@ -522,9 +521,8 @@ class FormValidationAndDataIntegrityTests(TestCase):
         invalid_cases = [
             # Invalid INN
             {'inn': 'invalid_inn'},
-            # Invalid date range
-            {'insurance_start_date': date.today() + timedelta(days=365),
-             'insurance_end_date': date.today()},
+            # Invalid insurance period
+            {'insurance_period': 'invalid period'},
             # Missing required fields
             {'client_name': ''},
             # Field length violations
@@ -557,12 +555,7 @@ class FormValidationAndDataIntegrityTests(TestCase):
         self.assertEqual(saved_instance.client_name, self.valid_data['client_name'])
         self.assertEqual(saved_instance.inn, self.valid_data['inn'])
         self.assertEqual(saved_instance.insurance_type, self.valid_data['insurance_type'])
-        self.assertEqual(saved_instance.insurance_start_date, self.valid_data['insurance_start_date'])
-        self.assertEqual(saved_instance.insurance_end_date, self.valid_data['insurance_end_date'])
-        
-        # Verify computed fields
-        expected_period = f"с {self.valid_data['insurance_start_date'].strftime('%d.%m.%Y')} по {self.valid_data['insurance_end_date'].strftime('%d.%m.%Y')}"
-        self.assertEqual(saved_instance.insurance_period, expected_period)
+        self.assertEqual(saved_instance.insurance_period, self.valid_data['insurance_period'])
     
     def test_concurrent_data_modification_integrity(self):
         """Test data integrity during concurrent modifications"""
@@ -653,14 +646,13 @@ class FormValidationAndDataIntegrityTests(TestCase):
     
     def test_field_type_validation_integrity(self):
         """Test field type validation integrity"""
-        # Test date field validation
-        invalid_date_cases = [
-            {'insurance_start_date': 'invalid-date'},
-            {'insurance_end_date': '2024-13-45'},  # Invalid date
-            {'insurance_start_date': '2024-02-30'},  # Invalid date
+        # Test insurance period field validation
+        invalid_period_cases = [
+            {'insurance_period': 'invalid period choice'},
+            {'insurance_period': 'с неправильной датой'},
         ]
         
-        for invalid_case in invalid_date_cases:
+        for invalid_case in invalid_period_cases:
             with self.subTest(case=invalid_case):
                 test_data = self.valid_data.copy()
                 test_data.update(invalid_case)
@@ -719,8 +711,7 @@ class FormValidationAndDataIntegrityTests(TestCase):
             'client_name': '',  # Required field empty
             'inn': 'invalid',  # Invalid format
             'insurance_type': 'invalid_type',  # Invalid choice
-            'insurance_start_date': date.today() + timedelta(days=365),
-            'insurance_end_date': date.today(),  # Invalid date range
+            'insurance_period': 'invalid period choice',  # Invalid period
             'dfa_number': 'A' * 101,  # Too long
             'branch': 'A' * 256,  # Too long
             'has_franchise': False,
@@ -735,7 +726,7 @@ class FormValidationAndDataIntegrityTests(TestCase):
         self.assertIn('client_name', form.errors)
         self.assertIn('inn', form.errors)
         self.assertIn('insurance_type', form.errors)
-        self.assertIn('insurance_end_date', form.errors)
+        self.assertIn('insurance_period', form.errors)
         self.assertIn('dfa_number', form.errors)
         self.assertIn('branch', form.errors)
         

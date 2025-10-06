@@ -312,12 +312,11 @@ python scripts/migrate_database.py
 python manage.py shell -c "
 from insurance_requests.models import InsuranceRequest
 total = InsuranceRequest.objects.count()
-with_dates = InsuranceRequest.objects.filter(
-    insurance_start_date__isnull=False,
-    insurance_end_date__isnull=False
-).count()
+with_period = InsuranceRequest.objects.filter(
+    insurance_period__isnull=False
+).exclude(insurance_period='').count()
 print(f'Всего заявок: {total}')
-print(f'С датами: {with_dates}')
+print(f'С периодом: {with_period}')
 "
 ```
 

@@ -32,9 +32,7 @@ class TestCompleteWorkflowIntegration(TestCase):
             'client_name': 'ООО Тестовая Компания',
             'inn': '1234567890',
             'insurance_type': 'КАСКО',
-            'insurance_period': 'с 01.01.2024 по 31.12.2024',
-            'insurance_start_date': date(2024, 1, 1),
-            'insurance_end_date': date(2024, 12, 31),
+            'insurance_period': '1 год',
             'vehicle_info': 'Автомобиль Toyota Camry 2023',
             'dfa_number': 'ДФА-2024-001',
             'branch': 'Казанский филиал',
@@ -68,8 +66,6 @@ class TestCompleteWorkflowIntegration(TestCase):
                 inn=extracted_data['inn'],
                 insurance_type=extracted_data['insurance_type'],
                 insurance_period=extracted_data['insurance_period'],
-                insurance_start_date=extracted_data['insurance_start_date'],
-                insurance_end_date=extracted_data['insurance_end_date'],
                 vehicle_info=extracted_data['vehicle_info'],
                 dfa_number=extracted_data['dfa_number'],
                 branch=map_branch_name(extracted_data['branch']),  # Apply branch mapping
@@ -83,20 +79,18 @@ class TestCompleteWorkflowIntegration(TestCase):
             self.assertEqual(request.branch, 'Казань')  # Should be mapped
             self.assertEqual(request.get_display_name(), 'Заявка ДФА-2024-001')
             
-            # Verify insurance period formatting
-            expected_period = "с 01.01.2024 по 31.12.2024"
-            self.assertEqual(request.insurance_period_formatted, expected_period)
+            # Verify standardized insurance period
+            self.assertEqual(request.insurance_period, '1 год')
     
     def test_email_generation_with_updated_data(self):
         """Test email generation using updated data model"""
-        # Create request with new data structure
+        # Create request with standardized data structure
         request = InsuranceRequest.objects.create(
             created_by=self.user,
             client_name='ООО Тестовая Компания',
             inn='1234567890',
             insurance_type='КАСКО',
-            insurance_start_date=date(2024, 6, 1),
-            insurance_end_date=date(2025, 5, 31),
+            insurance_period='на весь срок лизинга',
             vehicle_info='Автомобиль Toyota Camry 2023',
             dfa_number='ДФА-2024-001',
             branch='Казань',
@@ -123,7 +117,7 @@ class TestCompleteWorkflowIntegration(TestCase):
         # Verify email body contains expected elements
         self.assertIn('КАСКО', body)
         self.assertIn('1234567890', body)
-        self.assertIn('с 01.06.2024 по 31.05.2025', body)  # Formatted dates
+        self.assertIn('на весь срок лизинга', body)  # Standardized period
         self.assertIn('требуется тариф с франшизой', body)
         self.assertIn('у автомобиля имеется автозапуск', body)
         self.assertNotIn('требуется рассрочка', body)  # Should not be present
@@ -254,36 +248,31 @@ class TestCompleteWorkflowIntegration(TestCase):
         deadline_str = manual_deadline.strftime('%d.%m.%Y в %H:%M')
         self.assertIn(deadline_str, body)
     
-    def test_date_fields_integration(self):
-        """Test integration of separate date fields with period formatting"""
-        # Test with separate dates
+    def test_standardized_period_integration(self):
+        """Test integration of standardized insurance periods"""
+        # Test with standardized period
         request = InsuranceRequest.objects.create(
             created_by=self.user,
             client_name='Test Client',
-            insurance_start_date=date(2024, 3, 15),
-            insurance_end_date=date(2025, 3, 14),
-            insurance_period='старое значение',  # Should be overridden by property
-            dfa_number='ДФА-DATES-001',
+            insurance_period='1 год',
+            dfa_number='ДФА-PERIOD-001',
         )
         
-        # Test insurance_period_formatted property
-        expected_period = "с 15.03.2024 по 14.03.2025"
-        self.assertEqual(request.insurance_period_formatted, expected_period)
+        # Test standardized period is preserved
+        self.assertEqual(request.insurance_period, '1 год')
         
-        # Test email generation uses formatted period
+        # Test email generation uses standardized period
         template_generator = EmailTemplateGenerator()
         email_data = request.to_dict()
         body = template_generator.generate_email_body(email_data)
         
-        self.assertIn(expected_period, body)
+        self.assertIn('1 год', body)
         
-        # Test fallback to old field when dates are None
-        request.insurance_start_date = None
-        request.insurance_end_date = None
-        request.insurance_period = 'с 01.01.2024 по 31.12.2024'
+        # Test with full lease term
+        request.insurance_period = 'на весь срок лизинга'
         request.save()
         
-        self.assertEqual(request.insurance_period_formatted, 'с 01.01.2024 по 31.12.2024')
+        self.assertEqual(request.insurance_period, 'на весь срок лизинга')
     
     def test_display_name_integration(self):
         """Test display name integration across the system"""
@@ -326,8 +315,7 @@ class TestCompleteWorkflowIntegration(TestCase):
             client_name='ООО Интеграционный Тест',
             inn='9876543210',
             insurance_type='страхование спецтехники',
-            insurance_start_date=date(2024, 7, 1),
-            insurance_end_date=date(2025, 6, 30),
+            insurance_period='на весь срок лизинга',
             vehicle_info='Экскаватор Caterpillar 320D',
             dfa_number='ДФА-INTEGRATION-2024',
             branch='Нижний Новгород',
@@ -342,16 +330,15 @@ class TestCompleteWorkflowIntegration(TestCase):
         # Verify all expected fields are present
         expected_fields = [
             'client_name', 'inn', 'insurance_type', 'insurance_period',
-            'insurance_start_date', 'insurance_end_date', 'vehicle_info',
-            'dfa_number', 'branch', 'has_franchise', 'has_installment',
-            'has_autostart', 'response_deadline'
+            'vehicle_info', 'dfa_number', 'branch', 'has_franchise', 
+            'has_installment', 'has_autostart', 'response_deadline'
         ]
         
         for field in expected_fields:
             self.assertIn(field, template_data)
         
-        # Verify formatted values
-        self.assertEqual(template_data['insurance_period'], 'с 01.07.2024 по 30.06.2025')
+        # Verify standardized values
+        self.assertEqual(template_data['insurance_period'], 'на весь срок лизинга')
         self.assertIsInstance(template_data['response_deadline'], str)
         
         # Test email generation with all features
@@ -424,8 +411,7 @@ class TestWorkflowPerformance(TestCase):
                 created_by=self.user,
                 client_name=f'Client {i}',
                 dfa_number=f'ДФА-PERF-{i:03d}',
-                insurance_start_date=date(2024, 1, 1),
-                insurance_end_date=date(2024, 12, 31),
+                insurance_period='1 год',
             )
             requests.append(request)
         
@@ -450,8 +436,7 @@ class TestWorkflowPerformance(TestCase):
             created_by=self.user,
             client_name='Performance Test Client',
             dfa_number='ДФА-PERF-EMAIL',
-            insurance_start_date=date(2024, 1, 1),
-            insurance_end_date=date(2024, 12, 31),
+            insurance_period='на весь срок лизинга',
             vehicle_info='Test Vehicle Info',
             branch='Казань',
         )

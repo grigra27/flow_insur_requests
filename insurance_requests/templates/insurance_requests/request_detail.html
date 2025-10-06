@@ -40,17 +40,7 @@
                             <dd class="col-sm-8">{{ request.insurance_type }}</dd>
                             
                             <dt class="col-sm-4">Срок страхования:</dt>
-                            <dd class="col-sm-8">
-                                {% if request.insurance_start_date and request.insurance_end_date %}
-                                    <div>
-                                        <strong>Начало:</strong> {{ request.insurance_start_date|date:"d.m.Y" }}<br>
-                                        <strong>Окончание:</strong> {{ request.insurance_end_date|date:"d.m.Y" }}
-                                    </div>
-                                    <small class="text-muted">{{ request.insurance_period_formatted }}</small>
-                                {% else %}
-                                    {{ request.insurance_period|default:"Период не указан" }}
-                                {% endif %}
-                            </dd>
+                            <dd class="col-sm-8">{{ request.insurance_period|default:"Период не указан" }}</dd>
                             
                             <dt class="col-sm-4">Филиал:</dt>
                             <dd class="col-sm-8">{{ request.branch|default:"Не указан" }}</dd>

@@ -72,6 +72,7 @@
                             <li>Максимальный размер: 10 МБ</li>
                             <li>Данные должны быть в соответствующем формате заявки (КАСКО/спецтехника или имущество)</li>
                             <li><strong>Важно:</strong> Выберите правильный формат заявки перед загрузкой файла</li>
+                            <li><strong>Срок страхования:</strong> Система поддерживает только "1 год" и "на весь срок лизинга"</li>
                         </ul>
                     </div>
                     
@@ -124,16 +125,10 @@
                             <td>КАСКО / спецтехника / другое</td>
                         </tr>
                         <tr class="table-warning">
-                            <td><strong>Период "1 год"</strong></td>
-                            <td>N17</td>
-                            <td><span class="text-danger">N18</span></td>
-                            <td>Наличие отметки = страхование на 1 год</td>
-                        </tr>
-                        <tr class="table-warning">
-                            <td><strong>Период "весь срок лизинга"</strong></td>
-                            <td>N18</td>
-                            <td><span class="text-danger">N19</span></td>
-                            <td>Наличие отметки = страхование на весь срок лизинга</td>
+                            <td><strong>Срок страхования</strong></td>
+                            <td>N17/N18</td>
+                            <td><span class="text-danger">N18/N19</span></td>
+                            <td>Система определяет "1 год" или "на весь срок лизинга" на основе отметок в ячейках</td>
                         </tr>
                         <tr class="table-warning">
                             <td><strong>Франшиза</strong></td>
@@ -198,7 +193,7 @@
                                 <code>D7: ООО "АЛТЫН ЯР"</code><br>
                                 <code>D9: 1234567890</code> <span class="text-muted">(ИНН 10 цифр)</span><br>
                                 <code>D21: КАСКО</code> <span class="text-muted">(тип страхования)</span><br>
-                                <code>N17: ✓</code> <span class="text-muted">(период 1 год)</span><br>
+                                <code>N17: ✓</code> <span class="text-muted">(срок страхования: 1 год)</span><br>
                                 <code>D29: </code> <span class="text-muted">(есть значение = НЕТ франшизы)</span><br>
                                 <code>M24: нет</code> <span class="text-muted">(автозапуск)</span>
                             </div>
@@ -217,7 +212,7 @@
                                 <code>D8: Дополнительная информация</code> <span class="badge bg-warning text-dark">НОВАЯ СТРОКА</span><br>
                                 <code>D10: 123456789012</code> <span class="text-muted">(ИНН 12 цифр)</span><br>
                                 <code>D22: КАСКО</code> <span class="text-muted">(смещено с D21)</span><br>
-                                <code>N18: ✓</code> <span class="text-muted">(смещено с N17)</span><br>
+                                <code>N18: ✓</code> <span class="text-muted">(срок страхования: 1 год, смещено с N17)</span><br>
                                 <code>D30: </code> <span class="text-muted">(смещено с D29)</span><br>
                                 <code>M25: нет</code> <span class="text-muted">(смещено с M24)</span>
                             </div>

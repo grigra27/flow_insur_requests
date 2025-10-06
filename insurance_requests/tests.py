@@ -109,14 +109,12 @@ class InsuranceRequestFormTests(TestCase):
             client_name='Test Client',
             inn='1234567890',
             insurance_type='КАСКО',
-            insurance_period='',  # Empty period
-            insurance_start_date=date(2024, 6, 1),
-            insurance_end_date=date(2024, 12, 31),
+            insurance_period='1 год',
             branch='Москва'
         )
         
         form = InsuranceRequestForm(instance=instance)
-        self.assertEqual(form.initial['insurance_period'], 'с 01.06.2024 по 31.12.2024')
+        self.assertEqual(form.initial['insurance_period'], '1 год')
     
     def test_form_initialization_handles_partial_dates(self):
         """Test form initialization handles cases with only start or end date"""
@@ -128,13 +126,11 @@ class InsuranceRequestFormTests(TestCase):
             inn='1234567890',
             insurance_type='КАСКО',
             insurance_period='',
-            insurance_start_date=date(2024, 6, 1),
-            insurance_end_date=None,
             branch='Москва'
         )
         
         form = InsuranceRequestForm(instance=instance_start_only)
-        self.assertEqual(form.initial['insurance_period'], 'с 01.06.2024 по не указано')
+        self.assertEqual(form.initial['insurance_period'], '')
         
         # Only end date
         instance_end_only = InsuranceRequest(
@@ -142,13 +138,11 @@ class InsuranceRequestFormTests(TestCase):
             inn='1234567890',
             insurance_type='КАСКО',
             insurance_period='',
-            insurance_start_date=None,
-            insurance_end_date=date(2024, 12, 31),
             branch='Москва'
         )
         
         form = InsuranceRequestForm(instance=instance_end_only)
-        self.assertEqual(form.initial['insurance_period'], 'с не указано по 31.12.2024')
+        self.assertEqual(form.initial['insurance_period'], '')
     
     def test_form_initialization_fallback_for_no_period_or_dates(self):
         """Test form initialization fallback when no period or dates available"""
@@ -157,13 +151,12 @@ class InsuranceRequestFormTests(TestCase):
             inn='1234567890',
             insurance_type='КАСКО',
             insurance_period='',
-            insurance_start_date=None,
-            insurance_end_date=None,
+            insurance_period='',
             branch='Москва'
         )
         
         form = InsuranceRequestForm(instance=instance)
-        self.assertEqual(form.initial['insurance_period'], 'Период не указан')
+        self.assertEqual(form.initial['insurance_period'], '')
     
     def test_form_save_preserves_insurance_period(self):
         """Test that form save preserves the insurance_period field value"""
@@ -181,20 +174,18 @@ class InsuranceRequestFormTests(TestCase):
         from datetime import date
         
         data = self.valid_data.copy()
-        data['insurance_period'] = ''  # Empty period
-        data['insurance_start_date'] = date(2024, 8, 15)
-        data['insurance_end_date'] = date(2025, 8, 14)
+        data['insurance_period'] = '1 год'
         
         form = InsuranceRequestForm(data=data)
         self.assertTrue(form.is_valid())
         
         instance = form.save()
-        self.assertEqual(instance.insurance_period, 'с 15.08.2024 по 14.08.2025')
+        self.assertEqual(instance.insurance_period, '1 год')
     
     def test_form_validation_error_preserves_insurance_period(self):
         """Test that insurance_period value is preserved when form validation fails"""
         data = self.valid_data.copy()
-        data['insurance_period'] = 'с 01.01.2024 по 31.12.2024'
+        data['insurance_period'] = 'на весь срок лизинга'
         data['inn'] = 'invalid_inn'  # This will cause validation error
         
         form = InsuranceRequestForm(data=data)

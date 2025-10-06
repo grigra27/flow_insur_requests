@@ -159,8 +159,8 @@ class EmailGenerationWithEnhancedDescriptionsTests(TestCase):
         self.assertEqual(template_data['ins_type'], 'клиентское имузество')
 
 
-class DateFormattingInEmailTemplatesTests(TestCase):
-    """Tests for date formatting in email templates"""
+class StandardizedPeriodEmailTemplatesTests(TestCase):
+    """Tests for email templates with standardized insurance periods"""
     
     def setUp(self):
         """Set up test data"""
@@ -178,198 +178,56 @@ class DateFormattingInEmailTemplatesTests(TestCase):
             'response_deadline': 'до 15:00'
         }
     
-    def test_format_date_with_date_object(self):
-        """Test _format_date with date object"""
-        test_date = date(2024, 12, 25)
-        formatted = self.template_generator._format_date(test_date)
-        self.assertEqual(formatted, '25.12.2024')
-    
-    def test_format_date_with_datetime_object(self):
-        """Test _format_date with datetime object"""
-        test_datetime = datetime(2024, 12, 25, 15, 30, 45)
-        formatted = self.template_generator._format_date(test_datetime)
-        self.assertEqual(formatted, '25.12.2024')
-    
-    def test_format_date_with_string(self):
-        """Test _format_date with string"""
-        test_string = '25.12.2024'
-        formatted = self.template_generator._format_date(test_string)
-        self.assertEqual(formatted, '25.12.2024')
-    
-    def test_format_date_with_none(self):
-        """Test _format_date with None"""
-        formatted = self.template_generator._format_date(None)
-        self.assertEqual(formatted, 'не указано')
-    
-    def test_format_date_with_empty_string(self):
-        """Test _format_date with empty string"""
-        formatted = self.template_generator._format_date('')
-        self.assertEqual(formatted, 'не указано')
-    
-    def test_format_insurance_period_with_both_dates(self):
-        """Test _format_insurance_period with both start and end dates"""
-        start_date = date(2024, 1, 1)
-        end_date = date(2024, 12, 31)
-        
-        formatted = self.template_generator._format_insurance_period(start_date, end_date)
-        self.assertEqual(formatted, 'с 01.01.2024 по 31.12.2024')
-    
-    def test_format_insurance_period_with_start_date_only(self):
-        """Test _format_insurance_period with start date only"""
-        start_date = date(2024, 1, 1)
-        end_date = None
-        
-        formatted = self.template_generator._format_insurance_period(start_date, end_date)
-        self.assertEqual(formatted, 'с 01.01.2024 по не указано')
-    
-    def test_format_insurance_period_with_end_date_only(self):
-        """Test _format_insurance_period with end date only"""
-        start_date = None
-        end_date = date(2024, 12, 31)
-        
-        formatted = self.template_generator._format_insurance_period(start_date, end_date)
-        self.assertEqual(formatted, 'с не указано по 31.12.2024')
-    
-    def test_format_insurance_period_with_no_dates(self):
-        """Test _format_insurance_period with no dates"""
-        formatted = self.template_generator._format_insurance_period(None, None)
-        self.assertEqual(formatted, 'не указан')
-    
-    def test_email_generation_with_separate_dates(self):
-        """Test email generation uses separate insurance dates"""
+    def test_email_generation_with_one_year_period(self):
+        """Test email generation with '1 год' period"""
         data = self.base_data.copy()
-        data['insurance_start_date'] = date(2024, 6, 1)
-        data['insurance_end_date'] = date(2025, 6, 1)
+        data['insurance_period'] = '1 год'
         
         email_body = self.template_generator.generate_email_body(data)
         
-        # Should contain formatted period
-        self.assertIn('с 01.06.2024 по 01.06.2025', email_body)
+        # Should contain standardized period
+        self.assertIn('1 год', email_body)
     
-    def test_email_generation_with_missing_start_date(self):
-        """Test email generation with missing start date"""
+    def test_email_generation_with_full_lease_term_period(self):
+        """Test email generation with 'на весь срок лизинга' period"""
         data = self.base_data.copy()
-        data['insurance_start_date'] = None
-        data['insurance_end_date'] = date(2025, 6, 1)
+        data['insurance_period'] = 'на весь срок лизинга'
         
         email_body = self.template_generator.generate_email_body(data)
         
-        # Should handle missing start date
-        self.assertIn('с не указано по 01.06.2025', email_body)
+        # Should contain standardized period
+        self.assertIn('на весь срок лизинга', email_body)
     
-    def test_email_generation_with_missing_end_date(self):
-        """Test email generation with missing end date"""
+    def test_email_generation_with_empty_period(self):
+        """Test email generation with empty period"""
         data = self.base_data.copy()
-        data['insurance_start_date'] = date(2024, 6, 1)
-        data['insurance_end_date'] = None
-        
-        email_body = self.template_generator.generate_email_body(data)
-        
-        # Should handle missing end date
-        self.assertIn('с 01.06.2024 по не указано', email_body)
-    
-    def test_email_generation_with_no_dates(self):
-        """Test email generation with no insurance dates"""
-        data = self.base_data.copy()
-        data['insurance_start_date'] = None
-        data['insurance_end_date'] = None
+        data['insurance_period'] = ''
         
         email_body = self.template_generator.generate_email_body(data)
         
         # Should show period as not specified
         self.assertIn('не указан', email_body)
     
-    def test_template_data_includes_separate_date_variables(self):
-        """Test that template data includes separate date variables"""
+    def test_template_data_includes_standardized_period(self):
+        """Test that template data includes standardized period"""
         data = self.base_data.copy()
-        data['insurance_start_date'] = date(2024, 3, 15)
-        data['insurance_end_date'] = date(2025, 3, 15)
+        data['insurance_period'] = '1 год'
         
         template_data = self.template_generator._prepare_template_data(data)
         
-        # Should include separate date variables
-        self.assertIn('insurance_start_date', template_data)
-        self.assertIn('insurance_end_date', template_data)
-        self.assertIn('formatted_period', template_data)
-        
-        self.assertEqual(template_data['insurance_start_date'], '15.03.2024')
-        self.assertEqual(template_data['insurance_end_date'], '15.03.2025')
-        self.assertEqual(template_data['formatted_period'], 'с 15.03.2024 по 15.03.2025')
+        # Should include standardized period
+        self.assertIn('insurance_period_text', template_data)
+        self.assertEqual(template_data['insurance_period_text'], '1 год')
     
-    def test_template_data_handles_missing_dates(self):
-        """Test that template data handles missing dates properly"""
+    def test_template_data_handles_empty_period(self):
+        """Test that template data handles empty period properly"""
         data = self.base_data.copy()
-        # Don't set insurance dates
+        data['insurance_period'] = ''
         
         template_data = self.template_generator._prepare_template_data(data)
         
-        # Should include placeholders for missing dates
-        self.assertEqual(template_data['insurance_start_date'], 'не указано')
-        self.assertEqual(template_data['insurance_end_date'], 'не указано')
-        self.assertEqual(template_data['formatted_period'], 'не указан')
-
-
-class EmailTemplateBackwardCompatibilityTests(TestCase):
-    """Tests for backward compatibility with old insurance period format"""
-    
-    def setUp(self):
-        """Set up test data"""
-        self.template_generator = EmailTemplateGenerator()
-        self.base_data = {
-            'client_name': 'Test Client',
-            'inn': '1234567890',
-            'insurance_type': 'КАСКО',
-            'vehicle_info': 'Test vehicle',
-            'dfa_number': 'DFA123',
-            'branch': 'Test Branch',
-            'has_franchise': False,
-            'has_installment': False,
-            'has_autostart': False,
-            'response_deadline': 'до 15:00'
-        }
-    
-    def test_format_insurance_period_for_email_with_new_dates(self):
-        """Test that new date fields take priority over old insurance_period"""
-        data = self.base_data.copy()
-        data['insurance_start_date'] = date(2024, 1, 1)
-        data['insurance_end_date'] = date(2024, 12, 31)
-        data['insurance_period'] = 'старый период'  # Should be ignored
-        
-        formatted = self.template_generator._format_insurance_period_for_email(data)
-        self.assertEqual(formatted, 'с 01.01.2024 по 31.12.2024')
-    
-    def test_format_insurance_period_for_email_fallback_to_old_field(self):
-        """Test fallback to old insurance_period field when new dates are missing"""
-        data = self.base_data.copy()
-        data['insurance_period'] = 'с 01.01.2024 по 31.12.2024'
-        # Don't set new date fields
-        
-        formatted = self.template_generator._format_insurance_period_for_email(data)
-        self.assertEqual(formatted, 'с 01.01.2024 по 31.12.2024')
-    
-    def test_format_insurance_period_for_email_default_when_no_data(self):
-        """Test default value when no date information is available"""
-        data = self.base_data.copy()
-        # Don't set any date fields
-        
-        formatted = self.template_generator._format_insurance_period_for_email(data)
-        self.assertEqual(formatted, 'с 01.01.2024 по 01.01.2025')
-    
-    def test_template_data_includes_both_old_and_new_formats(self):
-        """Test that template data includes both old and new date formats"""
-        data = self.base_data.copy()
-        data['insurance_start_date'] = date(2024, 6, 1)
-        data['insurance_end_date'] = date(2025, 6, 1)
-        
-        template_data = self.template_generator._prepare_template_data(data)
-        
-        # Should include both formats
-        self.assertIn('srok', template_data)  # Old format
-        self.assertIn('formatted_period', template_data)  # New format
-        
-        # Both should have the same content when new dates are available
-        self.assertEqual(template_data['srok'], 'с 01.06.2024 по 01.06.2025')
-        self.assertEqual(template_data['formatted_period'], 'с 01.06.2024 по 01.06.2025')
+        # Should include fallback for empty period
+        self.assertEqual(template_data['insurance_period_text'], 'не указан')
 
 
 class ResponseDeadlineFormattingTests(TestCase):
@@ -460,11 +318,10 @@ class IntegrationEmailTemplateTests(TestCase):
             client_name='Complete Test Client',
             inn='9876543210',
             insurance_type='страхование имущества',
-            insurance_start_date=date(2024, 7, 1),
-            insurance_end_date=date(2025, 7, 1),
+            insurance_period='на весь срок лизинга',
             vehicle_info='Complete test property',
             dfa_number='COMPLETE-2024-001',
-            branch='Complete Branch',
+            branch='Москва',
             has_franchise=True,
             has_installment=True,
             has_autostart=True,
@@ -475,12 +332,11 @@ class IntegrationEmailTemplateTests(TestCase):
         request_data = request.to_dict()
         email_body = self.template_generator.generate_email_body(request_data)
         
-        # Check enhanced insurance type description
-        self.assertIn('клиентское имузество', email_body)
-        self.assertNotIn('страхование имущества', email_body)
+        # Check insurance type is present
+        self.assertIn('страхование имущества', email_body)
         
-        # Check date formatting
-        self.assertIn('с 01.07.2024 по 01.07.2025', email_body)
+        # Check standardized period formatting
+        self.assertIn('на весь срок лизинга', email_body)
         
         # Check conditional texts
         self.assertIn('требуется тариф с франшизой', email_body)

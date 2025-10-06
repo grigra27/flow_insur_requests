@@ -173,12 +173,7 @@
                         <td>{{ request.client_name }}</td>
                         <td>
                             <i class="bi bi-clock text-muted"></i>
-                            {% if request.insurance_start_date and request.insurance_end_date %}
-                                <span class="d-none d-md-inline">{{ request.insurance_start_date|date:"d.m.Y" }} - {{ request.insurance_end_date|date:"d.m.Y" }}</span>
-                                <span class="d-md-none">{{ request.insurance_start_date|date:"d.m.y" }}-{{ request.insurance_end_date|date:"d.m.y" }}</span>
-                            {% else %}
-                                {{ request.insurance_period|default:"Не указан" }}
-                            {% endif %}
+                            {{ request.insurance_period|default:"Не указан" }}
                         </td>
                         <td>
                             <i class="bi bi-building text-muted"></i>

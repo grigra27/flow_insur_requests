@@ -4,7 +4,7 @@ Unit tests for КАСКО C/E functionality
 from django.test import TestCase
 from django.contrib.auth.models import User
 from django.utils import timezone
-from datetime import date, timedelta
+from datetime import timedelta
 from insurance_requests.models import InsuranceRequest
 from insurance_requests.forms import InsuranceRequestForm
 from core.templates import EmailTemplateGenerator
@@ -24,9 +24,7 @@ class CascoCEModelTest(TestCase):
             'client_name': 'Test Client',
             'inn': '1234567890',
             'insurance_type': 'КАСКО',
-            'insurance_period': 'с 01.01.2024 по 31.12.2024',
-            'insurance_start_date': date(2024, 1, 1),
-            'insurance_end_date': date(2024, 12, 31),
+            'insurance_period': '1 год',
             'vehicle_info': 'Test Vehicle',
             'dfa_number': 'DFA123',
             'branch': 'Казань',
@@ -87,8 +85,7 @@ class CascoCEFormTest(TestCase):
             'client_name': 'Test Client',
             'inn': '1234567890',
             'insurance_type': 'КАСКО',
-            'insurance_start_date': '2024-01-01',
-            'insurance_end_date': '2024-12-31',
+            'insurance_period': '1 год',
             'vehicle_info': 'Test Vehicle',
             'dfa_number': 'DFA123',
             'branch': 'Казань',
@@ -170,8 +167,7 @@ class CascoCEEmailTemplateTest(TestCase):
             'client_name': 'Test Client',
             'inn': '1234567890',
             'insurance_type': 'КАСКО',
-            'insurance_start_date': date(2024, 1, 1),
-            'insurance_end_date': date(2024, 12, 31),
+            'insurance_period': 'на весь срок лизинга',
             'vehicle_info': 'Test Vehicle',
             'dfa_number': 'DFA123',
             'branch': 'Казань',
@@ -270,8 +266,7 @@ class CascoCEIntegrationTest(TestCase):
             client_name='Test Client',
             inn='1234567890',
             insurance_type='КАСКО',
-            insurance_start_date=date(2024, 1, 1),
-            insurance_end_date=date(2024, 12, 31),
+            insurance_period='1 год',
             vehicle_info='Test Vehicle',
             dfa_number='DFA123',
             branch='Казань',
@@ -299,8 +294,7 @@ class CascoCEIntegrationTest(TestCase):
             client_name='Test Client',
             inn='1234567890',
             insurance_type='КАСКО',
-            insurance_start_date=date(2024, 1, 1),
-            insurance_end_date=date(2024, 12, 31),
+            insurance_period='на весь срок лизинга',
             vehicle_info='Test Vehicle',
             dfa_number='DFA123',
             branch='Казань',
