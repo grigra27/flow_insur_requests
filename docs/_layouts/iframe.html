@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="{{ page.lang | default: site.lang | default: "en" }}">
+
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ page.title | default: site.title }}</title>
+  <link rel="stylesheet" href="{{ "/assets/css/style.css" | relative_url }}">
+  
+  <!-- Специальные стили для iframe -->
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      line-height: 1.6;
+      color: #333;
+    }
+    
+    .iframe-container {
+      display: flex;
+      gap: 1rem;
+      max-width: 100%;
+      margin: 0;
+      padding: 1rem;
+      min-height: 100vh;
+    }
+    
+    .iframe-toc {
+      width: 250px;
+      flex-shrink: 0;
+      background: #f8f9fa;
+      border: 1px solid #e9ecef;
+      border-radius: 8px;
+      padding: 1rem;
+      position: sticky;
+      top: 1rem;
+      height: fit-content;
+      max-height: calc(100vh - 2rem);
+      overflow-y: auto;
+    }
+    
+    .iframe-content {
+      flex: 1;
+      min-width: 0;
+      padding: 0 1rem;
+    }
+    
+    /* Компактное оглавление для мобильных */
+    @media (max-width: 768px) {
+      .iframe-container {
+        flex-direction: column;
+        padding: 0.5rem;
+        gap: 0.5rem;
+      }
+      
+      .iframe-toc {
+        width: 100%;
+        position: relative;
+        top: 0;
+        max-height: 200px;
+        order: -1;
+      }
+      
+      .iframe-content {
+        padding: 0;
+      }
+    }
+    
+    /* Скрываем оглавление на очень маленьких экранах */
+    @media (max-width: 480px) {
+      .iframe-toc {
+        display: none;
+      }
+    }
+  </style>
+</head>
+
+<body class="iframe-embedded">
+  <div class="iframe-container">
+    <!-- Компактное оглавление для iframe -->
+    <nav class="iframe-toc" id="iframe-toc">
+      <div class="toc-header">
+        <h3 style="margin: 0 0 1rem 0; font-size: 1rem; color: #495057;">Содержание</h3>
+      </div>
+      <div class="toc-content" id="iframe-toc-content">
+        <!-- Оглавление будет сгенерировано JavaScript -->
+      </div>
+    </nav>
+
+    <!-- Основной контент -->
+    <article class="iframe-content">
+      {{ content }}
+    </article>
+  </div>
+
+  <!-- JavaScript для iframe версии -->
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      generateIframeTOC();
+      setupIframeSmoothScrolling();
+      highlightCurrentSectionIframe();
+    });
+
+    function generateIframeTOC() {
+      const tocContent = document.getElementById('iframe-toc-content');
+      const headings = document.querySelectorAll('.iframe-content h2, .iframe-content h3, .iframe-content h4');
+      
+      if (headings.length === 0) {
+        document.getElementById('iframe-toc').style.display = 'none';
+        return;
+      }
+
+      let tocHTML = '<ul style="list-style: none; padding: 0; margin: 0;">';
+      
+      headings.forEach(function(heading, index) {
+        const level = parseInt(heading.tagName.charAt(1));
+        const text = heading.textContent;
+        const id = heading.id || 'heading-' + index;
+        
+        if (!heading.id) {
+          heading.id = id;
+        }
+        
+        const paddingLeft = (level - 2) * 1 + 0.5;
+        const fontSize = level === 2 ? '0.9rem' : '0.8rem';
+        const fontWeight = level === 2 ? '500' : '400';
+        
+        tocHTML += `
+          <li style="margin: 0;">
+            <a href="#${id}" 
+               class="iframe-toc-link" 
+               style="display: block; 
+                      padding: 0.3rem 0.5rem; 
+                      padding-left: ${paddingLeft}rem;
+                      color: #6c757d; 
+                      text-decoration: none; 
+                      border-radius: 4px; 
+                      transition: all 0.2s ease;
+                      font-size: ${fontSize};
+                      font-weight: ${fontWeight};
+                      line-height: 1.3;"
+               onmouseover="this.style.background='#e9ecef'; this.style.color='#495057';"
+               onmouseout="this.style.background='transparent'; this.style.color='#6c757d';">${text}</a>
+          </li>`;
+      });
+      
+      tocHTML += '</ul>';
+      tocContent.innerHTML = tocHTML;
+    }
+
+    function setupIframeSmoothScrolling() {
+      document.querySelectorAll('.iframe-toc-link').forEach(function(link) {
+        link.addEventListener('click', function(e) {
+          e.preventDefault();
+          const targetId = this.getAttribute('href').substring(1);
+          const targetElement = document.getElementById(targetId);
+          
+          if (targetElement) {
+            targetElement.scrollIntoView({
+              behavior: 'smooth',
+              block: 'start'
+            });
+            
+            updateActiveIframeLink(this);
+          }
+        });
+      });
+    }
+
+    function highlightCurrentSectionIframe() {
+      const headings = document.querySelectorAll('.iframe-content h2, .iframe-content h3, .iframe-content h4');
+      const tocLinks = document.querySelectorAll('.iframe-toc-link');
+      
+      function updateActiveSection() {
+        let currentSection = null;
+        const scrollPosition = window.scrollY + 50;
+        
+        headings.forEach(function(heading) {
+          if (heading.offsetTop <= scrollPosition) {
+            currentSection = heading;
+          }
+        });
+        
+        tocLinks.forEach(function(link) {
+          link.style.background = 'transparent';
+          link.style.color = '#6c757d';
+          link.style.borderLeft = 'none';
+        });
+        
+        if (currentSection) {
+          const activeLink = document.querySelector(`.iframe-toc-link[href="#${currentSection.id}"]`);
+          if (activeLink) {
+            activeLink.style.background = '#e3f2fd';
+            activeLink.style.color = '#1976d2';
+            activeLink.style.borderLeft = '3px solid #1976d2';
+          }
+        }
+      }
+      
+      window.addEventListener('scroll', updateActiveSection);
+      updateActiveSection();
+    }
+
+    function updateActiveIframeLink(clickedLink) {
+      document.querySelectorAll('.iframe-toc-link').forEach(function(link) {
+        link.style.background = 'transparent';
+        link.style.color = '#6c757d';
+        link.style.borderLeft = 'none';
+      });
+      
+      clickedLink.style.background = '#e3f2fd';
+      clickedLink.style.color = '#1976d2';
+      clickedLink.style.borderLeft = '3px solid #1976d2';
+    }
+  </script>
+</body>
+
+</html>

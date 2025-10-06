@@ -41,12 +41,84 @@
     <!-- JavaScript для генерации оглавления -->
     <script>
       document.addEventListener('DOMContentLoaded', function() {
+        detectIframeMode();
         generateTOC();
         setupSmoothScrolling();
         setupTOCToggle();
         highlightCurrentSection();
         setupBackToTop();
       });
+
+      function detectIframeMode() {
+        // Определяем, находимся ли мы в iframe
+        const isInIframe = window.self !== window.top;
+        
+        if (isInIframe) {
+          document.body.classList.add('iframe-mode');
+          
+          // В iframe режиме делаем оглавление более компактным
+          const sidebar = document.getElementById('toc-sidebar');
+          if (sidebar) {
+            sidebar.classList.add('iframe-compact');
+          }
+          
+          // Отключаем header и footer в iframe
+          const header = document.querySelector('.site-header');
+          const footer = document.querySelector('.site-footer');
+          if (header) header.style.display = 'none';
+          if (footer) footer.style.display = 'none';
+          
+          // Добавляем специальные стили для iframe
+          addIframeStyles();
+        }
+      }
+
+      function addIframeStyles() {
+        const style = document.createElement('style');
+        style.textContent = `
+          .iframe-mode .page-content {
+            padding: 1rem 0;
+          }
+          
+          .iframe-mode .wrapper {
+            max-width: 100%;
+            margin: 0;
+            padding: 0 1rem;
+          }
+          
+          .iframe-mode .toc-sidebar.iframe-compact {
+            position: relative;
+            top: 0;
+            width: 100%;
+            max-height: 200px;
+            margin-bottom: 1rem;
+            overflow-y: auto;
+          }
+          
+          .iframe-mode .content-container {
+            flex-direction: column;
+            gap: 1rem;
+          }
+          
+          .iframe-mode .back-to-top {
+            display: none;
+          }
+          
+          @media (min-width: 1024px) {
+            .iframe-mode .toc-sidebar.iframe-compact {
+              position: sticky;
+              top: 1rem;
+              width: 250px;
+              max-height: calc(100vh - 2rem);
+            }
+            
+            .iframe-mode .content-container {
+              flex-direction: row;
+            }
+          }
+        `;
+        document.head.appendChild(style);
+      }
 
       function generateTOC() {
         const tocContent = document.getElementById('toc-content');

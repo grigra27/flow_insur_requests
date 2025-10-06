@@ -238,6 +238,83 @@
   }
 }
 
+/* Стили для iframe режима */
+.iframe-mode {
+  .page-content {
+    padding: 0.5rem 0;
+  }
+  
+  .wrapper {
+    max-width: 100%;
+    margin: 0;
+    padding: 0 0.5rem;
+  }
+  
+  .toc-sidebar {
+    &.iframe-compact {
+      position: relative !important;
+      top: 0 !important;
+      width: 100% !important;
+      max-height: 150px;
+      margin-bottom: 1rem;
+      font-size: 0.8rem;
+      
+      .toc-header h3 {
+        font-size: 0.9rem;
+      }
+      
+      .toc-link {
+        padding: 0.2rem 0.5rem;
+        font-size: 0.8rem;
+      }
+      
+      .toc-level-3 .toc-link {
+        padding-left: 1rem;
+      }
+      
+      .toc-level-4 .toc-link {
+        padding-left: 1.5rem;
+      }
+    }
+  }
+  
+  .content-container {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .main-content {
+    font-size: 0.9rem;
+    
+    h1 { font-size: 1.6rem; }
+    h2 { font-size: 1.3rem; }
+    h3 { font-size: 1.1rem; }
+    h4 { font-size: 1rem; }
+  }
+  
+  .back-to-top {
+    display: none !important;
+  }
+}
+
+/* Для больших экранов в iframe - возвращаем боковое оглавление */
+@media (min-width: 1200px) {
+  .iframe-mode {
+    .toc-sidebar.iframe-compact {
+      position: sticky !important;
+      top: 1rem !important;
+      width: 220px !important;
+      max-height: calc(100vh - 2rem);
+      font-size: 0.85rem;
+    }
+    
+    .content-container {
+      flex-direction: row;
+      gap: 1rem;
+    }
+  }
+}
+
 /* Стили для печати - скрываем оглавление */
 @media print {
   .toc-sidebar {
