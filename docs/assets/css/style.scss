@@ -177,3 +177,55 @@
     height: 45px;
   }
 }
+
+/* Дополнительные стили для iframe режима */
+.iframe-mode {
+  .main-content {
+    /* Компактные отступы для iframe */
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.5rem;
+      margin-bottom: 0.8rem;
+      
+      &:first-child {
+        margin-top: 0;
+      }
+    }
+    
+    /* Компактные списки */
+    ul, ol {
+      margin: 0.8rem 0;
+      
+      li {
+        margin: 0.3rem 0;
+      }
+    }
+    
+    /* Компактные таблицы */
+    table {
+      margin: 1rem 0;
+    }
+    
+    /* Компактные блоки кода */
+    pre {
+      margin: 1rem 0;
+      padding: 0.8rem;
+      font-size: 0.8rem;
+    }
+    
+    /* Компактные цитаты */
+    blockquote {
+      margin: 1rem 0;
+      padding: 0.8rem;
+    }
+    
+    /* Компактные изображения */
+    img {
+      margin: 1rem 0;
+    }
+    
+    /* Компактные горизонтальные линии */
+    hr {
+      margin: 1.5rem 0;
+    }
+  }
+}

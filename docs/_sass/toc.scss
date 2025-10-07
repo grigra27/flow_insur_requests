@@ -26,11 +26,11 @@
   /* Скрытое состояние */
   &.collapsed {
     width: 60px;
-    
+
     .toc-content {
       display: none;
     }
-    
+
     .toc-header h3 {
       display: none;
     }
@@ -63,7 +63,7 @@
   gap: 3px;
   width: 24px;
   height: 18px;
-  
+
   span {
     display: block;
     height: 2px;
@@ -71,7 +71,7 @@
     background: #6c757d;
     transition: all 0.3s ease;
   }
-  
+
   &:hover span {
     background: #495057;
   }
@@ -141,10 +141,13 @@
 
 .main-content {
   flex: 1;
-  min-width: 0; /* Позволяет контенту сжиматься */
-  
+  min-width: 0;
+  /* Позволяет контенту сжиматься */
+
   /* Добавляем отступы для заголовков для лучшей навигации */
-  h2, h3, h4 {
+  h2,
+  h3,
+  h4 {
     scroll-margin-top: 2rem;
   }
 }
@@ -154,21 +157,22 @@
   .content-container {
     flex-direction: column;
   }
-  
+
   .toc-sidebar {
     position: relative;
     top: 0;
     width: 100%;
     max-height: none;
-    order: -1; /* Показываем оглавление сверху на мобильных */
-    
+    order: -1;
+    /* Показываем оглавление сверху на мобильных */
+
     &.collapsed {
       width: 100%;
-      
+
       .toc-content {
         display: block;
       }
-      
+
       .toc-header h3 {
         display: block;
       }
@@ -180,24 +184,24 @@
   .content-container {
     gap: 1rem;
   }
-  
+
   .toc-sidebar {
     padding: 0.8rem;
-    
+
     .toc-header h3 {
       font-size: 1rem;
     }
   }
-  
+
   .toc-link {
     padding: 0.3rem 0.6rem;
     font-size: 0.85rem;
   }
-  
+
   .toc-level-3 .toc-link {
     padding-left: 1.2rem;
   }
-  
+
   .toc-level-4 .toc-link {
     padding-left: 1.8rem;
   }
@@ -232,6 +236,7 @@
     opacity: 0;
     transform: translateX(-20px);
   }
+
   to {
     opacity: 1;
     transform: translateX(0);
@@ -240,16 +245,162 @@
 
 
 
+/* Стили для iframe режима */
+.iframe-mode {
+  .page-content {
+    padding: 1rem 0;
+  }
+
+  .wrapper {
+    max-width: 100%;
+    margin: 0;
+    padding: 0 1rem;
+  }
+
+  .content-container {
+    max-width: 100%;
+    gap: 1.5rem;
+  }
+
+  .toc-sidebar {
+    width: 240px;
+    font-size: 0.85rem;
+
+    .toc-header h3 {
+      font-size: 1rem;
+    }
+
+    .toc-link {
+      padding: 0.3rem 0.6rem;
+      font-size: 0.8rem;
+    }
+
+    .toc-level-3 .toc-link {
+      padding-left: 1.2rem;
+    }
+
+    .toc-level-4 .toc-link {
+      padding-left: 1.8rem;
+    }
+  }
+
+  .main-content {
+    font-size: 0.9rem;
+    line-height: 1.5;
+
+    h1 {
+      font-size: 1.8rem;
+      margin-top: 0;
+    }
+
+    h2 {
+      font-size: 1.4rem;
+    }
+
+    h3 {
+      font-size: 1.2rem;
+    }
+
+    h4 {
+      font-size: 1rem;
+    }
+
+    p,
+    li {
+      margin-bottom: 0.8rem;
+    }
+
+    table {
+      font-size: 0.8rem;
+
+      th,
+      td {
+        padding: 0.5rem;
+      }
+    }
+  }
+}
+
+/* Адаптивность для iframe на разных экранах */
+@media (max-width: 1024px) {
+  .iframe-mode {
+    .content-container {
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .toc-sidebar {
+      position: relative !important;
+      top: 0 !important;
+      width: 100% !important;
+      max-height: 200px;
+      order: -1;
+      font-size: 0.8rem;
+    }
+  }
+}
+
+@media (max-width: 768px) {
+  .iframe-mode {
+    .wrapper {
+      padding: 0 0.5rem;
+    }
+
+    .content-container {
+      gap: 0.8rem;
+    }
+
+    .toc-sidebar {
+      max-height: 150px;
+      padding: 0.6rem;
+    }
+
+    .main-content {
+      font-size: 0.85rem;
+
+      h1 {
+        font-size: 1.5rem;
+      }
+
+      h2 {
+        font-size: 1.2rem;
+      }
+
+      h3 {
+        font-size: 1.1rem;
+      }
+
+      h4 {
+        font-size: 0.95rem;
+      }
+    }
+  }
+}
+
+/* Очень маленькие экраны в iframe */
+@media (max-width: 480px) {
+  .iframe-mode {
+    .toc-sidebar {
+      max-height: 120px;
+      font-size: 0.75rem;
+    }
+
+    .main-content {
+      font-size: 0.8rem;
+    }
+  }
+}
+
 /* Стили для печати - скрываем оглавление */
 @media print {
   .toc-sidebar {
     display: none;
   }
-  
+
   .content-container {
     display: block;
   }
-  
+
   .main-content {
     width: 100%;
   }
