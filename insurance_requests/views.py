@@ -383,6 +383,8 @@ def upload_excel(request):
                         has_installment=bool(excel_data.get('has_installment')),
                         has_autostart=bool(excel_data.get('has_autostart')),
                         has_casco_ce=bool(excel_data.get('has_casco_ce', False)),
+                        has_transportation=bool(excel_data.get('has_transportation', False)),
+                        has_construction_work=bool(excel_data.get('has_construction_work', False)),
                         response_deadline=response_deadline,
                         additional_data=additional_data,
                         created_by=request.user

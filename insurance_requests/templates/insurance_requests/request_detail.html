@@ -98,7 +98,7 @@
                 <!-- Дополнительные параметры -->
                 <hr>
                 <h6>Дополнительные параметры:</h6>
-                <div class="d-flex gap-2">
+                <div class="d-flex gap-2 mb-3">
                     {% if request.has_franchise %}
                         <span class="badge bg-warning text-dark">Франшиза</span>
                     {% endif %}
@@ -111,7 +111,13 @@
                     {% if request.has_casco_ce %}
                         <span class="badge bg-primary">КАСКО кат. C/E</span>
                     {% endif %}
-                    {% if not request.has_franchise and not request.has_installment and not request.has_autostart and not request.has_casco_ce %}
+                    {% if request.has_transportation %}
+                        <span class="badge bg-success">Перевозка</span>
+                    {% endif %}
+                    {% if request.has_construction_work %}
+                        <span class="badge bg-dark text-light">СМР</span>
+                    {% endif %}
+                    {% if not request.has_franchise and not request.has_installment and not request.has_autostart and not request.has_casco_ce and not request.has_transportation and not request.has_construction_work %}
                         <span class="text-muted">Дополнительных параметров нет</span>
                     {% endif %}
                 </div>

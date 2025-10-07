@@ -126,10 +126,23 @@ class ExcelReader:
         if self.application_type == 'individual_entrepreneur' and row_number > 8:
             adjusted_row = row_number + 1
             self._row_adjustments_applied += 1
-            logger.debug(f"Row adjustment applied: {row_number} -> {adjusted_row} (IP application, total adjustments: {self._row_adjustments_applied}) | {format_context}")
+            
+            # Специальное логирование для параметров перевозки и СМР
+            if row_number in [44, 48]:  # C44 (transportation) or C48 (construction work)
+                parameter_type = "transportation" if row_number == 44 else "construction work"
+                logger.info(f"IP row offset applied for {parameter_type} parameter detection: C{row_number} -> C{adjusted_row} (total adjustments: {self._row_adjustments_applied}) | {format_context}")
+            else:
+                logger.debug(f"Row adjustment applied: {row_number} -> {adjusted_row} (IP application, total adjustments: {self._row_adjustments_applied}) | {format_context}")
+            
             return adjusted_row
         else:
-            logger.debug(f"No row adjustment: {row_number} (legal entity or row <= 8) | {format_context}")
+            # Специальное логирование для параметров перевозки и СМР
+            if row_number in [44, 48]:  # C44 (transportation) or C48 (construction work)
+                parameter_type = "transportation" if row_number == 44 else "construction work"
+                logger.info(f"No row offset for {parameter_type} parameter detection: C{row_number} (legal entity application) | {format_context}")
+            else:
+                logger.debug(f"No row adjustment: {row_number} (legal entity or row <= 8) | {format_context}")
+            
             return row_number
     
     def _get_cell_with_adjustment_openpyxl(self, sheet, column: str, row: int) -> Optional[str]:
@@ -236,6 +249,12 @@ class ExcelReader:
             # Дополнительное логирование для диагностики
             logger.error(f"ExcelReader error context - File: {self.file_path}, ({detailed_context}), Row adjustments applied: {getattr(self, '_row_adjustments_applied', 0)} | {format_context}")
             
+            # Логируем информацию о параметрах при ошибке
+            if self.application_format == 'property':
+                logger.error(f"Parameter detection failed for property insurance ({detailed_context}) - transportation and construction work parameters will default to False | {format_context}")
+            else:
+                logger.error(f"Parameter detection not applicable for CASCO/equipment format ({detailed_context}) - transportation and construction work parameters set to False | {format_context}")
+            
             # Возвращаем данные по умолчанию с расширенной информацией об ошибке
             default_data = self._get_default_data()
             default_data['error_info'] = {
@@ -246,7 +265,10 @@ class ExcelReader:
                 'error_message': str(e),
                 'fallback_used': True,
                 'row_adjustments_applied': getattr(self, '_row_adjustments_applied', 0),
-                'file_path': self.file_path
+                'file_path': self.file_path,
+                'parameter_detection_failed': self.application_format == 'property',
+                'transportation_parameter_default': False,
+                'construction_work_parameter_default': False
             }
             return default_data
     
@@ -300,6 +322,33 @@ class ExcelReader:
         # Извлекаем филиал (одинаково для всех форматов)
         branch = self._find_branch_openpyxl(sheet)
         
+        # Определяем параметры перевозки и строительно-монтажных работ
+        if self.application_format == 'property':
+            # Для формата имущества используем автоматическое определение параметров
+            logger.info(f"Starting transportation and construction work parameter detection for property insurance ({detailed_context}) | {format_context}")
+            
+            has_transportation = self._detect_transportation_parameter_openpyxl(sheet)
+            has_construction_work = self._detect_construction_work_parameter_openpyxl(sheet)
+            
+            # Логируем итоговые значения параметров после обнаружения
+            logger.info(f"Property insurance parameter detection completed ({detailed_context}): has_transportation={has_transportation}, has_construction_work={has_construction_work} | {format_context}")
+            
+            # Дополнительное логирование для верификации
+            if has_transportation or has_construction_work:
+                active_params = []
+                if has_transportation:
+                    active_params.append("transportation")
+                if has_construction_work:
+                    active_params.append("construction_work")
+                logger.info(f"Active parameters detected ({detailed_context}): {', '.join(active_params)} | {format_context}")
+            else:
+                logger.info(f"No additional parameters detected ({detailed_context}) - both transportation and construction work are False | {format_context}")
+        else:
+            # Для формата КАСКО/спецтехника параметры по умолчанию False (без автоматического определения)
+            has_transportation = False
+            has_construction_work = False
+            logger.info(f"CASCO/equipment format ({detailed_context}): transportation and construction work parameters set to False (no automatic detection) | {format_context}")
+        
         extracted_data = {
             'client_name': client_name,
             'inn': self._get_cell_with_adjustment_openpyxl(sheet, 'D', 9) or '',
@@ -312,11 +361,13 @@ class ExcelReader:
             'has_installment': has_installment,
             'has_autostart': has_autostart,
             'has_casco_ce': has_casco_ce,
+            'has_transportation': has_transportation,
+            'has_construction_work': has_construction_work,
             'response_deadline': response_deadline,
         }
         
-        # Логируем успешное извлечение данных с информацией о формате
-        logger.info(f"Successfully extracted data with openpyxl ({detailed_context}): client='{client_name}', insurance_type='{insurance_type}', dfa_number='{dfa_number}', branch='{branch}', has_autostart={has_autostart}, has_casco_ce={has_casco_ce} | {format_context}")
+        # Логируем успешное извлечение данных с информацией о формате и новых параметрах
+        logger.info(f"Successfully extracted data with openpyxl ({detailed_context}): client='{client_name}', insurance_type='{insurance_type}', dfa_number='{dfa_number}', branch='{branch}', has_autostart={has_autostart}, has_casco_ce={has_casco_ce}, has_transportation={has_transportation}, has_construction_work={has_construction_work} | {format_context}")
         
         return extracted_data
     
@@ -371,6 +422,33 @@ class ExcelReader:
         # Извлекаем филиал (одинаково для всех форматов)
         branch = self._find_branch_pandas(df)
         
+        # Определяем параметры перевозки и строительно-монтажных работ
+        if self.application_format == 'property':
+            # Для формата имущества используем автоматическое определение параметров
+            logger.info(f"Starting transportation and construction work parameter detection for property insurance ({detailed_context}) | {format_context}")
+            
+            has_transportation = self._detect_transportation_parameter_pandas(df)
+            has_construction_work = self._detect_construction_work_parameter_pandas(df)
+            
+            # Логируем итоговые значения параметров после обнаружения
+            logger.info(f"Property insurance parameter detection completed ({detailed_context}): has_transportation={has_transportation}, has_construction_work={has_construction_work} | {format_context}")
+            
+            # Дополнительное логирование для верификации
+            if has_transportation or has_construction_work:
+                active_params = []
+                if has_transportation:
+                    active_params.append("transportation")
+                if has_construction_work:
+                    active_params.append("construction_work")
+                logger.info(f"Active parameters detected ({detailed_context}): {', '.join(active_params)} | {format_context}")
+            else:
+                logger.info(f"No additional parameters detected ({detailed_context}) - both transportation and construction work are False | {format_context}")
+        else:
+            # Для формата КАСКО/спецтехника параметры по умолчанию False (без автоматического определения)
+            has_transportation = False
+            has_construction_work = False
+            logger.info(f"CASCO/equipment format ({detailed_context}): transportation and construction work parameters set to False (no automatic detection) | {format_context}")
+        
         extracted_data = {
             'client_name': client_name,
             'inn': self._get_cell_with_adjustment_pandas(df, 9, 3) or '',  # D9
@@ -383,11 +461,13 @@ class ExcelReader:
             'has_installment': has_installment,
             'has_autostart': has_autostart,
             'has_casco_ce': has_casco_ce,
+            'has_transportation': has_transportation,
+            'has_construction_work': has_construction_work,
             'response_deadline': response_deadline,
         }
         
-        # Логируем успешное извлечение данных с информацией о формате
-        logger.info(f"Successfully extracted data with pandas ({detailed_context}): client='{client_name}', insurance_type='{insurance_type}', dfa_number='{dfa_number}', branch='{branch}', has_autostart={has_autostart}, has_casco_ce={has_casco_ce} | {format_context}")
+        # Логируем успешное извлечение данных с информацией о формате и новых параметрах
+        logger.info(f"Successfully extracted data with pandas ({detailed_context}): client='{client_name}', insurance_type='{insurance_type}', dfa_number='{dfa_number}', branch='{branch}', has_autostart={has_autostart}, has_casco_ce={has_casco_ce}, has_transportation={has_transportation}, has_construction_work={has_construction_work} | {format_context}")
         
         return extracted_data
     
@@ -671,13 +751,142 @@ class ExcelReader:
             logger.warning(f"Error determining CASCO C/E status (pandas) for application_type {self.application_type}, application_format {self.application_format}: {str(e)}")
             return False
 
+    def _detect_transportation_parameter_openpyxl(self, sheet) -> bool:
+        """
+        Определяет наличие параметра перевозки на основе ячейки C44 (C45 для ИП) (openpyxl)
+        
+        Логика:
+        Если ячейка C44 (C45 для ИП) содержит любое непустое значение,
+        то has_transportation = True, иначе False
+        
+        Применяет логику смещения строк для ИП (+1 для строк > 8)
+        
+        Returns:
+            bool: True если найдено непустое значение в ячейке C44/C45
+        """
+        format_context = self._get_format_context()
+        
+        try:
+            # Проверяем ячейку C44 с учетом смещения для ИП
+            value = self._get_cell_with_adjustment_openpyxl(sheet, 'C', 44)
+            has_transportation = self._has_value(value)
+            
+            # Получаем скорректированный номер строки для логирования
+            adjusted_row = self._get_adjusted_row(44)
+            
+            logger.info(f"Transportation parameter detection: C{adjusted_row} = '{value}' -> {has_transportation} | {format_context}")
+            
+            return has_transportation
+            
+        except Exception as e:
+            logger.error(f"Error detecting transportation parameter (openpyxl): {str(e)} | {format_context}")
+            return False
+
+    def _detect_transportation_parameter_pandas(self, df) -> bool:
+        """
+        Определяет наличие параметра перевозки на основе ячейки C44 (C45 для ИП) (pandas)
+        
+        Логика:
+        Если ячейка C44 (C45 для ИП) содержит любое непустое значение,
+        то has_transportation = True, иначе False
+        
+        Применяет логику смещения строк для ИП (+1 для строк > 8)
+        
+        Returns:
+            bool: True если найдено непустое значение в ячейке C44/C45
+        """
+        format_context = self._get_format_context()
+        
+        try:
+            # Проверяем ячейку C44 с учетом смещения для ИП (столбец C = индекс 2)
+            value = self._get_cell_with_adjustment_pandas(df, 44, 2)
+            has_transportation = self._has_value(value)
+            
+            # Получаем скорректированный номер строки для логирования
+            adjusted_row = self._get_adjusted_row(44)
+            
+            logger.info(f"Transportation parameter detection: C{adjusted_row} = '{value}' -> {has_transportation} | {format_context}")
+            
+            return has_transportation
+            
+        except Exception as e:
+            logger.error(f"Error detecting transportation parameter (pandas): {str(e)} | {format_context}")
+            return False
+
+    def _detect_construction_work_parameter_openpyxl(self, sheet) -> bool:
+        """
+        Определяет наличие параметра строительно-монтажных работ на основе ячейки C48 (C49 для ИП) (openpyxl)
+        
+        Логика:
+        Если ячейка C48 (C49 для ИП) содержит любое непустое значение,
+        то has_construction_work = True, иначе False
+        
+        Применяет логику смещения строк для ИП (+1 для строк > 8)
+        
+        Returns:
+            bool: True если найдено непустое значение в ячейке C48/C49
+        """
+        format_context = self._get_format_context()
+        
+        try:
+            # Проверяем ячейку C48 с учетом смещения для ИП
+            value = self._get_cell_with_adjustment_openpyxl(sheet, 'C', 48)
+            has_construction_work = self._has_value(value)
+            
+            # Получаем скорректированный номер строки для логирования
+            adjusted_row = self._get_adjusted_row(48)
+            
+            logger.info(f"Construction work parameter detection: C{adjusted_row} = '{value}' -> {has_construction_work} | {format_context}")
+            
+            return has_construction_work
+            
+        except Exception as e:
+            logger.error(f"Error detecting construction work parameter (openpyxl): {str(e)} | {format_context}")
+            return False
+
+    def _detect_construction_work_parameter_pandas(self, df) -> bool:
+        """
+        Определяет наличие параметра строительно-монтажных работ на основе ячейки C48 (C49 для ИП) (pandas)
+        
+        Логика:
+        Если ячейка C48 (C49 для ИП) содержит любое непустое значение,
+        то has_construction_work = True, иначе False
+        
+        Применяет логику смещения строк для ИП (+1 для строк > 8)
+        
+        Returns:
+            bool: True если найдено непустое значение в ячейке C48/C49
+        """
+        format_context = self._get_format_context()
+        
+        try:
+            # Проверяем ячейку C48 с учетом смещения для ИП (столбец C = индекс 2)
+            value = self._get_cell_with_adjustment_pandas(df, 48, 2)
+            has_construction_work = self._has_value(value)
+            
+            # Получаем скорректированный номер строки для логирования
+            adjusted_row = self._get_adjusted_row(48)
+            
+            logger.info(f"Construction work parameter detection: C{adjusted_row} = '{value}' -> {has_construction_work} | {format_context}")
+            
+            return has_construction_work
+            
+        except Exception as e:
+            logger.error(f"Error detecting construction work parameter (pandas): {str(e)} | {format_context}")
+            return False
+
     def _get_default_data(self) -> Dict[str, Any]:
         """Возвращает данные по умолчанию с валидным типом страхования и информацией о типе заявки"""
         app_type_display = "заявка от ИП" if self.application_type == 'individual_entrepreneur' else "заявка от юр.лица"
         format_display = "КАСКО/спецтехника" if self.application_format == 'casco_equipment' else "имущество"
+        format_context = self._get_format_context()
+        detailed_context = self._get_detailed_format_context()
         
         # Логируем использование данных по умолчанию
-        logger.warning(f"Using default data for {app_type_display} with format {format_display} due to processing error")
+        logger.warning(f"Using default data for {app_type_display} with format {format_display} due to processing error | {format_context}")
+        
+        # Логируем значения параметров по умолчанию
+        logger.info(f"Default parameter values ({detailed_context}): has_transportation=False, has_construction_work=False (fallback data) | {format_context}")
         
         return {
             'client_name': f'Клиент не указан ({app_type_display}, {format_display})',
@@ -691,6 +900,8 @@ class ExcelReader:
             'has_installment': False,
             'has_autostart': False,
             'has_casco_ce': False,
+            'has_transportation': False,
+            'has_construction_work': False,
             'response_deadline': timezone.now() + timedelta(hours=3),
             'application_type': self.application_type,
             'application_format': self.application_format,
@@ -919,6 +1130,162 @@ class ExcelReader:
         value_str = str(value).lower().strip()
         return value_str in ['да', 'yes', '1', 'true', 'истина', '+']
     
+    def _detect_transportation_parameter_openpyxl(self, sheet) -> bool:
+        """
+        Определяет параметр перевозки из ячейки C44 (C45 для ИП) (openpyxl)
+        
+        Args:
+            sheet: Лист Excel (openpyxl)
+            
+        Returns:
+            bool: True если требуется перевозка, False иначе
+        """
+        format_context = self._get_format_context()
+        detailed_context = self._get_detailed_format_context()
+        
+        try:
+            # Определяем базовую строку для проверки (C44)
+            base_row = 44
+            
+            # Получаем значение ячейки с учетом смещения для ИП
+            cell_value = self._get_cell_with_adjustment_openpyxl(sheet, 'C', base_row)
+            
+            # Определяем фактическую ячейку после применения смещения
+            actual_row = self._get_adjusted_row(base_row)
+            actual_cell = f"C{actual_row}"
+            
+            # Проверяем наличие значения
+            has_transportation = self._has_value(cell_value)
+            
+            # Логируем детали обнаружения параметра перевозки
+            if self.application_type == 'individual_entrepreneur' and base_row > 8:
+                logger.info(f"Transportation parameter detection ({detailed_context}): C{base_row} -> {actual_cell} (IP row offset applied), value: '{cell_value}', result: {has_transportation} | {format_context}")
+            else:
+                logger.info(f"Transportation parameter detection ({detailed_context}): {actual_cell}, value: '{cell_value}', result: {has_transportation} | {format_context}")
+            
+            return has_transportation
+            
+        except Exception as e:
+            logger.error(f"Error detecting transportation parameter ({detailed_context}): {str(e)}, defaulting to False | {format_context}")
+            return False
+    
+    def _detect_transportation_parameter_pandas(self, df) -> bool:
+        """
+        Определяет параметр перевозки из ячейки C44 (C45 для ИП) (pandas)
+        
+        Args:
+            df: DataFrame
+            
+        Returns:
+            bool: True если требуется перевозка, False иначе
+        """
+        format_context = self._get_format_context()
+        detailed_context = self._get_detailed_format_context()
+        
+        try:
+            # Определяем базовую строку для проверки (C44)
+            base_row = 44
+            
+            # Получаем значение ячейки с учетом смещения для ИП (C = column index 2)
+            cell_value = self._get_cell_with_adjustment_pandas(df, base_row, 2)
+            
+            # Определяем фактическую ячейку после применения смещения
+            actual_row = self._get_adjusted_row(base_row)
+            actual_cell = f"C{actual_row}"
+            
+            # Проверяем наличие значения
+            has_transportation = self._has_value(cell_value)
+            
+            # Логируем детали обнаружения параметра перевозки
+            if self.application_type == 'individual_entrepreneur' and base_row > 8:
+                logger.info(f"Transportation parameter detection ({detailed_context}): C{base_row} -> {actual_cell} (IP row offset applied), value: '{cell_value}', result: {has_transportation} | {format_context}")
+            else:
+                logger.info(f"Transportation parameter detection ({detailed_context}): {actual_cell}, value: '{cell_value}', result: {has_transportation} | {format_context}")
+            
+            return has_transportation
+            
+        except Exception as e:
+            logger.error(f"Error detecting transportation parameter ({detailed_context}): {str(e)}, defaulting to False | {format_context}")
+            return False
+    
+    def _detect_construction_work_parameter_openpyxl(self, sheet) -> bool:
+        """
+        Определяет параметр строительно-монтажных работ из ячейки C48 (C49 для ИП) (openpyxl)
+        
+        Args:
+            sheet: Лист Excel (openpyxl)
+            
+        Returns:
+            bool: True если требуются СМР, False иначе
+        """
+        format_context = self._get_format_context()
+        detailed_context = self._get_detailed_format_context()
+        
+        try:
+            # Определяем базовую строку для проверки (C48)
+            base_row = 48
+            
+            # Получаем значение ячейки с учетом смещения для ИП
+            cell_value = self._get_cell_with_adjustment_openpyxl(sheet, 'C', base_row)
+            
+            # Определяем фактическую ячейку после применения смещения
+            actual_row = self._get_adjusted_row(base_row)
+            actual_cell = f"C{actual_row}"
+            
+            # Проверяем наличие значения
+            has_construction_work = self._has_value(cell_value)
+            
+            # Логируем детали обнаружения параметра СМР
+            if self.application_type == 'individual_entrepreneur' and base_row > 8:
+                logger.info(f"Construction work parameter detection ({detailed_context}): C{base_row} -> {actual_cell} (IP row offset applied), value: '{cell_value}', result: {has_construction_work} | {format_context}")
+            else:
+                logger.info(f"Construction work parameter detection ({detailed_context}): {actual_cell}, value: '{cell_value}', result: {has_construction_work} | {format_context}")
+            
+            return has_construction_work
+            
+        except Exception as e:
+            logger.error(f"Error detecting construction work parameter ({detailed_context}): {str(e)}, defaulting to False | {format_context}")
+            return False
+    
+    def _detect_construction_work_parameter_pandas(self, df) -> bool:
+        """
+        Определяет параметр строительно-монтажных работ из ячейки C48 (C49 для ИП) (pandas)
+        
+        Args:
+            df: DataFrame
+            
+        Returns:
+            bool: True если требуются СМР, False иначе
+        """
+        format_context = self._get_format_context()
+        detailed_context = self._get_detailed_format_context()
+        
+        try:
+            # Определяем базовую строку для проверки (C48)
+            base_row = 48
+            
+            # Получаем значение ячейки с учетом смещения для ИП (C = column index 2)
+            cell_value = self._get_cell_with_adjustment_pandas(df, base_row, 2)
+            
+            # Определяем фактическую ячейку после применения смещения
+            actual_row = self._get_adjusted_row(base_row)
+            actual_cell = f"C{actual_row}"
+            
+            # Проверяем наличие значения
+            has_construction_work = self._has_value(cell_value)
+            
+            # Логируем детали обнаружения параметра СМР
+            if self.application_type == 'individual_entrepreneur' and base_row > 8:
+                logger.info(f"Construction work parameter detection ({detailed_context}): C{base_row} -> {actual_cell} (IP row offset applied), value: '{cell_value}', result: {has_construction_work} | {format_context}")
+            else:
+                logger.info(f"Construction work parameter detection ({detailed_context}): {actual_cell}, value: '{cell_value}', result: {has_construction_work} | {format_context}")
+            
+            return has_construction_work
+            
+        except Exception as e:
+            logger.error(f"Error detecting construction work parameter ({detailed_context}): {str(e)}, defaulting to False | {format_context}")
+            return False
+
     def _has_value(self, value) -> bool:
         """
         Проверяет, содержит ли значение непустые данные.

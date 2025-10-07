@@ -46,7 +46,7 @@ class EmailTemplateGenerator:
     DEFAULT_TEMPLATE = """Добрый день, уважаемые коллеги!
 
 Высылаем заявку на расчет тарифов ${ins_type}${casco_type_ce}
-${franshiza_text}${installment_text}${avtozapusk_text}
+${franshiza_text}${installment_text}${avtozapusk_text}${transportation_text}${construction_work_text}
 Необходимый период страхования: ${insurance_period_text}.
 
 Для проверки клиента обратите внимание на его ИНН – ${inn}.
@@ -168,6 +168,17 @@ ${franshiza_text}${installment_text}${avtozapusk_text}
             if data.get('has_casco_ce') else ''
         )
         
+        # Transportation and construction work parameters
+        template_data['transportation_text'] = (
+            'Обратите внимание, требуется страхование перевозки (с погрузкой, выгрузкой) от поставщика к лизингополучателю.\n'
+            if data.get('has_transportation') else ''
+        )
+        
+        template_data['construction_work_text'] = (
+            'Обратите внимание, требуется страхование монтажных (строительно-монтажных) работ на площадке ЛП по установке оборудования.\n'
+            if data.get('has_construction_work') else ''
+        )
+        
         return template_data
     
     def _format_insurance_period_text(self, data: Dict[str, Any]) -> str:
@@ -218,7 +229,7 @@ ${franshiza_text}${installment_text}${avtozapusk_text}
     
     def generate_subject(self, data: Dict[str, Any], sequence_number: int = 1) -> str:
         """
-        Генерирует тему письма по шаблону "ДФА - Филиал - Информация о предмете лизинга - порядковый номер письма"
+        Генерирует тему письма по шаблону "заявка ДФА - Филиал - Информация о предмете лизинга - порядковый номер письма"
         
         Args:
             data: Данные заявки
@@ -235,4 +246,4 @@ ${franshiza_text}${installment_text}${avtozapusk_text}
         if len(vehicle_info) > 50:
             vehicle_info = vehicle_info[:47] + '...'
         
-        return f"{dfa_number} - {branch} - {vehicle_info} - {sequence_number}"
+        return f"заявка {dfa_number} - {branch} - {vehicle_info} - {sequence_number}"

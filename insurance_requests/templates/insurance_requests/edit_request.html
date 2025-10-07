@@ -176,7 +176,7 @@
                     </div>
 
                     <div class="row">
-                        <div class="col-md-3">
+                        <div class="col-md-2">
                             <div class="form-check mb-3">
                                 {{ form.has_franchise }}
                                 <label class="form-check-label" for="{{ form.has_franchise.id_for_label }}">
@@ -185,7 +185,7 @@
                             </div>
                         </div>
 
-                        <div class="col-md-3">
+                        <div class="col-md-2">
                             <div class="form-check mb-3">
                                 {{ form.has_installment }}
                                 <label class="form-check-label" for="{{ form.has_installment.id_for_label }}">
@@ -194,7 +194,7 @@
                             </div>
                         </div>
 
-                        <div class="col-md-3">
+                        <div class="col-md-2">
                             <div class="form-check mb-3">
                                 {{ form.has_autostart }}
                                 <label class="form-check-label" for="{{ form.has_autostart.id_for_label }}">
@@ -203,12 +203,44 @@
                             </div>
                         </div>
 
-                        <div class="col-md-3">
+                        <div class="col-md-2">
                             <div class="form-check mb-3">
                                 {{ form.has_casco_ce }}
                                 <label class="form-check-label" for="{{ form.has_casco_ce.id_for_label }}">
                                     {{ form.has_casco_ce.label }}
                                 </label>
+                            </div>
+                        </div>
+
+                        <div class="col-md-2">
+                            <div class="form-check mb-3">
+                                {{ form.has_transportation }}
+                                <label class="form-check-label" for="{{ form.has_transportation.id_for_label }}">
+                                    {{ form.has_transportation.label }}
+                                </label>
+                                {% if form.has_transportation.errors %}
+                                <div class="text-danger">
+                                    {% for error in form.has_transportation.errors %}
+                                    <small>{{ error }}</small>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="col-md-2">
+                            <div class="form-check mb-3">
+                                {{ form.has_construction_work }}
+                                <label class="form-check-label" for="{{ form.has_construction_work.id_for_label }}">
+                                    {{ form.has_construction_work.label }}
+                                </label>
+                                {% if form.has_construction_work.errors %}
+                                <div class="text-danger">
+                                    {% for error in form.has_construction_work.errors %}
+                                    <small>{{ error }}</small>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
                             </div>
                         </div>
                     </div>

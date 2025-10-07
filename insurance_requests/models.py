@@ -62,6 +62,8 @@ class InsuranceRequest(models.Model):
     has_installment = models.BooleanField(default=False, verbose_name='Требуется рассрочка')
     has_autostart = models.BooleanField(default=False, verbose_name='Есть автозапуск')
     has_casco_ce = models.BooleanField(default=False, verbose_name='КАСКО кат. C/E')
+    has_transportation = models.BooleanField(default=False, verbose_name='Требуется перевозка')
+    has_construction_work = models.BooleanField(default=False, verbose_name='Требуется СМР')
     response_deadline = models.DateTimeField(null=True, blank=True, verbose_name='Срок ответа')
     
     # Сгенерированное письмо
@@ -136,6 +138,8 @@ class InsuranceRequest(models.Model):
             'has_installment': self.has_installment,
             'has_autostart': self.has_autostart,
             'has_casco_ce': self.has_casco_ce,
+            'has_transportation': self.has_transportation,
+            'has_construction_work': self.has_construction_work,
             'notes': self.notes,
             'response_deadline': moscow_deadline.strftime('%H:%M %d.%m.%Y') if moscow_deadline else None,
         }

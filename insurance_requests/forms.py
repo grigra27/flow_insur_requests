@@ -373,8 +373,8 @@ class InsuranceRequestForm(forms.ModelForm):
         fields = [
             'client_name', 'inn', 'insurance_type', 'insurance_period',
             'vehicle_info', 'dfa_number', 'branch', 'has_franchise', 
-            'has_installment', 'has_autostart', 'has_casco_ce', 'response_deadline',
-            'notes'
+            'has_installment', 'has_autostart', 'has_casco_ce', 'has_transportation',
+            'has_construction_work', 'response_deadline', 'notes'
         ]
         
         widgets = {
@@ -396,6 +396,8 @@ class InsuranceRequestForm(forms.ModelForm):
             'has_installment': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'has_autostart': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'has_casco_ce': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'has_transportation': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'has_construction_work': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'response_deadline': DateTimeLocalWidget(),
         }
     
@@ -408,6 +410,13 @@ class InsuranceRequestForm(forms.ModelForm):
         # Добавляем help text для поля примечаний
         self.fields['notes'].help_text = 'Дополнительные примечания и комментарии к заявке (необязательно)'
         self.fields['notes'].required = False
+        
+        # Настройка полей для транспортировки и строительно-монтажных работ
+        self.fields['has_transportation'].label = 'Требуется перевозка'
+        self.fields['has_transportation'].help_text = ''  # No help text needed
+        
+        self.fields['has_construction_work'].label = 'Требуется СМР'
+        self.fields['has_construction_work'].help_text = ''  # No help text needed
         
         # Make insurance_period not required for backward compatibility
         self.fields['insurance_period'].required = False
@@ -438,7 +447,7 @@ class InsuranceRequestForm(forms.ModelForm):
                 self.fields['response_deadline'].initial = self.instance.response_deadline
             
             # Ensure all boolean fields are properly set
-            for field_name in ['has_franchise', 'has_installment', 'has_autostart', 'has_casco_ce']:
+            for field_name in ['has_franchise', 'has_installment', 'has_autostart', 'has_casco_ce', 'has_transportation', 'has_construction_work']:
                 if hasattr(self.instance, field_name):
                     self.fields[field_name].initial = getattr(self.instance, field_name)
             

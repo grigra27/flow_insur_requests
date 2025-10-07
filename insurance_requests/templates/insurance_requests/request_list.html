@@ -223,6 +223,18 @@
                                         <span class="d-xl-none">C/E</span>
                                     </span>
                                 {% endif %}
+                                {% if request.has_transportation %}
+                                    <span class="badge bg-success" title="Перевозка">
+                                        <span class="d-none d-xl-inline">Перевозка</span>
+                                        <span class="d-xl-none">П</span>
+                                    </span>
+                                {% endif %}
+                                {% if request.has_construction_work %}
+                                    <span class="badge bg-dark text-light" title="СМР">
+                                        <span class="d-none d-xl-inline">СМР</span>
+                                        <span class="d-xl-none">СМР</span>
+                                    </span>
+                                {% endif %}
                             </div>
                         </td>
                         <td>
