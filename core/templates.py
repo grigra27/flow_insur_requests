@@ -49,7 +49,7 @@ class EmailTemplateGenerator:
 ${franshiza_text}${installment_text}${avtozapusk_text}${transportation_text}${construction_work_text}
 Необходимый период страхования: ${insurance_period_text}.
 
-Для проверки клиента обратите внимание на его ИНН – ${inn}.
+ИНН клиента – ${inn}.
 Данные просим вписать в прилагаемую таблицу, с занесением данных за каждый период страхования (по годам). Просим в таблице не использовать формулы, просто заполнить предлагаемые параметры.
 
 Ждем Ваше предложение по страховым суммам и страховым премиям по годам до ${response_time} г.
@@ -227,23 +227,38 @@ ${franshiza_text}${installment_text}${avtozapusk_text}${transportation_text}${co
             logger.warning(f"Error formatting response deadline: {e}")
             return str(response_deadline)
     
-    def generate_subject(self, data: Dict[str, Any], sequence_number: int = 1) -> str:
+    def generate_subject(self, data: Dict[str, Any], sequence_number: int = None) -> str:
         """
-        Генерирует тему письма по шаблону "заявка ДФА - Филиал - Информация о предмете лизинга - порядковый номер письма"
+        Генерирует тему письма по шаблону "заявка ДФА - Филиал - Информация о предмете лизинга - срок страхования"
         
         Args:
             data: Данные заявки
-            sequence_number: Порядковый номер письма (по умолчанию 1)
+            sequence_number: Порядковый номер письма (устарел, игнорируется для обратной совместимости)
             
         Returns:
             Тема письма
         """
-        dfa_number = data.get('dfa_number', 'ДФА не указан')
-        branch = data.get('branch', 'Филиал не указан')
-        vehicle_info = data.get('vehicle_info', 'Предмет лизинга не указан')
+        # Получаем значения с fallback для пустых/None значений
+        dfa_number = data.get('dfa_number') or 'ДФА не указан'
+        branch = data.get('branch') or 'Филиал не указан'
+        vehicle_info = data.get('vehicle_info') or 'Предмет лизинга не указан'
+        
+        # Получаем срок страхования с fallback значением
+        insurance_period = data.get('insurance_period')
+        if insurance_period:
+            insurance_period = insurance_period.strip()
+            # Проверяем, что это один из допустимых стандартизированных значений
+            if insurance_period not in ['1 год', 'на весь срок лизинга']:
+                insurance_period = 'не указан'
+        else:
+            insurance_period = 'не указан'
         
         # Ограничиваем длину информации о предмете лизинга для темы письма
         if len(vehicle_info) > 50:
             vehicle_info = vehicle_info[:47] + '...'
         
-        return f"заявка {dfa_number} - {branch} - {vehicle_info} - {sequence_number}"
+        # Логируем использование устаревшего параметра для отладки
+        if sequence_number is not None:
+            logger.debug(f"sequence_number parameter is deprecated and ignored: {sequence_number}")
+        
+        return f"заявка {dfa_number} - {branch} - {vehicle_info} - {insurance_period}"
