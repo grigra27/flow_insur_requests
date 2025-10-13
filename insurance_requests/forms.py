@@ -628,3 +628,19 @@ class EmailPreviewForm(forms.Form):
                 raise ValidationError(f'Некорректный email адрес: {email}')
         
         return emails
+
+
+class OfferUploadForm(forms.Form):
+    """Форма для загрузки файлов предложений от страховых компаний"""
+    
+    # Простое поле для одного файла - множественность обрабатываем в JavaScript и представлении
+    offer_files = forms.FileField(
+        label='Файлы предложений',
+        help_text='Выберите один или несколько Excel файлов (.xlsx) с предложениями от страховых компаний',
+        widget=forms.FileInput(attrs={
+            'class': 'form-control',
+            'accept': '.xlsx',
+            'id': 'offer-files-input'
+        }),
+        required=False  # Валидацию проведем в представлении
+    )

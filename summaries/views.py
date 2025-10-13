@@ -195,6 +195,36 @@ def delete_offer(request, offer_id):
         return JsonResponse({'success': False, 'error': str(e)})
 
 
+@user_required
+def create_summary_from_offers(request, request_id):
+    """
+    Создание свода из загруженных предложений.
+    
+    Эта функция будет реализована в задаче 6.
+    Пока что это заглушка для корректной работы задачи 5.
+    """
+    insurance_request = get_object_or_404(InsuranceRequest, pk=request_id)
+    
+    # Получаем данные из сессии
+    session_key = f'parsed_offers_{request_id}'
+    parsed_data = request.session.get(session_key)
+    
+    if not parsed_data:
+        messages.error(request, 'Данные загруженных предложений не найдены. Попробуйте загрузить файлы заново.')
+        return redirect('insurance_requests:request_detail', pk=request_id)
+    
+    # Временная заглушка - показываем информацию о загруженных данных
+    messages.info(request, 
+                 f'Загружено {parsed_data["successful_files"]} предложений. '
+                 'Страница формирования свода будет реализована в задаче 6.')
+    
+    # Очищаем данные из сессии
+    if session_key in request.session:
+        del request.session[session_key]
+    
+    return redirect('insurance_requests:request_detail', pk=request_id)
+
+
 @admin_required
 def summary_statistics(request):
     """Статистика по сводам"""

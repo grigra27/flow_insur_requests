@@ -10,9 +10,11 @@ from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_http_methods
 from django.core.files.storage import default_storage
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+from django.core.exceptions import ValidationError
 from django.conf import settings
 from django.utils import timezone
 import os
+import uuid
 import tempfile
 import logging
 
@@ -22,6 +24,7 @@ from .decorators import user_required, admin_required
 from core.excel_utils import ExcelReader
 from core.templates import EmailTemplateGenerator
 from core.mail_utils import EmailSender, EmailMessage, EmailConfig
+from core.offer_excel_parser import OfferExcelParser, OfferParsingError, FileParsingError, DataValidationError, validate_offer_data
 
 logger = logging.getLogger(__name__)
 
@@ -703,3 +706,261 @@ def send_email(request, pk):
         
         logger.error(f"Error sending email for request {pk}: {str(e)} | {format_context}")
         return JsonResponse({'success': False, 'error': str(e)})
+
+
+@user_required
+def upload_offers(request, request_id):
+    """
+    Загрузка и обработка файлов предложений от страховых компаний.
+    
+    Обрабатывает POST запрос с файлами, валидирует их, парсит данные
+    с использованием OfferExcelParser и сохраняет временные данные
+    для предварительного просмотра.
+    """
+    insurance_request = get_object_or_404(InsuranceRequest, pk=request_id)
+    
+    if request.method == 'POST':
+        try:
+            # Получаем файлы из request.FILES
+            files = request.FILES.getlist('offer_files')
+            
+            if not files:
+                raise ValidationError('Выберите хотя бы один файл для загрузки')
+            
+            # Валидация загруженных файлов (тип, размер, количество)
+            validated_files = _validate_uploaded_files(files)
+            
+            # Логируем начало обработки
+            logger.info(f"Starting offer files processing for request {request_id}, {len(validated_files)} files")
+            
+            # Парсинг каждого файла с использованием OfferExcelParser
+            parsed_offers = []
+            parsing_errors = []
+            
+            for file in validated_files:
+                try:
+                    # Сохраняем файл временно для парсинга
+                    temp_file_path = _save_temp_file(file)
+                    
+                    try:
+                        # Парсим файл
+                        parser = OfferExcelParser(temp_file_path)
+                        offer_data = parser.parse_offer()
+                        
+                        # Валидируем извлеченные данные
+                        validated_offer_data = validate_offer_data(offer_data)
+                        
+                        # Добавляем метаданные о файле
+                        validated_offer_data['source_file'] = file.name
+                        validated_offer_data['file_size'] = file.size
+                        
+                        parsed_offers.append(validated_offer_data)
+                        
+                        logger.info(f"Successfully parsed offer from {file.name}: company='{validated_offer_data['company_name']}', years={len(validated_offer_data['years_data'])}")
+                        
+                    finally:
+                        # Удаляем временный файл
+                        _cleanup_temp_file(temp_file_path)
+                        
+                except FileParsingError as e:
+                    error_msg = f"Ошибка чтения файла '{file.name}': {str(e)}"
+                    parsing_errors.append(error_msg)
+                    logger.warning(f"File parsing error for {file.name}: {str(e)}")
+                    
+                except DataValidationError as e:
+                    error_msg = f"Ошибка данных в файле '{file.name}': {str(e)}"
+                    parsing_errors.append(error_msg)
+                    logger.warning(f"Data validation error for {file.name}: {str(e)}")
+                    
+                except Exception as e:
+                    error_msg = f"Неожиданная ошибка при обработке файла '{file.name}': {str(e)}"
+                    parsing_errors.append(error_msg)
+                    logger.error(f"Unexpected error parsing {file.name}: {str(e)}", exc_info=True)
+            
+            # Проверяем результаты парсинга
+            if not parsed_offers and parsing_errors:
+                # Все файлы обработаны с ошибками
+                error_message = "Не удалось обработать ни одного файла:\n" + "\n".join(parsing_errors)
+                raise ValidationError(error_message)
+            
+            # Сохранение временных данных для предварительного просмотра
+            session_key = f'parsed_offers_{request_id}'
+            request.session[session_key] = {
+                'offers': parsed_offers,
+                'errors': parsing_errors,
+                'request_id': request_id,
+                'timestamp': timezone.now().isoformat(),
+                'total_files': len(files),
+                'successful_files': len(parsed_offers),
+                'failed_files': len(parsing_errors)
+            }
+            
+            # Устанавливаем время истечения сессии (30 минут)
+            request.session.set_expiry(1800)
+            
+            # Логируем результаты обработки
+            logger.info(f"Offer files processing completed for request {request_id}: "
+                       f"{len(parsed_offers)} successful, {len(parsing_errors)} errors")
+            
+            # Формируем сообщение об успехе
+            success_message = f"Обработано {len(parsed_offers)} из {len(files)} файлов"
+            if parsing_errors:
+                success_message += f". {len(parsing_errors)} файлов содержат ошибки"
+            
+            # Если это AJAX запрос, возвращаем JSON
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({
+                    'success': True,
+                    'message': success_message,
+                    'parsed_offers': len(parsed_offers),
+                    'errors': parsing_errors,
+                    'redirect_url': f'/summaries/create_from_offers/{request_id}/'
+                })
+            
+            messages.success(request, success_message)
+            if parsing_errors:
+                for error in parsing_errors:
+                    messages.warning(request, error)
+            
+            # Перенаправляем на страницу формирования свода
+            return redirect('summaries:create_summary_from_offers', request_id=request_id)
+            
+        except ValidationError as e:
+            error_message = str(e)
+            logger.warning(f"Validation error uploading offers for request {request_id}: {error_message}")
+            
+        except Exception as e:
+            error_message = f'Неожиданная ошибка при обработке файлов: {str(e)}'
+            logger.error(f"Unexpected error uploading offers for request {request_id}: {str(e)}", exc_info=True)
+        
+        # Обработка ошибок
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({
+                'success': False,
+                'error': error_message
+            }, status=400)
+        
+        messages.error(request, error_message)
+        return redirect('insurance_requests:request_detail', pk=request_id)
+    
+    # GET запрос - перенаправляем на страницу заявки
+    return redirect('insurance_requests:request_detail', pk=request_id)
+
+
+def _validate_uploaded_files(files):
+    """
+    Валидирует загруженные файлы (тип, размер, количество).
+    
+    Args:
+        files: Список загруженных файлов
+        
+    Returns:
+        Список валидных файлов
+        
+    Raises:
+        ValidationError: При ошибках валидации
+    """
+    # Константы валидации
+    MAX_FILES = 10
+    MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+    MAX_TOTAL_SIZE = 50 * 1024 * 1024  # 50MB
+    ALLOWED_EXTENSIONS = ['.xlsx']
+    ALLOWED_MIME_TYPES = [
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    ]
+    
+    validated_files = []
+    total_size = 0
+    
+    # Проверяем количество файлов
+    if len(files) > MAX_FILES:
+        raise ValidationError(
+            f'Слишком много файлов: {len(files)}. '
+            f'Максимально допустимое количество файлов: {MAX_FILES}.'
+        )
+    
+    # Проверяем каждый файл
+    for file in files:
+        # Проверяем расширение файла
+        ext = os.path.splitext(file.name)[1].lower()
+        if ext not in ALLOWED_EXTENSIONS:
+            raise ValidationError(
+                f'Неподдерживаемый формат файла: {file.name}. '
+                f'Поддерживаются только файлы форматов: {", ".join(ALLOWED_EXTENSIONS)}.'
+            )
+        
+        # Проверяем MIME-тип для дополнительной безопасности
+        if hasattr(file, 'content_type') and file.content_type:
+            if file.content_type not in ALLOWED_MIME_TYPES:
+                logger.warning(f"Suspicious MIME type for file {file.name}: {file.content_type}")
+                # Не блокируем, но логируем предупреждение
+        
+        # Проверяем размер файла
+        if file.size > MAX_FILE_SIZE:
+            size_mb = file.size / (1024 * 1024)
+            raise ValidationError(
+                f'Размер файла {file.name} слишком большой: {size_mb:.1f}MB. '
+                f'Максимально допустимый размер файла: {MAX_FILE_SIZE // (1024 * 1024)}MB.'
+            )
+        
+        # Проверяем, что файл не пустой
+        if file.size == 0:
+            raise ValidationError(f'Файл {file.name} пустой.')
+        
+        total_size += file.size
+        validated_files.append(file)
+    
+    # Проверяем общий размер всех файлов
+    if total_size > MAX_TOTAL_SIZE:
+        total_size_mb = total_size / (1024 * 1024)
+        max_size_mb = MAX_TOTAL_SIZE / (1024 * 1024)
+        raise ValidationError(
+            f'Общий размер всех файлов слишком большой: {total_size_mb:.1f}MB. '
+            f'Максимально допустимый общий размер: {max_size_mb}MB.'
+        )
+    
+    return validated_files
+
+
+def _save_temp_file(uploaded_file):
+    """
+    Сохраняет загруженный файл во временную директорию.
+    
+    Args:
+        uploaded_file: Загруженный файл
+        
+    Returns:
+        Путь к временному файлу
+    """
+    import tempfile
+    import uuid
+    
+    # Создаем уникальное имя файла
+    file_extension = os.path.splitext(uploaded_file.name)[1]
+    temp_filename = f"offer_{uuid.uuid4().hex}{file_extension}"
+    
+    # Создаем временный файл
+    temp_file_path = os.path.join(tempfile.gettempdir(), temp_filename)
+    
+    # Сохраняем содержимое файла
+    with open(temp_file_path, 'wb') as temp_file:
+        for chunk in uploaded_file.chunks():
+            temp_file.write(chunk)
+    
+    logger.debug(f"Saved temporary file: {temp_file_path}")
+    return temp_file_path
+
+
+def _cleanup_temp_file(temp_file_path):
+    """
+    Удаляет временный файл.
+    
+    Args:
+        temp_file_path: Путь к временному файлу
+    """
+    try:
+        if temp_file_path and os.path.exists(temp_file_path):
+            os.unlink(temp_file_path)
+            logger.debug(f"Cleaned up temporary file: {temp_file_path}")
+    except Exception as e:
+        logger.warning(f"Error cleaning up temporary file {temp_file_path}: {str(e)}")

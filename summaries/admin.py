@@ -28,8 +28,8 @@ class InsuranceSummaryAdmin(admin.ModelAdmin):
 
 @admin.register(InsuranceOffer)
 class InsuranceOfferAdmin(admin.ModelAdmin):
-    list_display = ['company_name', 'summary', 'insurance_premium', 'insurance_sum', 'installment_available', 'is_valid', 'received_at']
-    list_filter = ['is_valid', 'installment_available', 'company_name', 'received_at']
+    list_display = ['company_name', 'insurance_year', 'summary', 'insurance_premium', 'yearly_premium_with_franchise', 'insurance_sum', 'is_valid', 'received_at']
+    list_filter = ['is_valid', 'insurance_year', 'installment_available', 'company_name', 'received_at']
     search_fields = ['company_name', 'company_email', 'summary__request__client_name']
     readonly_fields = ['received_at']
     
@@ -37,8 +37,13 @@ class InsuranceOfferAdmin(admin.ModelAdmin):
         ('Компания', {
             'fields': ('company_name', 'company_email')
         }),
-        ('Предложение', {
-            'fields': ('summary', 'insurance_sum', 'insurance_premium', 'franchise_amount')
+        ('Основное предложение', {
+            'fields': ('summary', 'insurance_year', 'insurance_sum', 'insurance_premium', 'franchise_amount')
+        }),
+        ('Многолетние данные', {
+            'fields': ('yearly_premium_with_franchise', 'yearly_premium_without_franchise', 
+                      'franchise_amount_variant1', 'franchise_amount_variant2'),
+            'description': 'Данные для многолетних предложений, извлеченные из Excel файлов'
         }),
         ('Условия', {
             'fields': ('installment_available', 'installment_months', 'valid_until', 'is_valid')

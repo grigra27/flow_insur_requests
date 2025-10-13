@@ -252,24 +252,382 @@
                 <h6 class="mb-0"><i class="bi bi-reply"></i> Ответы компаний</h6>
             </div>
             <div class="card-body">
-                {% if request.responses.all %}
-                    {% for response in request.responses.all %}
-                        <div class="border-bottom pb-2 mb-2">
-                            <div class="fw-bold">{{ response.company_name }}</div>
-                            <small class="text-muted">{% timezone "Europe/Moscow" %}{{ response.received_at|date:"d.m.Y H:i" }}{% endtimezone %} (МСК)</small>
-                            {% if response.insurance_sum %}
-                                <div class="mt-1">
-                                    <small>Сумма: {{ response.insurance_sum|floatformat:2 }} ₽</small>
-                                </div>
-                            {% endif %}
-                        </div>
-                    {% endfor %}
+                {% if request.summary and request.summary.offers.exists %}
+                    <!-- Если свод уже создан из загруженных предложений -->
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> 
+                        Предложения уже загружены и обработаны. 
+                        <a href="{% url 'summaries:summary_detail' request.summary.pk %}" class="alert-link">Перейти к своду</a>
+                    </div>
+                    
+                    <!-- Показываем краткую информацию о загруженных предложениях -->
+                    <div class="mt-3">
+                        <h6>Загруженные предложения:</h6>
+                        {% for offer in request.summary.offers.all|slice:":5" %}
+                            <div class="border-bottom pb-2 mb-2">
+                                <div class="fw-bold">{{ offer.company_name }}</div>
+                                <small class="text-muted">
+                                    {% if offer.insurance_year %}{{ offer.insurance_year }}{% endif %}
+                                    {% if offer.insurance_sum %} - Сумма: {{ offer.insurance_sum|floatformat:2 }} ₽{% endif %}
+                                </small>
+                            </div>
+                        {% endfor %}
+                        {% if request.summary.offers.count > 5 %}
+                            <small class="text-muted">И еще {{ request.summary.offers.count|add:"-5" }} предложений...</small>
+                        {% endif %}
+                    </div>
                 {% else %}
-                    <p class="text-muted mb-0">Ответов пока нет</p>
-                    <small class="text-muted">Позднее здесь будет блок для загрузки ответов от страховых компаний</small>
+                    <!-- Форма загрузки файлов предложений -->
+                    <div id="offer-upload-section">
+                        <p class="text-muted mb-3">Загрузите файлы с предложениями от страховых компаний</p>
+                        
+                        <form id="offer-upload-form" method="post" enctype="multipart/form-data" action="{% url 'insurance_requests:upload_offers' request.pk %}">
+                            {% csrf_token %}
+                            
+                            <!-- Поле выбора файлов -->
+                            <div class="mb-3">
+                                <label for="offer-files-input" class="form-label">
+                                    <i class="bi bi-file-earmark-excel"></i> Файлы предложений (.xlsx)
+                                </label>
+                                <input type="file" 
+                                       class="form-control" 
+                                       id="offer-files-input" 
+                                       name="offer_files" 
+                                       accept=".xlsx" 
+                                       multiple 
+                                       required>
+                                <div class="form-text">
+                                    Выберите один или несколько Excel файлов с предложениями от страховых компаний. 
+                                    Максимум 10 файлов, размер каждого файла не более 10MB.
+                                </div>
+                            </div>
+                            
+                            <!-- Список выбранных файлов -->
+                            <div id="selected-files-list" class="mb-3" style="display: none;">
+                                <h6>Выбранные файлы:</h6>
+                                <div id="files-container" class="border rounded p-2 bg-light">
+                                    <!-- Файлы будут добавлены через JavaScript -->
+                                </div>
+                            </div>
+                            
+                            <!-- Индикатор прогресса -->
+                            <div id="upload-progress" class="mb-3" style="display: none;">
+                                <div class="progress">
+                                    <div id="progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" 
+                                         role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                                        0%
+                                    </div>
+                                </div>
+                                <small id="progress-text" class="text-muted">Подготовка к загрузке...</small>
+                            </div>
+                            
+                            <!-- Кнопки -->
+                            <div class="d-flex gap-2">
+                                <button type="submit" id="upload-btn" class="btn btn-primary" disabled>
+                                    <i class="bi bi-upload"></i> Загрузить предложения
+                                </button>
+                                <button type="button" id="clear-files-btn" class="btn btn-outline-secondary" style="display: none;">
+                                    <i class="bi bi-x-circle"></i> Очистить
+                                </button>
+                            </div>
+                        </form>
+                        
+                        <!-- Сообщения об ошибках -->
+                        <div id="upload-errors" class="alert alert-danger mt-3" style="display: none;">
+                            <h6><i class="bi bi-exclamation-triangle"></i> Ошибки загрузки:</h6>
+                            <ul id="error-list"></ul>
+                        </div>
+                    </div>
                 {% endif %}
             </div>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const fileInput = document.getElementById('offer-files-input');
+    const selectedFilesList = document.getElementById('selected-files-list');
+    const filesContainer = document.getElementById('files-container');
+    const uploadBtn = document.getElementById('upload-btn');
+    const clearFilesBtn = document.getElementById('clear-files-btn');
+    const uploadForm = document.getElementById('offer-upload-form');
+    const uploadProgress = document.getElementById('upload-progress');
+    const progressBar = document.getElementById('progress-bar');
+    const progressText = document.getElementById('progress-text');
+    const uploadErrors = document.getElementById('upload-errors');
+    const errorList = document.getElementById('error-list');
+    
+    // Проверяем, что элементы существуют (форма может не отображаться если свод уже создан)
+    if (!fileInput) return;
+    
+    // Максимальные ограничения
+    const MAX_FILES = 10;
+    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+    const MAX_TOTAL_SIZE = 50 * 1024 * 1024; // 50MB
+    const ALLOWED_EXTENSIONS = ['.xlsx'];
+    
+    let selectedFiles = [];
+    
+    // Обработчик выбора файлов
+    fileInput.addEventListener('change', function(e) {
+        const files = Array.from(e.target.files);
+        validateAndDisplayFiles(files);
+    });
+    
+    // Обработчик очистки файлов
+    clearFilesBtn.addEventListener('click', function() {
+        clearFiles();
+    });
+    
+    // Обработчик отправки формы
+    uploadForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        if (selectedFiles.length === 0) {
+            showError(['Выберите хотя бы один файл для загрузки']);
+            return;
+        }
+        
+        uploadFiles();
+    });
+    
+    function validateAndDisplayFiles(files) {
+        clearErrors();
+        const errors = [];
+        const validFiles = [];
+        let totalSize = 0;
+        
+        // Проверяем количество файлов
+        if (files.length > MAX_FILES) {
+            errors.push(`Слишком много файлов: ${files.length}. Максимум: ${MAX_FILES}`);
+            clearFiles();
+            showError(errors);
+            return;
+        }
+        
+        // Валидируем каждый файл
+        files.forEach((file, index) => {
+            const fileName = file.name;
+            const fileSize = file.size;
+            const fileExtension = fileName.toLowerCase().substring(fileName.lastIndexOf('.'));
+            
+            // Проверяем расширение
+            if (!ALLOWED_EXTENSIONS.includes(fileExtension)) {
+                errors.push(`Файл "${fileName}": неподдерживаемый формат. Разрешены только .xlsx файлы`);
+                return;
+            }
+            
+            // Проверяем размер файла
+            if (fileSize > MAX_FILE_SIZE) {
+                const sizeMB = (fileSize / (1024 * 1024)).toFixed(1);
+                errors.push(`Файл "${fileName}": размер ${sizeMB}MB превышает максимум 10MB`);
+                return;
+            }
+            
+            // Проверяем на дубликаты по имени
+            if (validFiles.some(f => f.name === fileName)) {
+                errors.push(`Файл "${fileName}": дублирующееся имя файла`);
+                return;
+            }
+            
+            totalSize += fileSize;
+            validFiles.push(file);
+        });
+        
+        // Проверяем общий размер
+        if (totalSize > MAX_TOTAL_SIZE) {
+            const totalSizeMB = (totalSize / (1024 * 1024)).toFixed(1);
+            errors.push(`Общий размер файлов ${totalSizeMB}MB превышает максимум 50MB`);
+        }
+        
+        if (errors.length > 0) {
+            clearFiles();
+            showError(errors);
+            return;
+        }
+        
+        // Сохраняем валидные файлы
+        selectedFiles = validFiles;
+        displaySelectedFiles();
+        updateUploadButton();
+    }
+    
+    function displaySelectedFiles() {
+        if (selectedFiles.length === 0) {
+            selectedFilesList.style.display = 'none';
+            clearFilesBtn.style.display = 'none';
+            return;
+        }
+        
+        filesContainer.innerHTML = '';
+        let totalSize = 0;
+        
+        selectedFiles.forEach((file, index) => {
+            const fileSize = (file.size / (1024 * 1024)).toFixed(2);
+            totalSize += file.size;
+            
+            const fileItem = document.createElement('div');
+            fileItem.className = 'd-flex justify-content-between align-items-center py-1 border-bottom';
+            fileItem.innerHTML = `
+                <div>
+                    <i class="bi bi-file-earmark-excel text-success me-2"></i>
+                    <span class="fw-medium">${escapeHtml(file.name)}</span>
+                    <small class="text-muted ms-2">(${fileSize} MB)</small>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeFile(${index})">
+                    <i class="bi bi-x"></i>
+                </button>
+            `;
+            filesContainer.appendChild(fileItem);
+        });
+        
+        // Добавляем информацию об общем размере
+        const totalSizeMB = (totalSize / (1024 * 1024)).toFixed(2);
+        const totalInfo = document.createElement('div');
+        totalInfo.className = 'mt-2 pt-2 border-top';
+        totalInfo.innerHTML = `
+            <small class="text-muted">
+                <strong>Всего файлов:</strong> ${selectedFiles.length} 
+                <strong>Общий размер:</strong> ${totalSizeMB} MB
+            </small>
+        `;
+        filesContainer.appendChild(totalInfo);
+        
+        selectedFilesList.style.display = 'block';
+        clearFilesBtn.style.display = 'inline-block';
+    }
+    
+    function removeFile(index) {
+        selectedFiles.splice(index, 1);
+        
+        // Обновляем input файлов
+        const dt = new DataTransfer();
+        selectedFiles.forEach(file => dt.items.add(file));
+        fileInput.files = dt.files;
+        
+        displaySelectedFiles();
+        updateUploadButton();
+        clearErrors();
+    }
+    
+    function clearFiles() {
+        selectedFiles = [];
+        fileInput.value = '';
+        selectedFilesList.style.display = 'none';
+        clearFilesBtn.style.display = 'none';
+        updateUploadButton();
+        clearErrors();
+    }
+    
+    function updateUploadButton() {
+        uploadBtn.disabled = selectedFiles.length === 0;
+    }
+    
+    function uploadFiles() {
+        // Показываем прогресс
+        uploadProgress.style.display = 'block';
+        uploadBtn.disabled = true;
+        clearFilesBtn.disabled = true;
+        
+        // Создаем FormData с файлами
+        const formData = new FormData();
+        formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+        
+        selectedFiles.forEach(file => {
+            formData.append('offer_files', file);
+        });
+        
+        // Симулируем прогресс загрузки
+        let progress = 0;
+        const progressInterval = setInterval(() => {
+            progress += Math.random() * 15;
+            if (progress > 90) progress = 90;
+            
+            updateProgress(progress, 'Загрузка файлов...');
+        }, 200);
+        
+        // Отправляем запрос
+        fetch(uploadForm.action, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => {
+            clearInterval(progressInterval);
+            
+            if (response.ok) {
+                updateProgress(100, 'Загрузка завершена!');
+                
+                // Проверяем, является ли ответ JSON (ошибка) или редирект (успех)
+                const contentType = response.headers.get('content-type');
+                if (contentType && contentType.includes('application/json')) {
+                    return response.json().then(data => {
+                        throw new Error(data.error || 'Ошибка обработки файлов');
+                    });
+                } else {
+                    // Успешная загрузка - перенаправляем
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                }
+            } else {
+                return response.json().then(data => {
+                    throw new Error(data.error || `Ошибка сервера: ${response.status}`);
+                });
+            }
+        })
+        .catch(error => {
+            clearInterval(progressInterval);
+            console.error('Upload error:', error);
+            
+            hideProgress();
+            showError([error.message || 'Произошла ошибка при загрузке файлов']);
+            
+            // Восстанавливаем кнопки
+            uploadBtn.disabled = false;
+            clearFilesBtn.disabled = false;
+        });
+    }
+    
+    function updateProgress(percent, text) {
+        progressBar.style.width = percent + '%';
+        progressBar.setAttribute('aria-valuenow', percent);
+        progressBar.textContent = Math.round(percent) + '%';
+        progressText.textContent = text;
+    }
+    
+    function hideProgress() {
+        uploadProgress.style.display = 'none';
+    }
+    
+    function showError(errors) {
+        errorList.innerHTML = '';
+        errors.forEach(error => {
+            const li = document.createElement('li');
+            li.textContent = error;
+            errorList.appendChild(li);
+        });
+        uploadErrors.style.display = 'block';
+    }
+    
+    function clearErrors() {
+        uploadErrors.style.display = 'none';
+        errorList.innerHTML = '';
+    }
+    
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+    // Глобальная функция для удаления файлов (вызывается из HTML)
+    window.removeFile = removeFile;
+});
+</script>
 {% endblock %}

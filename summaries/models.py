@@ -53,16 +53,30 @@ class InsuranceSummary(models.Model):
         return f"Свод по заявке #{self.request.id} - {self.request.client_name}"
     
     def calculate_best_offer(self):
-        """Вычисляет лучшее предложение"""
+        """Вычисляет лучшее предложение с учетом многолетних данных"""
         offers = self.offers.filter(is_valid=True)
         if offers.exists():
-            best_offer = offers.order_by('insurance_premium').first()
-            self.best_premium = best_offer.insurance_premium
-            self.best_company = best_offer.company_name
+            # Для многолетних предложений ищем лучшее по эффективной премии с франшизой
+            best_offer = min(offers, key=lambda x: x.effective_premium_with_franchise or float('inf'))
+            self.best_premium = best_offer.effective_premium_with_franchise or best_offer.insurance_premium
+            self.best_company = f"{best_offer.company_name} ({best_offer.insurance_year})"
             self.total_offers = offers.count()
             self.save()
             return best_offer
         return None
+    
+    def get_offers_by_year(self, year='1 год'):
+        """Получает предложения для конкретного года страхования"""
+        return self.offers.filter(insurance_year=year, is_valid=True)
+    
+    def get_companies_with_years(self):
+        """Возвращает словарь компаний с их предложениями по годам"""
+        companies = {}
+        for offer in self.offers.filter(is_valid=True):
+            if offer.company_name not in companies:
+                companies[offer.company_name] = {}
+            companies[offer.company_name][offer.insurance_year] = offer
+        return companies
 
 
 class InsuranceOffer(models.Model):
@@ -78,12 +92,48 @@ class InsuranceOffer(models.Model):
     
     # Информация о компании
     company_name = models.CharField(max_length=255, verbose_name='Название компании')
-    company_email = models.EmailField(verbose_name='Email компании')
+    company_email = models.EmailField(blank=True, verbose_name='Email компании')
     
     # Данные предложения
     received_at = models.DateTimeField(auto_now_add=True, verbose_name='Дата получения')
     insurance_sum = models.DecimalField(max_digits=15, decimal_places=2, verbose_name='Страховая сумма')
     insurance_premium = models.DecimalField(max_digits=15, decimal_places=2, verbose_name='Страховая премия')
+    
+    # Новые поля для многолетних предложений
+    insurance_year = models.CharField(
+        max_length=10, 
+        default='1 год',
+        verbose_name='Год страхования',
+        help_text='Например: "1 год", "2 год", "3 год"'
+    )
+    yearly_premium_with_franchise = models.DecimalField(
+        max_digits=15, 
+        decimal_places=2, 
+        null=True, 
+        blank=True,
+        verbose_name='Премия с франшизой'
+    )
+    yearly_premium_without_franchise = models.DecimalField(
+        max_digits=15, 
+        decimal_places=2,
+        null=True, 
+        blank=True, 
+        verbose_name='Премия без франшизы'
+    )
+    franchise_amount_variant1 = models.DecimalField(
+        max_digits=15, 
+        decimal_places=2,
+        null=True, 
+        blank=True,
+        verbose_name='Франшиза (вариант 1)'
+    )
+    franchise_amount_variant2 = models.DecimalField(
+        max_digits=15, 
+        decimal_places=2,
+        null=True, 
+        blank=True,
+        verbose_name='Франшиза (вариант 2)'
+    )
     
     # Дополнительные условия
     franchise_amount = models.DecimalField(
@@ -116,10 +166,10 @@ class InsuranceOffer(models.Model):
         verbose_name = 'Предложение страховщика'
         verbose_name_plural = 'Предложения страховщиков'
         ordering = ['insurance_premium', '-received_at']
-        unique_together = ['summary', 'company_name']  # Одно предложение от компании
+        unique_together = ['summary', 'company_name', 'insurance_year']  # Одно предложение от компании на год
     
     def __str__(self):
-        return f"{self.company_name}: {self.insurance_premium} ₽"
+        return f"{self.company_name} ({self.insurance_year}): {self.insurance_premium} ₽"
     
     @property
     def premium_per_month(self):
@@ -127,6 +177,29 @@ class InsuranceOffer(models.Model):
         if self.installment_available and self.installment_months:
             return self.insurance_premium / self.installment_months
         return self.insurance_premium
+    
+    @property
+    def effective_premium_with_franchise(self):
+        """Эффективная премия с франшизой (приоритет новым полям)"""
+        return self.yearly_premium_with_franchise or self.insurance_premium
+    
+    @property
+    def effective_premium_without_franchise(self):
+        """Эффективная премия без франшизы"""
+        return self.yearly_premium_without_franchise or self.insurance_premium
+    
+    @property
+    def effective_franchise_amount(self):
+        """Эффективная франшиза (приоритет variant1, затем старое поле)"""
+        return self.franchise_amount_variant1 or self.franchise_amount
+    
+    def get_year_number(self):
+        """Извлекает номер года из строки insurance_year"""
+        try:
+            # Извлекаем число из строки типа "1 год", "2 год", "3 год"
+            return int(self.insurance_year.split()[0])
+        except (ValueError, IndexError):
+            return 1  # По умолчанию первый год
 
 
 class SummaryTemplate(models.Model):
