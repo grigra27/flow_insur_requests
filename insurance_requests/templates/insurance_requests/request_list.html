@@ -156,7 +156,7 @@
                 <tr>
                     <th scope="col">Заявка</th>
                     <th scope="col">Клиент</th>
-                    <th scope="col">Период</th>
+                    <th scope="col">Тип страхования</th>
                     <th scope="col">Филиал</th>
                     <th scope="col">Статус</th>
                     <th scope="col">Дата создания</th>
@@ -172,8 +172,9 @@
                         </td>
                         <td>{{ request.client_name }}</td>
                         <td>
-                            <i class="bi bi-clock text-muted"></i>
-                            {{ request.insurance_period|default:"Не указан" }}
+                            <i class="bi bi-shield-check text-muted"></i>
+                            <span class="d-none d-lg-inline">{{ request.get_insurance_type_display|default:"Не указан" }}</span>
+                            <span class="d-lg-none">{{ request.get_insurance_type_display|default:"Не указан"|truncatechars:15 }}</span>
                         </td>
                         <td>
                             <i class="bi bi-building text-muted"></i>
