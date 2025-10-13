@@ -19,7 +19,7 @@
             <div class="col-md-6 col-lg-4 mb-4">
                 <div class="card h-100">
                     <div class="card-header d-flex justify-content-between align-items-center">
-                        <h6 class="mb-0">Свод #{{ summary.id }}</h6>
+                        <h6 class="mb-0">Свод к {{ summary.request.get_display_name }}</h6>
                         <span class="badge bg-{% if summary.status == 'completed' %}success{% elif summary.status == 'sent' %}info{% elif summary.status == 'ready' %}warning{% else %}secondary{% endif %}">
                             {{ summary.get_status_display }}
                         </span>
@@ -29,18 +29,12 @@
                         <p class="card-text">
                             <small class="text-muted">
                                 <i class="bi bi-calendar"></i> {% timezone "Europe/Moscow" %}{{ summary.created_at|date:"d.m.Y H:i" }}{% endtimezone %} (МСК)<br>
-                                <i class="bi bi-file-text"></i> Заявка #{{ summary.request.id }}<br>
+                                <i class="bi bi-file-text"></i> Заявка {{ summary.request.get_display_name }}<br>
                                 <i class="bi bi-building"></i> {{ summary.total_offers }} предложений
                             </small>
                         </p>
                         
-                        {% if summary.best_premium %}
-                            <div class="alert alert-success py-2">
-                                <strong>Лучшее предложение:</strong><br>
-                                {{ summary.best_company }}<br>
-                                <span class="h6">{{ summary.best_premium|floatformat:2 }} ₽</span>
-                            </div>
-                        {% endif %}
+
                     </div>
                     <div class="card-footer">
                         <a href="{% url 'summaries:summary_detail' summary.pk %}" class="btn btn-outline-primary btn-sm">

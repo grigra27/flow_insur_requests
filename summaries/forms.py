@@ -10,35 +10,65 @@ from decimal import Decimal
 class OfferForm(forms.ModelForm):
     """Форма для добавления/редактирования предложения от страховщика"""
     
+    # Переопределяем поле payments_per_year как необязательное
+    payments_per_year = forms.IntegerField(
+        required=False,
+        widget=forms.Select(
+            choices=[(1, '1 (годовой платеж)'), (2, '2 (полугодовые)'), (3, '3 (по 4 месяца)'), (4, '4 (квартальные)'), (12, '12 (ежемесячные)')],
+            attrs={'class': 'form-select'}
+        )
+    )
+    
     class Meta:
         model = InsuranceOffer
         fields = [
-            'company_name', 'company_email', 'insurance_sum', 'insurance_premium',
-            'franchise_amount', 'installment_available', 'installment_months',
-            'valid_until', 'notes', 'attachment_file'
+            'company_name', 'insurance_year', 'insurance_sum',
+            'franchise_1', 'premium_with_franchise_1',
+            'franchise_2', 'premium_with_franchise_2',
+            'installment_available', 'payments_per_year',
+            'notes', 'attachment_file'
         ]
         widgets = {
             'company_name': forms.TextInput(attrs={'class': 'form-control'}),
-            'company_email': forms.EmailInput(attrs={'class': 'form-control'}),
-            'insurance_sum': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
-            'insurance_premium': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
-            'franchise_amount': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
-            'installment_available': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-            'installment_months': forms.NumberInput(attrs={'class': 'form-control', 'min': '1', 'max': '60'}),
-            'valid_until': forms.DateTimeInput(attrs={
+            'insurance_year': forms.NumberInput(attrs={
                 'class': 'form-control',
-                'type': 'datetime-local'
+                'min': '1',
+                'max': '10',
+                'placeholder': 'Введите номер года (1, 2, 3...)'
             }),
+            'insurance_sum': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+            'franchise_1': forms.NumberInput(attrs={
+                'class': 'form-control', 
+                'step': '0.01',
+                'placeholder': 'Обычно 0 (без франшизы)',
+                'value': '0'
+            }),
+            'premium_with_franchise_1': forms.NumberInput(attrs={
+                'class': 'form-control', 
+                'step': '0.01',
+                'placeholder': 'Премия с франшизой-1'
+            }),
+            'franchise_2': forms.NumberInput(attrs={
+                'class': 'form-control', 
+                'step': '0.01',
+                'placeholder': 'Обычно больше 0'
+            }),
+            'premium_with_franchise_2': forms.NumberInput(attrs={
+                'class': 'form-control', 
+                'step': '0.01',
+                'placeholder': 'Премия с франшизой-2'
+            }),
+            'installment_available': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
             'attachment_file': forms.FileInput(attrs={'class': 'form-control'}),
         }
     
-    def clean_insurance_premium(self):
-        """Валидация страховой премии"""
-        premium = self.cleaned_data.get('insurance_premium')
-        if premium and premium <= 0:
-            raise ValidationError('Страховая премия должна быть больше нуля')
-        return premium
+    def clean_insurance_year(self):
+        """Валидация года страхования"""
+        year = self.cleaned_data.get('insurance_year')
+        if year and (year < 1 or year > 10):
+            raise ValidationError('Год страхования должен быть от 1 до 10')
+        return year
     
     def clean_insurance_sum(self):
         """Валидация страховой суммы"""
@@ -47,25 +77,80 @@ class OfferForm(forms.ModelForm):
             raise ValidationError('Страховая сумма должна быть больше нуля')
         return sum_amount
     
+    def clean_franchise_1(self):
+        """Валидация франшизы-1"""
+        franchise = self.cleaned_data.get('franchise_1')
+        if franchise is not None and franchise < 0:
+            raise ValidationError('Размер франшизы не может быть отрицательным')
+        return franchise
+    
+    def clean_franchise_2(self):
+        """Валидация франшизы-2"""
+        franchise = self.cleaned_data.get('franchise_2')
+        if franchise is not None and franchise < 0:
+            raise ValidationError('Размер франшизы не может быть отрицательным')
+        return franchise
+    
+    def clean_premium_with_franchise_1(self):
+        """Валидация премии с франшизой-1"""
+        premium = self.cleaned_data.get('premium_with_franchise_1')
+        if premium is not None and premium <= 0:
+            raise ValidationError('Премия с франшизой-1 должна быть больше нуля')
+        return premium
+    
+    def clean_premium_with_franchise_2(self):
+        """Валидация премии с франшизой-2"""
+        premium = self.cleaned_data.get('premium_with_franchise_2')
+        if premium is not None and premium <= 0:
+            raise ValidationError('Премия с франшизой-2 должна быть больше нуля')
+        return premium
+    
+    def clean_payments_per_year(self):
+        """Валидация количества платежей в год"""
+        payments = self.cleaned_data.get('payments_per_year')
+        installment_available = self.cleaned_data.get('installment_available')
+        
+        # Если рассрочка недоступна, автоматически устанавливаем 1 платеж в год
+        if not installment_available:
+            return 1
+        
+        # Если рассрочка доступна, проверяем валидность значения
+        valid_payments = [1, 2, 3, 4, 12]
+        if payments and payments not in valid_payments:
+            raise ValidationError(f'Количество платежей должно быть одним из: {", ".join(map(str, valid_payments))}')
+        
+        # Если payments не указано, но рассрочка доступна, устанавливаем по умолчанию 1
+        return payments or 1
+    
     def clean(self):
         """Дополнительная валидация формы"""
         cleaned_data = super().clean()
-        premium = cleaned_data.get('insurance_premium')
         sum_amount = cleaned_data.get('insurance_sum')
         
-        # Проверяем, что премия не больше страховой суммы
-        if premium and sum_amount and premium > sum_amount:
-            raise ValidationError('Страховая премия не может быть больше страховой суммы')
+        # Валидация франшизных вариантов
+        franchise_1 = cleaned_data.get('franchise_1')
+        franchise_2 = cleaned_data.get('franchise_2')
+        premium_1 = cleaned_data.get('premium_with_franchise_1')
+        premium_2 = cleaned_data.get('premium_with_franchise_2')
+        
+        # Проверяем, что указана хотя бы одна премия
+        if premium_1 is None and premium_2 is None:
+            raise ValidationError('Укажите хотя бы одну премию (с франшизой-1 или франшизой-2)')
+        
+        # Проверяем премии относительно страховой суммы
+        if premium_1 and sum_amount and premium_1 > sum_amount:
+            raise ValidationError('Премия с франшизой-1 не может быть больше страховой суммы')
+        
+        if premium_2 and sum_amount and premium_2 > sum_amount:
+            raise ValidationError('Премия с франшизой-2 не может быть больше страховой суммы')
         
         # Проверяем рассрочку
         installment_available = cleaned_data.get('installment_available')
-        installment_months = cleaned_data.get('installment_months')
+        payments_per_year = cleaned_data.get('payments_per_year')
         
-        if installment_available and not installment_months:
-            raise ValidationError('Укажите количество месяцев для рассрочки')
-        
-        if not installment_available and installment_months:
-            cleaned_data['installment_months'] = None
+        if not installment_available and payments_per_year != 1:
+            # Если рассрочка не доступна, устанавливаем 1 платеж в год
+            cleaned_data['payments_per_year'] = 1
         
         return cleaned_data
 
@@ -75,11 +160,149 @@ class SummaryForm(forms.ModelForm):
     
     class Meta:
         model = InsuranceSummary
-        fields = ['client_email', 'status']
+        fields = ['status']
         widgets = {
-            'client_email': forms.EmailInput(attrs={'class': 'form-control'}),
             'status': forms.Select(attrs={'class': 'form-select'}),
         }
+
+
+class AddOfferToSummaryForm(forms.ModelForm):
+    """Форма для добавления предложения к существующему своду (без загрузки файла)"""
+    
+    # Переопределяем поле payments_per_year как необязательное
+    payments_per_year = forms.IntegerField(
+        required=False,
+        widget=forms.Select(
+            choices=[(1, '1 (годовой платеж)'), (2, '2 (полугодовые)'), (3, '3 (по 4 месяца)'), (4, '4 (квартальные)'), (12, '12 (ежемесячные)')],
+            attrs={'class': 'form-select'}
+        )
+    )
+    
+    class Meta:
+        model = InsuranceOffer
+        fields = [
+            'company_name', 'insurance_year', 'insurance_sum',
+            'franchise_1', 'premium_with_franchise_1',
+            'franchise_2', 'premium_with_franchise_2',
+            'installment_available', 'payments_per_year', 'notes'
+        ]
+        widgets = {
+            'company_name': forms.TextInput(attrs={'class': 'form-control'}),
+            'insurance_year': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'min': '1',
+                'max': '10',
+                'placeholder': 'Введите номер года (1, 2, 3...)',
+                'value': '1'
+            }),
+            'insurance_sum': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+            'franchise_1': forms.NumberInput(attrs={
+                'class': 'form-control', 
+                'step': '0.01',
+                'placeholder': 'Обычно 0 (без франшизы)',
+                'value': '0'
+            }),
+            'premium_with_franchise_1': forms.NumberInput(attrs={
+                'class': 'form-control', 
+                'step': '0.01',
+                'placeholder': 'Премия с франшизой-1'
+            }),
+            'franchise_2': forms.NumberInput(attrs={
+                'class': 'form-control', 
+                'step': '0.01',
+                'placeholder': 'Обычно больше 0'
+            }),
+            'premium_with_franchise_2': forms.NumberInput(attrs={
+                'class': 'form-control', 
+                'step': '0.01',
+                'placeholder': 'Премия с франшизой-2'
+            }),
+            'installment_available': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+        }
+    
+    def clean_insurance_year(self):
+        """Валидация года страхования"""
+        year = self.cleaned_data.get('insurance_year')
+        if year and (year < 1 or year > 10):
+            raise ValidationError('Год страхования должен быть от 1 до 10')
+        return year
+    
+    def clean_insurance_sum(self):
+        """Валидация страховой суммы"""
+        sum_amount = self.cleaned_data.get('insurance_sum')
+        if sum_amount and sum_amount <= 0:
+            raise ValidationError('Страховая сумма должна быть больше нуля')
+        return sum_amount
+    
+    def clean_franchise_1(self):
+        """Валидация франшизы-1"""
+        franchise = self.cleaned_data.get('franchise_1')
+        if franchise is not None and franchise < 0:
+            raise ValidationError('Размер франшизы не может быть отрицательным')
+        return franchise
+    
+    def clean_franchise_2(self):
+        """Валидация франшизы-2"""
+        franchise = self.cleaned_data.get('franchise_2')
+        if franchise is not None and franchise < 0:
+            raise ValidationError('Размер франшизы не может быть отрицательным')
+        return franchise
+    
+    def clean_premium_with_franchise_1(self):
+        """Валидация премии с франшизой-1"""
+        premium = self.cleaned_data.get('premium_with_franchise_1')
+        if premium is not None and premium <= 0:
+            raise ValidationError('Премия с франшизой-1 должна быть больше нуля')
+        return premium
+    
+    def clean_premium_with_franchise_2(self):
+        """Валидация премии с франшизой-2"""
+        premium = self.cleaned_data.get('premium_with_franchise_2')
+        if premium is not None and premium <= 0:
+            raise ValidationError('Премия с франшизой-2 должна быть больше нуля')
+        return premium
+    
+    def clean_payments_per_year(self):
+        """Валидация количества платежей в год"""
+        payments = self.cleaned_data.get('payments_per_year')
+        installment_available = self.cleaned_data.get('installment_available')
+        
+        # Если рассрочка недоступна, автоматически устанавливаем 1 платеж в год
+        if not installment_available:
+            return 1
+        
+        # Если рассрочка доступна, проверяем валидность значения
+        valid_payments = [1, 2, 3, 4, 12]
+        if payments and payments not in valid_payments:
+            raise ValidationError(f'Количество платежей должно быть одним из: {", ".join(map(str, valid_payments))}')
+        
+        # Если payments не указано, но рассрочка доступна, устанавливаем по умолчанию 1
+        return payments or 1
+    
+    def clean(self):
+        """Дополнительная валидация формы"""
+        cleaned_data = super().clean()
+        sum_amount = cleaned_data.get('insurance_sum')
+        
+        # Валидация франшизных вариантов
+        franchise_1 = cleaned_data.get('franchise_1')
+        franchise_2 = cleaned_data.get('franchise_2')
+        premium_1 = cleaned_data.get('premium_with_franchise_1')
+        premium_2 = cleaned_data.get('premium_with_franchise_2')
+        
+        # Проверяем, что указана хотя бы одна премия
+        if premium_1 is None and premium_2 is None:
+            raise ValidationError('Укажите хотя бы одну премию (с франшизой-1 или франшизой-2)')
+        
+        # Проверяем премии относительно страховой суммы
+        if premium_1 and sum_amount and premium_1 > sum_amount:
+            raise ValidationError('Премия с франшизой-1 не может быть больше страховой суммы')
+        
+        if premium_2 and sum_amount and premium_2 > sum_amount:
+            raise ValidationError('Премия с франшизой-2 не может быть больше страховой суммы')
+        
+        return cleaned_data
 
 
 class BulkOfferUploadForm(forms.Form):

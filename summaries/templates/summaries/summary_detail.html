@@ -1,11 +1,12 @@
 {% extends 'base.html' %}
 {% load tz %}
+{% load summary_extras %}
 
-{% block title %}Свод #{{ summary.id }} - {{ block.super }}{% endblock %}
+{% block title %}Свод к {{ summary.request.get_display_name }} - {{ block.super }}{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h1><i class="bi bi-collection"></i> Свод #{{ summary.id }}</h1>
+    <h1><i class="bi bi-collection"></i> Свод к {{ summary.request.get_display_name }}</h1>
     <div>
         {% if summary.status == 'collecting' %}
             <a href="{% url 'summaries:add_offer' summary.pk %}" class="btn btn-success">
@@ -47,18 +48,15 @@
                             <dd class="col-sm-7">{{ summary.request.insurance_type }}</dd>
                             
                             <dt class="col-sm-5">Срок:</dt>
-                            <dd class="col-sm-7">{{ summary.request.insurance_period }} мес.</dd>
+                            <dd class="col-sm-7">{{ summary.request.insurance_period }}</dd>
                         </dl>
                     </div>
                     <div class="col-md-6">
                         <dl class="row">
                             <dt class="col-sm-5">Заявка:</dt>
                             <dd class="col-sm-7">
-                                <a href="{% url 'insurance_requests:request_detail' summary.request.pk %}">#{{ summary.request.id }}</a>
+                                <a href="{% url 'insurance_requests:request_detail' summary.request.pk %}">{{ summary.request.get_display_name }}</a>
                             </dd>
-                            
-                            <dt class="col-sm-5">Email клиента:</dt>
-                            <dd class="col-sm-7">{{ summary.client_email|default:"Не указан" }}</dd>
                             
                             <dt class="col-sm-5">Создан:</dt>
                             <dd class="col-sm-7">{% timezone "Europe/Moscow" %}{{ summary.created_at|date:"d.m.Y H:i" }}{% endtimezone %} (МСК)</dd>
@@ -85,74 +83,96 @@
             </div>
             <div class="card-body">
                 {% if offers %}
-                    <div class="table-responsive">
-                        <table class="table table-hover">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>Компания</th>
-                                    <th>Страховая сумма</th>
-                                    <th>Премия</th>
-                                    <th>Франшиза</th>
-                                    <th>Рассрочка</th>
-                                    <th>Действия</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for offer in offers %}
-                                    <tr {% if offer.company_name == summary.best_company %}class="table-success"{% endif %}>
-                                        <td>
-                                            <strong>{{ offer.company_name }}</strong>
-                                            {% if offer.company_name == summary.best_company %}
-                                                <span class="badge bg-success ms-2">Лучшее</span>
-                                            {% endif %}
-                                            <br>
-                                            <small class="text-muted">{{ offer.company_email }}</small>
-                                        </td>
-                                        <td>{{ offer.insurance_sum|floatformat:2 }} ₽</td>
-                                        <td>
-                                            <strong>{{ offer.insurance_premium|floatformat:2 }} ₽</strong>
-                                            {% if offer.installment_available %}
-                                                <br><small class="text-muted">{{ offer.premium_per_month|floatformat:2 }} ₽/мес</small>
-                                            {% endif %}
-                                        </td>
-                                        <td>
-                                            {% if offer.franchise_amount %}
-                                                {{ offer.franchise_amount|floatformat:2 }} ₽
-                                            {% else %}
-                                                <span class="text-muted">Нет</span>
-                                            {% endif %}
-                                        </td>
-                                        <td>
-                                            {% if offer.installment_available %}
-                                                <span class="badge bg-info">{{ offer.installment_months }} мес.</span>
-                                            {% else %}
-                                                <span class="text-muted">Нет</span>
-                                            {% endif %}
-                                        </td>
-                                        <td>
-                                            <div class="btn-group btn-group-sm">
-                                                <a href="{% url 'summaries:edit_offer' offer.pk %}" class="btn btn-outline-primary">
-                                                    <i class="bi bi-pencil"></i>
-                                                </a>
-                                                <button class="btn btn-outline-danger" onclick="deleteOffer({{ offer.id }})">
-                                                    <i class="bi bi-trash"></i>
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                    {% if offer.notes %}
-                                        <tr>
-                                            <td colspan="6">
-                                                <small class="text-muted">
-                                                    <i class="bi bi-chat-text"></i> {{ offer.notes }}
-                                                </small>
-                                            </td>
-                                        </tr>
-                                    {% endif %}
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
+                    <!-- Company-based grouping -->
+                    {% for company_name in sorted_companies %}
+                        {% with company_offers=companies_with_offers|lookup:company_name %}
+                            <div class="company-block mb-4">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h5 class="mb-0">
+                                        <i class="bi bi-building"></i> {{ company_name }}
+                                        <span class="badge bg-primary ms-2">{{ company_offers|length }} предложени{{ company_offers|length|pluralize:"е,я,й" }}</span>
+                                    </h5>
+                                </div>
+                                
+                                <div class="table-responsive">
+                                    <table class="table table-hover table-sm">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th style="width: 10%;">Год</th>
+                                                <th style="width: 15%;">Страховая сумма</th>
+                                                <th style="width: 12%;">Франшиза-1</th>
+                                                <th style="width: 15%;">Премия-1</th>
+                                                <th style="width: 12%;">Франшиза-2</th>
+                                                <th style="width: 15%;">Премия-2</th>
+                                                <th style="width: 21%;">Действия</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for offer in company_offers %}
+                                                <tr>
+                                                    <td data-label="Год">
+                                                        <strong>{{ offer.get_insurance_year_display }}</strong>
+                                                    </td>
+                                                    <td data-label="Страховая сумма">
+                                                        <strong>{{ offer.insurance_sum|floatformat:0 }} ₽</strong>
+                                                    </td>
+                                                    <td data-label="Франшиза-1">
+                                                        <span class="text-primary">{{ offer.franchise_1|floatformat:0 }} ₽</span>
+                                                    </td>
+                                                    <td data-label="Премия-1">
+                                                        <strong class="text-success">{{ offer.premium_with_franchise_1|floatformat:0 }} ₽</strong>
+                                                        {% if offer.installment_available and offer.payments_per_year > 1 %}
+                                                            <br><small class="text-muted">{{ offer.premium_with_franchise_1|floatformat:0|div:offer.payments_per_year }} ₽ за платеж</small>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td data-label="Франшиза-2">
+                                                        {% if offer.franchise_2 %}
+                                                            <span class="text-warning">{{ offer.franchise_2|floatformat:0 }} ₽</span>
+                                                        {% else %}
+                                                            <span class="text-muted">—</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td data-label="Премия-2">
+                                                        {% if offer.premium_with_franchise_2 %}
+                                                            <strong class="text-info">{{ offer.premium_with_franchise_2|floatformat:0 }} ₽</strong>
+                                                        {% else %}
+                                                            <span class="text-muted">—</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td data-label="Действия">
+                                                        <div class="btn-group btn-group-sm">
+                                                            <a href="{% url 'summaries:edit_offer' offer.pk %}" 
+                                                               class="btn btn-outline-primary btn-sm" 
+                                                               title="Редактировать">
+                                                                <i class="bi bi-pencil"></i>
+                                                            </a>
+                                                            <button class="btn btn-outline-danger btn-sm" 
+                                                                    onclick="deleteOffer({{ offer.id }})"
+                                                                    title="Удалить">
+                                                                <i class="bi bi-trash"></i>
+                                                            </button>
+                                                        </div>
+                                                        {% if offer.installment_available and offer.payments_per_year > 1 %}
+                                                            <br><span class="badge bg-info mt-1" style="font-size: 0.7em;">{{ offer.payments_per_year }} платеж{{ offer.payments_per_year|pluralize:"ей,а,ей" }}/год</span>
+                                                        {% endif %}
+                                                    </td>
+                                                </tr>
+                                                {% if offer.notes %}
+                                                    <tr>
+                                                        <td colspan="7">
+                                                            <small class="text-muted">
+                                                                <i class="bi bi-chat-text"></i> {{ offer.notes }}
+                                                            </small>
+                                                        </td>
+                                                    </tr>
+                                                {% endif %}
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        {% endwith %}
+                    {% endfor %}
                 {% else %}
                     <div class="text-center py-4">
                         <i class="bi bi-inbox display-4 text-muted"></i>
@@ -175,28 +195,34 @@
             </div>
             <div class="card-body">
                 <dl class="row">
-                    <dt class="col-6">Предложений:</dt>
+                    <dt class="col-6">Всего предложений:</dt>
                     <dd class="col-6">{{ summary.total_offers }}</dd>
                     
-                    {% if summary.best_premium %}
-                        <dt class="col-6">Лучшая премия:</dt>
+                    {% if sorted_companies %}
+                        <dt class="col-6">Компаний:</dt>
                         <dd class="col-6">
-                            <strong class="text-success">{{ summary.best_premium|floatformat:2 }} ₽</strong>
+                            <span class="badge bg-primary">{{ sorted_companies|length }}</span>
                         </dd>
                         
-                        <dt class="col-6">Лучшая компания:</dt>
-                        <dd class="col-6">{{ summary.best_company }}</dd>
+                        <dt class="col-6">По компаниям:</dt>
+                        <dd class="col-6">
+                            {% for company_name in sorted_companies %}
+                                <span class="badge bg-secondary me-1 mb-1">{{ company_name }}: {{ companies_with_offers|lookup:company_name|length }}</span>
+                                {% if not forloop.last %}<br>{% endif %}
+                            {% endfor %}
+                        </dd>
                     {% endif %}
                     
-                    {% if offers %}
-                        {% with offers|first as max_offer %}
-                        {% with offers|last as min_offer %}
-                            <dt class="col-6">Разброс цен:</dt>
-                            <dd class="col-6">
-                                {{ min_offer.insurance_premium|floatformat:2 }} - {{ max_offer.insurance_premium|floatformat:2 }} ₽
-                            </dd>
-                        {% endwith %}
-                        {% endwith %}
+
+                    
+                    {% if offers.count > 1 %}
+                        <dt class="col-6">Разброс цен:</dt>
+                        <dd class="col-6">
+                            {% for offer in offers %}
+                                {% if forloop.first %}{{ offer.effective_premium_with_franchise|floatformat:0 }}{% endif %}
+                                {% if forloop.last and not forloop.first %} - {{ offer.effective_premium_with_franchise|floatformat:0 }}{% endif %}
+                            {% endfor %} ₽
+                        </dd>
                     {% endif %}
                 </dl>
                 
@@ -245,8 +271,264 @@
 </div>
 {% endblock %}
 
+{% block extra_css %}
+<style>
+.company-block {
+    border: 1px solid #e9ecef;
+    border-radius: 0.375rem;
+    padding: 1rem;
+    background-color: #f8f9fa;
+    margin-bottom: 1.5rem;
+}
+
+.company-block h5 {
+    color: #495057;
+    border-bottom: 2px solid #dee2e6;
+    padding-bottom: 0.5rem;
+}
+
+.company-block .table {
+    background-color: white;
+    margin-bottom: 0;
+}
+
+.company-block .table th {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #495057;
+    border-top: none;
+}
+
+.company-block .table td {
+    font-size: 0.875rem;
+    vertical-align: middle;
+}
+
+/* Responsive design for mobile */
+@media (max-width: 768px) {
+    .company-block .table-responsive {
+        font-size: 0.8rem;
+    }
+    
+    .company-block .table th,
+    .company-block .table td {
+        padding: 0.5rem 0.25rem;
+        font-size: 0.75rem;
+    }
+    
+    .company-block .btn-group-sm .btn {
+        padding: 0.25rem 0.4rem;
+        font-size: 0.7rem;
+    }
+    
+    .company-block .badge {
+        font-size: 0.6em;
+    }
+}
+
+@media (max-width: 576px) {
+    .company-block {
+        padding: 0.5rem;
+    }
+    
+    .company-block h5 {
+        font-size: 1rem;
+    }
+    
+    /* Stack table content vertically on very small screens */
+    .company-block .table-responsive {
+        border: none;
+    }
+    
+    .company-block .table,
+    .company-block .table thead,
+    .company-block .table tbody,
+    .company-block .table th,
+    .company-block .table td,
+    .company-block .table tr {
+        display: block;
+    }
+    
+    .company-block .table thead tr {
+        position: absolute;
+        top: -9999px;
+        left: -9999px;
+    }
+    
+    .company-block .table tr {
+        border: 1px solid #ccc;
+        margin-bottom: 10px;
+        padding: 10px;
+        border-radius: 5px;
+        background-color: white;
+    }
+    
+    .company-block .table td {
+        border: none;
+        position: relative;
+        padding-left: 50% !important;
+        text-align: left;
+        white-space: nowrap;
+    }
+    
+    .company-block .table td:before {
+        content: attr(data-label) ": ";
+        position: absolute;
+        left: 6px;
+        width: 45%;
+        padding-right: 10px;
+        white-space: nowrap;
+        font-weight: bold;
+        color: #495057;
+    }
+}
+
+/* Color coding for franchise variants */
+.text-primary { color: #0d6efd !important; }
+.text-warning { color: #fd7e14 !important; }
+.text-success { color: #198754 !important; }
+.text-info { color: #0dcaf0 !important; }
+</style>
+{% endblock %}
+
 {% block extra_js %}
 <script>
+// Функции для форматирования данных
+function formatCurrency(amount) {
+    if (!amount || isNaN(amount)) return '—';
+    return new Intl.NumberFormat('ru-RU', {
+        style: 'currency',
+        currency: 'RUB',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0
+    }).format(amount);
+}
+
+function formatNumber(number) {
+    if (!number || isNaN(number)) return '—';
+    return new Intl.NumberFormat('ru-RU').format(number);
+}
+
+function formatPaymentsInfo(paymentsPerYear, premium) {
+    if (!paymentsPerYear || paymentsPerYear <= 1) return '';
+    
+    const paymentAmount = premium / paymentsPerYear;
+    const paymentText = paymentsPerYear === 2 ? 'платежа' : 
+                       paymentsPerYear <= 4 ? 'платежа' : 'платежей';
+    
+    return `${formatCurrency(paymentAmount)} за платеж (${paymentsPerYear} ${paymentText}/год)`;
+}
+
+// Функция для обновления отображения данных в реальном времени
+function updateOfferDisplay() {
+    const offerRows = document.querySelectorAll('tbody tr');
+    
+    offerRows.forEach(row => {
+        // Обновляем форматирование валютных полей
+        const currencyFields = row.querySelectorAll('[data-currency]');
+        currencyFields.forEach(field => {
+            const amount = parseFloat(field.dataset.currency);
+            if (!isNaN(amount)) {
+                field.textContent = formatCurrency(amount);
+            }
+        });
+        
+        // Обновляем информацию о рассрочке
+        const paymentsInfo = row.querySelector('.payments-info');
+        if (paymentsInfo) {
+            const paymentsPerYear = parseInt(paymentsInfo.dataset.payments);
+            const premium = parseFloat(paymentsInfo.dataset.premium);
+            
+            if (paymentsPerYear > 1 && premium) {
+                paymentsInfo.innerHTML = `<small class="text-muted">${formatPaymentsInfo(paymentsPerYear, premium)}</small>`;
+            }
+        }
+    });
+}
+
+// Функция для выделения лучших предложений
+
+
+// Функция для добавления интерактивности к таблицам
+function enhanceTableInteractivity() {
+    const offerRows = document.querySelectorAll('tbody tr');
+    
+    offerRows.forEach(row => {
+        // Добавляем hover эффект
+        row.addEventListener('mouseenter', function() {
+            this.style.backgroundColor = '#f8f9fa';
+            this.style.transition = 'background-color 0.2s ease';
+        });
+        
+        row.addEventListener('mouseleave', function() {
+            this.style.backgroundColor = '';
+        });
+        
+        // Добавляем клик для показа деталей
+        row.addEventListener('click', function(e) {
+            // Не обрабатываем клики по кнопкам
+            if (e.target.closest('button') || e.target.closest('a')) return;
+            
+            const notesRow = this.nextElementSibling;
+            if (notesRow && notesRow.querySelector('td[colspan]')) {
+                // Переключаем видимость примечаний
+                if (notesRow.style.display === 'none') {
+                    notesRow.style.display = '';
+                    this.classList.add('table-info');
+                } else {
+                    notesRow.style.display = 'none';
+                    this.classList.remove('table-info');
+                }
+            }
+        });
+    });
+}
+
+// Функция для проверки совместимости браузера
+function checkBrowserCompatibility() {
+    const features = {
+        fetch: typeof fetch !== 'undefined',
+        intl: typeof Intl !== 'undefined',
+        arrow: (() => { try { eval('() => {}'); return true; } catch(e) { return false; } })(),
+        const: (() => { try { eval('const x = 1'); return true; } catch(e) { return false; } })()
+    };
+    
+    const unsupported = Object.keys(features).filter(key => !features[key]);
+    
+    if (unsupported.length > 0) {
+        console.warn('Некоторые функции могут не работать в вашем браузере:', unsupported);
+        
+        // Показываем предупреждение для старых браузеров
+        if (unsupported.includes('fetch') || unsupported.includes('arrow')) {
+            const warning = document.createElement('div');
+            warning.className = 'alert alert-warning alert-dismissible fade show';
+            warning.innerHTML = `
+                <i class="bi bi-exclamation-triangle"></i>
+                <strong>Внимание!</strong> Ваш браузер устарел. Некоторые функции могут работать некорректно.
+                Рекомендуем обновить браузер для лучшей работы.
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            document.querySelector('.container-fluid, .container, body').prepend(warning);
+        }
+    }
+    
+    return features;
+}
+
+// Инициализация при загрузке страницы
+document.addEventListener('DOMContentLoaded', function() {
+    checkBrowserCompatibility();
+    updateOfferDisplay();
+    enhanceTableInteractivity();
+    
+    // Обновляем отображение каждые 30 секунд (если страница активна)
+    setInterval(() => {
+        if (!document.hidden) {
+            updateOfferDisplay();
+        }
+    }, 30000);
+});
+
 function sendToClient(summaryId) {
     if (confirm('Отправить свод клиенту?')) {
         fetch(`/summaries/${summaryId}/send-to-client/`, {
@@ -268,7 +550,25 @@ function sendToClient(summaryId) {
 }
 
 function deleteOffer(offerId) {
-    if (confirm('Удалить это предложение?')) {
+    // Получаем информацию о предложении из DOM
+    const offerRow = event.target.closest('tr');
+    const yearCell = offerRow.querySelector('td[data-label="Год"] strong');
+    const companyBlock = offerRow.closest('.company-block');
+    const companyTitle = companyBlock.querySelector('h5').textContent.trim().split(' ')[1]; // Извлекаем название компании
+    
+    // Извлекаем год из текста (например, "1 год" -> "1")
+    const yearText = yearCell ? yearCell.textContent.trim() : 'неизвестный год';
+    
+    // Создаем более информативное подтверждение
+    const confirmMessage = `Вы действительно хотите удалить предложение от "${companyTitle}" (${yearText})?\n\nЭто действие нельзя отменить.`;
+    
+    if (confirm(confirmMessage)) {
+        // Показываем индикатор загрузки
+        const deleteButton = event.target.closest('button');
+        const originalContent = deleteButton.innerHTML;
+        deleteButton.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+        deleteButton.disabled = true;
+        
         fetch(`/summaries/offer/${offerId}/delete/`, {
             method: 'POST',
             headers: {
@@ -278,12 +578,73 @@ function deleteOffer(offerId) {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                location.reload();
+                // Показываем уведомление об успехе
+                showSuccessMessage(data.message || 'Предложение успешно удалено');
+                
+                // Анимируем удаление строки
+                offerRow.style.transition = 'opacity 0.5s ease-out';
+                offerRow.style.opacity = '0';
+                
+                // Перезагружаем страницу через небольшую задержку
+                setTimeout(() => {
+                    location.reload();
+                }, 1000);
             } else {
-                alert('Ошибка: ' + data.error);
+                // Восстанавливаем кнопку
+                deleteButton.innerHTML = originalContent;
+                deleteButton.disabled = false;
+                
+                // Показываем ошибку
+                showErrorMessage('Ошибка при удалении: ' + data.error);
             }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            
+            // Восстанавливаем кнопку
+            deleteButton.innerHTML = originalContent;
+            deleteButton.disabled = false;
+            
+            showErrorMessage('Произошла ошибка при удалении предложения');
         });
     }
+}
+
+// Функции для показа уведомлений
+function showSuccessMessage(message) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = 'alert alert-success alert-dismissible fade show position-fixed';
+    alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    alertDiv.innerHTML = `
+        <i class="bi bi-check-circle"></i> ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    `;
+    document.body.appendChild(alertDiv);
+    
+    // Автоматически удаляем через 3 секунды
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.parentNode.removeChild(alertDiv);
+        }
+    }, 3000);
+}
+
+function showErrorMessage(message) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = 'alert alert-danger alert-dismissible fade show position-fixed';
+    alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    alertDiv.innerHTML = `
+        <i class="bi bi-exclamation-triangle"></i> ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    `;
+    document.body.appendChild(alertDiv);
+    
+    // Автоматически удаляем через 5 секунд
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.parentNode.removeChild(alertDiv);
+        }
+    }, 5000);
 }
 
 function generateSummaryFile(summaryId) {

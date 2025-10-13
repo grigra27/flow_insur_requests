@@ -175,7 +175,7 @@ class RequestAttachment(models.Model):
         verbose_name_plural = 'Вложения'
     
     def __str__(self):
-        return f"{self.original_filename} (Заявка #{self.request.id})"
+        return f"{self.original_filename} (Заявка {self.request.get_display_name()})"
 
 
 class InsuranceResponse(models.Model):

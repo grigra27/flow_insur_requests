@@ -407,7 +407,7 @@ def upload_excel(request):
                     # Улучшенное сообщение об успехе с информацией о формате
                     app_type_display = "заявка от ИП" if application_type == 'individual_entrepreneur' else "заявка от юр.лица"
                     format_display = "КАСКО/спецтехника" if application_format == 'casco_equipment' else "имущество"
-                    success_message = f'Заявка #{insurance_request.id} успешно создана из файла "{excel_file.name}" формата "{format_display}" типа "{app_type_display}"'
+                    success_message = f'Заявка {insurance_request.get_display_name()} успешно создана из файла "{excel_file.name}" формата "{format_display}" типа "{app_type_display}"'
                     messages.success(request, success_message)
                     
                     # Дополнительное логирование для диагностики
@@ -534,7 +534,7 @@ def edit_request(request, pk):
                 type_display = updated_request.additional_data.get('application_type_display', 'неизвестно')
                 format_info = f" (формат: {format_display}, тип: {type_display})"
             
-            success_message = f'Заявка #{pk} успешно обновлена{format_info}'
+            success_message = f'Заявка {insurance_request.get_display_name()} успешно обновлена{format_info}'
             messages.success(request, success_message)
             logger.info(f"Request {pk} updated by user {request.user.username}{format_info} | {format_context}")
             return redirect('insurance_requests:request_detail', pk=pk)
