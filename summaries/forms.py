@@ -527,9 +527,41 @@ class SummaryFilterForm(forms.Form):
     
     STATUS_CHOICES = [('', 'Все статусы')] + InsuranceSummary.STATUS_CHOICES
     
+    # Месяцы для выбора
+    MONTH_CHOICES = [('', 'Все месяцы')] + [
+        (1, 'Январь'), (2, 'Февраль'), (3, 'Март'), (4, 'Апрель'),
+        (5, 'Май'), (6, 'Июнь'), (7, 'Июль'), (8, 'Август'),
+        (9, 'Сентябрь'), (10, 'Октябрь'), (11, 'Ноябрь'), (12, 'Декабрь')
+    ]
+    
     status = forms.ChoiceField(
         choices=STATUS_CHOICES,
         required=False,
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    
+    # Новое поле для фильтрации по номеру ДФА
+    dfa_number = forms.CharField(
+        required=False,
+        label='Номер ДФА',
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Введите номер ДФА'
+        })
+    )
+    
+    # Новое поле для фильтрации по месяцу
+    month = forms.ChoiceField(
+        choices=MONTH_CHOICES,
+        required=False,
+        label='Месяц создания',
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    
+    # Новое поле для фильтрации по году
+    year = forms.ChoiceField(
+        required=False,
+        label='Год создания',
         widget=forms.Select(attrs={'class': 'form-select'})
     )
     
@@ -556,6 +588,85 @@ class SummaryFilterForm(forms.Form):
             'placeholder': 'Поиск по имени клиента'
         })
     )
+    
+    # Новое поле для фильтрации по филиалам (управляется через вкладки)
+    branch = forms.CharField(
+        required=False,
+        label='Филиал',
+        widget=forms.HiddenInput()  # Скрытое поле, управляется через вкладки
+    )
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        
+        # Динамически генерируем список годов на основе существующих сводов
+        from datetime import datetime
+        current_year = datetime.now().year
+        
+        # Создаем список годов от текущего года до 5 лет назад
+        year_choices = [('', 'Все годы')]
+        for year in range(current_year, current_year - 6, -1):
+            year_choices.append((year, str(year)))
+        
+        self.fields['year'].choices = year_choices
+    
+    def clean_dfa_number(self):
+        """Валидация номера ДФА"""
+        dfa_number = self.cleaned_data.get('dfa_number')
+        if dfa_number:
+            # Убираем лишние пробелы
+            dfa_number = dfa_number.strip()
+            # Проверяем, что номер не пустой после очистки
+            if not dfa_number:
+                return None
+        return dfa_number
+    
+    def clean_month(self):
+        """Валидация месяца"""
+        month = self.cleaned_data.get('month')
+        if month:
+            try:
+                month_int = int(month)
+                if month_int < 1 or month_int > 12:
+                    raise forms.ValidationError('Месяц должен быть от 1 до 12')
+                return month_int
+            except (ValueError, TypeError):
+                raise forms.ValidationError('Некорректный формат месяца')
+        return None
+    
+    def clean_year(self):
+        """Валидация года"""
+        year = self.cleaned_data.get('year')
+        if year:
+            try:
+                year_int = int(year)
+                from datetime import datetime
+                current_year = datetime.now().year
+                if year_int < 2020 or year_int > current_year + 1:
+                    raise forms.ValidationError(f'Год должен быть от 2020 до {current_year + 1}')
+                return year_int
+            except (ValueError, TypeError):
+                raise forms.ValidationError('Некорректный формат года')
+        return None
+    
+    def clean(self):
+        """Дополнительная валидация формы"""
+        cleaned_data = super().clean()
+        date_from = cleaned_data.get('date_from')
+        date_to = cleaned_data.get('date_to')
+        month = cleaned_data.get('month')
+        year = cleaned_data.get('year')
+        
+        # Проверяем, что date_from не больше date_to
+        if date_from and date_to and date_from > date_to:
+            raise forms.ValidationError('Дата "от" не может быть больше даты "до"')
+        
+        # Если указан месяц, но не указан год, используем текущий год
+        if month and not year:
+            from datetime import datetime
+            cleaned_data['year'] = datetime.now().year
+        
+        return cleaned_data
 
 
 class CompanyOfferSearchForm(forms.Form):

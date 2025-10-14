@@ -16,7 +16,7 @@
         {% endif %}
         {% if summary.status == 'ready' %}
             <button class="btn btn-primary" onclick="sendToClient({{ summary.id }})">
-                <i class="bi bi-send"></i> Отправить клиенту
+                <i class="bi bi-send"></i> Отправить в Альянс
             </button>
         {% endif %}
         <a href="{% url 'summaries:summary_list' %}" class="btn btn-secondary">
@@ -44,6 +44,9 @@
                             
                             <dt class="col-sm-5">ИНН:</dt>
                             <dd class="col-sm-7">{{ summary.request.inn }}</dd>
+                            
+                            <dt class="col-sm-5">Филиал:</dt>
+                            <dd class="col-sm-7">{{ summary.branch|format_branch }}</dd>
                             
                             <dt class="col-sm-5">Тип страхования:</dt>
                             <dd class="col-sm-7">{{ summary.request.insurance_type }}</dd>
@@ -96,7 +99,7 @@
                                 
                                 <div class="table-responsive">
                                     <table class="table table-hover table-sm">
-                                        <thead class="table-light">
+                                        <thead class="custom-table-header">
                                             <tr>
                                                 <th style="width: 10%;">Год</th>
                                                 <th style="width: 15%;">Страховая сумма</th>
@@ -201,9 +204,6 @@
             </div>
             <div class="card-body">
                 <dl class="row">
-                    <dt class="col-6">Всего предложений:</dt>
-                    <dd class="col-6">{{ sorted_companies|length }}</dd>
-                    
                     {% if sorted_companies %}
                         <dt class="col-6">Компаний:</dt>
                         <dd class="col-6">
@@ -213,7 +213,7 @@
                         <dt class="col-6">По компаниям:</dt>
                         <dd class="col-6">
                             {% for company_name in sorted_companies %}
-                                <span class="badge bg-secondary me-1 mb-1">{{ company_name }}: {{ companies_with_offers|lookup:company_name|length }}</span>
+                                <span class="badge bg-secondary me-1 mb-1">{{ company_name }}</span>
                                 {% if not forloop.last %}<br>{% endif %}
                             {% endfor %}
                         </dd>
@@ -264,7 +264,7 @@
                         <select id="status-select" class="form-select">
                             <option value="collecting" {% if summary.status == 'collecting' %}selected{% endif %}>Сбор предложений</option>
                             <option value="ready" {% if summary.status == 'ready' %}selected{% endif %}>Готов к отправке</option>
-                            <option value="sent" {% if summary.status == 'sent' %}selected{% endif %}>Отправлен клиенту</option>
+                            <option value="sent" {% if summary.status == 'sent' %}selected{% endif %}>Отправлен в Альянс</option>
                             <option value="completed" {% if summary.status == 'completed' %}selected{% endif %}>Завершен</option>
                         </select>
                         <button type="button" class="btn btn-primary" onclick="changeStatus({{ summary.id }})">
@@ -285,7 +285,7 @@
                 {% if summary.status == 'sent' %}
                     <div class="alert alert-info">
                         <i class="bi bi-info-circle"></i>
-                        Свод отправлен клиенту {% timezone "Europe/Moscow" %}{{ summary.sent_to_client_at|date:"d.m.Y в H:i" }}{% endtimezone %} (МСК)
+                        Свод отправлен в Альянс {% timezone "Europe/Moscow" %}{{ summary.sent_to_client_at|date:"d.m.Y в H:i" }}{% endtimezone %} (МСК)
                     </div>
                 {% endif %}
             </div>
@@ -297,10 +297,10 @@
 {% block extra_css %}
 <style>
 .company-block {
-    border: 1px solid #e9ecef;
-    border-radius: 0.375rem;
-    padding: 1rem;
-    background-color: #f8f9fa;
+    border: 1px solid #f0ebe3;
+    border-radius: 8px;
+    padding: 1.25rem;
+    background: linear-gradient(145deg, #fafaf8 0%, #f5f3f0 100%);
     margin-bottom: 1.5rem;
 }
 
@@ -311,20 +311,50 @@
 }
 
 .company-block .table {
-    background-color: white;
+    background-color: #fefefe;
     margin-bottom: 0;
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid #f0ebe3;
+}
+
+.custom-table-header th {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #4a4a4a;
+    border-top: none;
+    background-color: #f4f4f2;
+    border-bottom: 1px solid #e0e0de;
+    position: relative;
+    letter-spacing: 0.3px;
+}
+
+.custom-table-header th:first-child {
+    border-top-left-radius: 6px;
+}
+
+.custom-table-header th:last-child {
+    border-top-right-radius: 6px;
 }
 
 .company-block .table th {
     font-size: 0.875rem;
     font-weight: 600;
-    color: #495057;
+    color: #5a5a5a;
     border-top: none;
 }
 
 .company-block .table td {
     font-size: 0.875rem;
     vertical-align: middle;
+}
+
+.company-block .table tbody tr {
+    background-color: #fcfcfa;
+}
+
+.company-block .table tbody tr:nth-child(even) {
+    background-color: #f9f8f5;
 }
 
 /* Responsive design for mobile */
@@ -936,7 +966,7 @@ function changeStatus(summaryId) {
 function quickStatusChange(summaryId, newStatus) {
     const confirmMessages = {
         'ready': 'Отметить свод как готовый к отправке?',
-        'sent': 'Отметить свод как отправленный клиенту?',
+        'sent': 'Отметить свод как отправленный в Альянс?',
         'completed': 'Отметить свод как завершенный?'
     };
     

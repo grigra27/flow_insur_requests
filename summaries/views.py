@@ -21,12 +21,24 @@ def summary_list(request):
     """Список всех сводов с фильтрацией и сортировкой"""
     from .forms import SummaryFilterForm
     
-    # Получаем базовый queryset
-    summaries = InsuranceSummary.objects.select_related('request').prefetch_related('offers')
+    # Получаем базовый queryset с оптимизацией запросов
+    summaries = InsuranceSummary.objects.select_related('request')
+    
+    # Получаем список доступных филиалов из сводов
+    available_branches = summaries.values_list('request__branch', flat=True).distinct().exclude(
+        request__branch__isnull=True
+    ).exclude(request__branch='').order_by('request__branch')
     
     # Применяем фильтры
     filter_form = SummaryFilterForm(request.GET)
+    current_branch = request.GET.get('branch')
+    
     if filter_form.is_valid():
+        # Фильтрация по филиалу
+        if current_branch:
+            summaries = summaries.filter(request__branch=current_branch)
+        
+        # Существующие фильтры
         if filter_form.cleaned_data.get('status'):
             summaries = summaries.filter(status=filter_form.cleaned_data['status'])
         
@@ -40,6 +52,88 @@ def summary_list(request):
             summaries = summaries.filter(
                 request__client_name__icontains=filter_form.cleaned_data['client_name']
             )
+        
+        # Новые фильтры согласно требованиям 3.1, 3.2, 3.3
+        
+        # Фильтрация по номеру ДФА (требование 3.2)
+        if filter_form.cleaned_data.get('dfa_number'):
+            summaries = summaries.filter(
+                request__dfa_number__icontains=filter_form.cleaned_data['dfa_number']
+            )
+        
+        # Фильтрация по месяцу создания свода (требование 3.3)
+        if filter_form.cleaned_data.get('month'):
+            summaries = summaries.filter(created_at__month=filter_form.cleaned_data['month'])
+        
+        # Фильтрация по году создания свода (требование 3.3)
+        if filter_form.cleaned_data.get('year'):
+            summaries = summaries.filter(created_at__year=filter_form.cleaned_data['year'])
+    
+    # Подсчет количества сводов для каждого филиала
+    branch_counts = {}
+    if available_branches:
+        for branch in available_branches:
+            # Применяем те же фильтры, что и для основного queryset, но без фильтра по филиалу
+            branch_summaries = InsuranceSummary.objects.select_related('request').filter(request__branch=branch)
+            
+            # Применяем остальные фильтры для корректного подсчета
+            if filter_form.is_valid():
+                if filter_form.cleaned_data.get('status'):
+                    branch_summaries = branch_summaries.filter(status=filter_form.cleaned_data['status'])
+                
+                if filter_form.cleaned_data.get('date_from'):
+                    branch_summaries = branch_summaries.filter(created_at__date__gte=filter_form.cleaned_data['date_from'])
+                
+                if filter_form.cleaned_data.get('date_to'):
+                    branch_summaries = branch_summaries.filter(created_at__date__lte=filter_form.cleaned_data['date_to'])
+                
+                if filter_form.cleaned_data.get('client_name'):
+                    branch_summaries = branch_summaries.filter(
+                        request__client_name__icontains=filter_form.cleaned_data['client_name']
+                    )
+                
+                if filter_form.cleaned_data.get('dfa_number'):
+                    branch_summaries = branch_summaries.filter(
+                        request__dfa_number__icontains=filter_form.cleaned_data['dfa_number']
+                    )
+                
+                if filter_form.cleaned_data.get('month'):
+                    branch_summaries = branch_summaries.filter(created_at__month=filter_form.cleaned_data['month'])
+                
+                if filter_form.cleaned_data.get('year'):
+                    branch_summaries = branch_summaries.filter(created_at__year=filter_form.cleaned_data['year'])
+            
+            branch_counts[branch] = branch_summaries.count()
+    
+    # Подсчет общего количества сводов (с учетом всех фильтров кроме филиала)
+    total_summaries_queryset = InsuranceSummary.objects.select_related('request')
+    if filter_form.is_valid():
+        if filter_form.cleaned_data.get('status'):
+            total_summaries_queryset = total_summaries_queryset.filter(status=filter_form.cleaned_data['status'])
+        
+        if filter_form.cleaned_data.get('date_from'):
+            total_summaries_queryset = total_summaries_queryset.filter(created_at__date__gte=filter_form.cleaned_data['date_from'])
+        
+        if filter_form.cleaned_data.get('date_to'):
+            total_summaries_queryset = total_summaries_queryset.filter(created_at__date__lte=filter_form.cleaned_data['date_to'])
+        
+        if filter_form.cleaned_data.get('client_name'):
+            total_summaries_queryset = total_summaries_queryset.filter(
+                request__client_name__icontains=filter_form.cleaned_data['client_name']
+            )
+        
+        if filter_form.cleaned_data.get('dfa_number'):
+            total_summaries_queryset = total_summaries_queryset.filter(
+                request__dfa_number__icontains=filter_form.cleaned_data['dfa_number']
+            )
+        
+        if filter_form.cleaned_data.get('month'):
+            total_summaries_queryset = total_summaries_queryset.filter(created_at__month=filter_form.cleaned_data['month'])
+        
+        if filter_form.cleaned_data.get('year'):
+            total_summaries_queryset = total_summaries_queryset.filter(created_at__year=filter_form.cleaned_data['year'])
+    
+    total_summaries_count = total_summaries_queryset.count()
     
     # Сортировка по умолчанию
     sort_by = request.GET.get('sort', '-created_at')
@@ -49,11 +143,14 @@ def summary_list(request):
     else:
         summaries = summaries.order_by('-created_at')
     
-
-    
+    # Обновляем контекст шаблона для передачи информации о филиале (требование 3.4)
     return render(request, 'summaries/summary_list.html', {
         'summaries': summaries,
         'filter_form': filter_form,
+        'available_branches': available_branches,
+        'branch_counts': branch_counts,
+        'current_branch': current_branch,
+        'total_summaries_count': total_summaries_count,
         'current_sort': sort_by
     })
 
@@ -61,7 +158,10 @@ def summary_list(request):
 @user_required
 def summary_detail(request, pk):
     """Детальная информация о своде"""
-    summary = get_object_or_404(InsuranceSummary, pk=pk)
+    summary = get_object_or_404(
+        InsuranceSummary.objects.select_related('request').prefetch_related('offers'), 
+        pk=pk
+    )
     
     # Получаем предложения с правильной сортировкой по новой структуре
     offers = summary.offers.filter(is_valid=True).order_by('company_name', 'insurance_year')
@@ -94,14 +194,56 @@ def summary_detail(request, pk):
 
 @user_required
 def create_summary(request, request_id):
-    """Создание свода для заявки"""
+    """
+    Создание свода для заявки с улучшенной обработкой ошибок и проверками доступа.
+    
+    Требования: 1.2, 1.3, 1.4
+    """
     insurance_request = get_object_or_404(InsuranceRequest, pk=request_id)
     
-    # Проверяем, нет ли уже свода для этой заявки
+    # Дополнительные проверки прав доступа (требование 1.2)
+    if not request.user.is_authenticated:
+        messages.error(request, 'Необходимо войти в систему для создания свода')
+        return redirect('insurance_requests:login')
+    
+    # Проверяем права пользователя на создание сводов
+    from insurance_requests.decorators import has_user_access
+    if not has_user_access(request.user):
+        messages.error(request, 'У вас недостаточно прав для создания сводов')
+        return redirect('insurance_requests:request_detail', pk=request_id)
+    
+    # Проверяем, можно ли создать свод для этой заявки (требование 1.2)
     if hasattr(insurance_request, 'summary'):
-        messages.info(request, 'Свод для этой заявки уже существует')
+        messages.info(request, f'Свод для заявки {insurance_request.get_display_name()} уже существует')
         return redirect('summaries:summary_detail', pk=insurance_request.summary.pk)
     
+    # Проверяем статус заявки - можно создавать свод только для определенных статусов
+    allowed_statuses = ['uploaded', 'email_generated', 'email_sent', 'response_received']
+    if insurance_request.status not in allowed_statuses:
+        messages.error(request, 
+                      f'Нельзя создать свод для заявки со статусом "{insurance_request.get_status_display()}". '
+                      f'Свод можно создать только для заявок со статусами: '
+                      f'{", ".join([dict(insurance_request.STATUS_CHOICES).get(s, s) for s in allowed_statuses])}')
+        return redirect('insurance_requests:request_detail', pk=request_id)
+    
+    # Проверяем обязательные поля заявки
+    validation_errors = []
+    if not insurance_request.client_name or not insurance_request.client_name.strip():
+        validation_errors.append('Не указано имя клиента')
+    
+    if not insurance_request.inn or not insurance_request.inn.strip():
+        validation_errors.append('Не указан ИНН клиента')
+    
+    if not insurance_request.insurance_type:
+        validation_errors.append('Не указан тип страхования')
+    
+    if validation_errors:
+        messages.error(request, 
+                      f'Невозможно создать свод: {"; ".join(validation_errors)}. '
+                      'Пожалуйста, дополните информацию в заявке.')
+        return redirect('insurance_requests:request_detail', pk=request_id)
+    
+    # Создание свода с улучшенной обработкой ошибок (требование 1.3)
     try:
         with transaction.atomic():
             # Создаем свод
@@ -110,16 +252,46 @@ def create_summary(request, request_id):
                 status='collecting'
             )
             
-            # Обновляем статус заявки
-            insurance_request.status = 'email_sent'  # Предполагаем, что письма уже отправлены
-            insurance_request.save()
+            # Обновляем статус заявки, если необходимо
+            if insurance_request.status == 'uploaded':
+                insurance_request.status = 'email_generated'
+                insurance_request.save(update_fields=['status', 'updated_at'])
             
-            messages.success(request, f'Свод к {insurance_request.get_display_name()} создан')
+            logger.info(f"Summary created successfully for request {request_id} by user {request.user.username}")
+            
+            # Улучшенное сообщение об успехе (требование 1.3)
+            messages.success(request, 
+                           f'Свод предложений для заявки {insurance_request.get_display_name()} '
+                           f'({insurance_request.client_name}) успешно создан')
+            
+            # Корректное перенаправление после создания свода (требование 1.4)
             return redirect('summaries:summary_detail', pk=summary.pk)
             
     except Exception as e:
-        logger.error(f"Error creating summary for request {request_id}: {str(e)}")
-        messages.error(request, f'Ошибка при создании свода: {str(e)}')
+        # Улучшенная обработка ошибок (требование 1.3)
+        error_message = str(e)
+        logger.error(f"Error creating summary for request {request_id} by user {request.user.username}: {error_message}", 
+                    exc_info=True)
+        
+        # Более информативные сообщения об ошибках для пользователя
+        if 'UNIQUE constraint failed' in error_message or 'duplicate key' in error_message.lower():
+            messages.error(request, 
+                          f'Свод для заявки {insurance_request.get_display_name()} уже существует. '
+                          'Обновите страницу и попробуйте снова.')
+        elif 'permission' in error_message.lower() or 'access' in error_message.lower():
+            messages.error(request, 
+                          'Недостаточно прав для создания свода. '
+                          'Обратитесь к администратору системы.')
+        elif 'database' in error_message.lower() or 'connection' in error_message.lower():
+            messages.error(request, 
+                          'Временная ошибка базы данных. '
+                          'Пожалуйста, попробуйте создать свод через несколько минут.')
+        else:
+            messages.error(request, 
+                          f'Произошла ошибка при создании свода: {error_message}. '
+                          'Если ошибка повторяется, обратитесь к администратору.')
+        
+        # Корректное перенаправление при ошибке (требование 1.4)
         return redirect('insurance_requests:request_detail', pk=request_id)
 
 
@@ -223,7 +395,7 @@ def send_summary_to_client(request, summary_id):
         summary.sent_to_client_at = timezone.now()
         summary.save()
         
-        return JsonResponse({'success': True, 'message': 'Свод отправлен клиенту'})
+        return JsonResponse({'success': True, 'message': 'Свод отправлен в Альянс'})
         
     except Exception as e:
         logger.error(f"Error sending summary {summary_id} to client: {str(e)}")
@@ -319,7 +491,7 @@ def change_summary_status(request, summary_id):
         old_status = summary.status
         summary.status = new_status
         
-        # Если статус изменен на "Отправлен клиенту", устанавливаем время отправки
+        # Если статус изменен на "Отправлен в Альянс", устанавливаем время отправки
         if new_status == 'sent':
             from django.utils import timezone
             summary.sent_to_client_at = timezone.now()

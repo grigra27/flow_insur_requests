@@ -10,7 +10,7 @@ class InsuranceSummary(models.Model):
     STATUS_CHOICES = [
         ('collecting', 'Сбор предложений'),
         ('ready', 'Готов к отправке'),
-        ('sent', 'Отправлен клиенту'),
+        ('sent', 'Отправлен в Альянс'),
         ('completed', 'Завершен'),
     ]
     
@@ -49,7 +49,23 @@ class InsuranceSummary(models.Model):
     def __str__(self):
         return f"Свод к {self.request.get_display_name()} - {self.request.client_name}"
     
-
+    @property
+    def branch(self):
+        """Возвращает филиал из связанной заявки"""
+        return self.request.branch if self.request else None
+    
+    @property
+    def dfa_number(self):
+        """Возвращает номер ДФА из связанной заявки"""
+        return self.request.dfa_number if self.request else None
+    
+    def get_status_display(self):
+        """Переопределенное отображение статусов"""
+        # Get the display value from STATUS_CHOICES
+        for choice_value, choice_display in self.STATUS_CHOICES:
+            if choice_value == self.status:
+                return choice_display
+        return self.status
     
     def get_offers_by_year(self, year=1):
         """Получает предложения для конкретного года страхования"""
