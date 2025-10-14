@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load tz %}
+{% load summary_extras %}
 
 {% block title %}Своды предложений - {{ block.super }}{% endblock %}
 
@@ -14,41 +15,64 @@
 </div>
 
 {% if summaries %}
-    <div class="row">
-        {% for summary in summaries %}
-            <div class="col-md-6 col-lg-4 mb-4">
-                <div class="card h-100">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h6 class="mb-0">Свод к {{ summary.request.get_display_name }}</h6>
-                        <span class="badge bg-{% if summary.status == 'completed' %}success{% elif summary.status == 'sent' %}info{% elif summary.status == 'ready' %}warning{% else %}secondary{% endif %}">
+    <div class="table-responsive">
+        <table class="table table-hover">
+            <thead class="table-light">
+                <tr>
+                    <th>Номер заявки</th>
+                    <th>Клиент</th>
+                    <th>Дата создания</th>
+                    <th>Статус</th>
+                    <th>Компаний</th>
+                    <th>Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for summary in summaries %}
+                <tr onclick="window.location.href='{% url 'summaries:summary_detail' summary.pk %}'" style="cursor: pointer;" class="summary-row">
+                    <td>
+                        <strong>{{ summary.request.get_display_name }}</strong>
+                    </td>
+                    <td>
+                        <div class="text-truncate" style="max-width: 200px;" title="{{ summary.request.client_name }}">
+                            {{ summary.request.client_name }}
+                        </div>
+                    </td>
+                    <td>
+                        <small>
+                            {% timezone "Europe/Moscow" %}{{ summary.created_at|date:"d.m.Y H:i" }}{% endtimezone %}
+                        </small>
+                    </td>
+                    <td>
+                        <span class="badge bg-{{ summary.status|status_color }}">
                             {{ summary.get_status_display }}
                         </span>
-                    </div>
-                    <div class="card-body">
-                        <h6 class="card-title">{{ summary.request.client_name }}</h6>
-                        <p class="card-text">
-                            <small class="text-muted">
-                                <i class="bi bi-calendar"></i> {% timezone "Europe/Moscow" %}{{ summary.created_at|date:"d.m.Y H:i" }}{% endtimezone %} (МСК)<br>
-                                <i class="bi bi-file-text"></i> Заявка {{ summary.request.get_display_name }}<br>
-                                <i class="bi bi-building"></i> {{ summary.total_offers }} предложений
-                            </small>
-                        </p>
-                        
-
-                    </div>
-                    <div class="card-footer">
-                        <a href="{% url 'summaries:summary_detail' summary.pk %}" class="btn btn-outline-primary btn-sm">
-                            <i class="bi bi-eye"></i> Подробнее
-                        </a>
-                        {% if summary.status == 'collecting' %}
-                            <a href="{% url 'summaries:add_offer' summary.pk %}" class="btn btn-success btn-sm">
-                                <i class="bi bi-plus-circle"></i> Добавить предложение
+                    </td>
+                    <td>
+                        <span class="badge bg-light text-dark">
+                            {{ summary.get_unique_companies_count }}
+                        </span>
+                    </td>
+                    <td onclick="event.stopPropagation();">
+                        <div class="btn-group btn-group-sm" role="group">
+                            <a href="{% url 'summaries:summary_detail' summary.pk %}" 
+                               class="btn btn-outline-primary" 
+                               title="Подробнее">
+                                <i class="bi bi-eye"></i>
                             </a>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-        {% endfor %}
+                            {% if summary.status == 'collecting' %}
+                            <a href="{% url 'summaries:add_offer' summary.pk %}" 
+                               class="btn btn-outline-success" 
+                               title="Добавить предложение">
+                                <i class="bi bi-plus-circle"></i>
+                            </a>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
 {% else %}
     <div class="text-center py-5">
@@ -60,4 +84,43 @@
         </a>
     </div>
 {% endif %}
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .summary-row:hover {
+        background-color: rgba(0, 123, 255, 0.1);
+    }
+    
+    @media (max-width: 768px) {
+        .table-responsive table {
+            font-size: 0.875rem;
+        }
+        
+        .table-responsive th,
+        .table-responsive td {
+            padding: 0.5rem 0.25rem;
+        }
+        
+        .btn-group-sm .btn {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.75rem;
+        }
+        
+        .text-truncate {
+            max-width: 120px !important;
+        }
+    }
+    
+    @media (max-width: 576px) {
+        .table-responsive th:nth-child(3),
+        .table-responsive td:nth-child(3) {
+            display: none;
+        }
+        
+        .text-truncate {
+            max-width: 100px !important;
+        }
+    }
+</style>
 {% endblock %}

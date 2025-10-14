@@ -75,12 +75,20 @@ def summary_detail(request, pk):
     # Сортируем компании по алфавиту
     sorted_companies = sorted(companies_with_offers.keys())
     
+    # Получаем корректное количество уникальных компаний
+    unique_companies_count = summary.get_unique_companies_count()
+    
+    # Получаем данные о компаниях с количеством лет для отображения тегов
+    companies_with_year_counts = summary.get_companies_with_year_counts()
+    
     return render(request, 'summaries/summary_detail.html', {
         'summary': summary,
         'offers': offers,
         'companies_with_offers': companies_with_offers,
         'company_year_matrix': company_year_matrix,
-        'sorted_companies': sorted_companies
+        'sorted_companies': sorted_companies,
+        'unique_companies_count': unique_companies_count,
+        'companies_with_year_counts': companies_with_year_counts,
     })
 
 
@@ -133,9 +141,10 @@ def add_offer(request, summary_id):
                     offer.summary = summary
                     offer.save()
                     
-                    logger.info(f"Offer saved successfully: {offer.company_name} ({offer.get_insurance_year_display()}) for summary {summary_id}")
+                    # Обновляем счетчик предложений в своде
+                    summary.update_total_offers_count()
                     
-
+                    logger.info(f"Offer saved successfully: {offer.company_name} ({offer.get_insurance_year_display()}) for summary {summary_id}")
                     
                     # Если набралось достаточно предложений, меняем статус
                     if summary.total_offers >= 3:  # Например, минимум 3 предложения
@@ -270,7 +279,8 @@ def edit_offer(request, offer_id):
 def delete_offer(request, offer_id):
     """Удаление предложения"""
     offer = get_object_or_404(InsuranceOffer, pk=offer_id)
-    summary_id = offer.summary.pk
+    summary = offer.summary
+    summary_id = summary.pk
     company_name = offer.company_name
     insurance_year_display = offer.get_insurance_year_display()
     
@@ -279,13 +289,15 @@ def delete_offer(request, offer_id):
             # Удаляем предложение
             offer.delete()
             
-
+            # Обновляем счетчик предложений в своде
+            summary.update_total_offers_count()
             
             logger.info(f"Offer deleted: {company_name} ({insurance_year_display}) from summary {summary_id}")
             
             return JsonResponse({
                 'success': True, 
-                'message': f'Предложение от {company_name} ({insurance_year_display}) удалено'
+                'message': f'Предложение от {company_name} ({insurance_year_display}) удалено',
+                'new_companies_count': summary.get_unique_companies_count()
             })
         
     except Exception as e:
@@ -294,6 +306,39 @@ def delete_offer(request, offer_id):
             'success': False, 
             'error': f'Не удалось удалить предложение: {str(e)}'
         })
+
+
+@require_http_methods(["POST"])
+@user_required
+def change_summary_status(request, summary_id):
+    """Изменение статуса свода"""
+    summary = get_object_or_404(InsuranceSummary, pk=summary_id)
+    new_status = request.POST.get('status')
+    
+    if new_status in dict(InsuranceSummary.STATUS_CHOICES):
+        old_status = summary.status
+        summary.status = new_status
+        
+        # Если статус изменен на "Отправлен клиенту", устанавливаем время отправки
+        if new_status == 'sent':
+            from django.utils import timezone
+            summary.sent_to_client_at = timezone.now()
+        
+        summary.save()
+        
+        logger.info(f"Summary {summary_id} status changed from '{old_status}' to '{new_status}'")
+        
+        return JsonResponse({
+            'success': True, 
+            'message': f'Статус изменен на "{summary.get_status_display()}"',
+            'new_status': new_status,
+            'new_status_display': summary.get_status_display()
+        })
+    
+    return JsonResponse({
+        'success': False, 
+        'error': 'Недопустимый статус'
+    })
 
 
 @user_required

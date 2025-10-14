@@ -10,9 +10,28 @@ from decimal import Decimal
 class OfferForm(forms.ModelForm):
     """Форма для добавления/редактирования предложения от страховщика"""
     
-    # Переопределяем поле payments_per_year как необязательное
+    # Переопределяем поле payments_per_year как необязательное (для обратной совместимости)
     payments_per_year = forms.IntegerField(
         required=False,
+        widget=forms.Select(
+            choices=[(1, '1 (годовой платеж)'), (2, '2 (полугодовые)'), (3, '3 (по 4 месяца)'), (4, '4 (квартальные)'), (12, '12 (ежемесячные)')],
+            attrs={'class': 'form-select'}
+        )
+    )
+    
+    # Новые поля для рассрочки по вариантам премии
+    payments_per_year_variant_1 = forms.IntegerField(
+        required=False,
+        label='Количество платежей для варианта 1',
+        widget=forms.Select(
+            choices=[(1, '1 (годовой платеж)'), (2, '2 (полугодовые)'), (3, '3 (по 4 месяца)'), (4, '4 (квартальные)'), (12, '12 (ежемесячные)')],
+            attrs={'class': 'form-select'}
+        )
+    )
+    
+    payments_per_year_variant_2 = forms.IntegerField(
+        required=False,
+        label='Количество платежей для варианта 2',
         widget=forms.Select(
             choices=[(1, '1 (годовой платеж)'), (2, '2 (полугодовые)'), (3, '3 (по 4 месяца)'), (4, '4 (квартальные)'), (12, '12 (ежемесячные)')],
             attrs={'class': 'form-select'}
@@ -26,6 +45,8 @@ class OfferForm(forms.ModelForm):
             'franchise_1', 'premium_with_franchise_1',
             'franchise_2', 'premium_with_franchise_2',
             'installment_available', 'payments_per_year',
+            'installment_variant_1', 'payments_per_year_variant_1',
+            'installment_variant_2', 'payments_per_year_variant_2',
             'notes', 'attachment_file'
         ]
         widgets = {
@@ -59,6 +80,8 @@ class OfferForm(forms.ModelForm):
                 'placeholder': 'Премия с франшизой-2'
             }),
             'installment_available': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'installment_variant_1': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'installment_variant_2': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
             'attachment_file': forms.FileInput(attrs={'class': 'form-control'}),
         }
@@ -122,6 +145,40 @@ class OfferForm(forms.ModelForm):
         # Если payments не указано, но рассрочка доступна, устанавливаем по умолчанию 1
         return payments or 1
     
+    def clean_payments_per_year_variant_1(self):
+        """Валидация количества платежей в год для варианта 1"""
+        payments = self.cleaned_data.get('payments_per_year_variant_1')
+        installment_variant_1 = self.cleaned_data.get('installment_variant_1')
+        
+        # Если рассрочка для варианта 1 недоступна, устанавливаем 1 платеж в год
+        if not installment_variant_1:
+            return 1
+        
+        # Если рассрочка доступна, проверяем валидность значения
+        valid_payments = [1, 2, 3, 4, 12]
+        if payments and payments not in valid_payments:
+            raise ValidationError(f'Количество платежей для варианта 1 должно быть одним из: {", ".join(map(str, valid_payments))}')
+        
+        # Если payments не указано, но рассрочка доступна, устанавливаем по умолчанию 1
+        return payments or 1
+    
+    def clean_payments_per_year_variant_2(self):
+        """Валидация количества платежей в год для варианта 2"""
+        payments = self.cleaned_data.get('payments_per_year_variant_2')
+        installment_variant_2 = self.cleaned_data.get('installment_variant_2')
+        
+        # Если рассрочка для варианта 2 недоступна, устанавливаем 1 платеж в год
+        if not installment_variant_2:
+            return 1
+        
+        # Если рассрочка доступна, проверяем валидность значения
+        valid_payments = [1, 2, 3, 4, 12]
+        if payments and payments not in valid_payments:
+            raise ValidationError(f'Количество платежей для варианта 2 должно быть одним из: {", ".join(map(str, valid_payments))}')
+        
+        # Если payments не указано, но рассрочка доступна, устанавливаем по умолчанию 1
+        return payments or 1
+    
     def clean(self):
         """Дополнительная валидация формы"""
         cleaned_data = super().clean()
@@ -144,13 +201,33 @@ class OfferForm(forms.ModelForm):
         if premium_2 and sum_amount and premium_2 > sum_amount:
             raise ValidationError('Премия с франшизой-2 не может быть больше страховой суммы')
         
-        # Проверяем рассрочку
+        # Проверяем рассрочку (старые поля для обратной совместимости)
         installment_available = cleaned_data.get('installment_available')
         payments_per_year = cleaned_data.get('payments_per_year')
         
         if not installment_available and payments_per_year != 1:
             # Если рассрочка не доступна, устанавливаем 1 платеж в год
             cleaned_data['payments_per_year'] = 1
+        
+        # Проверяем новые поля рассрочки
+        installment_variant_1 = cleaned_data.get('installment_variant_1')
+        installment_variant_2 = cleaned_data.get('installment_variant_2')
+        payments_per_year_variant_1 = cleaned_data.get('payments_per_year_variant_1')
+        payments_per_year_variant_2 = cleaned_data.get('payments_per_year_variant_2')
+        
+        # Валидация рассрочки для варианта 1
+        if installment_variant_1 and not premium_1:
+            raise ValidationError('Нельзя включить рассрочку для варианта 1 без указания премии с франшизой-1')
+        
+        # Валидация рассрочки для варианта 2
+        if installment_variant_2 and not premium_2:
+            raise ValidationError('Нельзя включить рассрочку для варианта 2 без указания премии с франшизой-2')
+        
+        # Устанавливаем значения по умолчанию для полей рассрочки
+        if not installment_variant_1:
+            cleaned_data['payments_per_year_variant_1'] = 1
+        if not installment_variant_2:
+            cleaned_data['payments_per_year_variant_2'] = 1
         
         return cleaned_data
 
@@ -166,12 +243,61 @@ class SummaryForm(forms.ModelForm):
         }
 
 
+class SummaryStatusForm(forms.Form):
+    """Форма для управления статусом свода"""
+    
+    status = forms.ChoiceField(
+        choices=InsuranceSummary.STATUS_CHOICES,
+        widget=forms.Select(attrs={
+            'class': 'form-select',
+            'id': 'status-select'
+        }),
+        label='Статус свода'
+    )
+    
+    def __init__(self, *args, **kwargs):
+        current_status = kwargs.pop('current_status', None)
+        super().__init__(*args, **kwargs)
+        
+        if current_status:
+            self.fields['status'].initial = current_status
+    
+    def clean_status(self):
+        """Валидация статуса"""
+        status = self.cleaned_data.get('status')
+        valid_statuses = [choice[0] for choice in InsuranceSummary.STATUS_CHOICES]
+        
+        if status not in valid_statuses:
+            raise ValidationError('Недопустимый статус')
+        
+        return status
+
+
 class AddOfferToSummaryForm(forms.ModelForm):
     """Форма для добавления предложения к существующему своду (без загрузки файла)"""
     
-    # Переопределяем поле payments_per_year как необязательное
+    # Переопределяем поле payments_per_year как необязательное (для обратной совместимости)
     payments_per_year = forms.IntegerField(
         required=False,
+        widget=forms.Select(
+            choices=[(1, '1 (годовой платеж)'), (2, '2 (полугодовые)'), (3, '3 (по 4 месяца)'), (4, '4 (квартальные)'), (12, '12 (ежемесячные)')],
+            attrs={'class': 'form-select'}
+        )
+    )
+    
+    # Новые поля для рассрочки по вариантам премии
+    payments_per_year_variant_1 = forms.IntegerField(
+        required=False,
+        label='Количество платежей для варианта 1',
+        widget=forms.Select(
+            choices=[(1, '1 (годовой платеж)'), (2, '2 (полугодовые)'), (3, '3 (по 4 месяца)'), (4, '4 (квартальные)'), (12, '12 (ежемесячные)')],
+            attrs={'class': 'form-select'}
+        )
+    )
+    
+    payments_per_year_variant_2 = forms.IntegerField(
+        required=False,
+        label='Количество платежей для варианта 2',
         widget=forms.Select(
             choices=[(1, '1 (годовой платеж)'), (2, '2 (полугодовые)'), (3, '3 (по 4 месяца)'), (4, '4 (квартальные)'), (12, '12 (ежемесячные)')],
             attrs={'class': 'form-select'}
@@ -184,7 +310,10 @@ class AddOfferToSummaryForm(forms.ModelForm):
             'company_name', 'insurance_year', 'insurance_sum',
             'franchise_1', 'premium_with_franchise_1',
             'franchise_2', 'premium_with_franchise_2',
-            'installment_available', 'payments_per_year', 'notes'
+            'installment_available', 'payments_per_year',
+            'installment_variant_1', 'payments_per_year_variant_1',
+            'installment_variant_2', 'payments_per_year_variant_2',
+            'notes'
         ]
         widgets = {
             'company_name': forms.TextInput(attrs={'class': 'form-control'}),
@@ -218,6 +347,8 @@ class AddOfferToSummaryForm(forms.ModelForm):
                 'placeholder': 'Премия с франшизой-2'
             }),
             'installment_available': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'installment_variant_1': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'installment_variant_2': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
         }
     
@@ -280,6 +411,40 @@ class AddOfferToSummaryForm(forms.ModelForm):
         # Если payments не указано, но рассрочка доступна, устанавливаем по умолчанию 1
         return payments or 1
     
+    def clean_payments_per_year_variant_1(self):
+        """Валидация количества платежей в год для варианта 1"""
+        payments = self.cleaned_data.get('payments_per_year_variant_1')
+        installment_variant_1 = self.cleaned_data.get('installment_variant_1')
+        
+        # Если рассрочка для варианта 1 недоступна, устанавливаем 1 платеж в год
+        if not installment_variant_1:
+            return 1
+        
+        # Если рассрочка доступна, проверяем валидность значения
+        valid_payments = [1, 2, 3, 4, 12]
+        if payments and payments not in valid_payments:
+            raise ValidationError(f'Количество платежей для варианта 1 должно быть одним из: {", ".join(map(str, valid_payments))}')
+        
+        # Если payments не указано, но рассрочка доступна, устанавливаем по умолчанию 1
+        return payments or 1
+    
+    def clean_payments_per_year_variant_2(self):
+        """Валидация количества платежей в год для варианта 2"""
+        payments = self.cleaned_data.get('payments_per_year_variant_2')
+        installment_variant_2 = self.cleaned_data.get('installment_variant_2')
+        
+        # Если рассрочка для варианта 2 недоступна, устанавливаем 1 платеж в год
+        if not installment_variant_2:
+            return 1
+        
+        # Если рассрочка доступна, проверяем валидность значения
+        valid_payments = [1, 2, 3, 4, 12]
+        if payments and payments not in valid_payments:
+            raise ValidationError(f'Количество платежей для варианта 2 должно быть одним из: {", ".join(map(str, valid_payments))}')
+        
+        # Если payments не указано, но рассрочка доступна, устанавливаем по умолчанию 1
+        return payments or 1
+    
     def clean(self):
         """Дополнительная валидация формы"""
         cleaned_data = super().clean()
@@ -301,6 +466,26 @@ class AddOfferToSummaryForm(forms.ModelForm):
         
         if premium_2 and sum_amount and premium_2 > sum_amount:
             raise ValidationError('Премия с франшизой-2 не может быть больше страховой суммы')
+        
+        # Проверяем новые поля рассрочки
+        installment_variant_1 = cleaned_data.get('installment_variant_1')
+        installment_variant_2 = cleaned_data.get('installment_variant_2')
+        payments_per_year_variant_1 = cleaned_data.get('payments_per_year_variant_1')
+        payments_per_year_variant_2 = cleaned_data.get('payments_per_year_variant_2')
+        
+        # Валидация рассрочки для варианта 1
+        if installment_variant_1 and not premium_1:
+            raise ValidationError('Нельзя включить рассрочку для варианта 1 без указания премии с франшизой-1')
+        
+        # Валидация рассрочки для варианта 2
+        if installment_variant_2 and not premium_2:
+            raise ValidationError('Нельзя включить рассрочку для варианта 2 без указания премии с франшизой-2')
+        
+        # Устанавливаем значения по умолчанию для полей рассрочки
+        if not installment_variant_1:
+            cleaned_data['payments_per_year_variant_1'] = 1
+        if not installment_variant_2:
+            cleaned_data['payments_per_year_variant_2'] = 1
         
         return cleaned_data
 

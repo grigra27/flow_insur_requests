@@ -113,6 +113,69 @@ class InsuranceSummary(models.Model):
                 }
         
         return companies_data
+    
+    def get_unique_companies_count(self):
+        """Возвращает количество уникальных компаний в своде"""
+        return self.offers.filter(is_valid=True).values('company_name').distinct().count()
+    
+    def get_companies_with_year_counts(self):
+        """Возвращает словарь компаний с количеством лет страхования"""
+        companies = {}
+        for offer in self.offers.filter(is_valid=True):
+            if offer.company_name not in companies:
+                companies[offer.company_name] = 0
+            companies[offer.company_name] += 1
+        return companies
+    
+    def get_unique_companies_list(self):
+        """Возвращает список уникальных названий компаний"""
+        return list(self.offers.filter(is_valid=True).values_list('company_name', flat=True).distinct())
+    
+    def update_total_offers_count(self):
+        """Обновляет счетчик общего количества предложений"""
+        self.total_offers = self.get_unique_companies_count()
+        self.save(update_fields=['total_offers'])
+    
+    def get_companies_summary_data(self):
+        """Возвращает сводные данные о компаниях для отображения в интерфейсе"""
+        companies_data = {}
+        for offer in self.offers.filter(is_valid=True):
+            company_name = offer.company_name
+            if company_name not in companies_data:
+                companies_data[company_name] = {
+                    'name': company_name,
+                    'years_count': 0,
+                    'years': [],
+                    'min_premium': None,
+                    'max_premium': None,
+                }
+            
+            company_data = companies_data[company_name]
+            company_data['years_count'] += 1
+            company_data['years'].append(offer.insurance_year)
+            
+            # Обновляем минимальную и максимальную премии
+            premium = offer.premium_with_franchise_1 or 0
+            if company_data['min_premium'] is None or premium < company_data['min_premium']:
+                company_data['min_premium'] = premium
+            if company_data['max_premium'] is None or premium > company_data['max_premium']:
+                company_data['max_premium'] = premium
+        
+        return companies_data
+    
+    def get_status_display_with_color(self):
+        """Возвращает статус с соответствующим цветом для Bootstrap"""
+        status_colors = {
+            'collecting': 'warning',
+            'ready': 'info',
+            'sent': 'success',
+            'completed': 'secondary',
+        }
+        return {
+            'status': self.status,
+            'display': self.get_status_display(),
+            'color': status_colors.get(self.status, 'secondary')
+        }
 
 
 class InsuranceOffer(models.Model):
@@ -173,12 +236,35 @@ class InsuranceOffer(models.Model):
         help_text='Премия со второй франшизой'
     )
     
-    # Условия оплаты
+    # Условия оплаты (старые поля для обратной совместимости)
     installment_available = models.BooleanField(default=False, verbose_name='Рассрочка доступна')
     payments_per_year = models.PositiveIntegerField(
         default=1,
         verbose_name='Количество платежей в год',
         help_text='Количество платежей в год (1, 2, 3, 4, 12)'
+    )
+    
+    # Расширенные условия рассрочки для каждого варианта премии
+    installment_variant_1 = models.BooleanField(
+        default=False, 
+        verbose_name='Рассрочка для варианта 1',
+        help_text='Доступна ли рассрочка для премии с франшизой-1'
+    )
+    payments_per_year_variant_1 = models.PositiveIntegerField(
+        default=1,
+        verbose_name='Платежей в год (вариант 1)',
+        help_text='Количество платежей в год для варианта 1 (1, 2, 3, 4, 12)'
+    )
+    
+    installment_variant_2 = models.BooleanField(
+        default=False, 
+        verbose_name='Рассрочка для варианта 2',
+        help_text='Доступна ли рассрочка для премии с франшизой-2'
+    )
+    payments_per_year_variant_2 = models.PositiveIntegerField(
+        default=1,
+        verbose_name='Платежей в год (вариант 2)',
+        help_text='Количество платежей в год для варианта 2 (1, 2, 3, 4, 12)'
     )
     
     # Валидность предложения
@@ -207,19 +293,19 @@ class InsuranceOffer(models.Model):
     
     @property
     def premium_per_payment(self):
-        """Премия за один платеж при рассрочке"""
+        """Премия за один платеж при рассрочке (для обратной совместимости)"""
         if self.installment_available and self.payments_per_year > 1:
             return (self.premium_with_franchise_1 or 0) / self.payments_per_year
         return self.premium_with_franchise_1 or 0
     
     def get_installment_display(self):
-        """Возвращает описание условий рассрочки"""
+        """Возвращает описание условий рассрочки (для обратной совместимости)"""
         if not self.installment_available or self.payments_per_year <= 1:
             return "Единовременно"
         return f"{self.payments_per_year} платежей в год"
     
     def get_payment_amount(self, franchise_variant=1):
-        """Возвращает размер одного платежа для указанного варианта франшизы"""
+        """Возвращает размер одного платежа для указанного варианта франшизы (для обратной совместимости)"""
         if franchise_variant == 1:
             premium = self.premium_with_franchise_1 or 0
         else:
@@ -228,6 +314,40 @@ class InsuranceOffer(models.Model):
         if self.installment_available and self.payments_per_year > 1:
             return premium / self.payments_per_year
         return premium
+    
+    def get_payment_amount_variant_1(self):
+        """Размер платежа для варианта 1 с учетом рассрочки"""
+        premium = self.premium_with_franchise_1 or 0
+        if self.installment_variant_1 and self.payments_per_year_variant_1 > 1:
+            return premium / self.payments_per_year_variant_1
+        return premium
+    
+    def get_payment_amount_variant_2(self):
+        """Размер платежа для варианта 2 с учетом рассрочки"""
+        premium = self.premium_with_franchise_2 or 0
+        if self.installment_variant_2 and self.payments_per_year_variant_2 > 1:
+            return premium / self.payments_per_year_variant_2
+        return premium
+    
+    def get_installment_display_variant_1(self):
+        """Возвращает описание условий рассрочки для варианта 1"""
+        if not self.installment_variant_1 or self.payments_per_year_variant_1 <= 1:
+            return "Единовременно"
+        return f"{self.payments_per_year_variant_1} платежей в год"
+    
+    def get_installment_display_variant_2(self):
+        """Возвращает описание условий рассрочки для варианта 2"""
+        if not self.installment_variant_2 or self.payments_per_year_variant_2 <= 1:
+            return "Единовременно"
+        return f"{self.payments_per_year_variant_2} платежей в год"
+    
+    def has_installment_variant_1(self):
+        """Проверяет, доступна ли рассрочка для варианта 1"""
+        return self.installment_variant_1 and self.payments_per_year_variant_1 > 1
+    
+    def has_installment_variant_2(self):
+        """Проверяет, доступна ли рассрочка для варианта 2"""
+        return self.installment_variant_2 and self.payments_per_year_variant_2 > 1
     
     @property
     def effective_premium_with_franchise(self):

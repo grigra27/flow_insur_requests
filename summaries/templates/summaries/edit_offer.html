@@ -165,31 +165,94 @@
                     </div>
                     
 
-                    <!-- Рассрочка -->
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="form-check mb-3">
-                                {{ form.installment_available }}
-                                <label class="form-check-label" for="{{ form.installment_available.id_for_label }}">
-                                    {{ form.installment_available.label }}
-                                </label>
-                            </div>
+                    <!-- Рассрочка по вариантам премии -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="mb-0">Рассрочка платежей</h6>
+                            <small class="text-muted">Настройте рассрочку для каждого варианта премии отдельно</small>
                         </div>
-                        
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="{{ form.payments_per_year.id_for_label }}" class="form-label">
-                                    {{ form.payments_per_year.label }}
-                                </label>
-                                {{ form.payments_per_year }}
-                                <div class="form-text">Количество платежей в год (1 - если рассрочка недоступна)</div>
-                                {% if form.payments_per_year.errors %}
-                                    <div class="text-danger">
-                                        {% for error in form.payments_per_year.errors %}
-                                            <small>{{ error }}</small>
-                                        {% endfor %}
+                        <div class="card-body">
+                            <div class="row">
+                                <!-- Рассрочка для варианта 1 -->
+                                <div class="col-md-6">
+                                    <h6 class="text-muted mb-3">Рассрочка для варианта 1</h6>
+                                    <div class="form-check mb-3">
+                                        {{ form.installment_variant_1 }}
+                                        <label class="form-check-label" for="{{ form.installment_variant_1.id_for_label }}">
+                                            Рассрочка доступна для варианта 1
+                                        </label>
                                     </div>
-                                {% endif %}
+                                    
+                                    <div class="mb-3" id="payments-variant-1-container">
+                                        <label for="{{ form.payments_per_year_variant_1.id_for_label }}" class="form-label">
+                                            {{ form.payments_per_year_variant_1.label }}
+                                        </label>
+                                        {{ form.payments_per_year_variant_1 }}
+                                        <div class="form-text">Количество платежей в год для варианта 1</div>
+                                        {% if form.payments_per_year_variant_1.errors %}
+                                            <div class="text-danger">
+                                                {% for error in form.payments_per_year_variant_1.errors %}
+                                                    <small>{{ error }}</small>
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                
+                                <!-- Рассрочка для варианта 2 -->
+                                <div class="col-md-6">
+                                    <h6 class="text-muted mb-3">Рассрочка для варианта 2</h6>
+                                    <div class="form-check mb-3">
+                                        {{ form.installment_variant_2 }}
+                                        <label class="form-check-label" for="{{ form.installment_variant_2.id_for_label }}">
+                                            Рассрочка доступна для варианта 2
+                                        </label>
+                                    </div>
+                                    
+                                    <div class="mb-3" id="payments-variant-2-container">
+                                        <label for="{{ form.payments_per_year_variant_2.id_for_label }}" class="form-label">
+                                            {{ form.payments_per_year_variant_2.label }}
+                                        </label>
+                                        {{ form.payments_per_year_variant_2 }}
+                                        <div class="form-text">Количество платежей в год для варианта 2</div>
+                                        {% if form.payments_per_year_variant_2.errors %}
+                                            <div class="text-danger">
+                                                {% for error in form.payments_per_year_variant_2.errors %}
+                                                    <small>{{ error }}</small>
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Старые поля рассрочки (для обратной совместимости) -->
+                            <div class="row mt-3 pt-3 border-top">
+                                <div class="col-md-6">
+                                    <div class="form-check mb-3">
+                                        {{ form.installment_available }}
+                                        <label class="form-check-label" for="{{ form.installment_available.id_for_label }}">
+                                            {{ form.installment_available.label }} <small class="text-muted">(устаревшее)</small>
+                                        </label>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="{{ form.payments_per_year.id_for_label }}" class="form-label">
+                                            {{ form.payments_per_year.label }} <small class="text-muted">(устаревшее)</small>
+                                        </label>
+                                        {{ form.payments_per_year }}
+                                        <div class="form-text">Количество платежей в год (1 - если рассрочка недоступна)</div>
+                                        {% if form.payments_per_year.errors %}
+                                            <div class="text-danger">
+                                                {% for error in form.payments_per_year.errors %}
+                                                    <small>{{ error }}</small>
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -294,9 +357,47 @@
 {% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Автоматически управляем полем количества платежей в зависимости от рассрочки
+    // Управление полями рассрочки для вариантов премии
+    const installmentVariant1Checkbox = document.getElementById('id_installment_variant_1');
+    const paymentsVariant1 = document.getElementById('id_payments_per_year_variant_1');
+    const installmentVariant2Checkbox = document.getElementById('id_installment_variant_2');
+    const paymentsVariant2 = document.getElementById('id_payments_per_year_variant_2');
+    
+    // Старые поля для обратной совместимости
     const installmentCheckbox = document.getElementById('id_installment_available');
     const paymentsPerYear = document.getElementById('id_payments_per_year');
+    
+    function togglePaymentsVariant1() {
+        if (paymentsVariant1) {
+            if (!installmentVariant1Checkbox.checked) {
+                paymentsVariant1.value = '1';
+                paymentsVariant1.disabled = true;
+                paymentsVariant1.style.backgroundColor = '#e9ecef';
+            } else {
+                paymentsVariant1.disabled = false;
+                paymentsVariant1.style.backgroundColor = '';
+                if (paymentsVariant1.value === '1' || paymentsVariant1.value === '') {
+                    paymentsVariant1.value = '12'; // По умолчанию 12 платежей при включенной рассрочке
+                }
+            }
+        }
+    }
+    
+    function togglePaymentsVariant2() {
+        if (paymentsVariant2) {
+            if (!installmentVariant2Checkbox.checked) {
+                paymentsVariant2.value = '1';
+                paymentsVariant2.disabled = true;
+                paymentsVariant2.style.backgroundColor = '#e9ecef';
+            } else {
+                paymentsVariant2.disabled = false;
+                paymentsVariant2.style.backgroundColor = '';
+                if (paymentsVariant2.value === '1' || paymentsVariant2.value === '') {
+                    paymentsVariant2.value = '12'; // По умолчанию 12 платежей при включенной рассрочке
+                }
+            }
+        }
+    }
     
     function togglePaymentsPerYear() {
         if (paymentsPerYear) {
@@ -312,6 +413,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
         }
+    }
+    
+    // Добавляем обработчики событий
+    if (installmentVariant1Checkbox) {
+        installmentVariant1Checkbox.addEventListener('change', togglePaymentsVariant1);
+        togglePaymentsVariant1(); // Инициализация
+    }
+    
+    if (installmentVariant2Checkbox) {
+        installmentVariant2Checkbox.addEventListener('change', togglePaymentsVariant2);
+        togglePaymentsVariant2(); // Инициализация
     }
     
     if (installmentCheckbox) {
@@ -344,11 +456,13 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Валидация количества платежей в год
-    if (paymentsPerYear) {
-        paymentsPerYear.addEventListener('input', function(e) {
+    // Валидация количества платежей в год для всех полей
+    function validatePaymentsField(field, errorClass) {
+        if (!field) return;
+        
+        field.addEventListener('input', function(e) {
             const value = parseInt(e.target.value);
-            const errorDiv = e.target.parentNode.querySelector('.payments-validation-error');
+            const errorDiv = e.target.parentNode.querySelector(`.${errorClass}`);
             
             // Удаляем предыдущие ошибки
             if (errorDiv) {
@@ -358,7 +472,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (e.target.value && (isNaN(value) || value < 1 || value > 12)) {
                 e.target.classList.add('is-invalid');
                 const error = document.createElement('div');
-                error.className = 'text-danger payments-validation-error';
+                error.className = `text-danger ${errorClass}`;
                 error.innerHTML = '<small>Количество платежей должно быть от 1 до 12</small>';
                 e.target.parentNode.appendChild(error);
             } else {
@@ -369,6 +483,11 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+    
+    // Применяем валидацию ко всем полям платежей
+    validatePaymentsField(paymentsPerYear, 'payments-validation-error');
+    validatePaymentsField(paymentsVariant1, 'payments-variant-1-validation-error');
+    validatePaymentsField(paymentsVariant2, 'payments-variant-2-validation-error');
     
     // Валидация франшиз и премий
     const franchise1 = document.getElementById('id_franchise_1');
@@ -535,7 +654,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
             
-            // Валидация количества платежей
+            // Валидация количества платежей (старое поле)
             const paymentsValue = parseInt(paymentsPerYear.value);
             if (!paymentsPerYear || !paymentsPerYear.value || isNaN(paymentsValue) || paymentsValue < 1 || paymentsValue > 12) {
                 e.preventDefault();
@@ -543,6 +662,54 @@ document.addEventListener('DOMContentLoaded', function() {
                 restoreSubmitButton();
                 paymentsPerYear.focus();
                 return;
+            }
+            
+            // Валидация рассрочки для варианта 1
+            const installmentVariant1 = document.getElementById('id_installment_variant_1');
+            const paymentsVariant1 = document.getElementById('id_payments_per_year_variant_1');
+            
+            if (installmentVariant1 && installmentVariant1.checked) {
+                const paymentsVariant1Value = parseInt(paymentsVariant1.value);
+                if (!paymentsVariant1 || !paymentsVariant1.value || isNaN(paymentsVariant1Value) || paymentsVariant1Value < 1 || paymentsVariant1Value > 12) {
+                    e.preventDefault();
+                    alert('Укажите корректное количество платежей для варианта 1 (от 1 до 12)');
+                    restoreSubmitButton();
+                    paymentsVariant1.focus();
+                    return;
+                }
+                
+                // Проверяем, что для варианта 1 указана премия
+                if (!premiumWithFranchise1 || !premiumWithFranchise1.value) {
+                    e.preventDefault();
+                    alert('Для включения рассрочки варианта 1 необходимо указать премию с франшизой-1');
+                    restoreSubmitButton();
+                    premiumWithFranchise1.focus();
+                    return;
+                }
+            }
+            
+            // Валидация рассрочки для варианта 2
+            const installmentVariant2 = document.getElementById('id_installment_variant_2');
+            const paymentsVariant2 = document.getElementById('id_payments_per_year_variant_2');
+            
+            if (installmentVariant2 && installmentVariant2.checked) {
+                const paymentsVariant2Value = parseInt(paymentsVariant2.value);
+                if (!paymentsVariant2 || !paymentsVariant2.value || isNaN(paymentsVariant2Value) || paymentsVariant2Value < 1 || paymentsVariant2Value > 12) {
+                    e.preventDefault();
+                    alert('Укажите корректное количество платежей для варианта 2 (от 1 до 12)');
+                    restoreSubmitButton();
+                    paymentsVariant2.focus();
+                    return;
+                }
+                
+                // Проверяем, что для варианта 2 указана премия
+                if (!premiumWithFranchise2 || !premiumWithFranchise2.value) {
+                    e.preventDefault();
+                    alert('Для включения рассрочки варианта 2 необходимо указать премию с франшизой-2');
+                    restoreSubmitButton();
+                    premiumWithFranchise2.focus();
+                    return;
+                }
             }
             
             // Проверка логической связи: премия не должна превышать страховую сумму

@@ -17,3 +17,14 @@ def div(value, divisor):
         return float(value) / float(divisor)
     except (ValueError, ZeroDivisionError, TypeError):
         return 0
+
+@register.filter
+def status_color(status):
+    """Возвращает цвет Bootstrap для статуса"""
+    status_colors = {
+        'collecting': 'warning',
+        'ready': 'info', 
+        'sent': 'success',
+        'completed': 'secondary',
+    }
+    return status_colors.get(status, 'secondary')
