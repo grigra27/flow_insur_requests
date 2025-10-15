@@ -14,10 +14,7 @@ class InsuranceRequest(models.Model):
         ('uploaded', 'Загружена'),
         ('email_generated', 'Письмо сгенерировано'),
         ('email_sent', 'Письмо отправлено'),
-        ('response_received', 'Получен ответ'),
-        ('report_generated', 'Отчет сгенерирован'),
         ('completed', 'Завершена'),
-        ('error', 'Ошибка'),
     ]
     
     INSURANCE_TYPE_CHOICES = [
@@ -147,7 +144,7 @@ class InsuranceRequest(models.Model):
     def can_create_summary(self) -> bool:
         """Проверяет, можно ли создать свод для этой заявки"""
         return (
-            self.status in ['email_sent', 'response_received'] and
+            self.status in ['email_sent', 'completed'] and
             not hasattr(self, 'summary')
         )
     

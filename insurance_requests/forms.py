@@ -630,6 +630,19 @@ class EmailPreviewForm(forms.Form):
         return emails
 
 
+class RequestStatusForm(forms.Form):
+    """Форма для изменения статуса заявки"""
+    
+    status = forms.ChoiceField(
+        choices=InsuranceRequest.STATUS_CHOICES,
+        widget=forms.Select(attrs={
+            'class': 'form-select',
+            'id': 'request-status-select'
+        }),
+        label='Статус заявки'
+    )
+
+
 class OfferUploadForm(forms.Form):
     """Форма для загрузки файлов предложений от страховых компаний"""
     

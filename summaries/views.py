@@ -5,13 +5,14 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_http_methods
-from django.db import transaction
+from django.db import transaction, IntegrityError
 import logging
 
 from .models import InsuranceSummary, InsuranceOffer, SummaryTemplate
 from insurance_requests.models import InsuranceRequest
 from insurance_requests.decorators import user_required, admin_required
 from .forms import OfferForm, SummaryForm, AddOfferToSummaryForm
+from .exceptions import DuplicateOfferError
 
 logger = logging.getLogger(__name__)
 
@@ -318,15 +319,26 @@ def add_offer(request, summary_id):
                     
                     logger.info(f"Offer saved successfully: {offer.company_name} ({offer.get_insurance_year_display()}) for summary {summary_id}")
                     
-                    # Если набралось достаточно предложений, меняем статус
-                    if summary.total_offers >= 3:  # Например, минимум 3 предложения
-                        summary.status = 'ready'
-                        summary.save()
-                    
                     messages.success(request, f'Предложение от {offer.company_name} ({offer.get_insurance_year_display()}) успешно добавлено')
                     return redirect('summaries:summary_detail', pk=summary_id)
                     
+            except IntegrityError as e:
+                # Специальная обработка ошибок дублирования предложений
+                if 'UNIQUE constraint failed' in str(e):
+                    # Извлекаем информацию о дублирующемся предложении из данных формы
+                    company_name = form.cleaned_data.get('company_name', 'неизвестная компания')
+                    insurance_year = form.cleaned_data.get('insurance_year', 'неизвестный год')
+                    
+                    # Создаем кастомное исключение для лучшей обработки
+                    duplicate_error = DuplicateOfferError(company_name, insurance_year)
+                    messages.error(request, duplicate_error.get_user_message())
+                    logger.warning(f"Duplicate offer attempt for summary {summary_id}: {company_name} year {insurance_year}")
+                else:
+                    # Обработка других ошибок целостности данных
+                    logger.error(f"IntegrityError adding offer to summary {summary_id}: {str(e)}", exc_info=True)
+                    messages.error(request, f'Ошибка целостности данных при сохранении предложения: {str(e)}')
             except Exception as e:
+                # Обработка всех остальных ошибок
                 logger.error(f"Error adding offer to summary {summary_id}: {str(e)}", exc_info=True)
                 messages.error(request, f'Ошибка при сохранении предложения: {str(e)}')
         else:

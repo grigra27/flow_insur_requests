@@ -20,12 +20,8 @@
     <div class="col-lg-8">
         <!-- Основная информация -->
         <div class="card mb-4">
-            <div class="card-header d-flex justify-content-between align-items-center">
+            <div class="card-header">
                 <h5 class="mb-0">Информация о заявке</h5>
-                <span
-                    class="badge bg-{% if request.status == 'completed' %}success{% elif request.status == 'error' %}danger{% elif request.status == 'email_sent' %}info{% else %}secondary{% endif %} fs-6">
-                    {{ request.get_status_display }}
-                </span>
             </div>
             <div class="card-body">
                 <div class="row">
@@ -134,7 +130,7 @@
                 <div>
                     {% if request.status == 'email_generated' %}
                     <a href="{% url 'insurance_requests:preview_email' request.pk %}" class="btn btn-primary btn-sm">
-                        <i class="bi bi-envelope"></i> Отправить
+                        <i class="bi bi-envelope"></i> Предварительный просмотр
                     </a>
                     {% endif %}
                     {% if request.status == 'uploaded' %}
@@ -204,6 +200,35 @@
             </div>
         </div>
 
+        <!-- Управление статусом -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-gear"></i> Управление статусом</h6>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label small text-muted">Текущий статус:</label>
+                    <div>
+                        <span id="status-badge"
+                            class="badge bg-{% if request.status == 'completed' %}success{% elif request.status == 'email_sent' %}info{% elif request.status == 'email_generated' %}warning{% else %}secondary{% endif %} fs-6">
+                            {{ request.get_status_display }}
+                        </span>
+                    </div>
+                </div>
+                
+                <form id="status-form">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="request-status-select" class="form-label">Изменить статус:</label>
+                        {{ status_form.status }}
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-sm w-100" id="change-status-btn">
+                        <i class="bi bi-check-circle"></i> Применить изменения
+                    </button>
+                </form>
+            </div>
+        </div>
+
         <!-- Свод предложений -->
         <div class="card mb-4">
             <div class="card-header">
@@ -221,9 +246,6 @@
                         {% if request.summary.total_offers > 0 %}
                         <div class="mt-2">
                             <small class="text-muted">{{ request.summary.total_offers }} предложений</small>
-                            {% if request.summary.best_premium %}
-                            <br><small class="text-success">Лучшая цена: {{ request.summary.best_premium|floatformat:2 }} ₽</small>
-                            {% endif %}
                         </div>
                         {% endif %}
                     </div>
@@ -231,7 +253,7 @@
                         <i class="bi bi-eye"></i> Открыть свод
                     </a>
                 </div>
-                {% elif request.status == 'uploaded' or request.status == 'email_generated' or request.status == 'email_sent' or request.status == 'response_received' %}
+                {% elif request.status == 'uploaded' or request.status == 'email_generated' or request.status == 'email_sent' or request.status == 'completed' %}
                 <div class="text-center create-summary-section">
                     <p class="text-muted mb-3">Свод предложений не создан</p>
                     <a href="{% url 'summaries:create_summary' request.pk %}" class="btn btn-success create-summary-btn">
@@ -346,6 +368,10 @@
 {% block extra_js %}
 <script>
     document.addEventListener('DOMContentLoaded', function () {
+        // Status change functionality
+        initStatusChange();
+        
+        // File upload functionality
         // Получаем элементы DOM
         const elements = {
             fileInput: document.getElementById('offer-files-input'),
@@ -658,5 +684,155 @@
         // Инициализация
         initEventListeners();
     });
+
+    // Status change functionality
+    function initStatusChange() {
+        const statusForm = document.getElementById('status-form');
+        const statusSelect = document.getElementById('request-status-select');
+        const statusBadge = document.getElementById('status-badge');
+        const changeStatusBtn = document.getElementById('change-status-btn');
+
+        if (!statusForm || !statusSelect || !statusBadge || !changeStatusBtn) {
+            return; // Elements not found, skip initialization
+        }
+
+        // Handle form submission
+        statusForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const newStatus = statusSelect.value;
+            const currentStatus = statusSelect.dataset.currentStatus || '{{ request.status }}';
+            
+            if (newStatus === currentStatus) {
+                return; // No change needed
+            }
+            
+            // Disable form during request
+            changeStatusBtn.disabled = true;
+            statusSelect.disabled = true;
+            changeStatusBtn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+            
+            // Prepare form data
+            const formData = new FormData();
+            formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+            formData.append('status', newStatus);
+            
+            // Send AJAX request
+            fetch('{% url "insurance_requests:change_request_status" request.pk %}', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Update status badge
+                    updateStatusBadge(data.new_status, data.new_status_display);
+                    
+                    // Update current status tracking
+                    statusSelect.dataset.currentStatus = data.new_status;
+                    
+                    // Show success message
+                    showStatusMessage(data.message, 'success');
+                } else {
+                    // Show error message
+                    showStatusMessage(data.error || 'Произошла ошибка при изменении статуса', 'error');
+                    
+                    // Reset select to current status
+                    statusSelect.value = currentStatus;
+                }
+            })
+            .catch(error => {
+                console.error('Status change error:', error);
+                showStatusMessage('Произошла ошибка при изменении статуса', 'error');
+                
+                // Reset select to current status
+                statusSelect.value = currentStatus;
+            })
+            .finally(() => {
+                // Re-enable form
+                changeStatusBtn.disabled = false;
+                statusSelect.disabled = false;
+                changeStatusBtn.innerHTML = '<i class="bi bi-check"></i>';
+            });
+        });
+
+        // Track current status
+        statusSelect.dataset.currentStatus = '{{ request.status }}';
+    }
+
+    function updateStatusBadge(status, statusDisplay) {
+        const statusBadge = document.getElementById('status-badge');
+        if (!statusBadge) return;
+        
+        // Remove existing status classes
+        statusBadge.className = statusBadge.className.replace(/bg-\w+/g, '');
+        
+        // Add new status class
+        let badgeClass = 'bg-secondary';
+        switch(status) {
+            case 'completed':
+                badgeClass = 'bg-success';
+                break;
+            case 'email_sent':
+                badgeClass = 'bg-info';
+                break;
+            case 'email_generated':
+                badgeClass = 'bg-warning';
+                break;
+            case 'uploaded':
+                badgeClass = 'bg-secondary';
+                break;
+        }
+        
+        statusBadge.className += ' ' + badgeClass;
+        statusBadge.textContent = statusDisplay;
+    }
+
+    function showStatusMessage(message, type) {
+        // Create or update message element
+        let messageElement = document.getElementById('status-message');
+        
+        if (!messageElement) {
+            messageElement = document.createElement('div');
+            messageElement.id = 'status-message';
+            messageElement.className = 'alert alert-dismissible fade show mt-2';
+            messageElement.style.position = 'fixed';
+            messageElement.style.top = '20px';
+            messageElement.style.right = '20px';
+            messageElement.style.zIndex = '9999';
+            messageElement.style.minWidth = '300px';
+            
+            // Add close button
+            messageElement.innerHTML = `
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                <span class="message-text"></span>
+            `;
+            
+            document.body.appendChild(messageElement);
+        }
+        
+        // Update message content and style
+        const messageText = messageElement.querySelector('.message-text');
+        messageText.textContent = message;
+        
+        // Remove existing alert classes
+        messageElement.className = messageElement.className.replace(/alert-\w+/g, '');
+        
+        // Add appropriate alert class
+        const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+        messageElement.className += ' ' + alertClass;
+        
+        // Auto-hide after 3 seconds for success messages
+        if (type === 'success') {
+            setTimeout(() => {
+                if (messageElement && messageElement.parentNode) {
+                    messageElement.remove();
+                }
+            }, 3000);
+        }
+    }
 </script>
 {% endblock %}

@@ -181,17 +181,8 @@ class InsuranceSummary(models.Model):
     
     def get_status_display_with_color(self):
         """Возвращает статус с соответствующим цветом для Bootstrap"""
-        status_colors = {
-            'collecting': 'warning',
-            'ready': 'info',
-            'sent': 'success',
-            'completed': 'secondary',
-        }
-        return {
-            'status': self.status,
-            'display': self.get_status_display(),
-            'color': status_colors.get(self.status, 'secondary')
-        }
+        from .status_colors import get_status_display_data
+        return get_status_display_data(self.status, self.get_status_display())
 
 
 class InsuranceOffer(models.Model):

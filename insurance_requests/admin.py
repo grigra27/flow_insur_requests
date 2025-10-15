@@ -35,7 +35,7 @@ class InsuranceRequestAdmin(admin.ModelAdmin):
     ]
     
     # Массовые операции для управления статусами и сроками ответа
-    actions = ['mark_as_completed', 'mark_as_email_sent', 'reset_response_deadline']
+    actions = ['mark_as_completed', 'mark_as_email_sent', 'mark_as_email_generated', 'reset_response_deadline']
     
     # Логически сгруппированные fieldsets для удобного редактирования
     fieldsets = (
@@ -120,6 +120,12 @@ class InsuranceRequestAdmin(admin.ModelAdmin):
         updated = queryset.update(status='email_sent')
         self.message_user(request, f'{updated} заявок отмечено как письмо отправлено.')
     mark_as_email_sent.short_description = 'Отметить как письмо отправлено'
+    
+    def mark_as_email_generated(self, request, queryset):
+        """Массовая операция: отметить как письмо сгенерировано"""
+        updated = queryset.update(status='email_generated')
+        self.message_user(request, f'{updated} заявок отмечено как письмо сгенерировано.')
+    mark_as_email_generated.short_description = 'Отметить как письмо сгенерировано'
     
     def reset_response_deadline(self, request, queryset):
         """Массовая операция: сбросить срок ответа (+3 часа от текущего времени)"""

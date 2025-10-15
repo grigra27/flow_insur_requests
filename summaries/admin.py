@@ -28,8 +28,8 @@ class InsuranceSummaryAdmin(admin.ModelAdmin):
 
 @admin.register(InsuranceOffer)
 class InsuranceOfferAdmin(admin.ModelAdmin):
-    list_display = ['company_name', 'insurance_year', 'summary', 'premium_with_franchise_1', 'premium_with_franchise_2', 'insurance_sum', 'is_valid', 'received_at']
-    list_filter = ['is_valid', 'insurance_year', 'installment_available', 'company_name', 'received_at']
+    list_display = ['company_name', 'insurance_year', 'summary', 'premium_with_franchise_1', 'premium_with_franchise_2', 'insurance_sum', 'installment_variant_1', 'installment_variant_2', 'is_valid', 'received_at']
+    list_filter = ['is_valid', 'insurance_year', 'installment_variant_1', 'installment_variant_2', 'company_name', 'received_at']
     search_fields = ['company_name', 'summary__request__client_name']
     readonly_fields = ['received_at']
     
@@ -45,7 +45,7 @@ class InsuranceOfferAdmin(admin.ModelAdmin):
             'description': 'Структурированные данные о франшизах и соответствующих премиях'
         }),
         ('Условия оплаты', {
-            'fields': ('installment_available', 'payments_per_year', 'is_valid')
+            'fields': ('installment_variant_1', 'payments_per_year_variant_1', 'installment_variant_2', 'payments_per_year_variant_2', 'is_valid')
         }),
         ('Дополнительно', {
             'fields': ('notes', 'original_email_subject', 'attachment_file', 'received_at')

@@ -19,7 +19,7 @@ import tempfile
 import logging
 
 from .models import InsuranceRequest, RequestAttachment
-from .forms import ExcelUploadForm, InsuranceRequestForm, EmailPreviewForm, CustomAuthenticationForm
+from .forms import ExcelUploadForm, InsuranceRequestForm, EmailPreviewForm, CustomAuthenticationForm, RequestStatusForm
 from .decorators import user_required, admin_required
 from core.excel_utils import ExcelReader
 from core.templates import EmailTemplateGenerator
@@ -507,8 +507,12 @@ def request_detail(request, pk):
     """Детальная информация о заявке"""
     insurance_request = get_object_or_404(InsuranceRequest, pk=pk)
     
+    # Создаем форму для изменения статуса
+    status_form = RequestStatusForm(initial={'status': insurance_request.status})
+    
     return render(request, 'insurance_requests/request_detail.html', {
-        'request': insurance_request
+        'request': insurance_request,
+        'status_form': status_form
     })
 
 
@@ -964,3 +968,30 @@ def _cleanup_temp_file(temp_file_path):
             logger.debug(f"Cleaned up temporary file: {temp_file_path}")
     except Exception as e:
         logger.warning(f"Error cleaning up temporary file {temp_file_path}: {str(e)}")
+
+
+@require_http_methods(["POST"])
+@user_required
+def change_request_status(request, pk):
+    """Изменение статуса заявки"""
+    insurance_request = get_object_or_404(InsuranceRequest, pk=pk)
+    new_status = request.POST.get('status')
+    
+    if new_status in dict(InsuranceRequest.STATUS_CHOICES):
+        old_status = insurance_request.status
+        insurance_request.status = new_status
+        insurance_request.save(update_fields=['status', 'updated_at'])
+        
+        logger.info(f"Request {pk} status changed from '{old_status}' to '{new_status}' by user {request.user.username}")
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Статус заявки изменен на "{insurance_request.get_status_display()}"',
+            'new_status': new_status,
+            'new_status_display': insurance_request.get_status_display()
+        })
+    
+    return JsonResponse({
+        'success': False,
+        'error': 'Недопустимый статус'
+    })

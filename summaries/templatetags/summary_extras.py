@@ -28,13 +28,8 @@ def div(value, divisor):
 @register.filter
 def status_color(status):
     """Возвращает цвет Bootstrap для статуса"""
-    status_colors = {
-        'collecting': 'warning',
-        'ready': 'info', 
-        'sent': 'success',
-        'completed': 'secondary',
-    }
-    return status_colors.get(status, 'secondary')
+    from ..status_colors import get_status_color
+    return get_status_color(status)
 
 @register.filter
 def format_branch(branch):

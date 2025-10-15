@@ -31,7 +31,7 @@
             <a class="nav-link{% if current_branch == branch %} active{% endif %}" 
                href="#" 
                onclick="filterByBranch('{{ branch|escapejs }}')">
-                <i class="bi bi-building"></i> {{ branch|format_branch }}
+                <!--i class="bi bi-building"></i--> {{ branch|format_branch }}
                 <span class="badge bg-primary ms-1">{{ branch_counts|get_item:branch|default:0 }}</span>
             </a>
         </li>
