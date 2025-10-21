@@ -350,23 +350,65 @@ def add_offer(request, summary_id):
 @user_required
 def generate_summary_file(request, summary_id):
     """Генерация Excel файла свода"""
-    summary = get_object_or_404(InsuranceSummary, pk=summary_id)
+    from datetime import datetime
+    from .services import get_excel_export_service, ExcelExportServiceError, InvalidSummaryDataError, TemplateNotFoundError
+    
+    summary = get_object_or_404(InsuranceSummary.objects.select_related('request'), pk=summary_id)
+    
+    # Проверка статуса свода - требование 1.1
+    if summary.status != 'ready':
+        logger.warning(f"Attempt to generate Excel for summary {summary_id} with status '{summary.status}'")
+        return JsonResponse({
+            'error': 'Файл можно генерировать только для сводов в статусе "Готов к отправке"'
+        }, status=400)
     
     try:
-        # TODO: Реализовать генерацию Excel файла
-        # Пока используем заглушку
-        messages.info(request, 'Генерация Excel файла свода будет реализована на следующем этапе')
+        # Создание сервиса для генерации Excel - требование 1.2
+        service = get_excel_export_service()
         
-        # Обновляем статус
-        summary.status = 'ready'
-        summary.save()
+        # Генерация Excel файла - требование 1.2, 1.3
+        excel_file = service.generate_summary_excel(summary)
         
-        return redirect('summaries:summary_detail', pk=summary_id)
+        # Формирование имени файла - требование 3.2
+        filename = f"svod_{summary.request.dfa_number}_{datetime.now().strftime('%Y%m%d')}.xlsx"
+        
+        # Создание HTTP response с Excel файлом - требование 3.1
+        response = HttpResponse(
+            excel_file.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        
+        logger.info(f"Excel file successfully generated for summary {summary_id}: {filename}")
+        return response
+        
+    except InvalidSummaryDataError as e:
+        # Обработка ошибок валидации данных - требование 4.1, 4.2
+        logger.error(f"Invalid summary data for {summary_id}: {str(e)}")
+        return JsonResponse({
+            'error': f'Ошибка в данных свода: {str(e)}'
+        }, status=400)
+        
+    except TemplateNotFoundError as e:
+        # Обработка ошибок недоступности шаблона - требование 4.3
+        logger.error(f"Template not found for summary {summary_id}: {str(e)}")
+        return JsonResponse({
+            'error': 'Шаблон Excel-файла недоступен. Обратитесь к администратору.'
+        }, status=500)
+        
+    except ExcelExportServiceError as e:
+        # Обработка других ошибок сервиса - требование 3.3
+        logger.error(f"Excel export service error for summary {summary_id}: {str(e)}")
+        return JsonResponse({
+            'error': f'Ошибка при генерации файла: {str(e)}'
+        }, status=500)
         
     except Exception as e:
-        logger.error(f"Error generating summary file for {summary_id}: {str(e)}")
-        messages.error(request, f'Ошибка при генерации файла: {str(e)}')
-        return redirect('summaries:summary_detail', pk=summary_id)
+        # Обработка неожиданных ошибок - требование 3.3
+        logger.error(f"Unexpected error generating summary file for {summary_id}: {str(e)}", exc_info=True)
+        return JsonResponse({
+            'error': 'Произошла неожиданная ошибка при генерации файла. Обратитесь к администратору.'
+        }, status=500)
 
 
 @require_http_methods(["POST"])

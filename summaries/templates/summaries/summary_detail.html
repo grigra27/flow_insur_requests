@@ -518,6 +518,80 @@
         margin-top: 10px;
     }
 }
+
+/* Loading button styles */
+.btn-loading {
+    position: relative;
+    pointer-events: none;
+}
+
+.btn-loading::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: inherit;
+}
+
+/* Spinner animation for loading states */
+.spinner-border-sm {
+    width: 1rem;
+    height: 1rem;
+    border-width: 0.1em;
+}
+
+@keyframes spinner-border {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.spinner-border {
+    display: inline-block;
+    width: 2rem;
+    height: 2rem;
+    vertical-align: -0.125em;
+    border: 0.25em solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: spinner-border 0.75s linear infinite;
+}
+
+/* Enhanced notification styles */
+.alert.position-fixed {
+    animation: slideInRight 0.3s ease-out;
+    border-left: 4px solid;
+}
+
+.alert-success.position-fixed {
+    border-left-color: #198754;
+}
+
+.alert-danger.position-fixed {
+    border-left-color: #dc3545;
+}
+
+.alert-info.position-fixed {
+    border-left-color: #0dcaf0;
+}
+
+.alert-warning.position-fixed {
+    border-left-color: #ffc107;
+}
+
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
 </style>
 {% endblock %}
 
@@ -657,6 +731,64 @@ function handleNetworkError(error) {
     }
     
     showErrorMessage('Произошла сетевая ошибка. Попробуйте еще раз.');
+}
+
+// Проверка поддержки браузером необходимых функций для скачивания файлов
+function checkDownloadSupport() {
+    const features = {
+        blob: typeof Blob !== 'undefined',
+        url: typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function',
+        download: 'download' in document.createElement('a')
+    };
+    
+    const unsupported = Object.keys(features).filter(key => !features[key]);
+    
+    if (unsupported.length > 0) {
+        console.warn('Browser missing download features:', unsupported);
+        showWarningMessage('Ваш браузер может не поддерживать автоматическое скачивание файлов. Попробуйте обновить браузер.', 8000);
+        return false;
+    }
+    
+    return true;
+}
+
+// Функция для безопасного создания и скачивания файла
+function safeDownloadFile(blob, filename) {
+    try {
+        // Проверяем поддержку браузера
+        if (!checkDownloadSupport()) {
+            throw new Error('Браузер не поддерживает скачивание файлов');
+        }
+        
+        // Создаем URL для blob
+        const url = window.URL.createObjectURL(blob);
+        
+        // Создаем временную ссылку для скачивания
+        const downloadLink = document.createElement('a');
+        downloadLink.style.display = 'none';
+        downloadLink.href = url;
+        downloadLink.download = filename;
+        
+        // Добавляем обработчик для очистки ресурсов
+        downloadLink.addEventListener('click', () => {
+            setTimeout(() => {
+                window.URL.revokeObjectURL(url);
+                if (downloadLink.parentNode) {
+                    downloadLink.parentNode.removeChild(downloadLink);
+                }
+            }, 100);
+        });
+        
+        // Инициируем скачивание
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        
+        return true;
+    } catch (error) {
+        console.error('Error in safeDownloadFile:', error);
+        showErrorMessage('Ошибка при скачивании файла: ' + error.message);
+        return false;
+    }
 }
 
 // Функция для безопасного выполнения AJAX запросов
@@ -965,7 +1097,125 @@ function deleteOffer(offerId) {
 }
 
 function generateSummaryFile(summaryId) {
-    window.location.href = `/summaries/${summaryId}/generate-file/`;
+    // Получаем кнопку и сохраняем исходное состояние
+    const button = event.target;
+    const originalContent = button.innerHTML;
+    const originalDisabled = button.disabled;
+    
+    // Проверяем доступность функции
+    if (!summaryId || isNaN(summaryId)) {
+        showErrorMessage('Некорректный идентификатор свода');
+        return;
+    }
+    
+    // Проверяем подключение к интернету
+    if (!navigator.onLine) {
+        showErrorMessage('Отсутствует подключение к интернету. Проверьте соединение и попробуйте еще раз.');
+        return;
+    }
+    
+    // Показываем индикатор загрузки с анимацией
+    button.innerHTML = '<i class="bi bi-hourglass-split spinner-border spinner-border-sm me-1"></i> Генерируется...';
+    button.disabled = true;
+    button.classList.add('btn-loading');
+    
+    // Показываем уведомление о начале процесса
+    showInfoMessage('Начинается генерация Excel файла...', 2000);
+    
+    // Отправляем запрос на генерацию файла с улучшенной обработкой ошибок
+    fetch(`/summaries/${summaryId}/generate-file/`, {
+        method: 'GET',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Cache-Control': 'no-cache'
+        }
+    })
+    .then(response => {
+        // Проверяем статус ответа
+        if (!response.ok) {
+            // Если это JSON ошибка, парсим её
+            if (response.headers.get('content-type')?.includes('application/json')) {
+                return response.json().then(data => {
+                    throw new Error(data.error || `Ошибка сервера: ${response.status}`);
+                });
+            } else {
+                // Если это не JSON, создаем общую ошибку
+                throw new Error(`Ошибка сервера: ${response.status} ${response.statusText}`);
+            }
+        }
+        
+        // Проверяем, что это действительно Excel файл
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('spreadsheet')) {
+            throw new Error('Сервер вернул некорректный тип файла');
+        }
+        
+        // Обрабатываем успешный ответ
+        return response.blob().then(blob => {
+            // Проверяем размер файла
+            if (blob.size === 0) {
+                throw new Error('Получен пустой файл');
+            }
+            
+            // Получаем имя файла из заголовка Content-Disposition
+            const contentDisposition = response.headers.get('Content-Disposition');
+            let filename = `svod_${summaryId}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+            
+            if (contentDisposition) {
+                const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+                if (filenameMatch && filenameMatch[1]) {
+                    filename = filenameMatch[1].replace(/['"]/g, '');
+                }
+            }
+            
+            // Создаем и инициируем скачивание файла
+            const downloadSuccess = safeDownloadFile(blob, filename);
+            
+            if (downloadSuccess) {
+                // Показываем сообщение об успехе с дополнительной информацией
+                showSuccessMessage(`Excel файл "${filename}" успешно сгенерирован и загружен`, 4000);
+                
+                // Логируем успешную операцию
+                console.log(`Excel file generated successfully: ${filename}, size: ${blob.size} bytes`);
+            } else {
+                throw new Error('Ошибка при скачивании файла. Попробуйте еще раз.');
+            }
+        });
+    })
+    .catch(error => {
+        console.error('Error generating summary file:', error);
+        
+        // Определяем тип ошибки и показываем соответствующее сообщение
+        let errorMessage = 'Произошла ошибка при генерации файла';
+        
+        if (error.name === 'TypeError' && error.message.includes('fetch')) {
+            errorMessage = 'Ошибка соединения с сервером. Проверьте подключение к интернету.';
+        } else if (error.message.includes('Файл можно генерировать только для сводов в статусе')) {
+            errorMessage = 'Файл можно генерировать только для сводов в статусе "Готов к отправке"';
+        } else if (error.message.includes('недостающих данных')) {
+            errorMessage = 'Невозможно сгенерировать файл: отсутствуют обязательные данные';
+        } else if (error.message.includes('недоступности шаблона')) {
+            errorMessage = 'Шаблон Excel файла недоступен. Обратитесь к администратору.';
+        } else if (error.message) {
+            errorMessage = error.message;
+        }
+        
+        showErrorMessage(errorMessage, 6000);
+        
+        // Дополнительная информация для разработчиков в консоли
+        console.error('Detailed error info:', {
+            message: error.message,
+            stack: error.stack,
+            summaryId: summaryId,
+            timestamp: new Date().toISOString()
+        });
+    })
+    .finally(() => {
+        // Восстанавливаем состояние кнопки
+        button.innerHTML = originalContent;
+        button.disabled = originalDisabled;
+        button.classList.remove('btn-loading');
+    });
 }
 
 // Функции управления статусом

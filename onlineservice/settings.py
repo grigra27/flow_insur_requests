@@ -180,6 +180,11 @@ LOGGING = {
             'level': 'DEBUG',
             'propagate': False,
         },
+        'summaries.excel_export': {
+            'handlers': ['console', 'file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
     },
 }
 
@@ -202,4 +207,7 @@ CELERY_TIMEZONE = TIME_ZONE
 # File upload settings
 FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB
 DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB
+
+# Excel export settings
+SUMMARY_TEMPLATE_PATH = BASE_DIR / 'templates' / 'summary_template.xlsx'
 
