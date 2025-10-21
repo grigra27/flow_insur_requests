@@ -1,15 +1,15 @@
 {% extends 'base.html' %}
 {% load tz %}
 
-{% block title %}Добавить предложение - {{ block.super }}{% endblock %}
+{% block title %}Редактировать предложение - {{ block.super }}{% endblock %}
 
 {% block content %}
 <div class="row justify-content-center">
     <div class="col-lg-10">
         <div class="card">
             <div class="card-header">
-                <h4 class="mb-0"><i class="bi bi-plus-circle"></i> Добавить предложение</h4>
-                <small class="text-muted">Свод к {{ summary.request.get_display_name }} - {{ summary.request.client_name }}</small>
+                <h4 class="mb-0"><i class="bi bi-pencil"></i> Редактировать предложение</h4>
+                <small class="text-muted">{{ offer.company_name }} ({{ offer.get_insurance_year_display }}) - Свод к {{ offer.summary.request.get_display_name }}</small>
             </div>
             <div class="card-body">
                 <form method="post">
@@ -164,6 +164,7 @@
                         </div>
                     </div>
                     
+
                     <!-- Рассрочка по вариантам премии -->
                     <div class="card mb-4">
                         <div class="card-header">
@@ -253,43 +254,72 @@
                     {% endif %}
                     
                     <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                        <a href="{% url 'summaries:summary_detail' summary.pk %}" class="btn btn-secondary">
+                        <a href="{% url 'summaries:summary_detail' offer.summary.pk %}" class="btn btn-secondary">
                             <i class="bi bi-x-circle"></i> Отмена
                         </a>
+                        <button type="button" class="btn btn-danger me-md-2" onclick="confirmDeleteOffer({{ offer.id }})">
+                            <i class="bi bi-trash"></i> Удалить предложение
+                        </button>
                         <button type="submit" class="btn btn-success">
-                            <i class="bi bi-check-circle"></i> Добавить предложение
+                            <i class="bi bi-check-circle"></i> Сохранить изменения
                         </button>
                     </div>
                 </form>
             </div>
         </div>
         
-        <!-- Информация о заявке -->
+        <!-- Информация о предложении -->
         <div class="card mt-4">
             <div class="card-header">
-                <h6 class="mb-0">Информация о заявке</h6>
+                <h6 class="mb-0">Информация о предложении</h6>
             </div>
             <div class="card-body">
                 <div class="row">
                     <div class="col-md-6">
                         <dl class="row">
-                            <dt class="col-sm-5">Клиент:</dt>
-                            <dd class="col-sm-7">{{ summary.request.client_name }}</dd>
+                            <dt class="col-sm-5">Получено:</dt>
+                            <dd class="col-sm-7">{% timezone "Europe/Moscow" %}{{ offer.received_at|date:"d.m.Y H:i" }}{% endtimezone %} (МСК)</dd>
                             
-                            <dt class="col-sm-5">Тип страхования:</dt>
-                            <dd class="col-sm-7">{{ summary.request.insurance_type }}</dd>
+                            <dt class="col-sm-5">Клиент:</dt>
+                            <dd class="col-sm-7">{{ offer.summary.request.client_name }}</dd>
                         </dl>
                     </div>
                     <div class="col-md-6">
                         <dl class="row">
-                            <dt class="col-sm-5">Срок:</dt>
-                            <dd class="col-sm-7">{{ summary.request.insurance_period }}</dd>
+                            <dt class="col-sm-5">Тип страхования:</dt>
+                            <dd class="col-sm-7">{{ offer.summary.request.insurance_type }}</dd>
                             
-                            <dt class="col-sm-5">ТС:</dt>
-                            <dd class="col-sm-7">{{ summary.request.vehicle_info|default:"Не указано" }}</dd>
+                            <dt class="col-sm-5">Срок:</dt>
+                            <dd class="col-sm-7">{{ offer.summary.request.insurance_period }}</dd>
                         </dl>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Confirmation Modal for Delete -->
+<div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-labelledby="deleteConfirmModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteConfirmModalLabel">
+                    <i class="bi bi-exclamation-triangle text-warning"></i> Подтверждение удаления
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Вы действительно хотите удалить предложение от <strong>{{ offer.company_name }}</strong> ({{ offer.get_insurance_year_display }})?</p>
+                <p class="text-muted">Это действие нельзя отменить.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle"></i> Отмена
+                </button>
+                <button type="button" class="btn btn-danger" onclick="executeDeleteOffer({{ offer.id }})">
+                    <i class="bi bi-trash"></i> Удалить предложение
+                </button>
             </div>
         </div>
     </div>
@@ -504,7 +534,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (form && submitButton) {
         form.addEventListener('submit', function(e) {
             // Показываем индикатор загрузки
-            submitButton.innerHTML = '<i class="bi bi-hourglass-split"></i> Добавление...';
+            submitButton.innerHTML = '<i class="bi bi-hourglass-split"></i> Сохранение...';
             submitButton.disabled = true;
             
             // Получаем все поля для валидации
@@ -519,7 +549,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Функция для восстановления кнопки
             function restoreSubmitButton() {
-                submitButton.innerHTML = '<i class="bi bi-check-circle"></i> Добавить предложение';
+                submitButton.innerHTML = '<i class="bi bi-check-circle"></i> Сохранить изменения';
                 submitButton.disabled = false;
             }
             
@@ -676,19 +706,86 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
-    
 });
-</script>
 
-{% if form.errors %}
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const submitButton = document.querySelector('button[type="submit"]');
-    if (submitButton) {
-        submitButton.innerHTML = '<i class="bi bi-check-circle"></i> Добавить предложение';
-        submitButton.disabled = false;
-    }
-});
+// Функция подтверждения удаления
+function confirmDeleteOffer(offerId) {
+    const modal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
+    modal.show();
+}
+
+// Функция выполнения удаления
+function executeDeleteOffer(offerId) {
+    fetch(`/summaries/offer/${offerId}/delete/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+        },
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Закрываем модальное окно
+            const modal = bootstrap.Modal.getInstance(document.getElementById('deleteConfirmModal'));
+            modal.hide();
+            
+            // Показываем уведомление об успехе
+            showSuccessMessage('Предложение успешно удалено');
+            
+            // Перенаправляем на страницу свода через небольшую задержку
+            setTimeout(() => {
+                window.location.href = `/summaries/{{ offer.summary.pk }}/`;
+            }, 1500);
+        } else {
+            // Закрываем модальное окно
+            const modal = bootstrap.Modal.getInstance(document.getElementById('deleteConfirmModal'));
+            modal.hide();
+            
+            // Показываем ошибку
+            showErrorMessage('Ошибка при удалении: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showErrorMessage('Произошла ошибка при удалении предложения');
+    });
+}
+
+// Функции для показа уведомлений
+function showSuccessMessage(message) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = 'alert alert-success alert-dismissible fade show position-fixed';
+    alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    alertDiv.innerHTML = `
+        <i class="bi bi-check-circle"></i> ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    `;
+    document.body.appendChild(alertDiv);
+    
+    // Автоматически удаляем через 3 секунды
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.parentNode.removeChild(alertDiv);
+        }
+    }, 3000);
+}
+
+function showErrorMessage(message) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = 'alert alert-danger alert-dismissible fade show position-fixed';
+    alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    alertDiv.innerHTML = `
+        <i class="bi bi-exclamation-triangle"></i> ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    `;
+    document.body.appendChild(alertDiv);
+    
+    // Автоматически удаляем через 5 секунд
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.parentNode.removeChild(alertDiv);
+        }
+    }, 5000);
+}
 </script>
-{% endif %}
 {% endblock %}

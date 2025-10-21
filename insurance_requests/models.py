@@ -14,10 +14,7 @@ class InsuranceRequest(models.Model):
         ('uploaded', 'Загружена'),
         ('email_generated', 'Письмо сгенерировано'),
         ('email_sent', 'Письмо отправлено'),
-        ('response_received', 'Получен ответ'),
-        ('report_generated', 'Отчет сгенерирован'),
         ('completed', 'Завершена'),
-        ('error', 'Ошибка'),
     ]
     
     INSURANCE_TYPE_CHOICES = [
@@ -147,7 +144,7 @@ class InsuranceRequest(models.Model):
     def can_create_summary(self) -> bool:
         """Проверяет, можно ли создать свод для этой заявки"""
         return (
-            self.status in ['email_sent', 'response_received'] and
+            self.status in ['email_sent', 'completed'] and
             not hasattr(self, 'summary')
         )
     
@@ -175,7 +172,7 @@ class RequestAttachment(models.Model):
         verbose_name_plural = 'Вложения'
     
     def __str__(self):
-        return f"{self.original_filename} (Заявка #{self.request.id})"
+        return f"{self.original_filename} (Заявка {self.request.get_display_name()})"
 
 
 class InsuranceResponse(models.Model):

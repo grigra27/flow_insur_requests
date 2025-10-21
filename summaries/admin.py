@@ -4,17 +4,17 @@ from .models import InsuranceSummary, InsuranceOffer, SummaryTemplate
 
 @admin.register(InsuranceSummary)
 class InsuranceSummaryAdmin(admin.ModelAdmin):
-    list_display = ['id', 'request', 'status', 'total_offers', 'best_premium', 'best_company', 'created_at']
+    list_display = ['id', 'request', 'status', 'total_offers', 'created_at']
     list_filter = ['status', 'created_at']
-    search_fields = ['request__client_name', 'request__inn', 'best_company']
-    readonly_fields = ['created_at', 'updated_at', 'total_offers', 'best_premium', 'best_company']
+    search_fields = ['request__client_name', 'request__inn']
+    readonly_fields = ['created_at', 'updated_at', 'total_offers']
     
     fieldsets = (
         ('Основная информация', {
-            'fields': ('request', 'status', 'client_email')
+            'fields': ('request', 'status')
         }),
         ('Сводные данные', {
-            'fields': ('total_offers', 'best_premium', 'best_company')
+            'fields': ('total_offers',)
         }),
         ('Файлы и отправка', {
             'fields': ('summary_file', 'sent_to_client_at')
@@ -28,20 +28,24 @@ class InsuranceSummaryAdmin(admin.ModelAdmin):
 
 @admin.register(InsuranceOffer)
 class InsuranceOfferAdmin(admin.ModelAdmin):
-    list_display = ['company_name', 'summary', 'insurance_premium', 'insurance_sum', 'installment_available', 'is_valid', 'received_at']
-    list_filter = ['is_valid', 'installment_available', 'company_name', 'received_at']
-    search_fields = ['company_name', 'company_email', 'summary__request__client_name']
+    list_display = ['company_name', 'insurance_year', 'summary', 'premium_with_franchise_1', 'premium_with_franchise_2', 'insurance_sum', 'installment_variant_1', 'installment_variant_2', 'is_valid', 'received_at']
+    list_filter = ['is_valid', 'insurance_year', 'installment_variant_1', 'installment_variant_2', 'company_name', 'received_at']
+    search_fields = ['company_name', 'summary__request__client_name']
     readonly_fields = ['received_at']
     
     fieldsets = (
         ('Компания', {
-            'fields': ('company_name', 'company_email')
+            'fields': ('company_name',)
         }),
-        ('Предложение', {
-            'fields': ('summary', 'insurance_sum', 'insurance_premium', 'franchise_amount')
+        ('Основное предложение', {
+            'fields': ('summary', 'insurance_year', 'insurance_sum')
         }),
-        ('Условия', {
-            'fields': ('installment_available', 'installment_months', 'valid_until', 'is_valid')
+        ('Варианты франшизы и премий', {
+            'fields': ('franchise_1', 'premium_with_franchise_1', 'franchise_2', 'premium_with_franchise_2'),
+            'description': 'Структурированные данные о франшизах и соответствующих премиях'
+        }),
+        ('Условия оплаты', {
+            'fields': ('installment_variant_1', 'payments_per_year_variant_1', 'installment_variant_2', 'payments_per_year_variant_2', 'is_valid')
         }),
         ('Дополнительно', {
             'fields': ('notes', 'original_email_subject', 'attachment_file', 'received_at')

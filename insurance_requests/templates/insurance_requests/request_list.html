@@ -156,7 +156,7 @@
                 <tr>
                     <th scope="col">Заявка</th>
                     <th scope="col">Клиент</th>
-                    <th scope="col">Тип страхования</th>
+                    <th scope="col">Тип</th>
                     <th scope="col">Филиал</th>
                     <th scope="col">Статус</th>
                     <th scope="col">Дата создания</th>
@@ -182,12 +182,12 @@
                             <span class="d-lg-none">{{ request.branch|default:"Не указан"|truncatechars:15 }}</span>
                         </td>
                         <td>
-                            <span class="badge bg-{% if request.status == 'completed' %}success{% elif request.status == 'error' %}danger{% elif request.status == 'email_sent' %}info{% else %}secondary{% endif %}">
+                            <span class="badge bg-{% if request.status == 'completed' %}success{% elif request.status == 'email_sent' %}info{% elif request.status == 'email_generated' %}warning{% else %}secondary{% endif %}">
                                 <span class="d-none d-sm-inline">{{ request.get_status_display }}</span>
                                 <span class="d-sm-none">
                                     {% if request.status == 'completed' %}✓
-                                    {% elif request.status == 'error' %}✗
                                     {% elif request.status == 'email_sent' %}📧
+                                    {% elif request.status == 'email_generated' %}✉️
                                     {% else %}⏳{% endif %}
                                 </span>
                             </span>

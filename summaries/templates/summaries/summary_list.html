@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load tz %}
+{% load summary_extras %}
 
 {% block title %}Своды предложений - {{ block.super }}{% endblock %}
 
@@ -13,49 +14,213 @@
     </div>
 </div>
 
-{% if summaries %}
-    <div class="row">
-        {% for summary in summaries %}
-            <div class="col-md-6 col-lg-4 mb-4">
-                <div class="card h-100">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h6 class="mb-0">Свод #{{ summary.id }}</h6>
-                        <span class="badge bg-{% if summary.status == 'completed' %}success{% elif summary.status == 'sent' %}info{% elif summary.status == 'ready' %}warning{% else %}secondary{% endif %}">
-                            {{ summary.get_status_display }}
-                        </span>
+<!-- Вкладки филиалов -->
+{% if available_branches %}
+<div class="branch-filter-tabs mb-4">
+    <ul class="nav nav-tabs">
+        <li class="nav-item">
+            <a class="nav-link{% if not current_branch %} active{% endif %}" 
+               href="#" 
+               onclick="filterByBranch('')">
+                <i class="bi bi-list-ul"></i> Все своды
+                {% if show_total_count %}
+                    <span class="badge bg-primary ms-1">{{ total_summaries_count }}</span>
+                {% endif %}
+            </a>
+        </li>
+        {% for branch in available_branches %}
+        <li class="nav-item">
+            <a class="nav-link{% if current_branch == branch %} active{% endif %}" 
+               href="#" 
+               onclick="filterByBranch('{{ branch|escapejs }}')">
+                <!--i class="bi bi-building"></i--> {{ branch|format_branch }}
+                {% if show_branch_counts and current_branch == branch %}
+                    <span class="badge bg-primary ms-1">{{ branch_counts|get_item:branch|default:0 }}</span>
+                {% endif %}
+            </a>
+        </li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
+<!-- Форма фильтрации -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">
+            <button class="btn btn-link p-0" type="button" data-bs-toggle="collapse" data-bs-target="#filterForm" aria-expanded="false" aria-controls="filterForm">
+                <i class="bi bi-funnel"></i> Фильтры
+            </button>
+        </h5>
+    </div>
+    <div class="collapse" id="filterForm">
+        <div class="card-body">
+            <form method="get" id="summary-filter-form">
+                {{ filter_form.branch }}
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label for="{{ filter_form.dfa_number.id_for_label }}" class="form-label">{{ filter_form.dfa_number.label }}</label>
+                        {{ filter_form.dfa_number }}
                     </div>
-                    <div class="card-body">
-                        <h6 class="card-title">{{ summary.request.client_name }}</h6>
-                        <p class="card-text">
-                            <small class="text-muted">
-                                <i class="bi bi-calendar"></i> {% timezone "Europe/Moscow" %}{{ summary.created_at|date:"d.m.Y H:i" }}{% endtimezone %} (МСК)<br>
-                                <i class="bi bi-file-text"></i> Заявка #{{ summary.request.id }}<br>
-                                <i class="bi bi-building"></i> {{ summary.total_offers }} предложений
-                            </small>
-                        </p>
-                        
-                        {% if summary.best_premium %}
-                            <div class="alert alert-success py-2">
-                                <strong>Лучшее предложение:</strong><br>
-                                {{ summary.best_company }}<br>
-                                <span class="h6">{{ summary.best_premium|floatformat:2 }} ₽</span>
-                            </div>
-                        {% endif %}
+                    <div class="col-md-3">
+                        <label for="{{ filter_form.month.id_for_label }}" class="form-label">{{ filter_form.month.label }}</label>
+                        {{ filter_form.month }}
                     </div>
-                    <div class="card-footer">
-                        <a href="{% url 'summaries:summary_detail' summary.pk %}" class="btn btn-outline-primary btn-sm">
-                            <i class="bi bi-eye"></i> Подробнее
+                    <div class="col-md-3">
+                        <label for="{{ filter_form.year.id_for_label }}" class="form-label">{{ filter_form.year.label }}</label>
+                        {{ filter_form.year }}
+                    </div>
+                    <div class="col-md-3 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary me-2">
+                            <i class="bi bi-search"></i> Применить
+                        </button>
+                        <a href="{% url 'summaries:summary_list' %}" class="btn btn-outline-secondary">
+                            <i class="bi bi-x-circle"></i> Сбросить
                         </a>
-                        {% if summary.status == 'collecting' %}
-                            <a href="{% url 'summaries:add_offer' summary.pk %}" class="btn btn-success btn-sm">
-                                <i class="bi bi-plus-circle"></i> Добавить предложение
-                            </a>
-                        {% endif %}
                     </div>
                 </div>
-            </div>
-        {% endfor %}
+            </form>
+        </div>
     </div>
+</div>
+
+{% if summaries %}
+    <div class="table-responsive">
+        <table class="table table-hover">
+            <thead class="table-dark">
+                <tr>
+                    <th>Номер заявки</th>
+                    <th>Клиент</th>
+                    <th>Филиал</th>
+                    <th>Статус</th>
+                    <th>Дата создания</th>
+                    <th>Компаний</th>
+                    <th>Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for summary in summaries %}
+                <tr data-href="{% url 'summaries:summary_detail' summary.pk %}" style="cursor: pointer;" class="summary-row">
+                    <td>
+                        <strong>{{ summary.request.get_display_name }}</strong>
+                    </td>
+                    <td>
+                        <div class="text-truncate" style="max-width: 200px;" title="{{ summary.request.client_name }}">
+                            {{ summary.request.client_name }}
+                        </div>
+                    </td>
+                    <td>
+                        <i class="bi bi-building text-muted"></i>
+                        <span class="ms-1">{{ summary.branch|format_branch }}</span>
+                    </td>
+                    <td>
+                        <span class="badge bg-{{ summary.status|status_color }}">
+                            {{ summary.get_status_display }}
+                        </span>
+                    </td>
+                    <td>
+                        <small>
+                            {% timezone "Europe/Moscow" %}{{ summary.created_at|date:"d.m.Y H:i" }}{% endtimezone %}
+                        </small>
+                    </td>
+                    <td>
+                        <span class="badge {{ summary.get_unique_companies_count|companies_count_badge_class }} {{ summary.get_unique_companies_count|companies_count_size_class }}">
+                            {{ summary.get_unique_companies_count }}
+                        </span>
+                    </td>
+                    <td>
+                        <div class="btn-group btn-group-sm" role="group">
+                            <a href="{% url 'summaries:summary_detail' summary.pk %}" 
+                               class="btn btn-outline-primary" 
+                               title="Подробнее">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                            {% if summary.status == 'collecting' %}
+                            <a href="{% url 'summaries:add_offer' summary.pk %}" 
+                               class="btn btn-outline-success" 
+                               title="Добавить предложение">
+                                <i class="bi bi-plus-circle"></i>
+                            </a>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- Пагинация (требование 5.2, 5.3, 5.4) -->
+    {% if summaries.has_other_pages %}
+    <nav aria-label="Навигация по страницам" class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if summaries.has_previous %}
+                <li class="page-item">
+                    <a class="page-link pagination-link" data-page="{{ summaries.previous_page_number }}" href="?page={{ summaries.previous_page_number }}" aria-label="Предыдущая">
+                        <i class="bi bi-chevron-left"></i> Предыдущая
+                    </a>
+                </li>
+            {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link" aria-label="Предыдущая">
+                        <i class="bi bi-chevron-left"></i> Предыдущая
+                    </span>
+                </li>
+            {% endif %}
+            
+            {% for num in summaries.paginator.page_range %}
+                {% if summaries.number == num %}
+                    <li class="page-item active" aria-current="page">
+                        <span class="page-link">{{ num }}</span>
+                    </li>
+                {% elif num > summaries.number|add:'-3' and num < summaries.number|add:'3' %}
+                    <li class="page-item">
+                        <a class="page-link pagination-link" data-page="{{ num }}" href="?page={{ num }}">{{ num }}</a>
+                    </li>
+                {% elif num == 1 %}
+                    <li class="page-item">
+                        <a class="page-link pagination-link" data-page="1" href="?page=1">1</a>
+                    </li>
+                    {% if summaries.number > 4 %}
+                        <li class="page-item disabled">
+                            <span class="page-link">...</span>
+                        </li>
+                    {% endif %}
+                {% elif num == summaries.paginator.num_pages %}
+                    {% if summaries.number < summaries.paginator.num_pages|add:'-3' %}
+                        <li class="page-item disabled">
+                            <span class="page-link">...</span>
+                        </li>
+                    {% endif %}
+                    <li class="page-item">
+                        <a class="page-link pagination-link" data-page="{{ summaries.paginator.num_pages }}" href="?page={{ summaries.paginator.num_pages }}">{{ summaries.paginator.num_pages }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+            
+            {% if summaries.has_next %}
+                <li class="page-item">
+                    <a class="page-link pagination-link" data-page="{{ summaries.next_page_number }}" href="?page={{ summaries.next_page_number }}" aria-label="Следующая">
+                        Следующая <i class="bi bi-chevron-right"></i>
+                    </a>
+                </li>
+            {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link" aria-label="Следующая">
+                        Следующая <i class="bi bi-chevron-right"></i>
+                    </span>
+                </li>
+            {% endif %}
+        </ul>
+    </nav>
+    
+    <!-- Информация о пагинации -->
+    <div class="text-center text-muted mt-2">
+        <small>
+            Показано {{ summaries.start_index }}-{{ summaries.end_index }} из {{ summaries.paginator.count }} сводов
+        </small>
+    </div>
+    {% endif %}
 {% else %}
     <div class="text-center py-5">
         <i class="bi bi-collection display-1 text-muted"></i>
@@ -66,4 +231,411 @@
         </a>
     </div>
 {% endif %}
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .summary-row:hover {
+        background-color: rgba(0, 123, 255, 0.1);
+    }
+    
+    .filter-form {
+        background-color: #f8f9fa;
+        border-radius: 0.375rem;
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+    
+    .filter-active {
+        border-left: 4px solid #0d6efd;
+    }
+    
+    /* Optimized filter form styles */
+    .card-body .row.g-3 {
+        align-items: end;
+    }
+    
+    .card-body .form-label {
+        font-weight: 500;
+        margin-bottom: 0.5rem;
+    }
+    
+    .card-body .btn-group {
+        gap: 0.5rem;
+    }
+    
+    /* Стили для вкладок филиалов */
+    .branch-filter-tabs {
+        border-bottom: 1px solid #dee2e6;
+        margin-bottom: 1rem;
+    }
+
+    .branch-filter-tabs .nav-tabs {
+        border-bottom: none;
+    }
+
+    .branch-filter-tabs .nav-link {
+        border-bottom: 2px solid transparent;
+        color: #6c757d;
+        text-decoration: none;
+        padding: 0.75rem 1rem;
+        border-radius: 0;
+        transition: all 0.2s ease-in-out;
+    }
+
+    .branch-filter-tabs .nav-link:hover {
+        border-bottom-color: #0d6efd;
+        color: #0d6efd;
+        background-color: rgba(13, 110, 253, 0.05);
+    }
+
+    .branch-filter-tabs .nav-link.active {
+        border-bottom-color: #0d6efd;
+        color: #0d6efd;
+        background-color: transparent;
+        font-weight: 500;
+    }
+
+    .branch-filter-tabs .nav-link .badge {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+    }
+
+    .branch-filter-tabs .nav-link.active .badge {
+        background-color: #0d6efd !important;
+    }
+    
+    /* Адаптивность для мобильных устройств */
+    @media (max-width: 768px) {
+        .branch-filter-tabs .nav-link {
+            padding: 0.5rem 0.75rem;
+            font-size: 0.875rem;
+        }
+        
+        .branch-filter-tabs .nav-link .badge {
+            font-size: 0.7rem;
+            padding: 0.2rem 0.4rem;
+        }
+        
+        /* Скрываем иконки на очень маленьких экранах */
+        .branch-filter-tabs .nav-link i {
+            display: none;
+        }
+    }
+    
+    @media (max-width: 576px) {
+        .branch-filter-tabs .nav-link {
+            padding: 0.4rem 0.5rem;
+            font-size: 0.8rem;
+        }
+        
+        /* Сокращаем длинные названия филиалов */
+        .branch-filter-tabs .nav-link {
+            max-width: 120px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+    }
+    
+    @media (max-width: 768px) {
+        .table-responsive table {
+            font-size: 0.875rem;
+        }
+        
+        .table-responsive th,
+        .table-responsive td {
+            padding: 0.5rem 0.25rem;
+        }
+        
+        .btn-group-sm .btn {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.75rem;
+        }
+        
+        .text-truncate {
+            max-width: 120px !important;
+        }
+        
+        /* Hide branch column on mobile */
+        .table-responsive th:nth-child(3),
+        .table-responsive td:nth-child(3) {
+            display: none;
+        }
+    }
+    
+    @media (max-width: 576px) {
+        /* Hide date column on very small screens */
+        .table-responsive th:nth-child(5),
+        .table-responsive td:nth-child(5) {
+            display: none;
+        }
+        
+        .text-truncate {
+            max-width: 100px !important;
+        }
+    }
+    
+    /* Стили для пагинации (требование 5.6) */
+    .pagination {
+        margin-bottom: 0;
+    }
+    
+    .pagination .page-link {
+        color: #0d6efd;
+        border: 1px solid #dee2e6;
+        padding: 0.5rem 0.75rem;
+        margin: 0 0.125rem;
+        border-radius: 0.375rem;
+        transition: all 0.2s ease-in-out;
+    }
+    
+    .pagination .page-link:hover {
+        color: #0a58ca;
+        background-color: #e9ecef;
+        border-color: #adb5bd;
+        text-decoration: none;
+    }
+    
+    .pagination .page-item.active .page-link {
+        background-color: #0d6efd;
+        border-color: #0d6efd;
+        color: white;
+        font-weight: 500;
+    }
+    
+    .pagination .page-item.disabled .page-link {
+        color: #6c757d;
+        background-color: #fff;
+        border-color: #dee2e6;
+        cursor: not-allowed;
+    }
+    
+    .pagination .page-item.disabled .page-link:hover {
+        color: #6c757d;
+        background-color: #fff;
+        border-color: #dee2e6;
+    }
+    
+    /* Адаптивные стили для пагинации */
+    @media (max-width: 768px) {
+        .pagination .page-link {
+            padding: 0.375rem 0.5rem;
+            font-size: 0.875rem;
+        }
+        
+        /* Скрываем номера страниц на мобильных, оставляем только навигацию */
+        .pagination .page-item:not(:first-child):not(:last-child) {
+            display: none;
+        }
+        
+        .pagination .page-item:first-child,
+        .pagination .page-item:last-child {
+            display: block;
+        }
+        
+        /* Показываем текущую страницу */
+        .pagination .page-item.active {
+            display: block !important;
+        }
+    }
+    
+    @media (max-width: 576px) {
+        .pagination .page-link {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.8rem;
+        }
+        
+        /* Убираем текст, оставляем только иконки */
+        .pagination .page-link i {
+            margin: 0;
+        }
+        
+        .pagination .page-link:first-child,
+        .pagination .page-link:last-child {
+            font-size: 0;
+        }
+        
+        .pagination .page-link:first-child i,
+        .pagination .page-link:last-child i {
+            font-size: 0.8rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Функция для фильтрации по филиалам с сохранением других параметров URL (требование 5.4)
+function filterByBranch(branch) {
+    const urlParams = new URLSearchParams(window.location.search);
+    
+    if (branch) {
+        urlParams.set('branch', branch);
+    } else {
+        urlParams.delete('branch');
+    }
+    
+    // Сбрасываем пагинацию при смене филиала
+    urlParams.delete('page');
+    
+    const newUrl = window.location.pathname + '?' + urlParams.toString();
+    window.location.href = newUrl;
+}
+
+// Функция для сохранения параметров фильтрации при навигации по страницам (требование 5.4)
+function preserveFiltersInPagination() {
+    const paginationLinks = document.querySelectorAll('.pagination-link');
+    const currentParams = new URLSearchParams(window.location.search);
+    
+    // Удаляем параметр page из текущих параметров для корректного добавления
+    currentParams.delete('page');
+    
+    paginationLinks.forEach(link => {
+        const pageNumber = link.getAttribute('data-page');
+        if (pageNumber) {
+            // Создаем новый URL с сохранением всех параметров фильтрации
+            const newParams = new URLSearchParams(currentParams);
+            newParams.set('page', pageNumber);
+            
+            link.href = window.location.pathname + '?' + newParams.toString();
+        }
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const filterForm = document.getElementById('summary-filter-form');
+    const filterCollapse = document.getElementById('filterForm');
+    
+    // Check if any filters are active and show the form
+    function checkActiveFilters() {
+        const formData = new FormData(filterForm);
+        let hasActiveFilters = false;
+        
+        for (let [key, value] of formData.entries()) {
+            if (value && value.trim() !== '') {
+                hasActiveFilters = true;
+                break;
+            }
+        }
+        
+        if (hasActiveFilters) {
+            filterCollapse.classList.add('show');
+            filterCollapse.parentElement.classList.add('filter-active');
+        }
+    }
+    
+    // Enhance branch tab switching with visual feedback
+    const branchTabs = document.querySelectorAll('.branch-filter-tabs .nav-link');
+    branchTabs.forEach(tab => {
+        tab.addEventListener('click', function(e) {
+            e.preventDefault();
+            
+            // Add loading state
+            const originalContent = this.innerHTML;
+            this.innerHTML = originalContent.replace(/(<i[^>]*><\/i>)/, '$1 <span class="spinner-border spinner-border-sm ms-1" role="status"></span>');
+            this.style.pointerEvents = 'none';
+            
+            // Execute the filter function
+            const onclickAttr = this.getAttribute('onclick');
+            if (onclickAttr) {
+                eval(onclickAttr);
+            }
+        });
+    });
+    
+    // Auto-submit form when filters change (with debounce)
+    let debounceTimer;
+    function debounceSubmit() {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+            // Сбрасываем пагинацию при изменении фильтров (требование 5.4)
+            const urlParams = new URLSearchParams(window.location.search);
+            urlParams.delete('page');
+            
+            // Добавляем данные формы
+            const formData = new FormData(filterForm);
+            formData.forEach((value, key) => {
+                if (value && value.trim() !== '') {
+                    urlParams.set(key, value);
+                } else {
+                    urlParams.delete(key);
+                }
+            });
+            
+            window.location.href = window.location.pathname + '?' + urlParams.toString();
+        }, 500);
+    }
+    
+    // Add event listeners to form inputs
+    const inputs = filterForm.querySelectorAll('input, select');
+    inputs.forEach(input => {
+        if (input.type === 'text') {
+            input.addEventListener('input', debounceSubmit);
+        } else {
+            input.addEventListener('change', () => {
+                // Сбрасываем пагинацию при изменении фильтров (требование 5.4)
+                const urlParams = new URLSearchParams(window.location.search);
+                urlParams.delete('page');
+                
+                // Добавляем данные формы
+                const formData = new FormData(filterForm);
+                formData.forEach((value, key) => {
+                    if (value && value.trim() !== '') {
+                        urlParams.set(key, value);
+                    } else {
+                        urlParams.delete(key);
+                    }
+                });
+                
+                window.location.href = window.location.pathname + '?' + urlParams.toString();
+            });
+        }
+    });
+    
+    // Check for active filters on page load
+    checkActiveFilters();
+    
+    // Handle row clicks for navigation
+    const summaryRows = document.querySelectorAll('.summary-row[data-href]');
+    summaryRows.forEach(row => {
+        row.addEventListener('click', function(e) {
+            // Don't navigate if clicking on action buttons
+            if (!e.target.closest('.btn-group')) {
+                window.location.href = this.getAttribute('data-href');
+            }
+        });
+    });
+    
+    // Clear individual filter functionality
+    function addClearButton(input) {
+        if (input.value && input.type === 'text') {
+            const clearBtn = document.createElement('button');
+            clearBtn.type = 'button';
+            clearBtn.className = 'btn btn-sm btn-outline-secondary position-absolute';
+            clearBtn.style.right = '5px';
+            clearBtn.style.top = '50%';
+            clearBtn.style.transform = 'translateY(-50%)';
+            clearBtn.innerHTML = '×';
+            clearBtn.onclick = () => {
+                input.value = '';
+                filterForm.submit();
+            };
+            
+            input.parentElement.style.position = 'relative';
+            input.parentElement.appendChild(clearBtn);
+        }
+    }
+    
+    // Add clear buttons to text inputs with values
+    inputs.forEach(input => {
+        if (input.type === 'text') {
+            addClearButton(input);
+        }
+    });
+    
+    // Обеспечиваем сохранение параметров фильтрации в ссылках пагинации (требование 5.4)
+    preserveFiltersInPagination();
+});
+</script>
 {% endblock %}

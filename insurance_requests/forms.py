@@ -171,8 +171,9 @@ class ExcelUploadForm(forms.Form):
         label='Excel файл с заявкой',
         help_text='Загрузите файл в формате .xls, .xlsx или .xltx',
         widget=forms.FileInput(attrs={
-            'class': 'form-control',
-            'accept': '.xls,.xlsx,.xltx'
+            'class': 'form-control form-control-lg',
+            'accept': '.xls,.xlsx,.xltx',
+            'style': 'height: 50px; font-size: 1.1rem;'
         })
     )
     
@@ -628,3 +629,32 @@ class EmailPreviewForm(forms.Form):
                 raise ValidationError(f'Некорректный email адрес: {email}')
         
         return emails
+
+
+class RequestStatusForm(forms.Form):
+    """Форма для изменения статуса заявки"""
+    
+    status = forms.ChoiceField(
+        choices=InsuranceRequest.STATUS_CHOICES,
+        widget=forms.Select(attrs={
+            'class': 'form-select',
+            'id': 'request-status-select'
+        }),
+        label='Статус заявки'
+    )
+
+
+class OfferUploadForm(forms.Form):
+    """Форма для загрузки файлов предложений от страховых компаний"""
+    
+    # Простое поле для одного файла - множественность обрабатываем в JavaScript и представлении
+    offer_files = forms.FileField(
+        label='Файлы предложений',
+        help_text='Выберите один или несколько Excel файлов (.xlsx) с предложениями от страховых компаний',
+        widget=forms.FileInput(attrs={
+            'class': 'form-control',
+            'accept': '.xlsx',
+            'id': 'offer-files-input'
+        }),
+        required=False  # Валидацию проведем в представлении
+    )

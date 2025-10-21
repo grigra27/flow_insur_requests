@@ -20,11 +20,8 @@
     <div class="col-lg-8">
         <!-- Основная информация -->
         <div class="card mb-4">
-            <div class="card-header d-flex justify-content-between align-items-center">
+            <div class="card-header">
                 <h5 class="mb-0">Информация о заявке</h5>
-                <span class="badge bg-{% if request.status == 'completed' %}success{% elif request.status == 'error' %}danger{% elif request.status == 'email_sent' %}info{% else %}secondary{% endif %} fs-6">
-                    {{ request.get_status_display }}
-                </span>
             </div>
             <div class="card-body">
                 <div class="row">
@@ -32,19 +29,19 @@
                         <dl class="row">
                             <dt class="col-sm-4">Клиент:</dt>
                             <dd class="col-sm-8">{{ request.client_name }}</dd>
-                            
+
                             <dt class="col-sm-4">ИНН:</dt>
                             <dd class="col-sm-8">{{ request.inn }}</dd>
-                            
+
                             <dt class="col-sm-4">Тип страхования:</dt>
                             <dd class="col-sm-8">{{ request.insurance_type }}</dd>
-                            
+
                             <dt class="col-sm-4">Срок страхования:</dt>
                             <dd class="col-sm-8">{{ request.insurance_period|default:"Период не указан" }}</dd>
-                            
+
                             <dt class="col-sm-4">Филиал:</dt>
                             <dd class="col-sm-8">{{ request.branch|default:"Не указан" }}</dd>
-                            
+
                             <dt class="col-sm-4">Номер ДФА:</dt>
                             <dd class="col-sm-8">{{ request.dfa_number|default:"Не указан" }}</dd>
                         </dl>
@@ -53,72 +50,73 @@
                         <dl class="row">
                             <dt class="col-sm-4">Создана:</dt>
                             <dd class="col-sm-8">{% timezone "Europe/Moscow" %}{{ request.created_at|date:"d.m.Y H:i" }}{% endtimezone %} (МСК)</dd>
-                            
+
                             {% if request.additional_data.application_format_display %}
                             <dt class="col-sm-4">Формат заявки:</dt>
                             <dd class="col-sm-8">
-                                <span class="badge bg-{% if request.additional_data.application_format == 'property' %}info{% else %}secondary{% endif %}">
+                                <span
+                                    class="badge bg-{% if request.additional_data.application_format == 'property' %}info{% else %}secondary{% endif %}">
                                     {{ request.additional_data.application_format_display }}
                                 </span>
                                 {% if request.additional_data.application_type_display %}
-                                    <br><small class="text-muted">{{ request.additional_data.application_type_display }}</small>
+                                <br><small class="text-muted">{{ request.additional_data.application_type_display }}</small>
                                 {% endif %}
                             </dd>
                             {% endif %}
-                            
+
                             <dt class="col-sm-4">Обновлена:</dt>
                             <dd class="col-sm-8">{% timezone "Europe/Moscow" %}{{ request.updated_at|date:"d.m.Y H:i" }}{% endtimezone %} (МСК)</dd>
-                            
+
                             <dt class="col-sm-4">Срок ответа:</dt>
                             <dd class="col-sm-8">
                                 {% if request.response_deadline %}
-                                    {% timezone "Europe/Moscow" %}{{ request.response_deadline|date:"d.m.Y в H:i" }}{% endtimezone %} (МСК)
+                                {% timezone "Europe/Moscow" %}{{ request.response_deadline|date:"d.m.Y в H:i" }}{% endtimezone %} (МСК)
                                 {% else %}
-                                    Не указан
+                                Не указан
                                 {% endif %}
                             </dd>
                         </dl>
                     </div>
                 </div>
-                
+
                 {% if request.vehicle_info %}
-                    <hr>
-                    <h6>Информация о предмете лизинга:</h6>
-                    <p class="text-muted">{{ request.vehicle_info }}</p>
+                <hr>
+                <h6>Информация о предмете лизинга:</h6>
+                <p class="text-muted">{{ request.vehicle_info }}</p>
                 {% endif %}
-                
+
                 {% if request.notes %}
-                    <hr>
-                    <h6>Примечание:</h6>
-                    <div class="bg-light p-3 rounded">
-                        <pre class="mb-0" style="white-space: pre-wrap; font-family: inherit; font-size: 0.9rem;">{{ request.notes|escape }}</pre>
-                    </div>
+                <hr>
+                <h6>Примечание:</h6>
+                <div class="bg-light p-3 rounded">
+                    <pre class="mb-0" style="white-space: pre-wrap; font-family: inherit; font-size: 0.9rem;">{{ request.notes|escape }}</pre>
+                </div>
                 {% endif %}
-                
+
                 <!-- Дополнительные параметры -->
                 <hr>
                 <h6>Дополнительные параметры:</h6>
                 <div class="d-flex gap-2 mb-3">
                     {% if request.has_franchise %}
-                        <span class="badge bg-warning text-dark">Франшиза</span>
+                    <span class="badge bg-warning text-dark">Франшиза</span>
                     {% endif %}
                     {% if request.has_installment %}
-                        <span class="badge bg-info text-dark">Рассрочка</span>
+                    <span class="badge bg-info text-dark">Рассрочка</span>
                     {% endif %}
                     {% if request.has_autostart %}
-                        <span class="badge bg-secondary">Автозапуск</span>
+                    <span class="badge bg-secondary">Автозапуск</span>
                     {% endif %}
                     {% if request.has_casco_ce %}
-                        <span class="badge bg-primary">КАСКО кат. C/E</span>
+                    <span class="badge bg-primary">КАСКО кат. C/E</span>
                     {% endif %}
                     {% if request.has_transportation %}
-                        <span class="badge bg-success">Перевозка</span>
+                    <span class="badge bg-success">Перевозка</span>
                     {% endif %}
                     {% if request.has_construction_work %}
-                        <span class="badge bg-dark text-light">СМР</span>
+                    <span class="badge bg-dark text-light">СМР</span>
                     {% endif %}
                     {% if not request.has_franchise and not request.has_installment and not request.has_autostart and not request.has_casco_ce and not request.has_transportation and not request.has_construction_work %}
-                        <span class="text-muted">Дополнительных параметров нет</span>
+                    <span class="text-muted">Дополнительных параметров нет</span>
                     {% endif %}
                 </div>
             </div>
@@ -126,53 +124,53 @@
 
         <!-- Письмо -->
         {% if request.email_subject or request.email_body %}
-            <div class="card mb-4">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">Сгенерированное письмо</h5>
-                    <div>
-                        {% if request.status == 'email_generated' %}
-                            <a href="{% url 'insurance_requests:preview_email' request.pk %}" class="btn btn-primary btn-sm">
-                                <i class="bi bi-envelope"></i> Отправить
-                            </a>
-                        {% endif %}
-                        {% if request.status == 'uploaded' %}
-                            <a href="{% url 'insurance_requests:generate_email' request.pk %}" class="btn btn-success btn-sm">
-                                <i class="bi bi-magic"></i> Сгенерировать
-                            </a>
-                        {% endif %}
-                    </div>
-                </div>
-                <div class="card-body">
-                    {% if request.email_subject %}
-                        <h6>Тема:</h6>
-                        <p class="fw-bold">{{ request.email_subject }}</p>
-                    {% endif %}
-                    
-                    {% if request.email_body %}
-                        <h6>Текст письма:</h6>
-                        <div class="border p-3 bg-light">
-                            <pre class="mb-0" style="white-space: pre-wrap; font-family: inherit;">{{ request.email_body }}</pre>
-                        </div>
-                    {% endif %}
-                    
-                    {% if request.email_sent_at %}
-                        <div class="alert alert-success mt-3">
-                            <i class="bi bi-check-circle"></i> Письмо отправлено {% timezone "Europe/Moscow" %}{{ request.email_sent_at|date:"d.m.Y в H:i" }}{% endtimezone %} (МСК)
-                        </div>
-                    {% endif %}
-                </div>
-            </div>
-        {% else %}
-            <div class="card mb-4">
-                <div class="card-body text-center py-4">
-                    <i class="bi bi-envelope display-4 text-muted"></i>
-                    <h5 class="mt-3">Письмо не сгенерировано</h5>
-                    <p class="text-muted">Нажмите кнопку ниже, чтобы создать письмо на основе данных заявки</p>
-                    <a href="{% url 'insurance_requests:generate_email' request.pk %}" class="btn btn-primary">
-                        <i class="bi bi-magic"></i> Сгенерировать письмо
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Сгенерированное письмо</h5>
+                <div>
+                    {% if request.status == 'email_generated' %}
+                    <a href="{% url 'insurance_requests:preview_email' request.pk %}" class="btn btn-primary btn-sm">
+                        <i class="bi bi-envelope"></i> Предварительный просмотр
                     </a>
+                    {% endif %}
+                    {% if request.status == 'uploaded' %}
+                    <a href="{% url 'insurance_requests:generate_email' request.pk %}" class="btn btn-success btn-sm">
+                        <i class="bi bi-magic"></i> Сгенерировать
+                    </a>
+                    {% endif %}
                 </div>
             </div>
+            <div class="card-body">
+                {% if request.email_subject %}
+                <h6>Тема:</h6>
+                <p class="fw-bold">{{ request.email_subject }}</p>
+                {% endif %}
+
+                {% if request.email_body %}
+                <h6>Текст письма:</h6>
+                <div class="border p-3 bg-light">
+                    <pre class="mb-0" style="white-space: pre-wrap; font-family: inherit;">{{ request.email_body }}</pre>
+                </div>
+                {% endif %}
+
+                {% if request.email_sent_at %}
+                <div class="alert alert-success mt-3">
+                    <i class="bi bi-check-circle"></i> Письмо отправлено {% timezone "Europe/Moscow" %}{{ request.email_sent_at|date:"d.m.Y в H:i" }}{% endtimezone %} (МСК)
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% else %}
+        <div class="card mb-4">
+            <div class="card-body text-center py-4">
+                <i class="bi bi-envelope display-4 text-muted"></i>
+                <h5 class="mt-3">Письмо не сгенерировано</h5>
+                <p class="text-muted">Нажмите кнопку ниже, чтобы создать письмо на основе данных заявки</p>
+                <a href="{% url 'insurance_requests:generate_email' request.pk %}" class="btn btn-primary">
+                    <i class="bi bi-magic"></i> Сгенерировать письмо
+                </a>
+            </div>
+        </div>
         {% endif %}
     </div>
 
@@ -184,21 +182,50 @@
             </div>
             <div class="card-body">
                 {% if request.attachments.all %}
-                    {% for attachment in request.attachments.all %}
-                        <div class="d-flex align-items-center mb-2">
-                            <i class="bi bi-file-earmark-excel text-success me-2"></i>
-                            <div class="flex-grow-1">
-                                <div class="fw-bold">{{ attachment.original_filename }}</div>
-                                <small class="text-muted">{% timezone "Europe/Moscow" %}{{ attachment.uploaded_at|date:"d.m.Y H:i" }}{% endtimezone %} (МСК)</small>
-                            </div>
-                            <a href="{{ attachment.file.url }}" class="btn btn-outline-primary btn-sm" download>
-                                <i class="bi bi-download"></i>
-                            </a>
-                        </div>
-                    {% endfor %}
+                {% for attachment in request.attachments.all %}
+                <div class="d-flex align-items-center mb-2">
+                    <i class="bi bi-file-earmark-excel text-success me-2"></i>
+                    <div class="flex-grow-1">
+                        <div class="fw-bold">{{ attachment.original_filename }}</div>
+                        <small class="text-muted">{% timezone "Europe/Moscow" %}{{ attachment.uploaded_at|date:"d.m.Y H:i" }}{% endtimezone %} (МСК)</small>
+                    </div>
+                    <a href="{{ attachment.file.url }}" class="btn btn-outline-primary btn-sm" download>
+                        <i class="bi bi-download"></i>
+                    </a>
+                </div>
+                {% endfor %}
                 {% else %}
-                    <p class="text-muted mb-0">Вложений нет</p>
+                <p class="text-muted mb-0">Вложений нет</p>
                 {% endif %}
+            </div>
+        </div>
+
+        <!-- Управление статусом -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-gear"></i> Управление статусом</h6>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label small text-muted">Текущий статус:</label>
+                    <div>
+                        <span id="status-badge"
+                            class="badge bg-{% if request.status == 'completed' %}success{% elif request.status == 'email_sent' %}info{% elif request.status == 'email_generated' %}warning{% else %}secondary{% endif %} fs-6">
+                            {{ request.get_status_display }}
+                        </span>
+                    </div>
+                </div>
+                
+                <form id="status-form">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="request-status-select" class="form-label">Изменить статус:</label>
+                        {{ status_form.status }}
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-sm w-100" id="change-status-btn">
+                        <i class="bi bi-check-circle"></i> Применить изменения
+                    </button>
+                </form>
             </div>
         </div>
 
@@ -209,39 +236,39 @@
             </div>
             <div class="card-body">
                 {% if request.summary %}
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <div class="fw-bold">Свод #{{ request.summary.id }}</div>
-                            <span class="badge bg-{% if request.summary.status == 'completed' %}success{% elif request.summary.status == 'sent' %}info{% elif request.summary.status == 'ready' %}warning{% else %}secondary{% endif %}">
-                                {{ request.summary.get_status_display }}
-                            </span>
-                            {% if request.summary.total_offers > 0 %}
-                                <div class="mt-2">
-                                    <small class="text-muted">{{ request.summary.total_offers }} предложений</small>
-                                    {% if request.summary.best_premium %}
-                                        <br><small class="text-success">Лучшая цена: {{ request.summary.best_premium|floatformat:2 }} ₽</small>
-                                    {% endif %}
-                                </div>
-                            {% endif %}
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="fw-bold">Свод к {{ request.get_display_name }}</div>
+                        <span
+                            class="badge bg-{% if request.summary.status == 'completed' %}success{% elif request.summary.status == 'sent' %}info{% elif request.summary.status == 'ready' %}warning{% else %}secondary{% endif %}">
+                            {{ request.summary.get_status_display }}
+                        </span>
+                        {% if request.summary.total_offers > 0 %}
+                        <div class="mt-2">
+                            <small class="text-muted">{{ request.summary.total_offers }} предложений</small>
                         </div>
-                        <a href="{% url 'summaries:summary_detail' request.summary.pk %}" class="btn btn-outline-primary btn-sm">
-                            <i class="bi bi-eye"></i> Открыть свод
-                        </a>
-                    </div>
-                {% elif request.can_create_summary %}
-                    <div class="text-center py-3">
-                        <p class="text-muted mb-3">Свод предложений не создан</p>
-                        <a href="{% url 'summaries:create_summary' request.pk %}" class="btn btn-success">
-                            <i class="bi bi-plus-circle"></i> Создать свод
-                        </a>
-                    </div>
-                {% else %}
-                    <div class="text-center py-3">
-                        <p class="text-muted mb-0">{{ request.get_summary_status }}</p>
-                        {% if request.status == 'email_generated' %}
-                            <small class="text-muted">Сначала отправьте письма страховщикам</small>
                         {% endif %}
                     </div>
+                    <a href="{% url 'summaries:summary_detail' request.summary.pk %}" class="btn btn-outline-primary btn-sm">
+                        <i class="bi bi-eye"></i> Открыть свод
+                    </a>
+                </div>
+                {% elif request.status == 'uploaded' or request.status == 'email_generated' or request.status == 'email_sent' or request.status == 'completed' %}
+                <div class="text-center create-summary-section">
+                    <p class="text-muted mb-3">Свод предложений не создан</p>
+                    <a href="{% url 'summaries:create_summary' request.pk %}" class="btn btn-success create-summary-btn">
+                        <i class="bi bi-plus-circle"></i> Создать свод
+                    </a>
+                    {% if request.status == 'email_generated' %}
+                    <div class="create-summary-hint">Рекомендуется сначала отправить письма страховщикам</div>
+                    {% elif request.status == 'uploaded' %}
+                    <div class="create-summary-hint">Можно создать свод и добавить предложения вручную</div>
+                    {% endif %}
+                </div>
+                {% else %}
+                <div class="text-center py-3">
+                    <p class="text-muted mb-0">{{ request.get_summary_status }}</p>
+                </div>
                 {% endif %}
             </div>
         </div>
@@ -252,24 +279,560 @@
                 <h6 class="mb-0"><i class="bi bi-reply"></i> Ответы компаний</h6>
             </div>
             <div class="card-body">
-                {% if request.responses.all %}
-                    {% for response in request.responses.all %}
-                        <div class="border-bottom pb-2 mb-2">
-                            <div class="fw-bold">{{ response.company_name }}</div>
-                            <small class="text-muted">{% timezone "Europe/Moscow" %}{{ response.received_at|date:"d.m.Y H:i" }}{% endtimezone %} (МСК)</small>
-                            {% if response.insurance_sum %}
-                                <div class="mt-1">
-                                    <small>Сумма: {{ response.insurance_sum|floatformat:2 }} ₽</small>
-                                </div>
-                            {% endif %}
-                        </div>
+                {% if request.summary and request.summary.offers.exists %}
+                <!-- Если свод уже создан из загруженных предложений -->
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i>
+                    Предложения уже загружены и обработаны.
+                    <a href="{% url 'summaries:summary_detail' request.summary.pk %}" class="alert-link">Перейти к своду</a>
+                </div>
+
+                <!-- Показываем краткую информацию о загруженных предложениях -->
+                <div class="mt-3">
+                    <h6>Загруженные предложения:</h6>
+                    {% for offer in request.summary.offers.all|slice:":5" %}
+                    <div class="border-bottom pb-2 mb-2">
+                        <div class="fw-bold">{{ offer.company_name }}</div>
+                        <small class="text-muted">
+                            {% if offer.insurance_year %}{{ offer.insurance_year }}{% endif %}
+                            {% if offer.insurance_sum %} - Сумма: {{ offer.insurance_sum|floatformat:2 }} ₽{% endif %}
+                        </small>
+                    </div>
                     {% endfor %}
+                    {% if request.summary.offers.count > 5 %}
+                    <small class="text-muted">И еще {{ request.summary.offers.count|add:"-5" }} предложений...</small>
+                    {% endif %}
+                </div>
                 {% else %}
-                    <p class="text-muted mb-0">Ответов пока нет</p>
-                    <small class="text-muted">Позднее здесь будет блок для загрузки ответов от страховых компаний</small>
+                <!-- Форма загрузки файлов предложений -->
+                <div id="offer-upload-section">
+                    <p class="text-muted mb-3">Загрузите файлы с предложениями от страховых компаний</p>
+
+                    <form id="offer-upload-form" method="post" enctype="multipart/form-data" action="{% url 'insurance_requests:upload_offers' request.pk %}">
+                        {% csrf_token %}
+
+                        <!-- Поле выбора файлов -->
+                        <div class="mb-3">
+                            <label for="offer-files-input" class="form-label">
+                                <i class="bi bi-file-earmark-excel"></i> Файлы предложений (.xlsx)
+                            </label>
+                            <input type="file" class="form-control" id="offer-files-input" name="offer_files" accept=".xlsx" multiple required>
+                            <div class="form-text">
+                                Выберите один или несколько Excel файлов с предложениями от страховых компаний.
+                                Максимум 10 файлов, размер каждого файла не более 10MB.
+                            </div>
+                        </div>
+
+                        <!-- Список выбранных файлов -->
+                        <div id="selected-files-list" class="mb-3" style="display: none;">
+                            <h6>Выбранные файлы:</h6>
+                            <div id="files-container" class="border rounded p-2 bg-light">
+                                <!-- Файлы будут добавлены через JavaScript -->
+                            </div>
+                        </div>
+
+                        <!-- Индикатор прогресса -->
+                        <div id="upload-progress" class="mb-3" style="display: none;">
+                            <div class="progress">
+                                <div id="progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                                    0%
+                                </div>
+                            </div>
+                            <small id="progress-text" class="text-muted">Подготовка к загрузке...</small>
+                        </div>
+
+                        <!-- Кнопки -->
+                        <div class="d-flex gap-2">
+                            <button type="submit" id="upload-btn" class="btn btn-primary" disabled>
+                                <i class="bi bi-upload"></i> Загрузить предложения
+                            </button>
+                            <button type="button" id="clear-files-btn" class="btn btn-outline-secondary" style="display: none;">
+                                <i class="bi bi-x-circle"></i> Очистить
+                            </button>
+                        </div>
+                    </form>
+
+                    <!-- Сообщения об ошибках -->
+                    <div id="upload-errors" class="alert alert-danger mt-3" style="display: none;">
+                        <h6><i class="bi bi-exclamation-triangle"></i> Ошибки загрузки:</h6>
+                        <ul id="error-list"></ul>
+                    </div>
+                </div>
                 {% endif %}
             </div>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // Status change functionality
+        initStatusChange();
+        
+        // File upload functionality
+        // Получаем элементы DOM
+        const elements = {
+            fileInput: document.getElementById('offer-files-input'),
+            selectedFilesList: document.getElementById('selected-files-list'),
+            filesContainer: document.getElementById('files-container'),
+            uploadBtn: document.getElementById('upload-btn'),
+            clearFilesBtn: document.getElementById('clear-files-btn'),
+            uploadForm: document.getElementById('offer-upload-form'),
+            uploadProgress: document.getElementById('upload-progress'),
+            progressBar: document.getElementById('progress-bar'),
+            progressText: document.getElementById('progress-text'),
+            uploadErrors: document.getElementById('upload-errors'),
+            errorList: document.getElementById('error-list')
+        };
+
+        // Проверяем, что элементы существуют (форма может не отображаться если свод уже создан)
+        if (!elements.fileInput) return;
+
+        // Константы
+        const CONFIG = {
+            MAX_FILES: 10,
+            MAX_FILE_SIZE: 10 * 1024 * 1024, // 10MB
+            MAX_TOTAL_SIZE: 50 * 1024 * 1024, // 50MB
+            ALLOWED_EXTENSIONS: ['.xlsx'],
+            PROGRESS_INTERVAL: 200,
+            REDIRECT_DELAY: 1000
+        };
+
+        let selectedFiles = [];
+        let progressInterval = null;
+
+        // Инициализация обработчиков событий
+        function initEventListeners() {
+            elements.fileInput.addEventListener('change', (e) => {
+                const files = Array.from(e.target.files);
+                validateAndDisplayFiles(files);
+            });
+
+            elements.clearFilesBtn.addEventListener('click', clearFiles);
+
+            elements.uploadForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                if (selectedFiles.length === 0) {
+                    showError(['Выберите хотя бы один файл для загрузки']);
+                    return;
+                }
+                uploadFiles();
+            });
+        }
+
+        function validateAndDisplayFiles(files) {
+            clearErrors();
+            const errors = [];
+            const validFiles = [];
+            let totalSize = 0;
+
+            // Проверяем количество файлов
+            if (files.length > CONFIG.MAX_FILES) {
+                errors.push(`Слишком много файлов: ${files.length}. Максимум: ${CONFIG.MAX_FILES}`);
+                clearFiles();
+                showError(errors);
+                return;
+            }
+
+            // Валидируем каждый файл
+            for (const file of files) {
+                const fileName = file.name;
+                const fileSize = file.size;
+                const fileExtension = fileName.toLowerCase().substring(fileName.lastIndexOf('.'));
+
+                // Проверяем расширение
+                if (!CONFIG.ALLOWED_EXTENSIONS.includes(fileExtension)) {
+                    errors.push(`Файл "${fileName}": неподдерживаемый формат. Разрешены только .xlsx файлы`);
+                    continue;
+                }
+
+                // Проверяем размер файла
+                if (fileSize > CONFIG.MAX_FILE_SIZE) {
+                    const sizeMB = (fileSize / (1024 * 1024)).toFixed(1);
+                    errors.push(`Файл "${fileName}": размер ${sizeMB}MB превышает максимум 10MB`);
+                    continue;
+                }
+
+                // Проверяем на дубликаты по имени
+                if (validFiles.some(f => f.name === fileName)) {
+                    errors.push(`Файл "${fileName}": дублирующееся имя файла`);
+                    continue;
+                }
+
+                totalSize += fileSize;
+                validFiles.push(file);
+            }
+
+            // Проверяем общий размер
+            if (totalSize > CONFIG.MAX_TOTAL_SIZE) {
+                const totalSizeMB = (totalSize / (1024 * 1024)).toFixed(1);
+                errors.push(`Общий размер файлов ${totalSizeMB}MB превышает максимум 50MB`);
+            }
+
+            if (errors.length > 0) {
+                clearFiles();
+                showError(errors);
+                return;
+            }
+
+            // Сохраняем валидные файлы
+            selectedFiles = validFiles;
+            displaySelectedFiles();
+            updateUploadButton();
+        }
+
+        function displaySelectedFiles() {
+            if (selectedFiles.length === 0) {
+                elements.selectedFilesList.style.display = 'none';
+                elements.clearFilesBtn.style.display = 'none';
+                return;
+            }
+
+            elements.filesContainer.innerHTML = '';
+            let totalSize = 0;
+
+            const fragment = document.createDocumentFragment();
+
+            selectedFiles.forEach((file, index) => {
+                const fileSize = (file.size / (1024 * 1024)).toFixed(2);
+                totalSize += file.size;
+
+                const fileItem = document.createElement('div');
+                fileItem.className = 'd-flex justify-content-between align-items-center py-1 border-bottom';
+                fileItem.innerHTML = `
+                    <div>
+                        <i class="bi bi-file-earmark-excel text-success me-2"></i>
+                        <span class="fw-medium">${escapeHtml(file.name)}</span>
+                        <small class="text-muted ms-2">(${fileSize} MB)</small>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-danger" data-file-index="${index}">
+                        <i class="bi bi-x"></i>
+                    </button>
+                `;
+
+                // Добавляем обработчик удаления файла
+                const removeBtn = fileItem.querySelector('button');
+                removeBtn.addEventListener('click', () => removeFile(index));
+
+                fragment.appendChild(fileItem);
+            });
+
+            // Добавляем информацию об общем размере
+            const totalSizeMB = (totalSize / (1024 * 1024)).toFixed(2);
+            const totalInfo = document.createElement('div');
+            totalInfo.className = 'mt-2 pt-2 border-top';
+            totalInfo.innerHTML = `
+                <small class="text-muted">
+                    <strong>Всего файлов:</strong> ${selectedFiles.length} 
+                    <strong>Общий размер:</strong> ${totalSizeMB} MB
+                </small>
+            `;
+            fragment.appendChild(totalInfo);
+
+            elements.filesContainer.appendChild(fragment);
+            elements.selectedFilesList.style.display = 'block';
+            elements.clearFilesBtn.style.display = 'inline-block';
+        }
+
+        function removeFile(index) {
+            selectedFiles.splice(index, 1);
+
+            // Обновляем input файлов
+            const dt = new DataTransfer();
+            selectedFiles.forEach(file => dt.items.add(file));
+            elements.fileInput.files = dt.files;
+
+            displaySelectedFiles();
+            updateUploadButton();
+            clearErrors();
+        }
+
+        function clearFiles() {
+            selectedFiles = [];
+            elements.fileInput.value = '';
+            elements.selectedFilesList.style.display = 'none';
+            elements.clearFilesBtn.style.display = 'none';
+            updateUploadButton();
+            clearErrors();
+        }
+
+        function updateUploadButton() {
+            elements.uploadBtn.disabled = selectedFiles.length === 0;
+        }
+
+        function uploadFiles() {
+            // Показываем прогресс
+            elements.uploadProgress.style.display = 'block';
+            elements.uploadBtn.disabled = true;
+            elements.clearFilesBtn.disabled = true;
+
+            // Создаем FormData с файлами
+            const formData = new FormData();
+            formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+
+            selectedFiles.forEach(file => {
+                formData.append('offer_files', file);
+            });
+
+            // Симулируем прогресс загрузки
+            let progress = 0;
+            progressInterval = setInterval(() => {
+                progress += Math.random() * 15;
+                if (progress > 90) progress = 90;
+                updateProgress(progress, 'Загрузка файлов...');
+            }, CONFIG.PROGRESS_INTERVAL);
+
+            // Отправляем запрос
+            fetch(elements.uploadForm.action, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+                .then(handleUploadResponse)
+                .catch(handleUploadError);
+        }
+
+        function handleUploadResponse(response) {
+            clearInterval(progressInterval);
+
+            if (response.ok) {
+                updateProgress(100, 'Загрузка завершена!');
+
+                const contentType = response.headers.get('content-type');
+                if (contentType && contentType.includes('application/json')) {
+                    return response.json().then(data => {
+                        if (data.success) {
+                            const redirectUrl = data.redirect_url || window.location.href;
+                            setTimeout(() => {
+                                window.location.href = redirectUrl;
+                            }, CONFIG.REDIRECT_DELAY);
+                        } else {
+                            throw new Error(data.error || 'Ошибка обработки файлов');
+                        }
+                    });
+                } else {
+                    // HTML ответ - вероятно редирект
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, CONFIG.REDIRECT_DELAY);
+                }
+            } else {
+                // Ошибка сервера
+                const contentType = response.headers.get('content-type');
+                if (contentType && contentType.includes('application/json')) {
+                    return response.json().then(data => {
+                        throw new Error(data.error || `Ошибка сервера: ${response.status}`);
+                    });
+                } else {
+                    throw new Error(`Ошибка сервера: ${response.status}`);
+                }
+            }
+        }
+
+        function handleUploadError(error) {
+            clearInterval(progressInterval);
+            console.error('Upload error:', error);
+
+            hideProgress();
+            showError([error.message || 'Произошла ошибка при загрузке файлов']);
+
+            // Восстанавливаем кнопки
+            elements.uploadBtn.disabled = false;
+            elements.clearFilesBtn.disabled = false;
+        }
+
+        function updateProgress(percent, text) {
+            elements.progressBar.style.width = percent + '%';
+            elements.progressBar.setAttribute('aria-valuenow', percent);
+            elements.progressBar.textContent = Math.round(percent) + '%';
+            elements.progressText.textContent = text;
+        }
+
+        function hideProgress() {
+            elements.uploadProgress.style.display = 'none';
+        }
+
+        function showError(errors) {
+            elements.errorList.innerHTML = '';
+            const fragment = document.createDocumentFragment();
+
+            errors.forEach(error => {
+                const li = document.createElement('li');
+                li.textContent = error;
+                fragment.appendChild(li);
+            });
+
+            elements.errorList.appendChild(fragment);
+            elements.uploadErrors.style.display = 'block';
+        }
+
+        function clearErrors() {
+            elements.uploadErrors.style.display = 'none';
+            elements.errorList.innerHTML = '';
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Инициализация
+        initEventListeners();
+    });
+
+    // Status change functionality
+    function initStatusChange() {
+        const statusForm = document.getElementById('status-form');
+        const statusSelect = document.getElementById('request-status-select');
+        const statusBadge = document.getElementById('status-badge');
+        const changeStatusBtn = document.getElementById('change-status-btn');
+
+        if (!statusForm || !statusSelect || !statusBadge || !changeStatusBtn) {
+            return; // Elements not found, skip initialization
+        }
+
+        // Handle form submission
+        statusForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const newStatus = statusSelect.value;
+            const currentStatus = statusSelect.dataset.currentStatus || '{{ request.status }}';
+            
+            if (newStatus === currentStatus) {
+                return; // No change needed
+            }
+            
+            // Disable form during request
+            changeStatusBtn.disabled = true;
+            statusSelect.disabled = true;
+            changeStatusBtn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+            
+            // Prepare form data
+            const formData = new FormData();
+            formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+            formData.append('status', newStatus);
+            
+            // Send AJAX request
+            fetch('{% url "insurance_requests:change_request_status" request.pk %}', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Update status badge
+                    updateStatusBadge(data.new_status, data.new_status_display);
+                    
+                    // Update current status tracking
+                    statusSelect.dataset.currentStatus = data.new_status;
+                    
+                    // Show success message
+                    showStatusMessage(data.message, 'success');
+                } else {
+                    // Show error message
+                    showStatusMessage(data.error || 'Произошла ошибка при изменении статуса', 'error');
+                    
+                    // Reset select to current status
+                    statusSelect.value = currentStatus;
+                }
+            })
+            .catch(error => {
+                console.error('Status change error:', error);
+                showStatusMessage('Произошла ошибка при изменении статуса', 'error');
+                
+                // Reset select to current status
+                statusSelect.value = currentStatus;
+            })
+            .finally(() => {
+                // Re-enable form
+                changeStatusBtn.disabled = false;
+                statusSelect.disabled = false;
+                changeStatusBtn.innerHTML = '<i class="bi bi-check"></i>';
+            });
+        });
+
+        // Track current status
+        statusSelect.dataset.currentStatus = '{{ request.status }}';
+    }
+
+    function updateStatusBadge(status, statusDisplay) {
+        const statusBadge = document.getElementById('status-badge');
+        if (!statusBadge) return;
+        
+        // Remove existing status classes
+        statusBadge.className = statusBadge.className.replace(/bg-\w+/g, '');
+        
+        // Add new status class
+        let badgeClass = 'bg-secondary';
+        switch(status) {
+            case 'completed':
+                badgeClass = 'bg-success';
+                break;
+            case 'email_sent':
+                badgeClass = 'bg-info';
+                break;
+            case 'email_generated':
+                badgeClass = 'bg-warning';
+                break;
+            case 'uploaded':
+                badgeClass = 'bg-secondary';
+                break;
+        }
+        
+        statusBadge.className += ' ' + badgeClass;
+        statusBadge.textContent = statusDisplay;
+    }
+
+    function showStatusMessage(message, type) {
+        // Create or update message element
+        let messageElement = document.getElementById('status-message');
+        
+        if (!messageElement) {
+            messageElement = document.createElement('div');
+            messageElement.id = 'status-message';
+            messageElement.className = 'alert alert-dismissible fade show mt-2';
+            messageElement.style.position = 'fixed';
+            messageElement.style.top = '20px';
+            messageElement.style.right = '20px';
+            messageElement.style.zIndex = '9999';
+            messageElement.style.minWidth = '300px';
+            
+            // Add close button
+            messageElement.innerHTML = `
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                <span class="message-text"></span>
+            `;
+            
+            document.body.appendChild(messageElement);
+        }
+        
+        // Update message content and style
+        const messageText = messageElement.querySelector('.message-text');
+        messageText.textContent = message;
+        
+        // Remove existing alert classes
+        messageElement.className = messageElement.className.replace(/alert-\w+/g, '');
+        
+        // Add appropriate alert class
+        const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+        messageElement.className += ' ' + alertClass;
+        
+        // Auto-hide after 3 seconds for success messages
+        if (type === 'success') {
+            setTimeout(() => {
+                if (messageElement && messageElement.parentNode) {
+                    messageElement.remove();
+                }
+            }, 3000);
+        }
+    }
+</script>
 {% endblock %}

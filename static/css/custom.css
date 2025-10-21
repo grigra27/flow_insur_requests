@@ -31,6 +31,28 @@
     font-weight: 600;
 }
 
+/* Стили для заголовка таблицы сводов */
+.table thead th,
+.table-dark thead th {
+    background-color: #000000 !important;
+    color: #ffffff !important;
+    border-color: #333333 !important;
+    font-weight: 600;
+}
+
+/* Обеспечиваем контрастность для ссылок в заголовках */
+.table thead th a,
+.table-dark thead th a {
+    color: #ffffff !important;
+    text-decoration: none;
+}
+
+.table thead th a:hover,
+.table-dark thead th a:hover {
+    color: #e9ecef !important;
+    text-decoration: underline;
+}
+
 /* Стили для статусов заявок */
 .badge {
     font-size: 0.75em;
@@ -57,6 +79,177 @@
     background-color: #f8f9fa;
 }
 
+/* Стили для создания свода */
+.create-summary-section {
+    padding: 2rem 1rem;
+}
+
+.create-summary-btn {
+    font-weight: 600;
+    padding: 0.75rem 1.5rem;
+    box-shadow: 0 2px 4px rgba(25, 135, 84, 0.2);
+    transition: all 0.3s ease;
+}
+
+.create-summary-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(25, 135, 84, 0.3);
+}
+
+.create-summary-hint {
+    font-size: 0.875rem;
+    color: #6c757d;
+    margin-top: 0.5rem;
+}
+
+/* Стили для вкладок филиалов */
+.branch-filter-tabs {
+    border-bottom: 1px solid #dee2e6;
+    margin-bottom: 1.5rem;
+    background-color: #f8f9fa;
+    border-radius: 8px 8px 0 0;
+    padding: 0.5rem 1rem 0;
+}
+
+.branch-filter-tabs .nav-tabs {
+    border-bottom: none;
+    margin-bottom: -1px;
+}
+
+.branch-filter-tabs .nav-link {
+    border: none;
+    border-bottom: 3px solid transparent;
+    color: #6c757d;
+    font-weight: 500;
+    padding: 0.75rem 1rem;
+    margin-right: 0.5rem;
+    border-radius: 6px 6px 0 0;
+    transition: all 0.3s ease;
+    background-color: transparent;
+}
+
+.branch-filter-tabs .nav-link:hover {
+    color: #0d6efd;
+    background-color: rgba(13, 110, 253, 0.1);
+    border-bottom-color: rgba(13, 110, 253, 0.3);
+    transform: translateY(-1px);
+}
+
+.branch-filter-tabs .nav-link.active {
+    border-bottom-color: #0d6efd;
+    color: #0d6efd;
+    background-color: #ffffff;
+    font-weight: 600;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.branch-filter-tabs .nav-link .badge {
+    font-size: 0.7rem;
+    padding: 0.25rem 0.5rem;
+    margin-left: 0.5rem;
+    transition: all 0.3s ease;
+}
+
+.branch-filter-tabs .nav-link:hover .badge {
+    transform: scale(1.1);
+}
+
+.branch-filter-tabs .nav-link.active .badge {
+    background-color: #0d6efd !important;
+    color: white;
+}
+
+/* Стили для цветовых бейджей количества компаний */
+.companies-count-badge {
+    font-weight: 600;
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    transition: all 0.3s ease;
+    display: inline-block;
+    min-width: 2rem;
+    text-align: center;
+}
+
+.companies-count-badge:hover {
+    transform: scale(1.05);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* Цветовая схема для количества компаний */
+.companies-count-0 {
+    background-color: #6c757d !important;
+    color: white !important;
+}
+
+.companies-count-1-2 {
+    background-color: #ffc107 !important;
+    color: #212529 !important;
+}
+
+.companies-count-3-4 {
+    background-color: #0dcaf0 !important;
+    color: #212529 !important;
+}
+
+.companies-count-5-6 {
+    background-color: #198754 !important;
+    color: white !important;
+}
+
+.companies-count-7-plus {
+    background-color: #6f42c1 !important;
+    color: white !important;
+}
+
+/* Размеры шрифта для количества компаний */
+.companies-count-small {
+    font-size: 0.875rem;
+}
+
+.companies-count-medium {
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.companies-count-large {
+    font-size: 1.125rem;
+    font-weight: 700;
+    padding: 0.6rem 0.85rem;
+}
+
+/* Стили для иконок филиалов */
+.branch-icon {
+    color: #6c757d;
+    margin-right: 0.5rem;
+    font-size: 0.9rem;
+}
+
+/* Улучшенные переходы для таблицы */
+.table tbody tr {
+    transition: background-color 0.2s ease;
+}
+
+.table tbody tr:hover {
+    background-color: rgba(13, 110, 253, 0.05);
+}
+
+/* Анимация для загрузки контента */
+.content-loading {
+    opacity: 0;
+    animation: fadeIn 0.5s ease forwards;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
     .container {
@@ -66,5 +259,90 @@
     
     .card-body {
         padding: 1rem;
+    }
+    
+    .create-summary-section {
+        padding: 1.5rem 1rem;
+    }
+    
+    /* Адаптивные стили для вкладок филиалов */
+    .branch-filter-tabs {
+        padding: 0.25rem 0.5rem 0;
+        margin-bottom: 1rem;
+    }
+    
+    .branch-filter-tabs .nav-link {
+        padding: 0.5rem 0.75rem;
+        margin-right: 0.25rem;
+        font-size: 0.875rem;
+    }
+    
+    .branch-filter-tabs .nav-link .badge {
+        font-size: 0.65rem;
+        padding: 0.2rem 0.4rem;
+        margin-left: 0.25rem;
+    }
+    
+    /* Адаптивные стили для бейджей компаний */
+    .companies-count-badge {
+        padding: 0.4rem 0.6rem;
+        font-size: 0.8rem;
+    }
+    
+    .companies-count-large {
+        font-size: 0.9rem;
+        padding: 0.45rem 0.65rem;
+    }
+    
+    /* Скрытие текста филиалов на очень маленьких экранах */
+    @media (max-width: 576px) {
+        .branch-filter-tabs .nav-link {
+            padding: 0.4rem 0.5rem;
+        }
+        
+        .branch-filter-tabs .nav-link .branch-text {
+            display: none;
+        }
+        
+        .branch-filter-tabs .nav-link .badge {
+            margin-left: 0;
+        }
+    }
+}
+
+/* Дополнительные стили для улучшения UX */
+.table-responsive {
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.pagination .page-link {
+    border-radius: 6px;
+    margin: 0 2px;
+    transition: all 0.3s ease;
+}
+
+.pagination .page-link:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Стили для улучшения доступности */
+.branch-filter-tabs .nav-link:focus,
+.companies-count-badge:focus {
+    outline: 2px solid #0d6efd;
+    outline-offset: 2px;
+}
+
+/* Темная тема поддержка */
+@media (prefers-color-scheme: dark) {
+    .branch-filter-tabs {
+        background-color: #343a40;
+        border-bottom-color: #495057;
+    }
+    
+    .branch-filter-tabs .nav-link.active {
+        background-color: #495057;
+        color: #ffffff;
     }
 }
