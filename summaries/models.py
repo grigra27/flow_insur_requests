@@ -183,6 +183,30 @@ class InsuranceSummary(models.Model):
         """Возвращает статус с соответствующим цветом для Bootstrap"""
         from .status_colors import get_status_display_data
         return get_status_display_data(self.status, self.get_status_display())
+    
+    def get_company_totals(self):
+        """Возвращает итоговые суммы по компаниям для многолетних предложений"""
+        companies_data = {}
+        
+        for offer in self.offers.filter(is_valid=True).order_by('company_name', 'insurance_year'):
+            company_name = offer.company_name
+            if company_name not in companies_data:
+                companies_data[company_name] = {
+                    'offers': [],
+                    'total_premium_1': Decimal('0'),
+                    'total_premium_2': Decimal('0'),
+                    'is_multiyear': False
+                }
+            
+            companies_data[company_name]['offers'].append(offer)
+            companies_data[company_name]['total_premium_1'] += offer.premium_with_franchise_1 or Decimal('0')
+            companies_data[company_name]['total_premium_2'] += offer.premium_with_franchise_2 or Decimal('0')
+        
+        # Определяем многолетние предложения (более одного года)
+        for company_name, data in companies_data.items():
+            data['is_multiyear'] = len(data['offers']) > 1
+        
+        return companies_data
 
 
 class InsuranceOffer(models.Model):

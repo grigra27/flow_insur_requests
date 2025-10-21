@@ -23,7 +23,9 @@
                href="#" 
                onclick="filterByBranch('')">
                 <i class="bi bi-list-ul"></i> Все своды
-                <span class="badge bg-primary ms-1">{{ total_summaries_count }}</span>
+                {% if show_total_count %}
+                    <span class="badge bg-primary ms-1">{{ total_summaries_count }}</span>
+                {% endif %}
             </a>
         </li>
         {% for branch in available_branches %}
@@ -32,7 +34,9 @@
                href="#" 
                onclick="filterByBranch('{{ branch|escapejs }}')">
                 <!--i class="bi bi-building"></i--> {{ branch|format_branch }}
-                <span class="badge bg-primary ms-1">{{ branch_counts|get_item:branch|default:0 }}</span>
+                {% if show_branch_counts and current_branch == branch %}
+                    <span class="badge bg-primary ms-1">{{ branch_counts|get_item:branch|default:0 }}</span>
+                {% endif %}
             </a>
         </li>
         {% endfor %}
@@ -58,33 +62,15 @@
                         <label for="{{ filter_form.dfa_number.id_for_label }}" class="form-label">{{ filter_form.dfa_number.label }}</label>
                         {{ filter_form.dfa_number }}
                     </div>
-                    <div class="col-md-2">
+                    <div class="col-md-3">
                         <label for="{{ filter_form.month.id_for_label }}" class="form-label">{{ filter_form.month.label }}</label>
                         {{ filter_form.month }}
                     </div>
-                    <div class="col-md-2">
+                    <div class="col-md-3">
                         <label for="{{ filter_form.year.id_for_label }}" class="form-label">{{ filter_form.year.label }}</label>
                         {{ filter_form.year }}
                     </div>
-                    <div class="col-md-2">
-                        <label for="{{ filter_form.status.id_for_label }}" class="form-label">Статус</label>
-                        {{ filter_form.status }}
-                    </div>
-                    <div class="col-md-3">
-                        <label for="{{ filter_form.client_name.id_for_label }}" class="form-label">Клиент</label>
-                        {{ filter_form.client_name }}
-                    </div>
-                </div>
-                <div class="row g-3 mt-2">
-                    <div class="col-md-3">
-                        <label for="{{ filter_form.date_from.id_for_label }}" class="form-label">Дата от</label>
-                        {{ filter_form.date_from }}
-                    </div>
-                    <div class="col-md-3">
-                        <label for="{{ filter_form.date_to.id_for_label }}" class="form-label">Дата до</label>
-                        {{ filter_form.date_to }}
-                    </div>
-                    <div class="col-md-6 d-flex align-items-end">
+                    <div class="col-md-3 d-flex align-items-end">
                         <button type="submit" class="btn btn-primary me-2">
                             <i class="bi bi-search"></i> Применить
                         </button>
@@ -163,6 +149,78 @@
             </tbody>
         </table>
     </div>
+    
+    <!-- Пагинация (требование 5.2, 5.3, 5.4) -->
+    {% if summaries.has_other_pages %}
+    <nav aria-label="Навигация по страницам" class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if summaries.has_previous %}
+                <li class="page-item">
+                    <a class="page-link pagination-link" data-page="{{ summaries.previous_page_number }}" href="?page={{ summaries.previous_page_number }}" aria-label="Предыдущая">
+                        <i class="bi bi-chevron-left"></i> Предыдущая
+                    </a>
+                </li>
+            {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link" aria-label="Предыдущая">
+                        <i class="bi bi-chevron-left"></i> Предыдущая
+                    </span>
+                </li>
+            {% endif %}
+            
+            {% for num in summaries.paginator.page_range %}
+                {% if summaries.number == num %}
+                    <li class="page-item active" aria-current="page">
+                        <span class="page-link">{{ num }}</span>
+                    </li>
+                {% elif num > summaries.number|add:'-3' and num < summaries.number|add:'3' %}
+                    <li class="page-item">
+                        <a class="page-link pagination-link" data-page="{{ num }}" href="?page={{ num }}">{{ num }}</a>
+                    </li>
+                {% elif num == 1 %}
+                    <li class="page-item">
+                        <a class="page-link pagination-link" data-page="1" href="?page=1">1</a>
+                    </li>
+                    {% if summaries.number > 4 %}
+                        <li class="page-item disabled">
+                            <span class="page-link">...</span>
+                        </li>
+                    {% endif %}
+                {% elif num == summaries.paginator.num_pages %}
+                    {% if summaries.number < summaries.paginator.num_pages|add:'-3' %}
+                        <li class="page-item disabled">
+                            <span class="page-link">...</span>
+                        </li>
+                    {% endif %}
+                    <li class="page-item">
+                        <a class="page-link pagination-link" data-page="{{ summaries.paginator.num_pages }}" href="?page={{ summaries.paginator.num_pages }}">{{ summaries.paginator.num_pages }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+            
+            {% if summaries.has_next %}
+                <li class="page-item">
+                    <a class="page-link pagination-link" data-page="{{ summaries.next_page_number }}" href="?page={{ summaries.next_page_number }}" aria-label="Следующая">
+                        Следующая <i class="bi bi-chevron-right"></i>
+                    </a>
+                </li>
+            {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link" aria-label="Следующая">
+                        Следующая <i class="bi bi-chevron-right"></i>
+                    </span>
+                </li>
+            {% endif %}
+        </ul>
+    </nav>
+    
+    <!-- Информация о пагинации -->
+    <div class="text-center text-muted mt-2">
+        <small>
+            Показано {{ summaries.start_index }}-{{ summaries.end_index }} из {{ summaries.paginator.count }} сводов
+        </small>
+    </div>
+    {% endif %}
 {% else %}
     <div class="text-center py-5">
         <i class="bi bi-collection display-1 text-muted"></i>
@@ -190,6 +248,20 @@
     
     .filter-active {
         border-left: 4px solid #0d6efd;
+    }
+    
+    /* Optimized filter form styles */
+    .card-body .row.g-3 {
+        align-items: end;
+    }
+    
+    .card-body .form-label {
+        font-weight: 500;
+        margin-bottom: 0.5rem;
+    }
+    
+    .card-body .btn-group {
+        gap: 0.5rem;
     }
     
     /* Стили для вкладок филиалов */
@@ -303,12 +375,98 @@
             max-width: 100px !important;
         }
     }
+    
+    /* Стили для пагинации (требование 5.6) */
+    .pagination {
+        margin-bottom: 0;
+    }
+    
+    .pagination .page-link {
+        color: #0d6efd;
+        border: 1px solid #dee2e6;
+        padding: 0.5rem 0.75rem;
+        margin: 0 0.125rem;
+        border-radius: 0.375rem;
+        transition: all 0.2s ease-in-out;
+    }
+    
+    .pagination .page-link:hover {
+        color: #0a58ca;
+        background-color: #e9ecef;
+        border-color: #adb5bd;
+        text-decoration: none;
+    }
+    
+    .pagination .page-item.active .page-link {
+        background-color: #0d6efd;
+        border-color: #0d6efd;
+        color: white;
+        font-weight: 500;
+    }
+    
+    .pagination .page-item.disabled .page-link {
+        color: #6c757d;
+        background-color: #fff;
+        border-color: #dee2e6;
+        cursor: not-allowed;
+    }
+    
+    .pagination .page-item.disabled .page-link:hover {
+        color: #6c757d;
+        background-color: #fff;
+        border-color: #dee2e6;
+    }
+    
+    /* Адаптивные стили для пагинации */
+    @media (max-width: 768px) {
+        .pagination .page-link {
+            padding: 0.375rem 0.5rem;
+            font-size: 0.875rem;
+        }
+        
+        /* Скрываем номера страниц на мобильных, оставляем только навигацию */
+        .pagination .page-item:not(:first-child):not(:last-child) {
+            display: none;
+        }
+        
+        .pagination .page-item:first-child,
+        .pagination .page-item:last-child {
+            display: block;
+        }
+        
+        /* Показываем текущую страницу */
+        .pagination .page-item.active {
+            display: block !important;
+        }
+    }
+    
+    @media (max-width: 576px) {
+        .pagination .page-link {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.8rem;
+        }
+        
+        /* Убираем текст, оставляем только иконки */
+        .pagination .page-link i {
+            margin: 0;
+        }
+        
+        .pagination .page-link:first-child,
+        .pagination .page-link:last-child {
+            font-size: 0;
+        }
+        
+        .pagination .page-link:first-child i,
+        .pagination .page-link:last-child i {
+            font-size: 0.8rem;
+        }
+    }
 </style>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-// Функция для фильтрации по филиалам с сохранением других параметров URL
+// Функция для фильтрации по филиалам с сохранением других параметров URL (требование 5.4)
 function filterByBranch(branch) {
     const urlParams = new URLSearchParams(window.location.search);
     
@@ -318,8 +476,31 @@ function filterByBranch(branch) {
         urlParams.delete('branch');
     }
     
+    // Сбрасываем пагинацию при смене филиала
+    urlParams.delete('page');
+    
     const newUrl = window.location.pathname + '?' + urlParams.toString();
     window.location.href = newUrl;
+}
+
+// Функция для сохранения параметров фильтрации при навигации по страницам (требование 5.4)
+function preserveFiltersInPagination() {
+    const paginationLinks = document.querySelectorAll('.pagination-link');
+    const currentParams = new URLSearchParams(window.location.search);
+    
+    // Удаляем параметр page из текущих параметров для корректного добавления
+    currentParams.delete('page');
+    
+    paginationLinks.forEach(link => {
+        const pageNumber = link.getAttribute('data-page');
+        if (pageNumber) {
+            // Создаем новый URL с сохранением всех параметров фильтрации
+            const newParams = new URLSearchParams(currentParams);
+            newParams.set('page', pageNumber);
+            
+            link.href = window.location.pathname + '?' + newParams.toString();
+        }
+    });
 }
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -344,12 +525,45 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
+    // Enhance branch tab switching with visual feedback
+    const branchTabs = document.querySelectorAll('.branch-filter-tabs .nav-link');
+    branchTabs.forEach(tab => {
+        tab.addEventListener('click', function(e) {
+            e.preventDefault();
+            
+            // Add loading state
+            const originalContent = this.innerHTML;
+            this.innerHTML = originalContent.replace(/(<i[^>]*><\/i>)/, '$1 <span class="spinner-border spinner-border-sm ms-1" role="status"></span>');
+            this.style.pointerEvents = 'none';
+            
+            // Execute the filter function
+            const onclickAttr = this.getAttribute('onclick');
+            if (onclickAttr) {
+                eval(onclickAttr);
+            }
+        });
+    });
+    
     // Auto-submit form when filters change (with debounce)
     let debounceTimer;
     function debounceSubmit() {
         clearTimeout(debounceTimer);
         debounceTimer = setTimeout(() => {
-            filterForm.submit();
+            // Сбрасываем пагинацию при изменении фильтров (требование 5.4)
+            const urlParams = new URLSearchParams(window.location.search);
+            urlParams.delete('page');
+            
+            // Добавляем данные формы
+            const formData = new FormData(filterForm);
+            formData.forEach((value, key) => {
+                if (value && value.trim() !== '') {
+                    urlParams.set(key, value);
+                } else {
+                    urlParams.delete(key);
+                }
+            });
+            
+            window.location.href = window.location.pathname + '?' + urlParams.toString();
         }, 500);
     }
     
@@ -360,7 +574,21 @@ document.addEventListener('DOMContentLoaded', function() {
             input.addEventListener('input', debounceSubmit);
         } else {
             input.addEventListener('change', () => {
-                filterForm.submit();
+                // Сбрасываем пагинацию при изменении фильтров (требование 5.4)
+                const urlParams = new URLSearchParams(window.location.search);
+                urlParams.delete('page');
+                
+                // Добавляем данные формы
+                const formData = new FormData(filterForm);
+                formData.forEach((value, key) => {
+                    if (value && value.trim() !== '') {
+                        urlParams.set(key, value);
+                    } else {
+                        urlParams.delete(key);
+                    }
+                });
+                
+                window.location.href = window.location.pathname + '?' + urlParams.toString();
             });
         }
     });
@@ -405,6 +633,9 @@ document.addEventListener('DOMContentLoaded', function() {
             addClearButton(input);
         }
     });
+    
+    // Обеспечиваем сохранение параметров фильтрации в ссылках пагинации (требование 5.4)
+    preserveFiltersInPagination();
 });
 </script>
 {% endblock %}

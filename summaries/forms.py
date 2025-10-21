@@ -7,6 +7,26 @@ from .models import InsuranceOffer, InsuranceSummary, SummaryTemplate
 from decimal import Decimal
 
 
+# Константа со списком страховых компаний
+INSURANCE_COMPANIES = [
+    ('', 'Выберите страховщика'),
+    ('Абсолют', 'Абсолют'),
+    ('Альфа', 'Альфа'),
+    ('ВСК', 'ВСК'),
+    ('Согаз', 'Согаз'),
+    ('РЕСО', 'РЕСО'),
+    ('Ингосстрах', 'Ингосстрах'),
+    ('Ренессанс', 'Ренессанс'),
+    ('Росгосстрах', 'Росгосстрах'),
+    ('Пари', 'Пари'),
+    ('Совкомбанк СК', 'Совкомбанк СК'),
+    ('Согласие', 'Согласие'),
+    ('Энергогарант', 'Энергогарант'),
+    ('ПСБ-страхование', 'ПСБ-страхование'),
+    ('Зетта', 'Зетта'),
+]
+
+
 class OfferForm(forms.ModelForm):
     """Форма для добавления/редактирования предложения от страховщика"""
     
@@ -240,6 +260,13 @@ class SummaryStatusForm(forms.Form):
 class AddOfferToSummaryForm(forms.ModelForm):
     """Форма для добавления предложения к существующему своду (без загрузки файла)"""
     
+    # Поле для выбора страховщика из предопределенного списка
+    company_name = forms.ChoiceField(
+        choices=INSURANCE_COMPANIES,
+        label='Страховая компания',
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    
     # Новые поля для рассрочки по вариантам премии
     payments_per_year_variant_1 = forms.IntegerField(
         required=False,
@@ -270,7 +297,6 @@ class AddOfferToSummaryForm(forms.ModelForm):
             'notes'
         ]
         widgets = {
-            'company_name': forms.TextInput(attrs={'class': 'form-control'}),
             'insurance_year': forms.NumberInput(attrs={
                 'class': 'form-control',
                 'min': '1',
@@ -304,6 +330,19 @@ class AddOfferToSummaryForm(forms.ModelForm):
             'installment_variant_2': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
         }
+    
+    def clean_company_name(self):
+        """Валидация выбора страховщика"""
+        company_name = self.cleaned_data.get('company_name')
+        valid_companies = [choice[0] for choice in INSURANCE_COMPANIES if choice[0]]  # Исключаем пустой выбор
+        
+        if not company_name:
+            raise ValidationError('Выберите страховую компанию')
+        
+        if company_name not in valid_companies:
+            raise ValidationError('Выберите страховщика из списка')
+        
+        return company_name
     
     def clean_insurance_year(self):
         """Валидация года страхования"""
@@ -461,20 +500,12 @@ class BulkOfferUploadForm(forms.Form):
 class SummaryFilterForm(forms.Form):
     """Форма для фильтрации сводов"""
     
-    STATUS_CHOICES = [('', 'Все статусы')] + InsuranceSummary.STATUS_CHOICES
-    
     # Месяцы для выбора
     MONTH_CHOICES = [('', 'Все месяцы')] + [
         (1, 'Январь'), (2, 'Февраль'), (3, 'Март'), (4, 'Апрель'),
         (5, 'Май'), (6, 'Июнь'), (7, 'Июль'), (8, 'Август'),
         (9, 'Сентябрь'), (10, 'Октябрь'), (11, 'Ноябрь'), (12, 'Декабрь')
     ]
-    
-    status = forms.ChoiceField(
-        choices=STATUS_CHOICES,
-        required=False,
-        widget=forms.Select(attrs={'class': 'form-select'})
-    )
     
     # Новое поле для фильтрации по номеру ДФА
     dfa_number = forms.CharField(
@@ -501,29 +532,7 @@ class SummaryFilterForm(forms.Form):
         widget=forms.Select(attrs={'class': 'form-select'})
     )
     
-    date_from = forms.DateField(
-        required=False,
-        widget=forms.DateInput(attrs={
-            'class': 'form-control',
-            'type': 'date'
-        })
-    )
-    
-    date_to = forms.DateField(
-        required=False,
-        widget=forms.DateInput(attrs={
-            'class': 'form-control',
-            'type': 'date'
-        })
-    )
-    
-    client_name = forms.CharField(
-        required=False,
-        widget=forms.TextInput(attrs={
-            'class': 'form-control',
-            'placeholder': 'Поиск по имени клиента'
-        })
-    )
+
     
     # Новое поле для фильтрации по филиалам (управляется через вкладки)
     branch = forms.CharField(
@@ -588,14 +597,8 @@ class SummaryFilterForm(forms.Form):
     def clean(self):
         """Дополнительная валидация формы"""
         cleaned_data = super().clean()
-        date_from = cleaned_data.get('date_from')
-        date_to = cleaned_data.get('date_to')
         month = cleaned_data.get('month')
         year = cleaned_data.get('year')
-        
-        # Проверяем, что date_from не больше date_to
-        if date_from and date_to and date_from > date_to:
-            raise forms.ValidationError('Дата "от" не может быть больше даты "до"')
         
         # Если указан месяц, но не указан год, используем текущий год
         if month and not year:

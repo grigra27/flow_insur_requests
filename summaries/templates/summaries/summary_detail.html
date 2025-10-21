@@ -176,6 +176,39 @@
                                                     </tr>
                                                 {% endif %}
                                             {% endfor %}
+                                            
+                                            <!-- Добавляем строку "Итого" для многолетних предложений -->
+                                            {% with company_data=company_totals|lookup:company_name %}
+                                                {% if company_data.is_multiyear %}
+                                                    <tr class="table-info company-total-row">
+                                                        <td data-label="Год">
+                                                            <strong><i class="bi bi-calculator"></i> Итого</strong>
+                                                        </td>
+                                                        <td data-label="Страховая сумма">
+                                                            <span class="text-muted">—</span>
+                                                        </td>
+                                                        <td data-label="Франшиза-1">
+                                                            <span class="text-muted">—</span>
+                                                        </td>
+                                                        <td data-label="Премия-1">
+                                                            <strong class="text-success fs-6">{{ company_data.total_premium_1|floatformat:0 }} ₽</strong>
+                                                        </td>
+                                                        <td data-label="Франшиза-2">
+                                                            <span class="text-muted">—</span>
+                                                        </td>
+                                                        <td data-label="Премия-2">
+                                                            {% if company_data.total_premium_2 > 0 %}
+                                                                <strong class="text-info fs-6">{{ company_data.total_premium_2|floatformat:0 }} ₽</strong>
+                                                            {% else %}
+                                                                <span class="text-muted">—</span>
+                                                            {% endif %}
+                                                        </td>
+                                                        <td data-label="Действия">
+                                                            <span class="text-muted">—</span>
+                                                        </td>
+                                                    </tr>
+                                                {% endif %}
+                                            {% endwith %}
                                         </tbody>
                                     </table>
                                 </div>
@@ -441,6 +474,50 @@
 .text-warning { color: #fd7e14 !important; }
 .text-success { color: #198754 !important; }
 .text-info { color: #0dcaf0 !important; }
+
+/* Styles for company total rows */
+.company-total-row {
+    background-color: #e3f2fd !important;
+    border-top: 2px solid #2196f3 !important;
+    font-weight: 600;
+}
+
+.company-total-row td {
+    padding: 0.75rem 0.5rem !important;
+    vertical-align: middle;
+    border-top: 2px solid #2196f3 !important;
+}
+
+.company-total-row strong {
+    font-size: 0.95rem;
+    letter-spacing: 0.3px;
+}
+
+.company-total-row .bi-calculator {
+    color: #1976d2;
+    margin-right: 0.25rem;
+}
+
+/* Hover effect for total rows */
+.company-total-row:hover {
+    background-color: #bbdefb !important;
+    transition: background-color 0.2s ease;
+}
+
+/* Mobile responsive styles for total rows */
+@media (max-width: 576px) {
+    .company-total-row td:before {
+        font-weight: bold;
+        color: #1976d2;
+    }
+    
+    .company-total-row {
+        background-color: #e3f2fd !important;
+        border: 2px solid #2196f3 !important;
+        border-radius: 5px;
+        margin-top: 10px;
+    }
+}
 </style>
 {% endblock %}
 

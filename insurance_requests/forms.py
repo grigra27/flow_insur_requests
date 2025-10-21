@@ -171,8 +171,9 @@ class ExcelUploadForm(forms.Form):
         label='Excel файл с заявкой',
         help_text='Загрузите файл в формате .xls, .xlsx или .xltx',
         widget=forms.FileInput(attrs={
-            'class': 'form-control',
-            'accept': '.xls,.xlsx,.xltx'
+            'class': 'form-control form-control-lg',
+            'accept': '.xls,.xlsx,.xltx',
+            'style': 'height: 50px; font-size: 1.1rem;'
         })
     )
     

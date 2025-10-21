@@ -97,39 +97,39 @@ class TestInstallmentFix(TestCase):
         """Тест AddOfferToSummaryForm без рассрочки"""
         
         form_data = {
-            'company_name': 'Test Company',
+            'company_name': 'Абсолют',
             'insurance_year': 2,
             'insurance_sum': '1000000.00',
             'franchise_1': '0.00',
             'premium_with_franchise_1': '50000.00',
-            'installment_available': False,  # Рассрочка НЕ доступна
-            'payments_per_year': 12,  # Указываем 12, но должно стать 1
+            'installment_variant_1': False,  # Рассрочка НЕ доступна для варианта 1
+            'payments_per_year_variant_1': 12,  # Указываем 12, но должно стать 1
         }
         
         form = AddOfferToSummaryForm(data=form_data)
         self.assertTrue(form.is_valid(), f"Форма должна быть валидной. Ошибки: {form.errors}")
         
-        # Проверяем, что payments_per_year автоматически установлено в 1
-        self.assertEqual(form.cleaned_data['payments_per_year'], 1)
+        # Проверяем, что payments_per_year_variant_1 автоматически установлено в 1
+        self.assertEqual(form.cleaned_data['payments_per_year_variant_1'], 1)
     
     def test_add_offer_form_with_installment(self):
         """Тест AddOfferToSummaryForm с рассрочкой"""
         
         form_data = {
-            'company_name': 'Test Company',
+            'company_name': 'ВСК',
             'insurance_year': 2,
             'insurance_sum': '1000000.00',
             'franchise_1': '0.00',
             'premium_with_franchise_1': '50000.00',
-            'installment_available': True,  # Рассрочка доступна
-            'payments_per_year': 12,  # Должно остаться 12
+            'installment_variant_1': True,  # Рассрочка доступна для варианта 1
+            'payments_per_year_variant_1': 12,  # Должно остаться 12
         }
         
         form = AddOfferToSummaryForm(data=form_data)
         self.assertTrue(form.is_valid(), f"Форма должна быть валидной. Ошибки: {form.errors}")
         
-        # Проверяем, что payments_per_year остается 12
-        self.assertEqual(form.cleaned_data['payments_per_year'], 12)
+        # Проверяем, что payments_per_year_variant_1 остается 12
+        self.assertEqual(form.cleaned_data['payments_per_year_variant_1'], 12)
     
     def test_offer_form_invalid_payments_with_installment(self):
         """Тест OfferForm с недопустимым количеством платежей при включенной рассрочке"""

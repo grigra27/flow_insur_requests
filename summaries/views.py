@@ -6,6 +6,7 @@ from django.contrib import messages
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_http_methods
 from django.db import transaction, IntegrityError
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 import logging
 
 from .models import InsuranceSummary, InsuranceOffer, SummaryTemplate
@@ -39,102 +40,60 @@ def summary_list(request):
         if current_branch:
             summaries = summaries.filter(request__branch=current_branch)
         
-        # Существующие фильтры
-        if filter_form.cleaned_data.get('status'):
-            summaries = summaries.filter(status=filter_form.cleaned_data['status'])
+
         
-        if filter_form.cleaned_data.get('date_from'):
-            summaries = summaries.filter(created_at__date__gte=filter_form.cleaned_data['date_from'])
-        
-        if filter_form.cleaned_data.get('date_to'):
-            summaries = summaries.filter(created_at__date__lte=filter_form.cleaned_data['date_to'])
-        
-        if filter_form.cleaned_data.get('client_name'):
-            summaries = summaries.filter(
-                request__client_name__icontains=filter_form.cleaned_data['client_name']
-            )
-        
-        # Новые фильтры согласно требованиям 3.1, 3.2, 3.3
-        
-        # Фильтрация по номеру ДФА (требование 3.2)
+        # Фильтрация по номеру ДФА
         if filter_form.cleaned_data.get('dfa_number'):
             summaries = summaries.filter(
                 request__dfa_number__icontains=filter_form.cleaned_data['dfa_number']
             )
         
-        # Фильтрация по месяцу создания свода (требование 3.3)
+        # Фильтрация по месяцу создания свода
         if filter_form.cleaned_data.get('month'):
             summaries = summaries.filter(created_at__month=filter_form.cleaned_data['month'])
         
-        # Фильтрация по году создания свода (требование 3.3)
+        # Фильтрация по году создания свода
         if filter_form.cleaned_data.get('year'):
             summaries = summaries.filter(created_at__year=filter_form.cleaned_data['year'])
     
-    # Подсчет количества сводов для каждого филиала
+    # Подсчет количества сводов для каждого филиала (только если выбран конкретный филиал)
     branch_counts = {}
-    if available_branches:
-        for branch in available_branches:
-            # Применяем те же фильтры, что и для основного queryset, но без фильтра по филиалу
-            branch_summaries = InsuranceSummary.objects.select_related('request').filter(request__branch=branch)
+    if available_branches and current_branch:
+        # Считаем только для текущего активного филиала
+        branch_summaries = InsuranceSummary.objects.select_related('request').filter(request__branch=current_branch)
+        
+        # Применяем остальные фильтры для корректного подсчета
+        if filter_form.is_valid():
+            if filter_form.cleaned_data.get('dfa_number'):
+                branch_summaries = branch_summaries.filter(
+                    request__dfa_number__icontains=filter_form.cleaned_data['dfa_number']
+                )
             
-            # Применяем остальные фильтры для корректного подсчета
-            if filter_form.is_valid():
-                if filter_form.cleaned_data.get('status'):
-                    branch_summaries = branch_summaries.filter(status=filter_form.cleaned_data['status'])
-                
-                if filter_form.cleaned_data.get('date_from'):
-                    branch_summaries = branch_summaries.filter(created_at__date__gte=filter_form.cleaned_data['date_from'])
-                
-                if filter_form.cleaned_data.get('date_to'):
-                    branch_summaries = branch_summaries.filter(created_at__date__lte=filter_form.cleaned_data['date_to'])
-                
-                if filter_form.cleaned_data.get('client_name'):
-                    branch_summaries = branch_summaries.filter(
-                        request__client_name__icontains=filter_form.cleaned_data['client_name']
-                    )
-                
-                if filter_form.cleaned_data.get('dfa_number'):
-                    branch_summaries = branch_summaries.filter(
-                        request__dfa_number__icontains=filter_form.cleaned_data['dfa_number']
-                    )
-                
-                if filter_form.cleaned_data.get('month'):
-                    branch_summaries = branch_summaries.filter(created_at__month=filter_form.cleaned_data['month'])
-                
-                if filter_form.cleaned_data.get('year'):
-                    branch_summaries = branch_summaries.filter(created_at__year=filter_form.cleaned_data['year'])
+            if filter_form.cleaned_data.get('month'):
+                branch_summaries = branch_summaries.filter(created_at__month=filter_form.cleaned_data['month'])
             
-            branch_counts[branch] = branch_summaries.count()
+            if filter_form.cleaned_data.get('year'):
+                branch_summaries = branch_summaries.filter(created_at__year=filter_form.cleaned_data['year'])
+        
+        branch_counts[current_branch] = branch_summaries.count()
     
-    # Подсчет общего количества сводов (с учетом всех фильтров кроме филиала)
-    total_summaries_queryset = InsuranceSummary.objects.select_related('request')
-    if filter_form.is_valid():
-        if filter_form.cleaned_data.get('status'):
-            total_summaries_queryset = total_summaries_queryset.filter(status=filter_form.cleaned_data['status'])
+    # Подсчет общего количества сводов (только если не выбран конкретный филиал)
+    total_summaries_count = 0
+    if not current_branch:
+        total_summaries_queryset = InsuranceSummary.objects.select_related('request')
+        if filter_form.is_valid():
+            if filter_form.cleaned_data.get('dfa_number'):
+                total_summaries_queryset = total_summaries_queryset.filter(
+                    request__dfa_number__icontains=filter_form.cleaned_data['dfa_number']
+                )
+            
+            if filter_form.cleaned_data.get('month'):
+                total_summaries_queryset = total_summaries_queryset.filter(created_at__month=filter_form.cleaned_data['month'])
+            
+            if filter_form.cleaned_data.get('year'):
+                total_summaries_queryset = total_summaries_queryset.filter(created_at__year=filter_form.cleaned_data['year'])
         
-        if filter_form.cleaned_data.get('date_from'):
-            total_summaries_queryset = total_summaries_queryset.filter(created_at__date__gte=filter_form.cleaned_data['date_from'])
-        
-        if filter_form.cleaned_data.get('date_to'):
-            total_summaries_queryset = total_summaries_queryset.filter(created_at__date__lte=filter_form.cleaned_data['date_to'])
-        
-        if filter_form.cleaned_data.get('client_name'):
-            total_summaries_queryset = total_summaries_queryset.filter(
-                request__client_name__icontains=filter_form.cleaned_data['client_name']
-            )
-        
-        if filter_form.cleaned_data.get('dfa_number'):
-            total_summaries_queryset = total_summaries_queryset.filter(
-                request__dfa_number__icontains=filter_form.cleaned_data['dfa_number']
-            )
-        
-        if filter_form.cleaned_data.get('month'):
-            total_summaries_queryset = total_summaries_queryset.filter(created_at__month=filter_form.cleaned_data['month'])
-        
-        if filter_form.cleaned_data.get('year'):
-            total_summaries_queryset = total_summaries_queryset.filter(created_at__year=filter_form.cleaned_data['year'])
-    
-    total_summaries_count = total_summaries_queryset.count()
+        total_summaries_count = total_summaries_queryset.count()
     
     # Сортировка по умолчанию
     sort_by = request.GET.get('sort', '-created_at')
@@ -144,15 +103,31 @@ def summary_list(request):
     else:
         summaries = summaries.order_by('-created_at')
     
-    # Обновляем контекст шаблона для передачи информации о филиале (требование 3.4)
+    # Реализация пагинации (требование 5.1, 5.2)
+    paginator = Paginator(summaries, 30)  # 30 сводов на страницу
+    page = request.GET.get('page')
+    
+    try:
+        summaries = paginator.page(page)
+    except PageNotAnInteger:
+        # Если номер страницы не является целым числом, показываем первую страницу
+        summaries = paginator.page(1)
+    except EmptyPage:
+        # Если номер страницы превышает максимальный, показываем последнюю страницу
+        summaries = paginator.page(paginator.num_pages)
+    
+    # Обновляем контекст шаблона для передачи информации о филиале (требование 4.1, 4.2, 4.3)
     return render(request, 'summaries/summary_list.html', {
         'summaries': summaries,
+        'paginator': paginator,
         'filter_form': filter_form,
         'available_branches': available_branches,
         'branch_counts': branch_counts,
         'current_branch': current_branch,
         'total_summaries_count': total_summaries_count,
-        'current_sort': sort_by
+        'current_sort': sort_by,
+        'show_branch_counts': bool(current_branch),  # Показывать счетчики только для активного филиала
+        'show_total_count': not current_branch,      # Показывать общий счетчик только для "Все своды"
     })
 
 
@@ -182,6 +157,9 @@ def summary_detail(request, pk):
     # Получаем данные о компаниях с количеством лет для отображения тегов
     companies_with_year_counts = summary.get_companies_with_year_counts()
     
+    # Получаем данные об итоговых суммах по компаниям для многолетних предложений
+    company_totals = summary.get_company_totals()
+    
     return render(request, 'summaries/summary_detail.html', {
         'summary': summary,
         'offers': offers,
@@ -190,6 +168,7 @@ def summary_detail(request, pk):
         'sorted_companies': sorted_companies,
         'unique_companies_count': unique_companies_count,
         'companies_with_year_counts': companies_with_year_counts,
+        'company_totals': company_totals,
     })
 
 
