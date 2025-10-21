@@ -198,7 +198,7 @@ def create_summary(request, request_id):
         return redirect('summaries:summary_detail', pk=insurance_request.summary.pk)
     
     # Проверяем статус заявки - можно создавать свод только для определенных статусов
-    allowed_statuses = ['uploaded', 'email_generated', 'email_sent', 'response_received']
+    allowed_statuses = ['uploaded', 'email_generated', 'emails_sent', 'response_received']
     if insurance_request.status not in allowed_statuses:
         messages.error(request, 
                       f'Нельзя создать свод для заявки со статусом "{insurance_request.get_status_display()}". '
@@ -303,7 +303,9 @@ def add_offer(request, summary_id):
                     
             except IntegrityError as e:
                 # Специальная обработка ошибок дублирования предложений
-                if 'UNIQUE constraint failed' in str(e):
+                error_str = str(e)
+                if ('UNIQUE constraint failed' in error_str or 
+                    'duplicate key value violates unique constraint' in error_str):
                     # Извлекаем информацию о дублирующемся предложении из данных формы
                     company_name = form.cleaned_data.get('company_name', 'неизвестная компания')
                     insurance_year = form.cleaned_data.get('insurance_year', 'неизвестный год')
@@ -414,25 +416,25 @@ def generate_summary_file(request, summary_id):
 @require_http_methods(["POST"])
 @user_required
 def send_summary_to_client(request, summary_id):
-    """Отправка свода клиенту"""
+    """Отправка свода клиенту без автоматического изменения статуса"""
     summary = get_object_or_404(InsuranceSummary, pk=summary_id)
     
     try:
         # TODO: Реализовать отправку email клиенту
         # Пока используем заглушку
-        messages.info(request, 'Отправка свода клиенту будет реализована после настройки SMTP')
         
-        # Обновляем статус
-        from django.utils import timezone
-        summary.status = 'sent'
-        summary.sent_to_client_at = timezone.now()
-        summary.save()
+        # Логируем действие отправки без изменения статуса
+        logger.info(f"Summary {summary_id} sent to client without status change by user {request.user.username}")
         
-        return JsonResponse({'success': True, 'message': 'Свод отправлен в Альянс'})
+        # Возвращаем успешный результат без изменения статуса
+        return JsonResponse({
+            'success': True, 
+            'message': 'Свод отправлен в Альянс. Для изменения статуса используйте блок "Управление статусом".'
+        })
         
     except Exception as e:
         logger.error(f"Error sending summary {summary_id} to client: {str(e)}")
-        return JsonResponse({'success': False, 'error': str(e)})
+        return JsonResponse({'success': False, 'error': f'Ошибка при отправке свода: {str(e)}'})
 
 
 @user_required
@@ -650,7 +652,10 @@ def summary_statistics(request):
         'collecting': InsuranceSummary.objects.filter(status='collecting').count(),
         'ready': InsuranceSummary.objects.filter(status='ready').count(),
         'sent': InsuranceSummary.objects.filter(status='sent').count(),
-        'completed': InsuranceSummary.objects.filter(status='completed').count(),
+        'completed_accepted': InsuranceSummary.objects.filter(status='completed_accepted').count(),
+        'completed_rejected': InsuranceSummary.objects.filter(status='completed_rejected').count(),
+        # Keep old 'completed' for backward compatibility during transition
+        'completed': InsuranceSummary.objects.filter(status__in=['completed', 'completed_accepted', 'completed_rejected']).count(),
         'avg_offers_per_summary': InsuranceSummary.objects.aggregate(
             avg=Avg('total_offers')
         )['avg'] or 0,

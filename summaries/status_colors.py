@@ -7,10 +7,18 @@
 
 # Основная карта соответствия статусов и цветов Bootstrap
 STATUS_COLOR_MAP = {
-    'collecting': 'warning',    # Желтый - сбор предложений
-    'ready': 'info',           # Синий - готов к отправке
-    'sent': 'success',         # Зеленый - отправлен в Альянс
-    'completed': 'secondary',  # Серый - завершен
+    # Статусы сводов
+    'collecting': 'warning',           # Желтый - сбор предложений
+    'ready': 'info',                  # Синий - готов к отправке
+    'sent': 'secondary',              # Серый - отправлен в Альянс
+    'completed_accepted': 'success',   # Зеленый - завершен: акцепт/распоряжение
+    'completed_rejected': 'danger',    # Красный - завершен: не будет
+    'completed': 'secondary',         # Серый - завершен (для обратной совместимости)
+    
+    # Статусы заявок
+    'uploaded': 'secondary',          # Серый - загружено
+    'email_generated': 'warning',     # Желтый - письмо сгенерировано
+    'emails_sent': 'success',         # Зеленый - письма отправлены
 }
 
 def get_status_badge_class(status):

@@ -4,7 +4,8 @@ Tests for summary templatetags
 from django.test import TestCase
 from summaries.templatetags.summary_extras import (
     status_color, format_branch, status_display_name,
-    companies_count_badge_class, companies_count_size_class
+    companies_count_badge_class, companies_count_size_class,
+    format_currency_with_spaces
 )
 
 
@@ -16,8 +17,10 @@ class SummaryTemplatetagsTest(TestCase):
         # Test all valid statuses
         self.assertEqual(status_color('collecting'), 'warning')
         self.assertEqual(status_color('ready'), 'info')
-        self.assertEqual(status_color('sent'), 'success')
+        self.assertEqual(status_color('sent'), 'secondary')  # Updated to match status_colors.py
         self.assertEqual(status_color('completed'), 'secondary')
+        self.assertEqual(status_color('completed_accepted'), 'success')  # New status
+        self.assertEqual(status_color('completed_rejected'), 'danger')   # New status
         
         # Test invalid status returns default
         self.assertEqual(status_color('invalid_status'), 'secondary')
@@ -81,3 +84,43 @@ class SummaryTemplatetagsTest(TestCase):
         self.assertEqual(companies_count_size_class(None), 'fs-6')
         self.assertEqual(companies_count_size_class(''), 'fs-6')
         self.assertEqual(companies_count_size_class('invalid'), 'fs-6')
+
+    def test_format_currency_with_spaces_filter(self):
+        """Test format_currency_with_spaces filter formats currency values correctly"""
+        # Test normal numeric values
+        self.assertEqual(format_currency_with_spaces(1566075), '1 566 075 ₽')
+        self.assertEqual(format_currency_with_spaces(1000), '1 000 ₽')
+        self.assertEqual(format_currency_with_spaces(999), '999 ₽')
+        self.assertEqual(format_currency_with_spaces(100), '100 ₽')
+        self.assertEqual(format_currency_with_spaces(0), '0 ₽')
+        
+        # Test float values
+        self.assertEqual(format_currency_with_spaces(1566075.0), '1 566 075 ₽')
+        self.assertEqual(format_currency_with_spaces(1566075.99), '1 566 076 ₽')  # Rounded
+        
+        # Test string values
+        self.assertEqual(format_currency_with_spaces('1566075'), '1 566 075 ₽')
+        self.assertEqual(format_currency_with_spaces('1000'), '1 000 ₽')
+        self.assertEqual(format_currency_with_spaces('1566075.50'), '1 566 076 ₽')  # Rounded
+        
+        # Test string values with existing formatting (should be cleaned and reformatted)
+        self.assertEqual(format_currency_with_spaces('1 566 075 ₽'), '1 566 075 ₽')
+        self.assertEqual(format_currency_with_spaces('1,566,075'), '1 566 075 ₽')
+        
+        # Test edge cases - None and empty values
+        self.assertEqual(format_currency_with_spaces(None), '—')
+        self.assertEqual(format_currency_with_spaces(''), '—')
+        self.assertEqual(format_currency_with_spaces('   '), '—')
+        
+        # Test invalid values (should return original or dash)
+        self.assertEqual(format_currency_with_spaces('invalid'), 'invalid')
+        self.assertEqual(format_currency_with_spaces('abc123'), 'abc123')
+        
+        # Test Decimal values
+        from decimal import Decimal
+        self.assertEqual(format_currency_with_spaces(Decimal('1566075')), '1 566 075 ₽')
+        self.assertEqual(format_currency_with_spaces(Decimal('1566075.50')), '1 566 076 ₽')
+        
+        # Test large numbers
+        self.assertEqual(format_currency_with_spaces(1000000000), '1 000 000 000 ₽')
+        self.assertEqual(format_currency_with_spaces(123456789), '123 456 789 ₽')

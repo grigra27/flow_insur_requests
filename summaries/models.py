@@ -11,7 +11,8 @@ class InsuranceSummary(models.Model):
         ('collecting', 'Сбор предложений'),
         ('ready', 'Готов к отправке'),
         ('sent', 'Отправлен в Альянс'),
-        ('completed', 'Завершен'),
+        ('completed_accepted', 'Завершен: акцепт/распоряжение'),
+        ('completed_rejected', 'Завершен: не будет'),
     ]
     
     # Связь с заявкой

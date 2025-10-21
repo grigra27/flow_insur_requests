@@ -62,7 +62,7 @@ class ExcelExportIntegrationTestCase(TestCase):
             vehicle_info='б/у грузовой тягач седельный SCANIA R440A4X2NA',
             dfa_number='ТС-19827-ГА-ВН',
             branch='Великий Новгород',
-            status='email_sent',
+            status='emails_sent',
             created_by=cls.admin_user,
             insurance_period='1 год'
         )

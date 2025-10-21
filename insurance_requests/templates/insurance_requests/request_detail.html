@@ -210,7 +210,7 @@
                     <label class="form-label small text-muted">Текущий статус:</label>
                     <div>
                         <span id="status-badge"
-                            class="badge bg-{% if request.status == 'completed' %}success{% elif request.status == 'email_sent' %}info{% elif request.status == 'email_generated' %}warning{% else %}secondary{% endif %} fs-6">
+                            class="badge bg-{% load summary_extras %}{{ request.status|status_color }} fs-6">
                             {{ request.get_status_display }}
                         </span>
                     </div>
@@ -240,7 +240,7 @@
                     <div>
                         <div class="fw-bold">Свод к {{ request.get_display_name }}</div>
                         <span
-                            class="badge bg-{% if request.summary.status == 'completed' %}success{% elif request.summary.status == 'sent' %}info{% elif request.summary.status == 'ready' %}warning{% else %}secondary{% endif %}">
+                            class="badge bg-{{ request.summary.status|status_color }}">
                             {{ request.summary.get_status_display }}
                         </span>
                         {% if request.summary.total_offers > 0 %}
@@ -253,7 +253,7 @@
                         <i class="bi bi-eye"></i> Открыть свод
                     </a>
                 </div>
-                {% elif request.status == 'uploaded' or request.status == 'email_generated' or request.status == 'email_sent' or request.status == 'completed' %}
+                {% elif request.status == 'uploaded' or request.status == 'email_generated' or request.status == 'emails_sent' %}
                 <div class="text-center create-summary-section">
                     <p class="text-muted mb-3">Свод предложений не создан</p>
                     <a href="{% url 'summaries:create_summary' request.pk %}" class="btn btn-success create-summary-btn">

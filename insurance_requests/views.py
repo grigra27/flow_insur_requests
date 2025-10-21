@@ -686,7 +686,7 @@ def send_email(request, pk):
         moscow_tz = pytz.timezone('Europe/Moscow')
         moscow_now = timezone.now().astimezone(moscow_tz)
         
-        insurance_request.status = 'email_sent'
+        insurance_request.status = 'emails_sent'
         insurance_request.email_sent_at = moscow_now
         insurance_request.save()
         

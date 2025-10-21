@@ -117,15 +117,14 @@
                                                         <strong>{{ offer.get_insurance_year_display }}</strong>
                                                     </td>
                                                     <td data-label="Страховая сумма">
-                                                        <strong>{{ offer.insurance_sum|floatformat:0 }} ₽</strong>
+                                                        <strong>{{ offer.insurance_sum|format_currency_with_spaces }}</strong>
                                                     </td>
                                                     <td data-label="Франшиза-1">
-                                                        <span class="text-primary">{{ offer.franchise_1|floatformat:0 }} ₽</span>
+                                                        <span class="text-primary">{{ offer.franchise_1|format_currency_with_spaces }}</span>
                                                     </td>
                                                     <td data-label="Премия-1">
-                                                        <strong class="text-success">{{ offer.premium_with_franchise_1|floatformat:0 }} ₽</strong>
+                                                        <strong class="text-success">{{ offer.premium_with_franchise_1|format_currency_with_spaces }}</strong>
                                                         {% if offer.installment_variant_1 and offer.payments_per_year_variant_1 > 1 %}
-                                                            <br><small class="text-muted">{{ offer.premium_with_franchise_1|floatformat:0|div:offer.payments_per_year_variant_1 }} ₽ за платеж</small>
                                                             <br><span class="badge bg-success" style="font-size: 0.65em;">
                                                                 <i class="bi bi-credit-card"></i> {{ offer.payments_per_year_variant_1 }} платеж{{ offer.payments_per_year_variant_1|pluralize:"ей,а,ей" }}/год
                                                             </span>
@@ -133,16 +132,15 @@
                                                     </td>
                                                     <td data-label="Франшиза-2">
                                                         {% if offer.franchise_2 %}
-                                                            <span class="text-warning">{{ offer.franchise_2|floatformat:0 }} ₽</span>
+                                                            <span class="text-warning">{{ offer.franchise_2|format_currency_with_spaces }}</span>
                                                         {% else %}
                                                             <span class="text-muted">—</span>
                                                         {% endif %}
                                                     </td>
                                                     <td data-label="Премия-2">
                                                         {% if offer.premium_with_franchise_2 %}
-                                                            <strong class="text-info">{{ offer.premium_with_franchise_2|floatformat:0 }} ₽</strong>
+                                                            <strong class="text-info">{{ offer.premium_with_franchise_2|format_currency_with_spaces }}</strong>
                                                             {% if offer.installment_variant_2 and offer.payments_per_year_variant_2 > 1 %}
-                                                                <br><small class="text-muted">{{ offer.premium_with_franchise_2|floatformat:0|div:offer.payments_per_year_variant_2 }} ₽ за платеж</small>
                                                                 <br><span class="badge bg-info" style="font-size: 0.65em;">
                                                                     <i class="bi bi-credit-card"></i> {{ offer.payments_per_year_variant_2 }} платеж{{ offer.payments_per_year_variant_2|pluralize:"ей,а,ей" }}/год
                                                                 </span>
@@ -191,14 +189,14 @@
                                                             <span class="text-muted">—</span>
                                                         </td>
                                                         <td data-label="Премия-1">
-                                                            <strong class="text-success fs-6">{{ company_data.total_premium_1|floatformat:0 }} ₽</strong>
+                                                            <strong class="text-success fs-6">{{ company_data.total_premium_1|format_currency_with_spaces }}</strong>
                                                         </td>
                                                         <td data-label="Франшиза-2">
                                                             <span class="text-muted">—</span>
                                                         </td>
                                                         <td data-label="Премия-2">
                                                             {% if company_data.total_premium_2 > 0 %}
-                                                                <strong class="text-info fs-6">{{ company_data.total_premium_2|floatformat:0 }} ₽</strong>
+                                                                <strong class="text-info fs-6">{{ company_data.total_premium_2|format_currency_with_spaces }}</strong>
                                                             {% else %}
                                                                 <span class="text-muted">—</span>
                                                             {% endif %}
@@ -251,18 +249,6 @@
                             {% endfor %}
                         </dd>
                     {% endif %}
-                    
-
-                    
-                    {% if offers.count > 1 %}
-                        <dt class="col-6">Разброс цен:</dt>
-                        <dd class="col-6">
-                            {% for offer in offers %}
-                                {% if forloop.first %}{{ offer.effective_premium_with_franchise|floatformat:0 }}{% endif %}
-                                {% if forloop.last and not forloop.first %} - {{ offer.effective_premium_with_franchise|floatformat:0 }}{% endif %}
-                            {% endfor %} ₽
-                        </dd>
-                    {% endif %}
                 </dl>
                 
                 {% if summary.status == 'ready' %}
@@ -298,7 +284,8 @@
                             <option value="collecting" {% if summary.status == 'collecting' %}selected{% endif %}>Сбор предложений</option>
                             <option value="ready" {% if summary.status == 'ready' %}selected{% endif %}>Готов к отправке</option>
                             <option value="sent" {% if summary.status == 'sent' %}selected{% endif %}>Отправлен в Альянс</option>
-                            <option value="completed" {% if summary.status == 'completed' %}selected{% endif %}>Завершен</option>
+                            <option value="completed_accepted" {% if summary.status == 'completed_accepted' %}selected{% endif %}>Завершен: акцепт/распоряжение</option>
+                            <option value="completed_rejected" {% if summary.status == 'completed_rejected' %}selected{% endif %}>Завершен: не будет</option>
                         </select>
                         <button type="button" class="btn btn-primary" onclick="changeStatus({{ summary.id }})">
                             <i class="bi bi-check-lg"></i> Применить
@@ -307,13 +294,7 @@
                     <div class="form-text">Выберите новый статус и нажмите "Применить"</div>
                 </div>
                 
-                {% if summary.status == 'collecting' and summary.total_offers >= 1 %}
-                    <div class="d-grid gap-2 mb-3">
-                        <button class="btn btn-warning" onclick="quickStatusChange({{ summary.id }}, 'ready')">
-                            <i class="bi bi-check-circle"></i> Отметить готовым
-                        </button>
-                    </div>
-                {% endif %}
+
                 
                 {% if summary.status == 'sent' %}
                     <div class="alert alert-info">
@@ -616,11 +597,10 @@ function formatNumber(number) {
 function formatPaymentsInfo(paymentsPerYear, premium) {
     if (!paymentsPerYear || paymentsPerYear <= 1) return '';
     
-    const paymentAmount = premium / paymentsPerYear;
     const paymentText = paymentsPerYear === 2 ? 'платежа' : 
                        paymentsPerYear <= 4 ? 'платежа' : 'платежей';
     
-    return `${formatCurrency(paymentAmount)} за платеж (${paymentsPerYear} ${paymentText}/год)`;
+    return `${paymentsPerYear} ${paymentText}/год`;
 }
 
 // Функция для обновления отображения данных в реальном времени
@@ -970,9 +950,24 @@ document.addEventListener('DOMContentLoaded', function() {
             const badgeClasses = currentBadge.className;
             let currentStatus = 'collecting'; // по умолчанию
             
-            if (badgeClasses.includes('bg-success')) currentStatus = 'completed';
-            else if (badgeClasses.includes('bg-info')) currentStatus = 'sent';
-            else if (badgeClasses.includes('bg-warning')) currentStatus = 'ready';
+            if (badgeClasses.includes('bg-success')) {
+                // Only 'completed_accepted' uses success color now
+                currentStatus = 'completed_accepted';
+            } else if (badgeClasses.includes('bg-danger')) {
+                currentStatus = 'completed_rejected';
+            } else if (badgeClasses.includes('bg-secondary')) {
+                // Could be 'sent' or 'completed' - check text content
+                const statusText = badge.textContent.trim();
+                if (statusText.includes('Отправлен') || statusText.includes('Альянс')) {
+                    currentStatus = 'sent';
+                } else {
+                    currentStatus = 'completed'; // fallback for old completed status
+                }
+            } else if (badgeClasses.includes('bg-info')) {
+                currentStatus = 'ready';
+            } else if (badgeClasses.includes('bg-warning')) {
+                currentStatus = 'collecting';
+            }
             
             statusSelect.dataset.currentStatus = currentStatus;
         }
@@ -997,7 +992,14 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function sendToClient(summaryId) {
-    if (confirm('Отправить свод клиенту?')) {
+    if (confirm('Отправить свод в Альянс? Статус свода не изменится автоматически.')) {
+        const button = event.target;
+        const originalContent = button.innerHTML;
+        
+        // Показываем индикатор загрузки
+        button.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Отправка...';
+        button.disabled = true;
+        
         fetch(`/summaries/${summaryId}/send-to-client/`, {
             method: 'POST',
             headers: {
@@ -1005,13 +1007,28 @@ function sendToClient(summaryId) {
                 'Content-Type': 'application/json',
             },
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.success) {
-                location.reload();
+                showSuccessMessage(data.message);
+                // Не перезагружаем страницу, так как статус не изменился
             } else {
-                alert('Ошибка: ' + data.error);
+                showErrorMessage('Ошибка: ' + data.error);
             }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showErrorMessage('Произошла ошибка при отправке свода');
+        })
+        .finally(() => {
+            // Восстанавливаем кнопку
+            button.innerHTML = originalContent;
+            button.disabled = false;
         });
     }
 }
@@ -1294,7 +1311,8 @@ function quickStatusChange(summaryId, newStatus) {
     const confirmMessages = {
         'ready': 'Отметить свод как готовый к отправке?',
         'sent': 'Отметить свод как отправленный в Альянс?',
-        'completed': 'Отметить свод как завершенный?'
+        'completed_accepted': 'Отметить свод как завершенный (акцепт/распоряжение)?',
+        'completed_rejected': 'Отметить свод как завершенный (не будет)?'
     };
     
     const message = confirmMessages[newStatus] || 'Изменить статус?';
@@ -1357,13 +1375,19 @@ function updateStatusBadge(status, statusDisplay) {
         
         // Добавляем соответствующий класс цвета
         switch(status) {
-            case 'completed':
+            case 'completed_accepted':
                 badge.classList.add('bg-success');
                 break;
+            case 'completed_rejected':
+                badge.classList.add('bg-danger');
+                break;
             case 'sent':
-                badge.classList.add('bg-info');
+                badge.classList.add('bg-secondary');
                 break;
             case 'ready':
+                badge.classList.add('bg-info');
+                break;
+            case 'collecting':
                 badge.classList.add('bg-warning');
                 break;
             default:

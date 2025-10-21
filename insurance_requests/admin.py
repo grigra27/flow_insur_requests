@@ -35,7 +35,7 @@ class InsuranceRequestAdmin(admin.ModelAdmin):
     ]
     
     # Массовые операции для управления статусами и сроками ответа
-    actions = ['mark_as_completed', 'mark_as_email_sent', 'mark_as_email_generated', 'reset_response_deadline']
+    actions = ['mark_as_emails_sent', 'mark_as_email_generated', 'reset_response_deadline']
     
     # Логически сгруппированные fieldsets для удобного редактирования
     fieldsets = (
@@ -109,17 +109,11 @@ class InsuranceRequestAdmin(admin.ModelAdmin):
     get_attachments_count.short_description = 'Вложения'
     
     # Массовые операции для управления статусами и сроками ответа
-    def mark_as_completed(self, request, queryset):
-        """Массовая операция: отметить как завершенные"""
-        updated = queryset.update(status='completed')
-        self.message_user(request, f'{updated} заявок отмечено как завершенные.')
-    mark_as_completed.short_description = 'Отметить как завершенные'
-    
-    def mark_as_email_sent(self, request, queryset):
-        """Массовая операция: отметить как письмо отправлено"""
-        updated = queryset.update(status='email_sent')
-        self.message_user(request, f'{updated} заявок отмечено как письмо отправлено.')
-    mark_as_email_sent.short_description = 'Отметить как письмо отправлено'
+    def mark_as_emails_sent(self, request, queryset):
+        """Массовая операция: отметить как письма отправлены"""
+        updated = queryset.update(status='emails_sent')
+        self.message_user(request, f'{updated} заявок отмечено как письма отправлены.')
+    mark_as_emails_sent.short_description = 'Отметить как письма отправлены'
     
     def mark_as_email_generated(self, request, queryset):
         """Массовая операция: отметить как письмо сгенерировано"""
