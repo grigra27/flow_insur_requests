@@ -11,7 +11,7 @@
     <div>
         {% if summary.status == 'collecting' %}
             <a href="{% url 'summaries:add_offer' summary.pk %}" class="btn btn-success">
-                <i class="bi bi-plus-circle"></i> Добавить предложение
+                <i class="bi bi-plus-circle"></i> Добавить предложение вручную
             </a>
         {% endif %}
         {% if summary.status == 'ready' %}
@@ -81,7 +81,7 @@
                 <h5 class="mb-0">Предложения страховщиков ({{ sorted_companies|length }})</h5>
                 {% if summary.status == 'collecting' %}
                     <a href="{% url 'summaries:add_offer' summary.pk %}" class="btn btn-success btn-sm">
-                        <i class="bi bi-plus-circle"></i> Добавить
+                        <i class="bi bi-plus-circle"></i> Добавить предложение вручную
                     </a>
                 {% endif %}
             </div>
@@ -180,7 +180,7 @@
                                                 {% if company_data.is_multiyear %}
                                                     <tr class="table-info company-total-row">
                                                         <td data-label="Год">
-                                                            <strong><i class="bi bi-calculator"></i> Итого</strong>
+                                                            <strong><!--i class="bi bi-calculator"></i--> Итого</strong>
                                                         </td>
                                                         <td data-label="Страховая сумма">
                                                             <span class="text-muted">—</span>
