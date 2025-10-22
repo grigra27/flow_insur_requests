@@ -174,7 +174,7 @@
                                                             <a href="{% url 'summaries:copy_offer' offer.pk %}" 
                                                                class="btn btn-outline-success btn-sm" 
                                                                title="Копировать">
-                                                                <i class="bi bi-copy"></i>
+                                                                <i class="bi bi-arrow-repeat"></i>
                                                             </a>
                                                             <button class="btn btn-outline-danger btn-sm" 
                                                                     onclick="deleteOffer({{ offer.id }})"
@@ -189,7 +189,7 @@
                                             <!-- Добавляем строку "Итого" для многолетних предложений -->
                                             {% with company_data=company_totals|lookup:company_name %}
                                                 {% if company_data.is_multiyear %}
-                                                    <tr class="table-info company-total-row">
+                                                    <tr class="company-total-row">
                                                         <td data-label="Год">
                                                             <strong><!--i class="bi bi-calculator"></i--> Итого</strong>
                                                         </td>

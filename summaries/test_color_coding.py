@@ -161,3 +161,23 @@ class ColorCodingTest(TestCase):
         # Check hover effect
         self.assertIn('.company-total-row:hover {', content)
         self.assertIn('background-color: #ffeaa7 !important;', content)
+
+    def test_no_bootstrap_table_info_class(self):
+        """Test that Bootstrap table-info class is not used in total rows"""
+        self.client.login(username='testuser', password='testpass123')
+        
+        url = reverse('summaries:summary_detail', kwargs={'pk': self.summary.pk})
+        response = self.client.get(url)
+        
+        self.assertEqual(response.status_code, 200)
+        
+        content = response.content.decode('utf-8')
+        
+        # Check that table-info class is not present in the template
+        self.assertNotIn('table-info', content)
+        
+        # Check that only company-total-row class is used for total rows
+        self.assertIn('class="company-total-row"', content)
+        
+        # Ensure the pale yellow background is applied
+        self.assertIn('background-color: #fff3cd !important', content)
