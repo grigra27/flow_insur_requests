@@ -638,6 +638,168 @@ def change_summary_status(request, summary_id):
     })
 
 
+@require_http_methods(["POST"])
+@user_required
+def upload_company_response(request, summary_id):
+    """
+    Загрузка ответа страховой компании через Excel файл
+    
+    Требования: 1.3, 2.1, 4.3, 5.1, 5.2, 5.3, 5.4, 5.5
+    """
+    from .services import get_excel_response_processor
+    from .services import ExcelProcessingError, InvalidFileFormatError, MissingDataError, InvalidDataError
+    from .forms import CompanyResponseUploadForm
+    
+    # Получаем свод с проверкой доступа
+    summary = get_object_or_404(InsuranceSummary, pk=summary_id)
+    
+    # Проверка аутентификации и прав пользователя (требование 1.3, 2.1)
+    if not request.user.is_authenticated:
+        logger.warning(f"Unauthenticated user attempted to upload company response for summary {summary_id}")
+        return JsonResponse({
+            'success': False,
+            'error': 'Необходимо войти в систему для загрузки ответов компаний'
+        }, status=401)
+    
+    # Проверяем права пользователя на изменение сводов
+    from insurance_requests.decorators import has_user_access
+    if not has_user_access(request.user):
+        logger.warning(f"User {request.user.username} without sufficient permissions attempted to upload company response for summary {summary_id}")
+        return JsonResponse({
+            'success': False,
+            'error': 'У вас недостаточно прав для загрузки ответов компаний'
+        }, status=403)
+    
+    # Валидация статуса свода (только "Сбор предложений") (требование 2.1)
+    if summary.status != 'collecting':
+        logger.warning(f"Attempt to upload company response for summary {summary_id} with status '{summary.status}' by user {request.user.username}")
+        return JsonResponse({
+            'success': False,
+            'error': 'Загрузка ответов компаний доступна только при статусе "Сбор предложений"'
+        }, status=400)
+    
+    # Обработка POST запросов с файлами (требование 2.1)
+    if request.method != 'POST':
+        return JsonResponse({
+            'success': False,
+            'error': 'Метод не поддерживается. Используйте POST для загрузки файлов.'
+        }, status=405)
+    
+    # Валидация формы загрузки файла
+    form = CompanyResponseUploadForm(request.POST, request.FILES)
+    
+    if not form.is_valid():
+        # Обработка ошибок валидации файлов (требование 5.1, 5.3, 5.5)
+        error_messages = []
+        for field, errors in form.errors.items():
+            if field == '__all__':
+                error_messages.extend(errors)
+            else:
+                field_label = form.fields[field].label if field in form.fields else field
+                for error in errors:
+                    error_messages.append(f"{field_label}: {error}")
+        
+        error_message = '; '.join(error_messages) if error_messages else 'Ошибка валидации файла'
+        
+        logger.warning(f"File validation failed for summary {summary_id} by user {request.user.username}: {error_message}")
+        return JsonResponse({
+            'success': False,
+            'error': error_message,
+            'field_errors': form.errors
+        }, status=400)
+    
+    # Получаем загруженный файл
+    excel_file = form.cleaned_data['excel_file']
+    
+    try:
+        # Интеграция с сервисом ExcelResponseProcessor (требование 4.3, 5.2, 5.4)
+        processor = get_excel_response_processor()
+        
+        # Обработка успешной загрузки с созданием предложений (требование 4.3, 5.2, 5.4)
+        result = processor.process_excel_file(excel_file, summary)
+        
+        # Логирование успешной операции
+        logger.info(f"Company response uploaded successfully for summary {summary_id} by user {request.user.username}: "
+                   f"Company '{result['company_name']}', {result['offers_created']} offers created for years {result['years']}")
+        
+        # Возврат JSON ответов с результатами обработки (требование 5.2, 5.4)
+        return JsonResponse({
+            'success': True,
+            'message': f'Предложение от компании "{result["company_name"]}" успешно загружено',
+            'details': {
+                'company_name': result['company_name'],
+                'offers_created': result['offers_created'],
+                'years': result['years']
+            }
+        })
+        
+    except InvalidFileFormatError as e:
+        # Обработка ошибок валидации файлов (требование 5.1, 5.3, 5.5)
+        error_message = f"Ошибка формата файла: {str(e)}"
+        logger.warning(f"Invalid file format for summary {summary_id} by user {request.user.username}: {error_message}")
+        return JsonResponse({
+            'success': False,
+            'error': error_message,
+            'error_type': 'file_format'
+        }, status=400)
+        
+    except MissingDataError as e:
+        # Обработка ошибок извлечения данных (требование 5.1, 5.3, 5.5)
+        error_message = f"Отсутствуют обязательные данные: {str(e)}"
+        logger.warning(f"Missing data in file for summary {summary_id} by user {request.user.username}: {error_message}")
+        return JsonResponse({
+            'success': False,
+            'error': error_message,
+            'error_type': 'missing_data',
+            'missing_cells': getattr(e, 'missing_cells', [])
+        }, status=400)
+        
+    except InvalidDataError as e:
+        # Обработка ошибок извлечения данных (требование 5.1, 5.3, 5.5)
+        error_message = f"Некорректные данные в файле: {str(e)}"
+        logger.warning(f"Invalid data in file for summary {summary_id} by user {request.user.username}: {error_message}")
+        return JsonResponse({
+            'success': False,
+            'error': error_message,
+            'error_type': 'invalid_data',
+            'field_name': getattr(e, 'field_name', None),
+            'field_value': getattr(e, 'value', None),
+            'expected_format': getattr(e, 'expected_format', None)
+        }, status=400)
+        
+    except DuplicateOfferError as e:
+        # Обработка дублирования предложений (IntegrityError) (требование 5.1, 5.3, 5.5)
+        error_message = f"Дублирование предложения: {str(e)}"
+        logger.warning(f"Duplicate offer attempt for summary {summary_id} by user {request.user.username}: {error_message}")
+        return JsonResponse({
+            'success': False,
+            'error': error_message,
+            'error_type': 'duplicate_offer',
+            'company_name': getattr(e, 'company_name', None),
+            'year': getattr(e, 'year', None)
+        }, status=409)
+        
+    except ExcelProcessingError as e:
+        # Обработка других ошибок обработки Excel (требование 5.1, 5.3, 5.5)
+        error_message = f"Ошибка обработки Excel файла: {str(e)}"
+        logger.error(f"Excel processing error for summary {summary_id} by user {request.user.username}: {error_message}", exc_info=True)
+        return JsonResponse({
+            'success': False,
+            'error': error_message,
+            'error_type': 'processing_error'
+        }, status=500)
+        
+    except Exception as e:
+        # Логирование всех операций и ошибок (требование 5.1, 5.3, 5.5)
+        error_message = f"Неожиданная ошибка при загрузке ответа компании: {str(e)}"
+        logger.error(f"Unexpected error uploading company response for summary {summary_id} by user {request.user.username}: {error_message}", exc_info=True)
+        return JsonResponse({
+            'success': False,
+            'error': 'Произошла неожиданная ошибка при обработке файла. Обратитесь к администратору.',
+            'error_type': 'unexpected_error'
+        }, status=500)
+
+
 
 
 

@@ -24,4 +24,7 @@ urlpatterns = [
     path('offer/<int:offer_id>/copy/', views.copy_offer, name='copy_offer'),
     path('offer/<int:offer_id>/delete/', views.delete_offer, name='delete_offer'),
     path('offer-search/', views.offer_search, name='offer_search'),
+    
+    # Загрузка ответов компаний
+    path('<int:summary_id>/upload-company-response/', views.upload_company_response, name='upload_company_response'),
 ]
