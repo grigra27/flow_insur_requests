@@ -160,6 +160,9 @@ def summary_detail(request, pk):
     # Получаем данные об итоговых суммах по компаниям для многолетних предложений
     company_totals = summary.get_company_totals()
     
+    # Получаем примечания, сгруппированные по компаниям
+    company_notes = summary.get_company_notes()
+    
     return render(request, 'summaries/summary_detail.html', {
         'summary': summary,
         'offers': offers,
@@ -169,6 +172,7 @@ def summary_detail(request, pk):
         'unique_companies_count': unique_companies_count,
         'companies_with_year_counts': companies_with_year_counts,
         'company_totals': company_totals,
+        'company_notes': company_notes,
     })
 
 
@@ -435,6 +439,92 @@ def send_summary_to_client(request, summary_id):
     except Exception as e:
         logger.error(f"Error sending summary {summary_id} to client: {str(e)}")
         return JsonResponse({'success': False, 'error': f'Ошибка при отправке свода: {str(e)}'})
+
+
+@user_required
+def copy_offer(request, offer_id):
+    """Копирование предложения"""
+    original_offer = get_object_or_404(InsuranceOffer, pk=offer_id)
+    
+    if request.method == 'POST':
+        form = OfferForm(request.POST, request.FILES)
+        if form.is_valid():
+            try:
+                with transaction.atomic():
+                    # Создаем новое предложение на основе данных формы
+                    new_offer = form.save(commit=False)
+                    new_offer.summary = original_offer.summary
+                    new_offer.save()
+                    
+                    # Обновляем счетчик предложений в своде
+                    original_offer.summary.update_total_offers_count()
+                    
+                    logger.info(f"Offer copied: {original_offer.id} -> {new_offer.id} by user {request.user.username}")
+                    
+                    messages.success(request, f'Предложение от {new_offer.company_name} ({new_offer.get_insurance_year_display()}) успешно скопировано')
+                    return redirect('summaries:summary_detail', pk=new_offer.summary.pk)
+                    
+            except IntegrityError as e:
+                # Специальная обработка ошибок дублирования предложений
+                error_str = str(e)
+                if ('UNIQUE constraint failed' in error_str or 
+                    'duplicate key value violates unique constraint' in error_str):
+                    # Извлекаем информацию о дублирующемся предложении из данных формы
+                    company_name = form.cleaned_data.get('company_name', 'неизвестная компания')
+                    insurance_year = form.cleaned_data.get('insurance_year', 'неизвестный год')
+                    
+                    # Создаем кастомное исключение для лучшей обработки
+                    duplicate_error = DuplicateOfferError(company_name, insurance_year)
+                    messages.error(request, duplicate_error.get_user_message())
+                    logger.warning(f"Duplicate offer attempt during copy for summary {original_offer.summary.id}: {company_name} year {insurance_year}")
+                else:
+                    # Обработка других ошибок целостности данных
+                    logger.error(f"IntegrityError copying offer {offer_id}: {str(e)}", exc_info=True)
+                    messages.error(request, f'Ошибка целостности данных при копировании предложения: {str(e)}')
+            except Exception as e:
+                # Обработка всех остальных ошибок
+                logger.error(f"Error copying offer {offer_id}: {str(e)}", exc_info=True)
+                messages.error(request, f'Ошибка при копировании предложения: {str(e)}')
+        else:
+            # Логируем ошибки валидации
+            logger.warning(f"Form validation failed for copying offer {offer_id}. Errors: {form.errors}")
+            
+            # Добавляем общее сообщение об ошибке валидации
+            error_messages = []
+            for field, errors in form.errors.items():
+                if field == '__all__':
+                    error_messages.extend(errors)
+                else:
+                    field_label = form.fields[field].label if field in form.fields else field
+                    for error in errors:
+                        error_messages.append(f"{field_label}: {error}")
+            
+            if error_messages:
+                messages.error(request, f'Ошибки в форме: {"; ".join(error_messages)}')
+            else:
+                messages.error(request, 'Проверьте правильность заполнения всех полей')
+    else:
+        # Создаем форму с данными из оригинального предложения
+        initial_data = {
+            'company_name': original_offer.company_name,
+            'insurance_year': original_offer.insurance_year,
+            'insurance_sum': original_offer.insurance_sum,
+            'franchise_1': original_offer.franchise_1,
+            'premium_with_franchise_1': original_offer.premium_with_franchise_1,
+            'franchise_2': original_offer.franchise_2,
+            'premium_with_franchise_2': original_offer.premium_with_franchise_2,
+            'installment_variant_1': original_offer.installment_variant_1,
+            'payments_per_year_variant_1': original_offer.payments_per_year_variant_1,
+            'installment_variant_2': original_offer.installment_variant_2,
+            'payments_per_year_variant_2': original_offer.payments_per_year_variant_2,
+            'notes': original_offer.notes,
+        }
+        form = OfferForm(initial=initial_data)
+    
+    return render(request, 'summaries/copy_offer.html', {
+        'form': form,
+        'original_offer': original_offer
+    })
 
 
 @user_required

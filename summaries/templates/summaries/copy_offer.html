@@ -1,15 +1,15 @@
 {% extends 'base.html' %}
 {% load tz %}
 
-{% block title %}Редактировать предложение - {{ block.super }}{% endblock %}
+{% block title %}Копировать предложение - {{ block.super }}{% endblock %}
 
 {% block content %}
 <div class="row justify-content-center">
     <div class="col-lg-10">
         <div class="card">
             <div class="card-header">
-                <h4 class="mb-0"><i class="bi bi-pencil"></i> Редактировать предложение</h4>
-                <small class="text-muted">{{ offer.company_name }} ({{ offer.get_insurance_year_display }}) - Свод к {{ offer.summary.request.get_display_name }}</small>
+                <h4 class="mb-0"><i class="bi bi-copy"></i> Копировать предложение</h4>
+                <small class="text-muted">Копирование предложения от {{ original_offer.company_name }} ({{ original_offer.get_insurance_year_display }}) - Свод к {{ original_offer.summary.request.get_display_name }}</small>
             </div>
             <div class="card-body">
                 <form method="post">
@@ -254,72 +254,43 @@
                     {% endif %}
                     
                     <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                        <a href="{% url 'summaries:summary_detail' offer.summary.pk %}" class="btn btn-secondary">
+                        <a href="{% url 'summaries:summary_detail' original_offer.summary.pk %}" class="btn btn-secondary">
                             <i class="bi bi-x-circle"></i> Отмена
                         </a>
-                        <button type="button" class="btn btn-danger me-md-2" onclick="confirmDeleteOffer({{ offer.id }})">
-                            <i class="bi bi-trash"></i> Удалить предложение
-                        </button>
                         <button type="submit" class="btn btn-success">
-                            <i class="bi bi-check-circle"></i> Сохранить изменения
+                            <i class="bi bi-check-circle"></i> Создать копию
                         </button>
                     </div>
                 </form>
             </div>
         </div>
         
-        <!-- Информация о предложении -->
+        <!-- Информация об оригинальном предложении -->
         <div class="card mt-4">
             <div class="card-header">
-                <h6 class="mb-0">Информация о предложении</h6>
+                <h6 class="mb-0">Информация об оригинальном предложении</h6>
             </div>
             <div class="card-body">
                 <div class="row">
                     <div class="col-md-6">
                         <dl class="row">
                             <dt class="col-sm-5">Получено:</dt>
-                            <dd class="col-sm-7">{% timezone "Europe/Moscow" %}{{ offer.received_at|date:"d.m.Y H:i" }}{% endtimezone %} (МСК)</dd>
+                            <dd class="col-sm-7">{% timezone "Europe/Moscow" %}{{ original_offer.received_at|date:"d.m.Y H:i" }}{% endtimezone %} (МСК)</dd>
                             
                             <dt class="col-sm-5">Клиент:</dt>
-                            <dd class="col-sm-7">{{ offer.summary.request.client_name }}</dd>
+                            <dd class="col-sm-7">{{ original_offer.summary.request.client_name }}</dd>
                         </dl>
                     </div>
                     <div class="col-md-6">
                         <dl class="row">
                             <dt class="col-sm-5">Тип страхования:</dt>
-                            <dd class="col-sm-7">{{ offer.summary.request.insurance_type }}</dd>
+                            <dd class="col-sm-7">{{ original_offer.summary.request.insurance_type }}</dd>
                             
                             <dt class="col-sm-5">Срок:</dt>
-                            <dd class="col-sm-7">{{ offer.summary.request.insurance_period }}</dd>
+                            <dd class="col-sm-7">{{ original_offer.summary.request.insurance_period }}</dd>
                         </dl>
                     </div>
                 </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Confirmation Modal for Delete -->
-<div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-labelledby="deleteConfirmModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="deleteConfirmModalLabel">
-                    <i class="bi bi-exclamation-triangle text-warning"></i> Подтверждение удаления
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <p>Вы действительно хотите удалить предложение от <strong>{{ offer.company_name }}</strong> ({{ offer.get_insurance_year_display }})?</p>
-                <p class="text-muted">Это действие нельзя отменить.</p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                    <i class="bi bi-x-circle"></i> Отмена
-                </button>
-                <button type="button" class="btn btn-danger" onclick="executeDeleteOffer({{ offer.id }})">
-                    <i class="bi bi-trash"></i> Удалить предложение
-                </button>
             </div>
         </div>
     </div>
@@ -334,10 +305,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const paymentsVariant1 = document.getElementById('id_payments_per_year_variant_1');
     const installmentVariant2Checkbox = document.getElementById('id_installment_variant_2');
     const paymentsVariant2 = document.getElementById('id_payments_per_year_variant_2');
-    
-    // Старые поля для обратной совместимости
-    const installmentCheckbox = document.getElementById('id_installment_available');
-    const paymentsPerYear = document.getElementById('id_payments_per_year');
     
     function togglePaymentsVariant1() {
         if (paymentsVariant1) {
@@ -371,22 +338,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
-    function togglePaymentsPerYear() {
-        if (paymentsPerYear) {
-            if (!installmentCheckbox.checked) {
-                paymentsPerYear.value = '1';
-                paymentsPerYear.disabled = true;
-                paymentsPerYear.style.backgroundColor = '#e9ecef';
-            } else {
-                paymentsPerYear.disabled = false;
-                paymentsPerYear.style.backgroundColor = '';
-                if (paymentsPerYear.value === '1' || paymentsPerYear.value === '') {
-                    paymentsPerYear.value = '12'; // По умолчанию 12 платежей при включенной рассрочке
-                }
-            }
-        }
-    }
-    
     // Добавляем обработчики событий
     if (installmentVariant1Checkbox) {
         installmentVariant1Checkbox.addEventListener('change', togglePaymentsVariant1);
@@ -396,11 +347,6 @@ document.addEventListener('DOMContentLoaded', function() {
     if (installmentVariant2Checkbox) {
         installmentVariant2Checkbox.addEventListener('change', togglePaymentsVariant2);
         togglePaymentsVariant2(); // Инициализация
-    }
-    
-    if (installmentCheckbox) {
-        installmentCheckbox.addEventListener('change', togglePaymentsPerYear);
-        togglePaymentsPerYear(); // Инициализация
     }
     
     // Валидация года страхования в реальном времени
@@ -428,105 +374,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Валидация количества платежей в год для всех полей
-    function validatePaymentsField(field, errorClass) {
-        if (!field) return;
-        
-        field.addEventListener('input', function(e) {
-            const value = parseInt(e.target.value);
-            const errorDiv = e.target.parentNode.querySelector(`.${errorClass}`);
-            
-            // Удаляем предыдущие ошибки
-            if (errorDiv) {
-                errorDiv.remove();
-            }
-            
-            if (e.target.value && (isNaN(value) || value < 1 || value > 12)) {
-                e.target.classList.add('is-invalid');
-                const error = document.createElement('div');
-                error.className = `text-danger ${errorClass}`;
-                error.innerHTML = '<small>Количество платежей должно быть от 1 до 12</small>';
-                e.target.parentNode.appendChild(error);
-            } else {
-                e.target.classList.remove('is-invalid');
-                if (e.target.value) {
-                    e.target.classList.add('is-valid');
-                }
-            }
-        });
-    }
-    
-    // Применяем валидацию ко всем полям платежей
-    validatePaymentsField(paymentsPerYear, 'payments-validation-error');
-    validatePaymentsField(paymentsVariant1, 'payments-variant-1-validation-error');
-    validatePaymentsField(paymentsVariant2, 'payments-variant-2-validation-error');
-    
-    // Валидация франшиз и премий
-    const franchise1 = document.getElementById('id_franchise_1');
-    const premium1 = document.getElementById('id_premium_with_franchise_1');
-    const franchise2 = document.getElementById('id_franchise_2');
-    const premium2 = document.getElementById('id_premium_with_franchise_2');
-    
-    function validateFranchiseAndPremium(franchiseField, premiumField, variant) {
-        if (!franchiseField || !premiumField) return;
-        
-        const franchiseValue = parseFloat(franchiseField.value) || 0;
-        const premiumValue = parseFloat(premiumField.value) || 0;
-        
-        // Валидация франшизы
-        if (franchiseField.value && franchiseValue < 0) {
-            franchiseField.classList.add('is-invalid');
-            showFieldError(franchiseField, `franchise-${variant}-error`, 'Франшиза не может быть отрицательной');
-        } else {
-            franchiseField.classList.remove('is-invalid');
-            removeFieldError(franchiseField, `franchise-${variant}-error`);
-            if (franchiseField.value) {
-                franchiseField.classList.add('is-valid');
-            }
-        }
-        
-        // Валидация премии
-        if (premiumField.value && premiumValue <= 0) {
-            premiumField.classList.add('is-invalid');
-            showFieldError(premiumField, `premium-${variant}-error`, 'Премия должна быть больше нуля');
-        } else {
-            premiumField.classList.remove('is-invalid');
-            removeFieldError(premiumField, `premium-${variant}-error`);
-            if (premiumField.value) {
-                premiumField.classList.add('is-valid');
-            }
-        }
-    }
-    
-    function showFieldError(field, errorClass, message) {
-        removeFieldError(field, errorClass);
-        const error = document.createElement('div');
-        error.className = `text-danger ${errorClass}`;
-        error.innerHTML = `<small>${message}</small>`;
-        field.parentNode.appendChild(error);
-    }
-    
-    function removeFieldError(field, errorClass) {
-        const existingError = field.parentNode.querySelector(`.${errorClass}`);
-        if (existingError) {
-            existingError.remove();
-        }
-    }
-    
-    // Добавляем обработчики для валидации франшиз и премий
-    if (franchise1) {
-        franchise1.addEventListener('input', () => validateFranchiseAndPremium(franchise1, premium1, '1'));
-    }
-    if (premium1) {
-        premium1.addEventListener('input', () => validateFranchiseAndPremium(franchise1, premium1, '1'));
-    }
-    if (franchise2) {
-        franchise2.addEventListener('input', () => validateFranchiseAndPremium(franchise2, premium2, '2'));
-    }
-    if (premium2) {
-        premium2.addEventListener('input', () => validateFranchiseAndPremium(franchise2, premium2, '2'));
-    }
-    
     // Валидация формы перед отправкой
     const form = document.querySelector('form');
     const submitButton = document.querySelector('button[type="submit"]');
@@ -534,7 +381,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (form && submitButton) {
         form.addEventListener('submit', function(e) {
             // Показываем индикатор загрузки
-            submitButton.innerHTML = '<i class="bi bi-hourglass-split"></i> Сохранение...';
+            submitButton.innerHTML = '<i class="bi bi-hourglass-split"></i> Создание копии...';
             submitButton.disabled = true;
             
             // Получаем все поля для валидации
@@ -542,14 +389,10 @@ document.addEventListener('DOMContentLoaded', function() {
             const insuranceSum = document.getElementById('id_insurance_sum');
             const premiumWithFranchise1 = document.getElementById('id_premium_with_franchise_1');
             const insuranceYear = document.getElementById('id_insurance_year');
-            const franchise1 = document.getElementById('id_franchise_1');
-            const franchise2 = document.getElementById('id_franchise_2');
-            const premiumWithFranchise2 = document.getElementById('id_premium_with_franchise_2');
-            const paymentsPerYear = document.getElementById('id_payments_per_year');
             
             // Функция для восстановления кнопки
             function restoreSubmitButton() {
-                submitButton.innerHTML = '<i class="bi bi-check-circle"></i> Сохранить изменения';
+                submitButton.innerHTML = '<i class="bi bi-check-circle"></i> Создать копию';
                 submitButton.disabled = false;
             }
             
@@ -582,16 +425,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             
-            // Валидация франшизы-1
-            const franchise1Value = parseFloat(franchise1.value) || 0;
-            if (franchise1Value < 0) {
-                e.preventDefault();
-                alert('Франшиза-1 не может быть отрицательной');
-                restoreSubmitButton();
-                franchise1.focus();
-                return;
-            }
-            
             // Валидация премии-1 (обязательное поле)
             const premium1Value = parseFloat(premiumWithFranchise1.value);
             if (!premiumWithFranchise1 || !premiumWithFranchise1.value || isNaN(premium1Value) || premium1Value <= 0) {
@@ -601,191 +434,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 premiumWithFranchise1.focus();
                 return;
             }
-            
-            // Валидация франшизы-2 (если заполнена)
-            if (franchise2 && franchise2.value) {
-                const franchise2Value = parseFloat(franchise2.value);
-                if (isNaN(franchise2Value) || franchise2Value < 0) {
-                    e.preventDefault();
-                    alert('Франшиза-2 не может быть отрицательной');
-                    restoreSubmitButton();
-                    franchise2.focus();
-                    return;
-                }
-            }
-            
-            // Валидация премии-2 (если заполнена)
-            if (premiumWithFranchise2 && premiumWithFranchise2.value) {
-                const premium2Value = parseFloat(premiumWithFranchise2.value);
-                if (isNaN(premium2Value) || premium2Value <= 0) {
-                    e.preventDefault();
-                    alert('Премия с франшизой-2 должна быть больше нуля');
-                    restoreSubmitButton();
-                    premiumWithFranchise2.focus();
-                    return;
-                }
-            }
-            
-            // Валидация количества платежей (старое поле)
-            const paymentsValue = parseInt(paymentsPerYear.value);
-            if (!paymentsPerYear || !paymentsPerYear.value || isNaN(paymentsValue) || paymentsValue < 1 || paymentsValue > 12) {
-                e.preventDefault();
-                alert('Укажите корректное количество платежей в год (от 1 до 12)');
-                restoreSubmitButton();
-                paymentsPerYear.focus();
-                return;
-            }
-            
-            // Валидация рассрочки для варианта 1
-            const installmentVariant1 = document.getElementById('id_installment_variant_1');
-            const paymentsVariant1 = document.getElementById('id_payments_per_year_variant_1');
-            
-            if (installmentVariant1 && installmentVariant1.checked) {
-                const paymentsVariant1Value = parseInt(paymentsVariant1.value);
-                if (!paymentsVariant1 || !paymentsVariant1.value || isNaN(paymentsVariant1Value) || paymentsVariant1Value < 1 || paymentsVariant1Value > 12) {
-                    e.preventDefault();
-                    alert('Укажите корректное количество платежей для варианта 1 (от 1 до 12)');
-                    restoreSubmitButton();
-                    paymentsVariant1.focus();
-                    return;
-                }
-                
-                // Проверяем, что для варианта 1 указана премия
-                if (!premiumWithFranchise1 || !premiumWithFranchise1.value) {
-                    e.preventDefault();
-                    alert('Для включения рассрочки варианта 1 необходимо указать премию с франшизой-1');
-                    restoreSubmitButton();
-                    premiumWithFranchise1.focus();
-                    return;
-                }
-            }
-            
-            // Валидация рассрочки для варианта 2
-            const installmentVariant2 = document.getElementById('id_installment_variant_2');
-            const paymentsVariant2 = document.getElementById('id_payments_per_year_variant_2');
-            
-            if (installmentVariant2 && installmentVariant2.checked) {
-                const paymentsVariant2Value = parseInt(paymentsVariant2.value);
-                if (!paymentsVariant2 || !paymentsVariant2.value || isNaN(paymentsVariant2Value) || paymentsVariant2Value < 1 || paymentsVariant2Value > 12) {
-                    e.preventDefault();
-                    alert('Укажите корректное количество платежей для варианта 2 (от 1 до 12)');
-                    restoreSubmitButton();
-                    paymentsVariant2.focus();
-                    return;
-                }
-                
-                // Проверяем, что для варианта 2 указана премия
-                if (!premiumWithFranchise2 || !premiumWithFranchise2.value) {
-                    e.preventDefault();
-                    alert('Для включения рассрочки варианта 2 необходимо указать премию с франшизой-2');
-                    restoreSubmitButton();
-                    premiumWithFranchise2.focus();
-                    return;
-                }
-            }
-            
-            // Проверка логической связи: премия не должна превышать страховую сумму
-            if (premium1Value > sumValue) {
-                e.preventDefault();
-                alert('Премия с франшизой-1 не может быть больше страховой суммы');
-                restoreSubmitButton();
-                premiumWithFranchise1.focus();
-                return;
-            }
-            
-            // Проверка для второй премии, если она заполнена
-            if (premiumWithFranchise2 && premiumWithFranchise2.value) {
-                const premium2Value = parseFloat(premiumWithFranchise2.value);
-                if (premium2Value > sumValue) {
-                    e.preventDefault();
-                    alert('Премия с франшизой-2 не может быть больше страховой суммы');
-                    restoreSubmitButton();
-                    premiumWithFranchise2.focus();
-                    return;
-                }
-            }
         });
     }
 });
-
-// Функция подтверждения удаления
-function confirmDeleteOffer(offerId) {
-    const modal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
-    modal.show();
-}
-
-// Функция выполнения удаления
-function executeDeleteOffer(offerId) {
-    fetch(`/summaries/offer/${offerId}/delete/`, {
-        method: 'POST',
-        headers: {
-            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
-        },
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            // Закрываем модальное окно
-            const modal = bootstrap.Modal.getInstance(document.getElementById('deleteConfirmModal'));
-            modal.hide();
-            
-            // Показываем уведомление об успехе
-            showSuccessMessage('Предложение успешно удалено');
-            
-            // Перенаправляем на страницу свода через небольшую задержку
-            setTimeout(() => {
-                window.location.href = `/summaries/{{ offer.summary.pk }}/`;
-            }, 1500);
-        } else {
-            // Закрываем модальное окно
-            const modal = bootstrap.Modal.getInstance(document.getElementById('deleteConfirmModal'));
-            modal.hide();
-            
-            // Показываем ошибку
-            showErrorMessage('Ошибка при удалении: ' + data.error);
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        showErrorMessage('Произошла ошибка при удалении предложения');
-    });
-}
-
-// Функции для показа уведомлений
-function showSuccessMessage(message) {
-    const alertDiv = document.createElement('div');
-    alertDiv.className = 'alert alert-success alert-dismissible fade show position-fixed';
-    alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
-    alertDiv.innerHTML = `
-        <i class="bi bi-check-circle"></i> ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    `;
-    document.body.appendChild(alertDiv);
-    
-    // Автоматически удаляем через 3 секунды
-    setTimeout(() => {
-        if (alertDiv.parentNode) {
-            alertDiv.parentNode.removeChild(alertDiv);
-        }
-    }, 3000);
-}
-
-function showErrorMessage(message) {
-    const alertDiv = document.createElement('div');
-    alertDiv.className = 'alert alert-danger alert-dismissible fade show position-fixed';
-    alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
-    alertDiv.innerHTML = `
-        <i class="bi bi-exclamation-triangle"></i> ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    `;
-    document.body.appendChild(alertDiv);
-    
-    // Автоматически удаляем через 5 секунд
-    setTimeout(() => {
-        if (alertDiv.parentNode) {
-            alertDiv.parentNode.removeChild(alertDiv);
-        }
-    }, 5000);
-}
 </script>
 {% endblock %}

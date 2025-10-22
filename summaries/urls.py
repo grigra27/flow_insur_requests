@@ -21,6 +21,7 @@ urlpatterns = [
     # Управление предложениями
     path('<int:summary_id>/add-offer/', views.add_offer, name='add_offer'),
     path('offer/<int:offer_id>/edit/', views.edit_offer, name='edit_offer'),
+    path('offer/<int:offer_id>/copy/', views.copy_offer, name='copy_offer'),
     path('offer/<int:offer_id>/delete/', views.delete_offer, name='delete_offer'),
     path('offer-search/', views.offer_search, name='offer_search'),
 ]

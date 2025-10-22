@@ -185,6 +185,27 @@ class InsuranceSummary(models.Model):
         from .status_colors import get_status_display_data
         return get_status_display_data(self.status, self.get_status_display())
     
+    def get_company_notes(self):
+        """Возвращает примечания, сгруппированные по компаниям"""
+        company_notes = {}
+        for offer in self.offers.filter(is_valid=True, notes__isnull=False).exclude(notes=''):
+            company_name = offer.company_name
+            if company_name not in company_notes:
+                company_notes[company_name] = []
+            if offer.notes.strip():
+                company_notes[company_name].append(offer.notes.strip())
+        
+        # Объединяем примечания от разных лет для каждой компании
+        for company_name in company_notes:
+            # Удаляем дубликаты, сохраняя порядок
+            unique_notes = []
+            for note in company_notes[company_name]:
+                if note not in unique_notes:
+                    unique_notes.append(note)
+            company_notes[company_name] = unique_notes
+        
+        return company_notes
+    
     def get_company_totals(self):
         """Возвращает итоговые суммы по компаниям для многолетних предложений"""
         companies_data = {}

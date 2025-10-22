@@ -97,6 +97,21 @@
                                     </h5>
                                 </div>
                                 
+                                <!-- Отображение примечаний компании -->
+                                {% with notes=company_notes|lookup:company_name %}
+                                    {% if notes %}
+                                        <div class="company-notes mb-3">
+                                            <div class="alert alert-info py-2 px-3 mb-0">
+                                                <i class="bi bi-info-circle me-2"></i>
+                                                <strong>Примечания:</strong>
+                                                {% for note in notes %}
+                                                    <div class="mt-1">{{ note }}</div>
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                    {% endif %}
+                                {% endwith %}
+                                
                                 <div class="table-responsive">
                                     <table class="table table-hover table-sm">
                                         <thead class="custom-table-header">
@@ -120,10 +135,10 @@
                                                         <strong>{{ offer.insurance_sum|format_currency_with_spaces }}</strong>
                                                     </td>
                                                     <td data-label="Франшиза-1">
-                                                        <span class="text-primary">{{ offer.franchise_1|format_currency_with_spaces }}</span>
+                                                        <span class="franchise-variant-1">{{ offer.franchise_1|format_currency_with_spaces }}</span>
                                                     </td>
                                                     <td data-label="Премия-1">
-                                                        <strong class="text-success">{{ offer.premium_with_franchise_1|format_currency_with_spaces }}</strong>
+                                                        <strong class="franchise-variant-1">{{ offer.premium_with_franchise_1|format_currency_with_spaces }}</strong>
                                                         {% if offer.installment_variant_1 and offer.payments_per_year_variant_1 > 1 %}
                                                             <br><span class="badge bg-success" style="font-size: 0.65em;">
                                                                 <i class="bi bi-credit-card"></i> {{ offer.payments_per_year_variant_1 }} платеж{{ offer.payments_per_year_variant_1|pluralize:"ей,а,ей" }}/год
@@ -132,14 +147,14 @@
                                                     </td>
                                                     <td data-label="Франшиза-2">
                                                         {% if offer.franchise_2 %}
-                                                            <span class="text-warning">{{ offer.franchise_2|format_currency_with_spaces }}</span>
+                                                            <span class="franchise-variant-2">{{ offer.franchise_2|format_currency_with_spaces }}</span>
                                                         {% else %}
                                                             <span class="text-muted">—</span>
                                                         {% endif %}
                                                     </td>
                                                     <td data-label="Премия-2">
                                                         {% if offer.premium_with_franchise_2 %}
-                                                            <strong class="text-info">{{ offer.premium_with_franchise_2|format_currency_with_spaces }}</strong>
+                                                            <strong class="franchise-variant-2">{{ offer.premium_with_franchise_2|format_currency_with_spaces }}</strong>
                                                             {% if offer.installment_variant_2 and offer.payments_per_year_variant_2 > 1 %}
                                                                 <br><span class="badge bg-info" style="font-size: 0.65em;">
                                                                     <i class="bi bi-credit-card"></i> {{ offer.payments_per_year_variant_2 }} платеж{{ offer.payments_per_year_variant_2|pluralize:"ей,а,ей" }}/год
@@ -156,6 +171,11 @@
                                                                title="Редактировать">
                                                                 <i class="bi bi-pencil"></i>
                                                             </a>
+                                                            <a href="{% url 'summaries:copy_offer' offer.pk %}" 
+                                                               class="btn btn-outline-success btn-sm" 
+                                                               title="Копировать">
+                                                                <i class="bi bi-copy"></i>
+                                                            </a>
                                                             <button class="btn btn-outline-danger btn-sm" 
                                                                     onclick="deleteOffer({{ offer.id }})"
                                                                     title="Удалить">
@@ -164,15 +184,6 @@
                                                         </div>
                                                     </td>
                                                 </tr>
-                                                {% if offer.notes %}
-                                                    <tr>
-                                                        <td colspan="7">
-                                                            <small class="text-muted">
-                                                                <i class="bi bi-chat-text"></i> {{ offer.notes }}
-                                                            </small>
-                                                        </td>
-                                                    </tr>
-                                                {% endif %}
                                             {% endfor %}
                                             
                                             <!-- Добавляем строку "Итого" для многолетних предложений -->
@@ -189,14 +200,14 @@
                                                             <span class="text-muted">—</span>
                                                         </td>
                                                         <td data-label="Премия-1">
-                                                            <strong class="text-success fs-6">{{ company_data.total_premium_1|format_currency_with_spaces }}</strong>
+                                                            <strong class="franchise-variant-1 fs-6">{{ company_data.total_premium_1|format_currency_with_spaces }}</strong>
                                                         </td>
                                                         <td data-label="Франшиза-2">
                                                             <span class="text-muted">—</span>
                                                         </td>
                                                         <td data-label="Премия-2">
                                                             {% if company_data.total_premium_2 > 0 %}
-                                                                <strong class="text-info fs-6">{{ company_data.total_premium_2|format_currency_with_spaces }}</strong>
+                                                                <strong class="franchise-variant-2 fs-6">{{ company_data.total_premium_2|format_currency_with_spaces }}</strong>
                                                             {% else %}
                                                                 <span class="text-muted">—</span>
                                                             {% endif %}
@@ -371,6 +382,41 @@
     background-color: #f9f8f5;
 }
 
+/* Company notes styles */
+.company-notes {
+    margin-bottom: 1rem;
+}
+
+.company-notes .alert {
+    border-left: 4px solid #e91e63;
+    background-color: #fce4ec;
+    border-color: #f8bbd9;
+    font-size: 0.875rem;
+    line-height: 1.4;
+}
+
+.company-notes .alert strong {
+    color: #880e4f;
+    font-weight: 600;
+}
+
+.company-notes .alert div {
+    color: #880e4f;
+    margin-top: 0.25rem;
+    padding-left: 0.5rem;
+    border-left: 2px solid #f8bbd9;
+    margin-left: 0.5rem;
+}
+
+.company-notes .alert div:first-of-type {
+    margin-top: 0.5rem;
+}
+
+.company-notes .alert .bi-info-circle {
+    color: #e91e63;
+    font-size: 1rem;
+}
+
 /* Responsive design for mobile */
 @media (max-width: 768px) {
     .company-block .table-responsive {
@@ -391,6 +437,28 @@
     .company-block .badge {
         font-size: 0.6em;
     }
+    
+    /* Company notes responsive styles for tablets */
+    .company-notes .alert {
+        font-size: 0.8rem;
+        padding: 0.5rem 0.75rem;
+    }
+    
+    .company-notes .alert div {
+        margin-left: 0.25rem;
+        padding-left: 0.25rem;
+    }
+    
+    /* Maintain color coding visibility on tablets */
+    .franchise-variant-1 {
+        color: #0f5132 !important;
+        font-weight: 600;
+    }
+    
+    .franchise-variant-2 {
+        color: #052c65 !important;
+        font-weight: 600;
+    }
 }
 
 @media (max-width: 576px) {
@@ -400,6 +468,28 @@
     
     .company-block h5 {
         font-size: 1rem;
+    }
+    
+    /* Company notes responsive styles for mobile */
+    .company-notes .alert {
+        font-size: 0.75rem;
+        padding: 0.5rem;
+        margin-bottom: 0.75rem;
+    }
+    
+    .company-notes .alert strong {
+        display: block;
+        margin-bottom: 0.25rem;
+    }
+    
+    .company-notes .alert div {
+        margin-left: 0;
+        padding-left: 0;
+        border-left: none;
+        margin-top: 0.25rem;
+        padding: 0.25rem;
+        background-color: rgba(233, 30, 99, 0.1);
+        border-radius: 3px;
     }
     
     /* Stack table content vertically on very small screens */
@@ -451,22 +541,27 @@
 }
 
 /* Color coding for franchise variants */
-.text-primary { color: #0d6efd !important; }
-.text-warning { color: #fd7e14 !important; }
-.text-success { color: #198754 !important; }
-.text-info { color: #0dcaf0 !important; }
+.franchise-variant-1 {
+    color: #0f5132 !important;
+    font-weight: 600;
+}
+
+.franchise-variant-2 {
+    color: #052c65 !important;
+    font-weight: 600;
+}
 
 /* Styles for company total rows */
 .company-total-row {
-    background-color: #e3f2fd !important;
-    border-top: 2px solid #2196f3 !important;
+    background-color: #fff3cd !important;
+    border-top: 2px solid #ffc107 !important;
     font-weight: 600;
 }
 
 .company-total-row td {
     padding: 0.75rem 0.5rem !important;
     vertical-align: middle;
-    border-top: 2px solid #2196f3 !important;
+    border-top: 2px solid #ffc107 !important;
 }
 
 .company-total-row strong {
@@ -481,7 +576,7 @@
 
 /* Hover effect for total rows */
 .company-total-row:hover {
-    background-color: #bbdefb !important;
+    background-color: #ffeaa7 !important;
     transition: background-color 0.2s ease;
 }
 
@@ -489,14 +584,25 @@
 @media (max-width: 576px) {
     .company-total-row td:before {
         font-weight: bold;
-        color: #1976d2;
+        color: #856404;
     }
     
     .company-total-row {
-        background-color: #e3f2fd !important;
-        border: 2px solid #2196f3 !important;
+        background-color: #fff3cd !important;
+        border: 2px solid #ffc107 !important;
         border-radius: 5px;
         margin-top: 10px;
+    }
+    
+    /* Ensure franchise variant colors remain visible on mobile */
+    .franchise-variant-1 {
+        color: #0f5132 !important;
+        font-weight: 600;
+    }
+    
+    .franchise-variant-2 {
+        color: #052c65 !important;
+        font-weight: 600;
     }
 }
 
@@ -645,23 +751,7 @@ function enhanceTableInteractivity() {
             this.style.backgroundColor = '';
         });
         
-        // Добавляем клик для показа деталей
-        row.addEventListener('click', function(e) {
-            // Не обрабатываем клики по кнопкам
-            if (e.target.closest('button') || e.target.closest('a')) return;
-            
-            const notesRow = this.nextElementSibling;
-            if (notesRow && notesRow.querySelector('td[colspan]')) {
-                // Переключаем видимость примечаний
-                if (notesRow.style.display === 'none') {
-                    notesRow.style.display = '';
-                    this.classList.add('table-info');
-                } else {
-                    notesRow.style.display = 'none';
-                    this.classList.remove('table-info');
-                }
-            }
-        });
+        // Row click functionality removed since notes are now displayed under company names
     });
 }
 
