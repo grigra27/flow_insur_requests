@@ -156,7 +156,7 @@
                                                         {% if offer.premium_with_franchise_2 %}
                                                             <strong class="franchise-variant-2">{{ offer.premium_with_franchise_2|format_currency_with_spaces }}</strong>
                                                             {% if offer.installment_variant_2 and offer.payments_per_year_variant_2 > 1 %}
-                                                                <br><span class="badge bg-info" style="font-size: 0.65em;">
+                                                                <br><span class="badge bg-dark" style="font-size: 0.65em;">
                                                                     <i class="bi bi-credit-card"></i> {{ offer.payments_per_year_variant_2 }} платеж{{ offer.payments_per_year_variant_2|pluralize:"ей,а,ей" }}/год
                                                                 </span>
                                                             {% endif %}
@@ -344,7 +344,7 @@
 }
 
 .custom-table-header th {
-    font-size: 0.875rem;
+    font-size: 0.95rem;
     font-weight: 600;
     color: #4a4a4a;
     border-top: none;
@@ -363,14 +363,14 @@
 }
 
 .company-block .table th {
-    font-size: 0.875rem;
+    font-size: 0.95rem;
     font-weight: 600;
     color: #5a5a5a;
     border-top: none;
 }
 
 .company-block .table td {
-    font-size: 0.875rem;
+    font-size: 1rem;
     vertical-align: middle;
 }
 
@@ -379,7 +379,7 @@
 }
 
 .company-block .table tbody tr:nth-child(even) {
-    background-color: #f9f8f5;
+    background-color: #f0ebe3;
 }
 
 /* Company notes styles */
@@ -391,7 +391,7 @@
     border-left: 4px solid #e91e63;
     background-color: #fce4ec;
     border-color: #f8bbd9;
-    font-size: 0.875rem;
+    font-size: 0.95rem;
     line-height: 1.4;
 }
 
@@ -420,13 +420,13 @@
 /* Responsive design for mobile */
 @media (max-width: 768px) {
     .company-block .table-responsive {
-        font-size: 0.8rem;
+        font-size: 0.9rem;
     }
     
     .company-block .table th,
     .company-block .table td {
         padding: 0.5rem 0.25rem;
-        font-size: 0.75rem;
+        font-size: 0.85rem;
     }
     
     .company-block .btn-group-sm .btn {
@@ -440,7 +440,7 @@
     
     /* Company notes responsive styles for tablets */
     .company-notes .alert {
-        font-size: 0.8rem;
+        font-size: 0.9rem;
         padding: 0.5rem 0.75rem;
     }
     
@@ -472,7 +472,7 @@
     
     /* Company notes responsive styles for mobile */
     .company-notes .alert {
-        font-size: 0.75rem;
+        font-size: 0.85rem;
         padding: 0.5rem;
         margin-bottom: 0.75rem;
     }
