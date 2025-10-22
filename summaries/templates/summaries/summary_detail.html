@@ -1300,7 +1300,22 @@ function uploadCompanyResponse(file) {
         hideUploadProgress();
         
         if (data.success) {
-            showUploadSuccess(data.message, data.details);
+            // Prepare details array including additional messages
+            let allDetails = [];
+            
+            if (data.details) {
+                allDetails.push(`Создано предложений: ${data.details.offers_created}`);
+                if (data.details.years && data.details.years.length > 0) {
+                    allDetails.push(`Годы страхования: ${data.details.years.join(', ')}`);
+                }
+            }
+            
+            // Add additional messages about company matching
+            if (data.additional_messages && data.additional_messages.length > 0) {
+                allDetails = allDetails.concat(data.additional_messages);
+            }
+            
+            showUploadSuccess(data.message, allDetails);
             
             // Clear form
             form.reset();
@@ -1369,9 +1384,18 @@ function showUploadSuccess(message, details) {
     if (details && details.length > 0) {
         content += '<ul class="mt-2 mb-0">';
         details.forEach(detail => {
-            // Highlight success details
-            const formattedDetail = detail.replace(/(\d+\s*год[а-я]*)/gi, '<span class="success-detail">$1</span>');
-            content += `<li>${formattedDetail}</li>`;
+            // Check if this is a company matching message
+            if (detail.includes('Внимание:') || detail.includes('не найдено в списке')) {
+                // Style warning messages differently
+                content += `<li class="text-warning"><i class="bi bi-exclamation-triangle"></i> ${detail}</li>`;
+            } else if (detail.includes('автоматически сопоставлено')) {
+                // Style matching info messages
+                content += `<li class="text-info"><i class="bi bi-info-circle"></i> ${detail}</li>`;
+            } else {
+                // Regular success details
+                const formattedDetail = detail.replace(/(\d+\s*год[а-я]*)/gi, '<span class="success-detail">$1</span>');
+                content += `<li>${formattedDetail}</li>`;
+            }
         });
         content += '</ul>';
     }

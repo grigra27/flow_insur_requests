@@ -346,3 +346,103 @@
         color: #ffffff;
     }
 }
+/*
+ Стили для сообщений о выборе страховой компании */
+.company-selection-alert {
+    border-left: 4px solid #ffc107;
+    background-color: #fff3cd;
+    border-color: #ffeaa7;
+}
+
+.company-selection-alert .bi-exclamation-triangle-fill {
+    color: #856404;
+}
+
+/* Стили для подсказок в формах */
+.form-text .bi-info-circle {
+    color: #0dcaf0;
+    margin-right: 0.25rem;
+}
+
+/* Стили для ошибок валидации */
+.text-danger .bi-exclamation-triangle {
+    color: #dc3545;
+    margin-right: 0.25rem;
+}
+
+/* Стили для успешных сообщений загрузки */
+.success-detail {
+    font-weight: 600;
+    color: #198754;
+}
+
+/* Стили для предупреждающих сообщений в результатах загрузки */
+.alert-success .text-warning {
+    color: #856404 !important;
+    font-weight: 500;
+}
+
+.alert-success .text-info {
+    color: #0c63e4 !important;
+    font-weight: 500;
+}
+
+/* Стили для выделения полей с ошибками */
+.field-error {
+    font-weight: 600;
+    color: #dc3545;
+    background-color: rgba(220, 53, 69, 0.1);
+    padding: 0.1rem 0.3rem;
+    border-radius: 3px;
+}
+
+/* Анимация для появления уведомлений */
+.company-selection-alert {
+    animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Стили для tooltip подсказок */
+.tooltip {
+    font-size: 0.875rem;
+}
+
+.tooltip-inner {
+    background-color: #495057;
+    border-radius: 6px;
+    padding: 0.5rem 0.75rem;
+}
+
+/* Улучшенные стили для обязательных полей */
+.form-label .text-danger {
+    font-size: 1.1em;
+    font-weight: 600;
+}
+
+/* Стили для информационных блоков */
+.alert-info .bi-info-circle-fill {
+    color: #0c63e4;
+    margin-right: 0.5rem;
+}
+
+/* Адаптивные стили для мобильных устройств */
+@media (max-width: 768px) {
+    .company-selection-alert {
+        font-size: 0.875rem;
+        padding: 0.75rem;
+    }
+    
+    .form-text {
+        font-size: 0.8rem;
+    }
+}

@@ -1,5 +1,121 @@
 from django.contrib import admin
-from .models import InsuranceSummary, InsuranceOffer, SummaryTemplate
+from django.contrib import messages
+from django.core.exceptions import ValidationError
+from django.http import HttpResponseRedirect
+from django.urls import reverse
+from .models import InsuranceCompany, InsuranceSummary, InsuranceOffer, SummaryTemplate
+
+
+@admin.register(InsuranceCompany)
+class InsuranceCompanyAdmin(admin.ModelAdmin):
+    """Административный интерфейс для управления страховыми компаниями"""
+    
+    list_display = ['name', 'display_name', 'is_active', 'is_other', 'sort_order', 'get_offers_count', 'created_at']
+    list_filter = ['is_active', 'is_other', 'created_at']
+    search_fields = ['name', 'display_name']
+    readonly_fields = ['created_at', 'updated_at', 'get_offers_count']
+    ordering = ['sort_order', 'name']
+    
+    fieldsets = (
+        ('Основная информация', {
+            'fields': ('name', 'display_name', 'is_active')
+        }),
+        ('Специальные настройки', {
+            'fields': ('is_other', 'sort_order'),
+            'description': 'Настройки для специальных значений и порядка отображения'
+        }),
+        ('Статистика', {
+            'fields': ('get_offers_count',),
+            'classes': ('collapse',)
+        }),
+        ('Системная информация', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        })
+    )
+    
+    def get_offers_count(self, obj):
+        """Отображает количество предложений от компании"""
+        count = obj.get_offers_count()
+        if count > 0:
+            return f"{count} предложений"
+        return "Нет предложений"
+    get_offers_count.short_description = 'Количество предложений'
+    
+    def save_model(self, request, obj, form, change):
+        """Переопределенное сохранение с дополнительной валидацией"""
+        try:
+            super().save_model(request, obj, form, change)
+            if change:
+                messages.success(request, f'Страховая компания "{obj.name}" успешно обновлена.')
+            else:
+                messages.success(request, f'Страховая компания "{obj.name}" успешно создана.')
+        except ValidationError as e:
+            messages.error(request, f'Ошибка валидации: {e}')
+            raise
+    
+    def delete_model(self, request, obj):
+        """Переопределенное удаление с проверкой связанных записей"""
+        offers_count = obj.get_offers_count()
+        
+        if offers_count > 0:
+            messages.warning(
+                request, 
+                f'Внимание! Компания "{obj.name}" имеет {offers_count} связанных предложений. '
+                f'При удалении компании все связанные предложения останутся в базе данных, '
+                f'но могут стать недоступными для редактирования через формы.'
+            )
+        
+        super().delete_model(request, obj)
+        messages.success(request, f'Страховая компания "{obj.name}" удалена.')
+    
+    def delete_queryset(self, request, queryset):
+        """Переопределенное массовое удаление с предупреждениями"""
+        total_offers = 0
+        companies_with_offers = []
+        
+        for company in queryset:
+            offers_count = company.get_offers_count()
+            if offers_count > 0:
+                total_offers += offers_count
+                companies_with_offers.append(f"{company.name} ({offers_count} предложений)")
+        
+        if companies_with_offers:
+            messages.warning(
+                request,
+                f'Внимание! Следующие компании имеют связанные предложения: '
+                f'{", ".join(companies_with_offers)}. '
+                f'Всего будет затронуто {total_offers} предложений.'
+            )
+        
+        deleted_count = queryset.count()
+        super().delete_queryset(request, queryset)
+        messages.success(request, f'Удалено {deleted_count} страховых компаний.')
+    
+    def get_readonly_fields(self, request, obj=None):
+        """Динамически определяет readonly поля"""
+        readonly_fields = list(self.readonly_fields)
+        
+        # Если компания имеет предложения, делаем название только для чтения
+        if obj and obj.has_offers():
+            readonly_fields.append('name')
+            if 'name' not in readonly_fields:
+                readonly_fields.append('name')
+        
+        return readonly_fields
+    
+    def get_form(self, request, obj=None, **kwargs):
+        """Переопределяем форму для добавления подсказок"""
+        form = super().get_form(request, obj, **kwargs)
+        
+        if obj and obj.has_offers():
+            # Добавляем предупреждение для компаний с существующими предложениями
+            form.base_fields['name'].help_text = (
+                f'Внимание: У этой компании есть {obj.get_offers_count()} предложений. '
+                f'Изменение названия может повлиять на существующие данные.'
+            )
+        
+        return form
 
 
 @admin.register(InsuranceSummary)

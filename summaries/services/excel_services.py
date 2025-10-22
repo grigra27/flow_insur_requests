@@ -15,8 +15,8 @@ from django.conf import settings
 from django.db import transaction
 from django.core.exceptions import ValidationError
 
-from .models import InsuranceSummary, InsuranceOffer
-from .exceptions import DuplicateOfferError
+from ..models import InsuranceSummary, InsuranceOffer
+from ..exceptions import DuplicateOfferError
 from insurance_requests.models import InsuranceRequest
 
 
@@ -306,6 +306,9 @@ class ExcelResponseProcessor:
     def __init__(self):
         """Инициализация процессора"""
         self.logger = logging.getLogger(f'{__name__}.{self.__class__.__name__}')
+        # Импортируем здесь, чтобы избежать циклических импортов
+        from .company_matcher import create_company_matcher
+        self.company_matcher = create_company_matcher()
     
     def process_excel_file(self, file, summary: InsuranceSummary) -> Dict[str, Any]:
         """
@@ -341,7 +344,8 @@ class ExcelResponseProcessor:
                 'success': True,
                 'company_name': company_data['company_name'],
                 'offers_created': len(created_offers),
-                'years': [offer.insurance_year for offer in created_offers]
+                'years': [offer.insurance_year for offer in created_offers],
+                'company_matching_info': company_data.get('company_matching_info', {})
             }
             
             self.logger.info(f"Excel файл успешно обработан для свода ID: {summary.id}. Создано предложений: {len(created_offers)}")
@@ -416,7 +420,7 @@ class ExcelResponseProcessor:
     
     def extract_company_data(self, worksheet) -> Dict[str, Any]:
         """
-        Извлекает данные компании из Excel файла
+        Извлекает данные компании из Excel файла с сопоставлением названия компании
         
         Args:
             worksheet: Рабочий лист Excel
@@ -433,10 +437,31 @@ class ExcelResponseProcessor:
             data = {}
             
             # Извлекаем название компании
-            company_name = self._get_cell_value(worksheet, self.CELL_MAPPING['company_name'])
-            if not company_name:
+            raw_company_name = self._get_cell_value(worksheet, self.CELL_MAPPING['company_name'])
+            if not raw_company_name:
                 raise MissingDataError([self.CELL_MAPPING['company_name']])
-            data['company_name'] = str(company_name).strip()
+            
+            # Сопоставляем название компании с закрытым списком
+            raw_name_str = str(raw_company_name).strip()
+            standardized_name = self.company_matcher.match_company_name(raw_name_str)
+            data['company_name'] = standardized_name
+            
+            # Сохраняем информацию о сопоставлении для пользователя
+            matching_info = {
+                'original_name': raw_name_str,
+                'standardized_name': standardized_name,
+                'was_matched': standardized_name != raw_name_str,
+                'assigned_other': standardized_name == 'другое' and raw_name_str.lower() != 'другое'
+            }
+            data['company_matching_info'] = matching_info
+            
+            # Логируем процесс сопоставления
+            if standardized_name == 'другое' and raw_name_str.lower() != 'другое':
+                self.logger.warning(f"Название компании '{raw_name_str}' не найдено в закрытом списке, присвоено значение 'другое'")
+            elif standardized_name != raw_name_str:
+                self.logger.info(f"Название компании сопоставлено: '{raw_name_str}' -> '{standardized_name}'")
+            else:
+                self.logger.debug(f"Название компании '{raw_name_str}' точно совпадает с элементом закрытого списка")
             
             # Извлекаем данные по годам
             data['years'] = []

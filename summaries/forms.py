@@ -4,32 +4,30 @@
 from django import forms
 from django.core.exceptions import ValidationError
 from .models import InsuranceOffer, InsuranceSummary, SummaryTemplate
+from .constants import get_company_choices, is_valid_company_name, get_company_names
 from decimal import Decimal
 import os
 
 
-# Константа со списком страховых компаний
-INSURANCE_COMPANIES = [
-    ('', 'Выберите страховщика'),
-    ('Абсолют', 'Абсолют'),
-    ('Альфа', 'Альфа'),
-    ('ВСК', 'ВСК'),
-    ('Согаз', 'Согаз'),
-    ('РЕСО', 'РЕСО'),
-    ('Ингосстрах', 'Ингосстрах'),
-    ('Ренессанс', 'Ренессанс'),
-    ('Росгосстрах', 'Росгосстрах'),
-    ('Пари', 'Пари'),
-    ('Совкомбанк СК', 'Совкомбанк СК'),
-    ('Согласие', 'Согласие'),
-    ('Энергогарант', 'Энергогарант'),
-    ('ПСБ-страхование', 'ПСБ-страхование'),
-    ('Зетта', 'Зетта'),
-]
-
-
 class OfferForm(forms.ModelForm):
     """Форма для добавления/редактирования предложения от страховщика"""
+    
+    # Поле для выбора страховщика из предопределенного списка
+    company_name = forms.ChoiceField(
+        choices=[],  # Будет заполнено в __init__
+        label='Страховая компания',
+        help_text='Выберите страховую компанию из списка. Если нужной компании нет в списке, выберите "Другое".',
+        error_messages={
+            'required': 'Пожалуйста, выберите страховую компанию из выпадающего списка.',
+            'invalid_choice': 'Выберите страховую компанию из предложенного списка. Если нужной компании нет, используйте вариант "Другое".'
+        },
+        widget=forms.Select(attrs={
+            'class': 'form-select',
+            'data-bs-toggle': 'tooltip',
+            'data-bs-placement': 'top',
+            'title': 'Список содержит основные страховые компании. Для нестандартных компаний используйте "Другое".'
+        })
+    )
     
     # Новые поля для рассрочки по вариантам премии
     payments_per_year_variant_1 = forms.IntegerField(
@@ -50,6 +48,10 @@ class OfferForm(forms.ModelForm):
         )
     )
     
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Динамически загружаем список страховых компаний
+        self.fields['company_name'].choices = get_company_choices()
     class Meta:
         model = InsuranceOffer
         fields = [
@@ -61,7 +63,6 @@ class OfferForm(forms.ModelForm):
             'notes', 'attachment_file'
         ]
         widgets = {
-            'company_name': forms.TextInput(attrs={'class': 'form-control'}),
             'insurance_year': forms.NumberInput(attrs={
                 'class': 'form-control',
                 'min': '1',
@@ -95,6 +96,21 @@ class OfferForm(forms.ModelForm):
             'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
             'attachment_file': forms.FileInput(attrs={'class': 'form-control'}),
         }
+    
+    def clean_company_name(self):
+        """Валидация выбора страховой компании"""
+        company_name = self.cleaned_data.get('company_name')
+        
+        if not company_name:
+            raise ValidationError('Пожалуйста, выберите страховую компанию из выпадающего списка.')
+        
+        if not is_valid_company_name(company_name):
+            raise ValidationError(
+                'Выберите страховую компанию из предложенного списка. '
+                'Если нужной компании нет, используйте вариант "Другое".'
+            )
+        
+        return company_name
     
     def clean_insurance_year(self):
         """Валидация года страхования"""
@@ -263,9 +279,19 @@ class AddOfferToSummaryForm(forms.ModelForm):
     
     # Поле для выбора страховщика из предопределенного списка
     company_name = forms.ChoiceField(
-        choices=INSURANCE_COMPANIES,
+        choices=[],  # Будет заполнено в __init__
         label='Страховая компания',
-        widget=forms.Select(attrs={'class': 'form-select'})
+        help_text='Выберите страховую компанию из списка. Если нужной компании нет в списке, выберите "Другое".',
+        error_messages={
+            'required': 'Пожалуйста, выберите страховую компанию из выпадающего списка.',
+            'invalid_choice': 'Выберите страховую компанию из предложенного списка. Если нужной компании нет, используйте вариант "Другое".'
+        },
+        widget=forms.Select(attrs={
+            'class': 'form-select',
+            'data-bs-toggle': 'tooltip',
+            'data-bs-placement': 'top',
+            'title': 'Список содержит основные страховые компании. Для нестандартных компаний используйте "Другое".'
+        })
     )
     
     # Новые поля для рассрочки по вариантам премии
@@ -287,6 +313,10 @@ class AddOfferToSummaryForm(forms.ModelForm):
         )
     )
     
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Динамически загружаем список страховых компаний
+        self.fields['company_name'].choices = get_company_choices()
     class Meta:
         model = InsuranceOffer
         fields = [
@@ -335,13 +365,15 @@ class AddOfferToSummaryForm(forms.ModelForm):
     def clean_company_name(self):
         """Валидация выбора страховщика"""
         company_name = self.cleaned_data.get('company_name')
-        valid_companies = [choice[0] for choice in INSURANCE_COMPANIES if choice[0]]  # Исключаем пустой выбор
         
         if not company_name:
-            raise ValidationError('Выберите страховую компанию')
+            raise ValidationError('Пожалуйста, выберите страховую компанию из выпадающего списка.')
         
-        if company_name not in valid_companies:
-            raise ValidationError('Выберите страховщика из списка')
+        if not is_valid_company_name(company_name):
+            raise ValidationError(
+                'Выберите страховую компанию из предложенного списка. '
+                'Если нужной компании нет, используйте вариант "Другое".'
+            )
         
         return company_name
     

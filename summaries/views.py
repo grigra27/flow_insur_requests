@@ -722,14 +722,33 @@ def upload_company_response(request, summary_id):
         logger.info(f"Company response uploaded successfully for summary {summary_id} by user {request.user.username}: "
                    f"Company '{result['company_name']}', {result['offers_created']} offers created for years {result['years']}")
         
+        # Формируем сообщение с учетом сопоставления названия компании
+        base_message = f'Предложение от компании "{result["company_name"]}" успешно загружено'
+        
+        # Проверяем информацию о сопоставлении компании
+        matching_info = result.get('company_matching_info', {})
+        additional_messages = []
+        
+        if matching_info.get('assigned_other'):
+            additional_messages.append(
+                f'Внимание: Название компании "{matching_info["original_name"]}" не найдено в списке, '
+                f'поэтому было присвоено значение "Другое". Проверьте правильность названия в файле.'
+            )
+        elif matching_info.get('was_matched') and not matching_info.get('assigned_other'):
+            additional_messages.append(
+                f'Название компании автоматически сопоставлено: "{matching_info["original_name"]}" → "{matching_info["standardized_name"]}"'
+            )
+        
         # Возврат JSON ответов с результатами обработки (требование 5.2, 5.4)
         return JsonResponse({
             'success': True,
-            'message': f'Предложение от компании "{result["company_name"]}" успешно загружено',
+            'message': base_message,
+            'additional_messages': additional_messages,
             'details': {
                 'company_name': result['company_name'],
                 'offers_created': result['offers_created'],
-                'years': result['years']
+                'years': result['years'],
+                'matching_info': matching_info
             }
         })
         
