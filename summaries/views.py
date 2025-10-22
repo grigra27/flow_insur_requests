@@ -160,6 +160,9 @@ def summary_detail(request, pk):
     # Получаем данные об итоговых суммах по компаниям для многолетних предложений
     company_totals = summary.get_company_totals()
     
+    # Получаем примечания, сгруппированные по компаниям
+    company_notes = summary.get_company_notes()
+    
     return render(request, 'summaries/summary_detail.html', {
         'summary': summary,
         'offers': offers,
@@ -169,6 +172,7 @@ def summary_detail(request, pk):
         'unique_companies_count': unique_companies_count,
         'companies_with_year_counts': companies_with_year_counts,
         'company_totals': company_totals,
+        'company_notes': company_notes,
     })
 
 
@@ -198,7 +202,7 @@ def create_summary(request, request_id):
         return redirect('summaries:summary_detail', pk=insurance_request.summary.pk)
     
     # Проверяем статус заявки - можно создавать свод только для определенных статусов
-    allowed_statuses = ['uploaded', 'email_generated', 'email_sent', 'response_received']
+    allowed_statuses = ['uploaded', 'email_generated', 'emails_sent', 'response_received']
     if insurance_request.status not in allowed_statuses:
         messages.error(request, 
                       f'Нельзя создать свод для заявки со статусом "{insurance_request.get_status_display()}". '
@@ -303,7 +307,9 @@ def add_offer(request, summary_id):
                     
             except IntegrityError as e:
                 # Специальная обработка ошибок дублирования предложений
-                if 'UNIQUE constraint failed' in str(e):
+                error_str = str(e)
+                if ('UNIQUE constraint failed' in error_str or 
+                    'duplicate key value violates unique constraint' in error_str):
                     # Извлекаем информацию о дублирующемся предложении из данных формы
                     company_name = form.cleaned_data.get('company_name', 'неизвестная компания')
                     insurance_year = form.cleaned_data.get('insurance_year', 'неизвестный год')
@@ -350,47 +356,175 @@ def add_offer(request, summary_id):
 @user_required
 def generate_summary_file(request, summary_id):
     """Генерация Excel файла свода"""
-    summary = get_object_or_404(InsuranceSummary, pk=summary_id)
+    from datetime import datetime
+    from .services import get_excel_export_service, ExcelExportServiceError, InvalidSummaryDataError, TemplateNotFoundError
+    
+    summary = get_object_or_404(InsuranceSummary.objects.select_related('request'), pk=summary_id)
+    
+    # Проверка статуса свода - требование 1.1
+    if summary.status != 'ready':
+        logger.warning(f"Attempt to generate Excel for summary {summary_id} with status '{summary.status}'")
+        return JsonResponse({
+            'error': 'Файл можно генерировать только для сводов в статусе "Готов к отправке"'
+        }, status=400)
     
     try:
-        # TODO: Реализовать генерацию Excel файла
-        # Пока используем заглушку
-        messages.info(request, 'Генерация Excel файла свода будет реализована на следующем этапе')
+        # Создание сервиса для генерации Excel - требование 1.2
+        service = get_excel_export_service()
         
-        # Обновляем статус
-        summary.status = 'ready'
-        summary.save()
+        # Генерация Excel файла - требование 1.2, 1.3
+        excel_file = service.generate_summary_excel(summary)
         
-        return redirect('summaries:summary_detail', pk=summary_id)
+        # Формирование имени файла - требование 3.2
+        filename = f"svod_{summary.request.dfa_number}_{datetime.now().strftime('%Y%m%d')}.xlsx"
+        
+        # Создание HTTP response с Excel файлом - требование 3.1
+        response = HttpResponse(
+            excel_file.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        
+        logger.info(f"Excel file successfully generated for summary {summary_id}: {filename}")
+        return response
+        
+    except InvalidSummaryDataError as e:
+        # Обработка ошибок валидации данных - требование 4.1, 4.2
+        logger.error(f"Invalid summary data for {summary_id}: {str(e)}")
+        return JsonResponse({
+            'error': f'Ошибка в данных свода: {str(e)}'
+        }, status=400)
+        
+    except TemplateNotFoundError as e:
+        # Обработка ошибок недоступности шаблона - требование 4.3
+        logger.error(f"Template not found for summary {summary_id}: {str(e)}")
+        return JsonResponse({
+            'error': 'Шаблон Excel-файла недоступен. Обратитесь к администратору.'
+        }, status=500)
+        
+    except ExcelExportServiceError as e:
+        # Обработка других ошибок сервиса - требование 3.3
+        logger.error(f"Excel export service error for summary {summary_id}: {str(e)}")
+        return JsonResponse({
+            'error': f'Ошибка при генерации файла: {str(e)}'
+        }, status=500)
         
     except Exception as e:
-        logger.error(f"Error generating summary file for {summary_id}: {str(e)}")
-        messages.error(request, f'Ошибка при генерации файла: {str(e)}')
-        return redirect('summaries:summary_detail', pk=summary_id)
+        # Обработка неожиданных ошибок - требование 3.3
+        logger.error(f"Unexpected error generating summary file for {summary_id}: {str(e)}", exc_info=True)
+        return JsonResponse({
+            'error': 'Произошла неожиданная ошибка при генерации файла. Обратитесь к администратору.'
+        }, status=500)
 
 
 @require_http_methods(["POST"])
 @user_required
 def send_summary_to_client(request, summary_id):
-    """Отправка свода клиенту"""
+    """Отправка свода клиенту без автоматического изменения статуса"""
     summary = get_object_or_404(InsuranceSummary, pk=summary_id)
     
     try:
         # TODO: Реализовать отправку email клиенту
         # Пока используем заглушку
-        messages.info(request, 'Отправка свода клиенту будет реализована после настройки SMTP')
         
-        # Обновляем статус
-        from django.utils import timezone
-        summary.status = 'sent'
-        summary.sent_to_client_at = timezone.now()
-        summary.save()
+        # Логируем действие отправки без изменения статуса
+        logger.info(f"Summary {summary_id} sent to client without status change by user {request.user.username}")
         
-        return JsonResponse({'success': True, 'message': 'Свод отправлен в Альянс'})
+        # Возвращаем успешный результат без изменения статуса
+        return JsonResponse({
+            'success': True, 
+            'message': 'Свод отправлен в Альянс. Для изменения статуса используйте блок "Управление статусом".'
+        })
         
     except Exception as e:
         logger.error(f"Error sending summary {summary_id} to client: {str(e)}")
-        return JsonResponse({'success': False, 'error': str(e)})
+        return JsonResponse({'success': False, 'error': f'Ошибка при отправке свода: {str(e)}'})
+
+
+@user_required
+def copy_offer(request, offer_id):
+    """Копирование предложения"""
+    original_offer = get_object_or_404(InsuranceOffer, pk=offer_id)
+    
+    if request.method == 'POST':
+        form = OfferForm(request.POST, request.FILES)
+        if form.is_valid():
+            try:
+                with transaction.atomic():
+                    # Создаем новое предложение на основе данных формы
+                    new_offer = form.save(commit=False)
+                    new_offer.summary = original_offer.summary
+                    new_offer.save()
+                    
+                    # Обновляем счетчик предложений в своде
+                    original_offer.summary.update_total_offers_count()
+                    
+                    logger.info(f"Offer copied: {original_offer.id} -> {new_offer.id} by user {request.user.username}")
+                    
+                    messages.success(request, f'Предложение от {new_offer.company_name} ({new_offer.get_insurance_year_display()}) успешно скопировано')
+                    return redirect('summaries:summary_detail', pk=new_offer.summary.pk)
+                    
+            except IntegrityError as e:
+                # Специальная обработка ошибок дублирования предложений
+                error_str = str(e)
+                if ('UNIQUE constraint failed' in error_str or 
+                    'duplicate key value violates unique constraint' in error_str):
+                    # Извлекаем информацию о дублирующемся предложении из данных формы
+                    company_name = form.cleaned_data.get('company_name', 'неизвестная компания')
+                    insurance_year = form.cleaned_data.get('insurance_year', 'неизвестный год')
+                    
+                    # Создаем кастомное исключение для лучшей обработки
+                    duplicate_error = DuplicateOfferError(company_name, insurance_year)
+                    messages.error(request, duplicate_error.get_user_message())
+                    logger.warning(f"Duplicate offer attempt during copy for summary {original_offer.summary.id}: {company_name} year {insurance_year}")
+                else:
+                    # Обработка других ошибок целостности данных
+                    logger.error(f"IntegrityError copying offer {offer_id}: {str(e)}", exc_info=True)
+                    messages.error(request, f'Ошибка целостности данных при копировании предложения: {str(e)}')
+            except Exception as e:
+                # Обработка всех остальных ошибок
+                logger.error(f"Error copying offer {offer_id}: {str(e)}", exc_info=True)
+                messages.error(request, f'Ошибка при копировании предложения: {str(e)}')
+        else:
+            # Логируем ошибки валидации
+            logger.warning(f"Form validation failed for copying offer {offer_id}. Errors: {form.errors}")
+            
+            # Добавляем общее сообщение об ошибке валидации
+            error_messages = []
+            for field, errors in form.errors.items():
+                if field == '__all__':
+                    error_messages.extend(errors)
+                else:
+                    field_label = form.fields[field].label if field in form.fields else field
+                    for error in errors:
+                        error_messages.append(f"{field_label}: {error}")
+            
+            if error_messages:
+                messages.error(request, f'Ошибки в форме: {"; ".join(error_messages)}')
+            else:
+                messages.error(request, 'Проверьте правильность заполнения всех полей')
+    else:
+        # Создаем форму с данными из оригинального предложения
+        initial_data = {
+            'company_name': original_offer.company_name,
+            'insurance_year': original_offer.insurance_year,
+            'insurance_sum': original_offer.insurance_sum,
+            'franchise_1': original_offer.franchise_1,
+            'premium_with_franchise_1': original_offer.premium_with_franchise_1,
+            'franchise_2': original_offer.franchise_2,
+            'premium_with_franchise_2': original_offer.premium_with_franchise_2,
+            'installment_variant_1': original_offer.installment_variant_1,
+            'payments_per_year_variant_1': original_offer.payments_per_year_variant_1,
+            'installment_variant_2': original_offer.installment_variant_2,
+            'payments_per_year_variant_2': original_offer.payments_per_year_variant_2,
+            'notes': original_offer.notes,
+        }
+        form = OfferForm(initial=initial_data)
+    
+    return render(request, 'summaries/copy_offer.html', {
+        'form': form,
+        'original_offer': original_offer
+    })
 
 
 @user_required
@@ -504,34 +638,7 @@ def change_summary_status(request, summary_id):
     })
 
 
-@user_required
-def create_summary_from_offers(request, request_id):
-    """
-    Создание свода из загруженных предложений.
-    
-    Эта функция будет реализована в задаче 6.
-    Пока что это заглушка для корректной работы задачи 5.
-    """
-    insurance_request = get_object_or_404(InsuranceRequest, pk=request_id)
-    
-    # Получаем данные из сессии
-    session_key = f'parsed_offers_{request_id}'
-    parsed_data = request.session.get(session_key)
-    
-    if not parsed_data:
-        messages.error(request, 'Данные загруженных предложений не найдены. Попробуйте загрузить файлы заново.')
-        return redirect('insurance_requests:request_detail', pk=request_id)
-    
-    # Временная заглушка - показываем информацию о загруженных данных
-    messages.info(request, 
-                 f'Загружено {parsed_data["successful_files"]} предложений. '
-                 'Страница формирования свода будет реализована в задаче 6.')
-    
-    # Очищаем данные из сессии
-    if session_key in request.session:
-        del request.session[session_key]
-    
-    return redirect('insurance_requests:request_detail', pk=request_id)
+
 
 
 @user_required
@@ -608,7 +715,10 @@ def summary_statistics(request):
         'collecting': InsuranceSummary.objects.filter(status='collecting').count(),
         'ready': InsuranceSummary.objects.filter(status='ready').count(),
         'sent': InsuranceSummary.objects.filter(status='sent').count(),
-        'completed': InsuranceSummary.objects.filter(status='completed').count(),
+        'completed_accepted': InsuranceSummary.objects.filter(status='completed_accepted').count(),
+        'completed_rejected': InsuranceSummary.objects.filter(status='completed_rejected').count(),
+        # Keep old 'completed' for backward compatibility during transition
+        'completed': InsuranceSummary.objects.filter(status__in=['completed', 'completed_accepted', 'completed_rejected']).count(),
         'avg_offers_per_summary': InsuranceSummary.objects.aggregate(
             avg=Avg('total_offers')
         )['avg'] or 0,

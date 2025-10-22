@@ -37,7 +37,7 @@ class StatusIntegrationTest(TestCase):
     
     def test_templatetag_status_color(self):
         """Test that templatetag returns correct color for sent status"""
-        self.assertEqual(status_color('sent'), 'success')
+        self.assertEqual(status_color('sent'), 'secondary')  # Updated to match status_colors.py
     
     def test_templatetag_status_display_name(self):
         """Test that templatetag returns correct status name"""
@@ -48,8 +48,9 @@ class StatusIntegrationTest(TestCase):
         status_tests = [
             ('collecting', 'Сбор предложений', 'warning'),
             ('ready', 'Готов к отправке', 'info'),
-            ('sent', 'Отправлен в Альянс', 'success'),
-            ('completed', 'Завершен', 'secondary'),
+            ('sent', 'Отправлен в Альянс', 'secondary'),  # Updated to match status_colors.py
+            ('completed_accepted', 'Завершен: акцепт/распоряжение', 'success'),  # New status
+            ('completed_rejected', 'Завершен: не будет', 'danger'),  # New status
         ]
         
         for status_value, expected_display, expected_color in status_tests:

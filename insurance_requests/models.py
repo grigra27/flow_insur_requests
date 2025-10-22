@@ -11,10 +11,9 @@ class InsuranceRequest(models.Model):
     """Модель страховой заявки"""
     
     STATUS_CHOICES = [
-        ('uploaded', 'Загружена'),
+        ('uploaded', 'Загружено'),
         ('email_generated', 'Письмо сгенерировано'),
-        ('email_sent', 'Письмо отправлено'),
-        ('completed', 'Завершена'),
+        ('emails_sent', 'Письма отправлены'),
     ]
     
     INSURANCE_TYPE_CHOICES = [
@@ -144,7 +143,7 @@ class InsuranceRequest(models.Model):
     def can_create_summary(self) -> bool:
         """Проверяет, можно ли создать свод для этой заявки"""
         return (
-            self.status in ['email_sent', 'completed'] and
+            self.status in ['emails_sent'] and
             not hasattr(self, 'summary')
         )
     
@@ -152,7 +151,7 @@ class InsuranceRequest(models.Model):
         """Возвращает статус свода или информацию о его отсутствии"""
         if hasattr(self, 'summary'):
             return self.summary.get_status_display()
-        elif self.status == 'email_sent':
+        elif self.status == 'emails_sent':
             return 'Ожидает создания свода'
         else:
             return 'Свод недоступен'

@@ -5,7 +5,7 @@
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h1><i class="bi bi-list-ul"></i> Мои заявки</h1>
+    <h1><i class="bi bi-list-ul"></i> Заявки на страхование</h1>
     <a href="{% url 'insurance_requests:upload_excel' %}" class="btn btn-primary">
         <i class="bi bi-upload"></i> Загрузить новую заявку
     </a>
@@ -182,11 +182,11 @@
                             <span class="d-lg-none">{{ request.branch|default:"Не указан"|truncatechars:15 }}</span>
                         </td>
                         <td>
-                            <span class="badge bg-{% if request.status == 'completed' %}success{% elif request.status == 'email_sent' %}info{% elif request.status == 'email_generated' %}warning{% else %}secondary{% endif %}">
+                            {% load summary_extras %}
+                            <span class="badge bg-{{ request.status|status_color }}">
                                 <span class="d-none d-sm-inline">{{ request.get_status_display }}</span>
                                 <span class="d-sm-none">
-                                    {% if request.status == 'completed' %}✓
-                                    {% elif request.status == 'email_sent' %}📧
+                                    {% if request.status == 'emails_sent' %}✓
                                     {% elif request.status == 'email_generated' %}✉️
                                     {% else %}⏳{% endif %}
                                 </span>

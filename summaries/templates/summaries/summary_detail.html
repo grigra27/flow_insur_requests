@@ -11,7 +11,7 @@
     <div>
         {% if summary.status == 'collecting' %}
             <a href="{% url 'summaries:add_offer' summary.pk %}" class="btn btn-success">
-                <i class="bi bi-plus-circle"></i> Добавить предложение
+                <i class="bi bi-plus-circle"></i> Добавить предложение вручную
             </a>
         {% endif %}
         {% if summary.status == 'ready' %}
@@ -81,7 +81,7 @@
                 <h5 class="mb-0">Предложения страховщиков ({{ sorted_companies|length }})</h5>
                 {% if summary.status == 'collecting' %}
                     <a href="{% url 'summaries:add_offer' summary.pk %}" class="btn btn-success btn-sm">
-                        <i class="bi bi-plus-circle"></i> Добавить
+                        <i class="bi bi-plus-circle"></i> Добавить предложение вручную
                     </a>
                 {% endif %}
             </div>
@@ -97,17 +97,32 @@
                                     </h5>
                                 </div>
                                 
+                                <!-- Отображение примечаний компании -->
+                                {% with notes=company_notes|lookup:company_name %}
+                                    {% if notes %}
+                                        <div class="company-notes mb-3">
+                                            <div class="alert alert-info py-2 px-3 mb-0">
+                                                <i class="bi bi-info-circle me-2"></i>
+                                                <strong>Примечания:</strong>
+                                                {% for note in notes %}
+                                                    <div class="mt-1">{{ note }}</div>
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                    {% endif %}
+                                {% endwith %}
+                                
                                 <div class="table-responsive">
                                     <table class="table table-hover table-sm">
                                         <thead class="custom-table-header">
                                             <tr>
                                                 <th style="width: 10%;">Год</th>
-                                                <th style="width: 15%;">Страховая сумма</th>
-                                                <th style="width: 12%;">Франшиза-1</th>
-                                                <th style="width: 15%;">Премия-1</th>
-                                                <th style="width: 12%;">Франшиза-2</th>
-                                                <th style="width: 15%;">Премия-2</th>
-                                                <th style="width: 21%;">Действия</th>
+                                                <th style="width: 17%;">Страховая сумма</th>
+                                                <th style="width: 13%;">Франшиза-1</th>
+                                                <th style="width: 17%;">Премия-1</th>
+                                                <th style="width: 13%;">Франшиза-2</th>
+                                                <th style="width: 17%;">Премия-2</th>
+                                                <th style="width: 13%;">Действия</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -117,15 +132,14 @@
                                                         <strong>{{ offer.get_insurance_year_display }}</strong>
                                                     </td>
                                                     <td data-label="Страховая сумма">
-                                                        <strong>{{ offer.insurance_sum|floatformat:0 }} ₽</strong>
+                                                        <strong>{{ offer.insurance_sum|format_currency_with_spaces }}</strong>
                                                     </td>
                                                     <td data-label="Франшиза-1">
-                                                        <span class="text-primary">{{ offer.franchise_1|floatformat:0 }} ₽</span>
+                                                        <span class="franchise-variant-1">{{ offer.franchise_1|format_currency_with_spaces }}</span>
                                                     </td>
                                                     <td data-label="Премия-1">
-                                                        <strong class="text-success">{{ offer.premium_with_franchise_1|floatformat:0 }} ₽</strong>
+                                                        <strong class="franchise-variant-1">{{ offer.premium_with_franchise_1|format_currency_with_spaces }}</strong>
                                                         {% if offer.installment_variant_1 and offer.payments_per_year_variant_1 > 1 %}
-                                                            <br><small class="text-muted">{{ offer.premium_with_franchise_1|floatformat:0|div:offer.payments_per_year_variant_1 }} ₽ за платеж</small>
                                                             <br><span class="badge bg-success" style="font-size: 0.65em;">
                                                                 <i class="bi bi-credit-card"></i> {{ offer.payments_per_year_variant_1 }} платеж{{ offer.payments_per_year_variant_1|pluralize:"ей,а,ей" }}/год
                                                             </span>
@@ -133,17 +147,16 @@
                                                     </td>
                                                     <td data-label="Франшиза-2">
                                                         {% if offer.franchise_2 %}
-                                                            <span class="text-warning">{{ offer.franchise_2|floatformat:0 }} ₽</span>
+                                                            <span class="franchise-variant-2">{{ offer.franchise_2|format_currency_with_spaces }}</span>
                                                         {% else %}
                                                             <span class="text-muted">—</span>
                                                         {% endif %}
                                                     </td>
                                                     <td data-label="Премия-2">
                                                         {% if offer.premium_with_franchise_2 %}
-                                                            <strong class="text-info">{{ offer.premium_with_franchise_2|floatformat:0 }} ₽</strong>
+                                                            <strong class="franchise-variant-2">{{ offer.premium_with_franchise_2|format_currency_with_spaces }}</strong>
                                                             {% if offer.installment_variant_2 and offer.payments_per_year_variant_2 > 1 %}
-                                                                <br><small class="text-muted">{{ offer.premium_with_franchise_2|floatformat:0|div:offer.payments_per_year_variant_2 }} ₽ за платеж</small>
-                                                                <br><span class="badge bg-info" style="font-size: 0.65em;">
+                                                                <br><span class="badge bg-dark" style="font-size: 0.65em;">
                                                                     <i class="bi bi-credit-card"></i> {{ offer.payments_per_year_variant_2 }} платеж{{ offer.payments_per_year_variant_2|pluralize:"ей,а,ей" }}/год
                                                                 </span>
                                                             {% endif %}
@@ -158,6 +171,11 @@
                                                                title="Редактировать">
                                                                 <i class="bi bi-pencil"></i>
                                                             </a>
+                                                            <a href="{% url 'summaries:copy_offer' offer.pk %}" 
+                                                               class="btn btn-outline-success btn-sm" 
+                                                               title="Копировать">
+                                                                <i class="bi bi-arrow-repeat"></i>
+                                                            </a>
                                                             <button class="btn btn-outline-danger btn-sm" 
                                                                     onclick="deleteOffer({{ offer.id }})"
                                                                     title="Удалить">
@@ -166,23 +184,14 @@
                                                         </div>
                                                     </td>
                                                 </tr>
-                                                {% if offer.notes %}
-                                                    <tr>
-                                                        <td colspan="7">
-                                                            <small class="text-muted">
-                                                                <i class="bi bi-chat-text"></i> {{ offer.notes }}
-                                                            </small>
-                                                        </td>
-                                                    </tr>
-                                                {% endif %}
                                             {% endfor %}
                                             
                                             <!-- Добавляем строку "Итого" для многолетних предложений -->
                                             {% with company_data=company_totals|lookup:company_name %}
                                                 {% if company_data.is_multiyear %}
-                                                    <tr class="table-info company-total-row">
+                                                    <tr class="company-total-row">
                                                         <td data-label="Год">
-                                                            <strong><i class="bi bi-calculator"></i> Итого</strong>
+                                                            <strong><!--i class="bi bi-calculator"></i--> Итого</strong>
                                                         </td>
                                                         <td data-label="Страховая сумма">
                                                             <span class="text-muted">—</span>
@@ -191,14 +200,14 @@
                                                             <span class="text-muted">—</span>
                                                         </td>
                                                         <td data-label="Премия-1">
-                                                            <strong class="text-success fs-6">{{ company_data.total_premium_1|floatformat:0 }} ₽</strong>
+                                                            <strong class="franchise-variant-1 fs-6">{{ company_data.total_premium_1|format_currency_with_spaces }}</strong>
                                                         </td>
                                                         <td data-label="Франшиза-2">
                                                             <span class="text-muted">—</span>
                                                         </td>
                                                         <td data-label="Премия-2">
                                                             {% if company_data.total_premium_2 > 0 %}
-                                                                <strong class="text-info fs-6">{{ company_data.total_premium_2|floatformat:0 }} ₽</strong>
+                                                                <strong class="franchise-variant-2 fs-6">{{ company_data.total_premium_2|format_currency_with_spaces }}</strong>
                                                             {% else %}
                                                                 <span class="text-muted">—</span>
                                                             {% endif %}
@@ -251,18 +260,6 @@
                             {% endfor %}
                         </dd>
                     {% endif %}
-                    
-
-                    
-                    {% if offers.count > 1 %}
-                        <dt class="col-6">Разброс цен:</dt>
-                        <dd class="col-6">
-                            {% for offer in offers %}
-                                {% if forloop.first %}{{ offer.effective_premium_with_franchise|floatformat:0 }}{% endif %}
-                                {% if forloop.last and not forloop.first %} - {{ offer.effective_premium_with_franchise|floatformat:0 }}{% endif %}
-                            {% endfor %} ₽
-                        </dd>
-                    {% endif %}
                 </dl>
                 
                 {% if summary.status == 'ready' %}
@@ -298,7 +295,8 @@
                             <option value="collecting" {% if summary.status == 'collecting' %}selected{% endif %}>Сбор предложений</option>
                             <option value="ready" {% if summary.status == 'ready' %}selected{% endif %}>Готов к отправке</option>
                             <option value="sent" {% if summary.status == 'sent' %}selected{% endif %}>Отправлен в Альянс</option>
-                            <option value="completed" {% if summary.status == 'completed' %}selected{% endif %}>Завершен</option>
+                            <option value="completed_accepted" {% if summary.status == 'completed_accepted' %}selected{% endif %}>Завершен: акцепт/распоряжение</option>
+                            <option value="completed_rejected" {% if summary.status == 'completed_rejected' %}selected{% endif %}>Завершен: не будет</option>
                         </select>
                         <button type="button" class="btn btn-primary" onclick="changeStatus({{ summary.id }})">
                             <i class="bi bi-check-lg"></i> Применить
@@ -307,13 +305,7 @@
                     <div class="form-text">Выберите новый статус и нажмите "Применить"</div>
                 </div>
                 
-                {% if summary.status == 'collecting' and summary.total_offers >= 1 %}
-                    <div class="d-grid gap-2 mb-3">
-                        <button class="btn btn-warning" onclick="quickStatusChange({{ summary.id }}, 'ready')">
-                            <i class="bi bi-check-circle"></i> Отметить готовым
-                        </button>
-                    </div>
-                {% endif %}
+
                 
                 {% if summary.status == 'sent' %}
                     <div class="alert alert-info">
@@ -352,7 +344,7 @@
 }
 
 .custom-table-header th {
-    font-size: 0.875rem;
+    font-size: 0.95rem;
     font-weight: 600;
     color: #4a4a4a;
     border-top: none;
@@ -371,14 +363,14 @@
 }
 
 .company-block .table th {
-    font-size: 0.875rem;
+    font-size: 0.95rem;
     font-weight: 600;
     color: #5a5a5a;
     border-top: none;
 }
 
 .company-block .table td {
-    font-size: 0.875rem;
+    font-size: 1rem;
     vertical-align: middle;
 }
 
@@ -387,19 +379,54 @@
 }
 
 .company-block .table tbody tr:nth-child(even) {
-    background-color: #f9f8f5;
+    background-color: #f0ebe3;
+}
+
+/* Company notes styles */
+.company-notes {
+    margin-bottom: 1rem;
+}
+
+.company-notes .alert {
+    border-left: 4px solid #e91e63;
+    background-color: #fce4ec;
+    border-color: #f8bbd9;
+    font-size: 0.95rem;
+    line-height: 1.4;
+}
+
+.company-notes .alert strong {
+    color: #880e4f;
+    font-weight: 600;
+}
+
+.company-notes .alert div {
+    color: #880e4f;
+    margin-top: 0.25rem;
+    padding-left: 0.5rem;
+    border-left: 2px solid #f8bbd9;
+    margin-left: 0.5rem;
+}
+
+.company-notes .alert div:first-of-type {
+    margin-top: 0.5rem;
+}
+
+.company-notes .alert .bi-info-circle {
+    color: #e91e63;
+    font-size: 1rem;
 }
 
 /* Responsive design for mobile */
 @media (max-width: 768px) {
     .company-block .table-responsive {
-        font-size: 0.8rem;
+        font-size: 0.9rem;
     }
     
     .company-block .table th,
     .company-block .table td {
         padding: 0.5rem 0.25rem;
-        font-size: 0.75rem;
+        font-size: 0.85rem;
     }
     
     .company-block .btn-group-sm .btn {
@@ -410,6 +437,28 @@
     .company-block .badge {
         font-size: 0.6em;
     }
+    
+    /* Company notes responsive styles for tablets */
+    .company-notes .alert {
+        font-size: 0.9rem;
+        padding: 0.5rem 0.75rem;
+    }
+    
+    .company-notes .alert div {
+        margin-left: 0.25rem;
+        padding-left: 0.25rem;
+    }
+    
+    /* Maintain color coding visibility on tablets */
+    .franchise-variant-1 {
+        color: #0f5132 !important;
+        font-weight: 600;
+    }
+    
+    .franchise-variant-2 {
+        color: #052c65 !important;
+        font-weight: 600;
+    }
 }
 
 @media (max-width: 576px) {
@@ -419,6 +468,28 @@
     
     .company-block h5 {
         font-size: 1rem;
+    }
+    
+    /* Company notes responsive styles for mobile */
+    .company-notes .alert {
+        font-size: 0.85rem;
+        padding: 0.5rem;
+        margin-bottom: 0.75rem;
+    }
+    
+    .company-notes .alert strong {
+        display: block;
+        margin-bottom: 0.25rem;
+    }
+    
+    .company-notes .alert div {
+        margin-left: 0;
+        padding-left: 0;
+        border-left: none;
+        margin-top: 0.25rem;
+        padding: 0.25rem;
+        background-color: rgba(233, 30, 99, 0.1);
+        border-radius: 3px;
     }
     
     /* Stack table content vertically on very small screens */
@@ -470,22 +541,27 @@
 }
 
 /* Color coding for franchise variants */
-.text-primary { color: #0d6efd !important; }
-.text-warning { color: #fd7e14 !important; }
-.text-success { color: #198754 !important; }
-.text-info { color: #0dcaf0 !important; }
+.franchise-variant-1 {
+    color: #0f5132 !important;
+    font-weight: 600;
+}
+
+.franchise-variant-2 {
+    color: #052c65 !important;
+    font-weight: 600;
+}
 
 /* Styles for company total rows */
 .company-total-row {
-    background-color: #e3f2fd !important;
-    border-top: 2px solid #2196f3 !important;
+    background-color: #fff3cd !important;
+    border-top: 2px solid #ffc107 !important;
     font-weight: 600;
 }
 
 .company-total-row td {
     padding: 0.75rem 0.5rem !important;
     vertical-align: middle;
-    border-top: 2px solid #2196f3 !important;
+    border-top: 2px solid #ffc107 !important;
 }
 
 .company-total-row strong {
@@ -500,7 +576,7 @@
 
 /* Hover effect for total rows */
 .company-total-row:hover {
-    background-color: #bbdefb !important;
+    background-color: #ffeaa7 !important;
     transition: background-color 0.2s ease;
 }
 
@@ -508,14 +584,99 @@
 @media (max-width: 576px) {
     .company-total-row td:before {
         font-weight: bold;
-        color: #1976d2;
+        color: #856404;
     }
     
     .company-total-row {
-        background-color: #e3f2fd !important;
-        border: 2px solid #2196f3 !important;
+        background-color: #fff3cd !important;
+        border: 2px solid #ffc107 !important;
         border-radius: 5px;
         margin-top: 10px;
+    }
+    
+    /* Ensure franchise variant colors remain visible on mobile */
+    .franchise-variant-1 {
+        color: #0f5132 !important;
+        font-weight: 600;
+    }
+    
+    .franchise-variant-2 {
+        color: #052c65 !important;
+        font-weight: 600;
+    }
+}
+
+/* Loading button styles */
+.btn-loading {
+    position: relative;
+    pointer-events: none;
+}
+
+.btn-loading::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: inherit;
+}
+
+/* Spinner animation for loading states */
+.spinner-border-sm {
+    width: 1rem;
+    height: 1rem;
+    border-width: 0.1em;
+}
+
+@keyframes spinner-border {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.spinner-border {
+    display: inline-block;
+    width: 2rem;
+    height: 2rem;
+    vertical-align: -0.125em;
+    border: 0.25em solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: spinner-border 0.75s linear infinite;
+}
+
+/* Enhanced notification styles */
+.alert.position-fixed {
+    animation: slideInRight 0.3s ease-out;
+    border-left: 4px solid;
+}
+
+.alert-success.position-fixed {
+    border-left-color: #198754;
+}
+
+.alert-danger.position-fixed {
+    border-left-color: #dc3545;
+}
+
+.alert-info.position-fixed {
+    border-left-color: #0dcaf0;
+}
+
+.alert-warning.position-fixed {
+    border-left-color: #ffc107;
+}
+
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
     }
 }
 </style>
@@ -542,11 +703,10 @@ function formatNumber(number) {
 function formatPaymentsInfo(paymentsPerYear, premium) {
     if (!paymentsPerYear || paymentsPerYear <= 1) return '';
     
-    const paymentAmount = premium / paymentsPerYear;
     const paymentText = paymentsPerYear === 2 ? 'платежа' : 
                        paymentsPerYear <= 4 ? 'платежа' : 'платежей';
     
-    return `${formatCurrency(paymentAmount)} за платеж (${paymentsPerYear} ${paymentText}/год)`;
+    return `${paymentsPerYear} ${paymentText}/год`;
 }
 
 // Функция для обновления отображения данных в реальном времени
@@ -591,23 +751,7 @@ function enhanceTableInteractivity() {
             this.style.backgroundColor = '';
         });
         
-        // Добавляем клик для показа деталей
-        row.addEventListener('click', function(e) {
-            // Не обрабатываем клики по кнопкам
-            if (e.target.closest('button') || e.target.closest('a')) return;
-            
-            const notesRow = this.nextElementSibling;
-            if (notesRow && notesRow.querySelector('td[colspan]')) {
-                // Переключаем видимость примечаний
-                if (notesRow.style.display === 'none') {
-                    notesRow.style.display = '';
-                    this.classList.add('table-info');
-                } else {
-                    notesRow.style.display = 'none';
-                    this.classList.remove('table-info');
-                }
-            }
-        });
+        // Row click functionality removed since notes are now displayed under company names
     });
 }
 
@@ -657,6 +801,64 @@ function handleNetworkError(error) {
     }
     
     showErrorMessage('Произошла сетевая ошибка. Попробуйте еще раз.');
+}
+
+// Проверка поддержки браузером необходимых функций для скачивания файлов
+function checkDownloadSupport() {
+    const features = {
+        blob: typeof Blob !== 'undefined',
+        url: typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function',
+        download: 'download' in document.createElement('a')
+    };
+    
+    const unsupported = Object.keys(features).filter(key => !features[key]);
+    
+    if (unsupported.length > 0) {
+        console.warn('Browser missing download features:', unsupported);
+        showWarningMessage('Ваш браузер может не поддерживать автоматическое скачивание файлов. Попробуйте обновить браузер.', 8000);
+        return false;
+    }
+    
+    return true;
+}
+
+// Функция для безопасного создания и скачивания файла
+function safeDownloadFile(blob, filename) {
+    try {
+        // Проверяем поддержку браузера
+        if (!checkDownloadSupport()) {
+            throw new Error('Браузер не поддерживает скачивание файлов');
+        }
+        
+        // Создаем URL для blob
+        const url = window.URL.createObjectURL(blob);
+        
+        // Создаем временную ссылку для скачивания
+        const downloadLink = document.createElement('a');
+        downloadLink.style.display = 'none';
+        downloadLink.href = url;
+        downloadLink.download = filename;
+        
+        // Добавляем обработчик для очистки ресурсов
+        downloadLink.addEventListener('click', () => {
+            setTimeout(() => {
+                window.URL.revokeObjectURL(url);
+                if (downloadLink.parentNode) {
+                    downloadLink.parentNode.removeChild(downloadLink);
+                }
+            }, 100);
+        });
+        
+        // Инициируем скачивание
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        
+        return true;
+    } catch (error) {
+        console.error('Error in safeDownloadFile:', error);
+        showErrorMessage('Ошибка при скачивании файла: ' + error.message);
+        return false;
+    }
 }
 
 // Функция для безопасного выполнения AJAX запросов
@@ -838,9 +1040,24 @@ document.addEventListener('DOMContentLoaded', function() {
             const badgeClasses = currentBadge.className;
             let currentStatus = 'collecting'; // по умолчанию
             
-            if (badgeClasses.includes('bg-success')) currentStatus = 'completed';
-            else if (badgeClasses.includes('bg-info')) currentStatus = 'sent';
-            else if (badgeClasses.includes('bg-warning')) currentStatus = 'ready';
+            if (badgeClasses.includes('bg-success')) {
+                // Only 'completed_accepted' uses success color now
+                currentStatus = 'completed_accepted';
+            } else if (badgeClasses.includes('bg-danger')) {
+                currentStatus = 'completed_rejected';
+            } else if (badgeClasses.includes('bg-secondary')) {
+                // Could be 'sent' or 'completed' - check text content
+                const statusText = badge.textContent.trim();
+                if (statusText.includes('Отправлен') || statusText.includes('Альянс')) {
+                    currentStatus = 'sent';
+                } else {
+                    currentStatus = 'completed'; // fallback for old completed status
+                }
+            } else if (badgeClasses.includes('bg-info')) {
+                currentStatus = 'ready';
+            } else if (badgeClasses.includes('bg-warning')) {
+                currentStatus = 'collecting';
+            }
             
             statusSelect.dataset.currentStatus = currentStatus;
         }
@@ -865,7 +1082,14 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function sendToClient(summaryId) {
-    if (confirm('Отправить свод клиенту?')) {
+    if (confirm('Отправить свод в Альянс? Статус свода не изменится автоматически.')) {
+        const button = event.target;
+        const originalContent = button.innerHTML;
+        
+        // Показываем индикатор загрузки
+        button.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Отправка...';
+        button.disabled = true;
+        
         fetch(`/summaries/${summaryId}/send-to-client/`, {
             method: 'POST',
             headers: {
@@ -873,13 +1097,28 @@ function sendToClient(summaryId) {
                 'Content-Type': 'application/json',
             },
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.success) {
-                location.reload();
+                showSuccessMessage(data.message);
+                // Не перезагружаем страницу, так как статус не изменился
             } else {
-                alert('Ошибка: ' + data.error);
+                showErrorMessage('Ошибка: ' + data.error);
             }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showErrorMessage('Произошла ошибка при отправке свода');
+        })
+        .finally(() => {
+            // Восстанавливаем кнопку
+            button.innerHTML = originalContent;
+            button.disabled = false;
         });
     }
 }
@@ -965,7 +1204,125 @@ function deleteOffer(offerId) {
 }
 
 function generateSummaryFile(summaryId) {
-    window.location.href = `/summaries/${summaryId}/generate-file/`;
+    // Получаем кнопку и сохраняем исходное состояние
+    const button = event.target;
+    const originalContent = button.innerHTML;
+    const originalDisabled = button.disabled;
+    
+    // Проверяем доступность функции
+    if (!summaryId || isNaN(summaryId)) {
+        showErrorMessage('Некорректный идентификатор свода');
+        return;
+    }
+    
+    // Проверяем подключение к интернету
+    if (!navigator.onLine) {
+        showErrorMessage('Отсутствует подключение к интернету. Проверьте соединение и попробуйте еще раз.');
+        return;
+    }
+    
+    // Показываем индикатор загрузки с анимацией
+    button.innerHTML = '<i class="bi bi-hourglass-split spinner-border spinner-border-sm me-1"></i> Генерируется...';
+    button.disabled = true;
+    button.classList.add('btn-loading');
+    
+    // Показываем уведомление о начале процесса
+    showInfoMessage('Начинается генерация Excel файла...', 2000);
+    
+    // Отправляем запрос на генерацию файла с улучшенной обработкой ошибок
+    fetch(`/summaries/${summaryId}/generate-file/`, {
+        method: 'GET',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Cache-Control': 'no-cache'
+        }
+    })
+    .then(response => {
+        // Проверяем статус ответа
+        if (!response.ok) {
+            // Если это JSON ошибка, парсим её
+            if (response.headers.get('content-type')?.includes('application/json')) {
+                return response.json().then(data => {
+                    throw new Error(data.error || `Ошибка сервера: ${response.status}`);
+                });
+            } else {
+                // Если это не JSON, создаем общую ошибку
+                throw new Error(`Ошибка сервера: ${response.status} ${response.statusText}`);
+            }
+        }
+        
+        // Проверяем, что это действительно Excel файл
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('spreadsheet')) {
+            throw new Error('Сервер вернул некорректный тип файла');
+        }
+        
+        // Обрабатываем успешный ответ
+        return response.blob().then(blob => {
+            // Проверяем размер файла
+            if (blob.size === 0) {
+                throw new Error('Получен пустой файл');
+            }
+            
+            // Получаем имя файла из заголовка Content-Disposition
+            const contentDisposition = response.headers.get('Content-Disposition');
+            let filename = `svod_${summaryId}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+            
+            if (contentDisposition) {
+                const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+                if (filenameMatch && filenameMatch[1]) {
+                    filename = filenameMatch[1].replace(/['"]/g, '');
+                }
+            }
+            
+            // Создаем и инициируем скачивание файла
+            const downloadSuccess = safeDownloadFile(blob, filename);
+            
+            if (downloadSuccess) {
+                // Показываем сообщение об успехе с дополнительной информацией
+                showSuccessMessage(`Excel файл "${filename}" успешно сгенерирован и загружен`, 4000);
+                
+                // Логируем успешную операцию
+                console.log(`Excel file generated successfully: ${filename}, size: ${blob.size} bytes`);
+            } else {
+                throw new Error('Ошибка при скачивании файла. Попробуйте еще раз.');
+            }
+        });
+    })
+    .catch(error => {
+        console.error('Error generating summary file:', error);
+        
+        // Определяем тип ошибки и показываем соответствующее сообщение
+        let errorMessage = 'Произошла ошибка при генерации файла';
+        
+        if (error.name === 'TypeError' && error.message.includes('fetch')) {
+            errorMessage = 'Ошибка соединения с сервером. Проверьте подключение к интернету.';
+        } else if (error.message.includes('Файл можно генерировать только для сводов в статусе')) {
+            errorMessage = 'Файл можно генерировать только для сводов в статусе "Готов к отправке"';
+        } else if (error.message.includes('недостающих данных')) {
+            errorMessage = 'Невозможно сгенерировать файл: отсутствуют обязательные данные';
+        } else if (error.message.includes('недоступности шаблона')) {
+            errorMessage = 'Шаблон Excel файла недоступен. Обратитесь к администратору.';
+        } else if (error.message) {
+            errorMessage = error.message;
+        }
+        
+        showErrorMessage(errorMessage, 6000);
+        
+        // Дополнительная информация для разработчиков в консоли
+        console.error('Detailed error info:', {
+            message: error.message,
+            stack: error.stack,
+            summaryId: summaryId,
+            timestamp: new Date().toISOString()
+        });
+    })
+    .finally(() => {
+        // Восстанавливаем состояние кнопки
+        button.innerHTML = originalContent;
+        button.disabled = originalDisabled;
+        button.classList.remove('btn-loading');
+    });
 }
 
 // Функции управления статусом
@@ -1044,7 +1401,8 @@ function quickStatusChange(summaryId, newStatus) {
     const confirmMessages = {
         'ready': 'Отметить свод как готовый к отправке?',
         'sent': 'Отметить свод как отправленный в Альянс?',
-        'completed': 'Отметить свод как завершенный?'
+        'completed_accepted': 'Отметить свод как завершенный (акцепт/распоряжение)?',
+        'completed_rejected': 'Отметить свод как завершенный (не будет)?'
     };
     
     const message = confirmMessages[newStatus] || 'Изменить статус?';
@@ -1107,13 +1465,19 @@ function updateStatusBadge(status, statusDisplay) {
         
         // Добавляем соответствующий класс цвета
         switch(status) {
-            case 'completed':
+            case 'completed_accepted':
                 badge.classList.add('bg-success');
                 break;
+            case 'completed_rejected':
+                badge.classList.add('bg-danger');
+                break;
             case 'sent':
-                badge.classList.add('bg-info');
+                badge.classList.add('bg-secondary');
                 break;
             case 'ready':
+                badge.classList.add('bg-info');
+                break;
+            case 'collecting':
                 badge.classList.add('bg-warning');
                 break;
             default:

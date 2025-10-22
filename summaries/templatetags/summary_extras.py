@@ -48,6 +48,8 @@ def status_display_name(status):
         'ready': 'Готов к отправке',
         'sent': 'Отправлен в Альянс',  # Обновленное название
         'completed': 'Завершен',
+        'completed_accepted': 'Завершен: акцепт/распоряжение',  # Новый статус
+        'completed_rejected': 'Завершен: не будет',  # Новый статус
     }
     return status_mapping.get(status, status)
 
@@ -84,3 +86,54 @@ def companies_count_size_class(count):
         return 'fs-6 fw-semibold'  # Средний размер для 5-9
     else:
         return 'fs-6'  # Обычный размер для 0-4
+
+@register.filter
+def format_currency_with_spaces(value):
+    """Форматирует валютные значения с пробелами между тысячами"""
+    try:
+        # Обработка граничных случаев
+        if value is None or value == '':
+            return '—'
+        
+        # Преобразуем в число, поддерживаем различные типы входных данных
+        if isinstance(value, str):
+            # Удаляем возможные пробелы и символы валюты для повторного форматирования
+            clean_value = value.replace(' ', '').replace('₽', '').strip()
+            if not clean_value:
+                return '—'
+            # Обрабатываем запятые как разделители тысяч (американский формат)
+            if ',' in clean_value and '.' not in clean_value:
+                # Если есть только запятые, это разделители тысяч
+                clean_value = clean_value.replace(',', '')
+            elif ',' in clean_value and '.' in clean_value:
+                # Если есть и запятые и точки, запятые - разделители тысяч, точка - десятичный разделитель
+                clean_value = clean_value.replace(',', '')
+            elif ',' in clean_value and clean_value.count(',') == 1:
+                # Если одна запятая в конце, это может быть десятичный разделитель
+                parts = clean_value.split(',')
+                if len(parts) == 2 and len(parts[1]) <= 2:
+                    clean_value = clean_value.replace(',', '.')
+                else:
+                    clean_value = clean_value.replace(',', '')
+            num_value = float(clean_value)
+        elif isinstance(value, (int, float, Decimal)):
+            num_value = float(value)
+        else:
+            # Попытка преобразования для других типов
+            num_value = float(value)
+        
+        # Проверяем на отрицательные значения и ноль
+        if num_value == 0:
+            return '0 ₽'
+        
+        # Форматируем с пробелами между тысячами
+        # Используем locale-независимый способ форматирования
+        formatted = f"{num_value:,.0f}".replace(',', ' ')
+        
+        return f"{formatted} ₽"
+        
+    except (ValueError, TypeError, AttributeError):
+        # В случае ошибки возвращаем исходное значение или прочерк
+        if value is None or value == '':
+            return '—'
+        return str(value)

@@ -16,5 +16,5 @@ urlpatterns = [
     path('<int:pk>/preview-email/', views.preview_email, name='preview_email'),
     path('<int:pk>/send-email/', views.send_email, name='send_email'),
     path('<int:pk>/change-status/', views.change_request_status, name='change_request_status'),
-    path('<int:request_id>/upload-offers/', views.upload_offers, name='upload_offers'),
+
 ]

@@ -44,7 +44,7 @@ class CreateSummaryViewTests(TestCase):
             client_name='Тестовый клиент',
             inn='1234567890',
             insurance_type='КАСКО',
-            status='email_sent',
+            status='emails_sent',
             dfa_number='TEST-001',
             branch='Тестовый филиал'
         )
@@ -121,8 +121,9 @@ class CreateSummaryViewTests(TestCase):
         """Тест отказа создания свода для заявки с неподходящим статусом"""
         self.client.login(username='admin', password='testpass123')
         
-        # Устанавливаем неподходящий статус
-        self.insurance_request.status = 'completed'
+        # Устанавливаем неподходящий статус (используем несуществующий статус)
+        # Поскольку 'uploaded' теперь разрешен, используем статус, которого нет в allowed_statuses
+        self.insurance_request.status = 'invalid_status'
         self.insurance_request.save()
         
         url = reverse('summaries:create_summary', kwargs={'request_id': self.insurance_request.pk})
