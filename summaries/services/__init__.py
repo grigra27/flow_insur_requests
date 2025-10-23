@@ -15,5 +15,6 @@ from .excel_services import (
     InvalidFileFormatError,
     MissingDataError,
     InvalidDataError,
+    RowProcessingError,
     DuplicateOfferError
 )

@@ -259,11 +259,6 @@
                     <a href="{% url 'summaries:create_summary' request.pk %}" class="btn btn-success create-summary-btn">
                         <i class="bi bi-plus-circle"></i> Создать свод
                     </a>
-                    {% if request.status == 'email_generated' %}
-                    <div class="create-summary-hint">Рекомендуется сначала отправить письма страховщикам</div>
-                    {% elif request.status == 'uploaded' %}
-                    <div class="create-summary-hint">Можно создать свод и добавить предложения вручную</div>
-                    {% endif %}
                 </div>
                 {% else %}
                 <div class="text-center py-3">

@@ -65,6 +65,21 @@ class InvalidDataError(ExcelProcessingError):
         super().__init__(f"Некорректное значение в поле '{field_name}': '{value}'. Ожидается: {expected_format}")
 
 
+class RowProcessingError(ExcelProcessingError):
+    """Ошибка обработки конкретной строки"""
+    def __init__(self, row_number, field_name, error_message, cell_address=None):
+        self.row_number = row_number
+        self.field_name = field_name
+        self.cell_address = cell_address
+        self.error_message = error_message
+        
+        # Формируем детальное сообщение об ошибке
+        if cell_address:
+            super().__init__(f"Ошибка в строке {row_number}, ячейка {cell_address}, поле '{field_name}': {error_message}")
+        else:
+            super().__init__(f"Ошибка в строке {row_number}, поле '{field_name}': {error_message}")
+
+
 class ExcelExportService:
     """Сервис для генерации Excel-файлов сводов предложений"""
     
@@ -281,22 +296,26 @@ class ExcelExportService:
 class ExcelResponseProcessor:
     """Сервис для обработки Excel файлов с ответами страховых компаний"""
     
-    # Маппинг ячеек согласно техническому заданию
+    # Конфигурация для поддерживаемых строк
+    MIN_YEAR_ROW = 6  # Минимальная строка для данных лет
+    MAX_YEAR_ROW = 10  # Максимальная строка для данных лет
+    
+    # Маппинг колонок для данных лет
+    YEAR_COLUMNS = {
+        'year': 'A',
+        'insurance_sum': 'B',
+        'premium': 'D',
+        'franchise': 'E',
+        'installment': 'F'
+    }
+    
+    # Динамическая конфигурация маппинга ячеек
     CELL_MAPPING = {
         'company_name': 'B2',
-        'year_1': {
-            'year': 'A6',
-            'insurance_sum': 'B6', 
-            'premium': 'D6',
-            'franchise': 'E6',
-            'installment': 'F6'
-        },
-        'year_2': {
-            'year': 'A7',
-            'insurance_sum': 'B7',
-            'premium': 'D7', 
-            'franchise': 'E7',
-            'installment': 'F7'
+        'year_rows': {
+            'start_row': MIN_YEAR_ROW,
+            'end_row': MAX_YEAR_ROW,
+            'columns': YEAR_COLUMNS
         }
     }
     
@@ -309,6 +328,171 @@ class ExcelResponseProcessor:
         # Импортируем здесь, чтобы избежать циклических импортов
         from .company_matcher import create_company_matcher
         self.company_matcher = create_company_matcher()
+    
+    def _generate_year_mappings(self) -> Dict[str, Dict[str, str]]:
+        """
+        Генерирует маппинги ячеек для всех поддерживаемых лет (строки 6-10)
+        
+        Returns:
+            Dict с маппингами для каждого года в формате:
+            {
+                'year_1': {'year': 'A6', 'insurance_sum': 'B6', ...},
+                'year_2': {'year': 'A7', 'insurance_sum': 'B7', ...},
+                ...
+            }
+        """
+        mappings = {}
+        year_config = self.CELL_MAPPING['year_rows']
+        
+        for row_num in range(year_config['start_row'], year_config['end_row'] + 1):
+            year_key = f"year_{row_num - year_config['start_row'] + 1}"
+            mappings[year_key] = {}
+            
+            for field_name, column_letter in year_config['columns'].items():
+                cell_address = f"{column_letter}{row_num}"
+                mappings[year_key][field_name] = cell_address
+        
+        self.logger.debug(f"Сгенерированы маппинги для {len(mappings)} лет: {list(mappings.keys())}")
+        return mappings
+    
+    def _detect_available_years(self, worksheet) -> List[int]:
+        """
+        Обнаруживает, в каких строках присутствуют данные лет
+        
+        Args:
+            worksheet: Рабочий лист Excel
+            
+        Returns:
+            Список номеров строк с валидными данными года
+        """
+        available_rows = []
+        skipped_rows = []
+        year_config = self.CELL_MAPPING['year_rows']
+        year_column = year_config['columns']['year']
+        
+        self.logger.info(f"Начинаем обнаружение данных лет в строках {year_config['start_row']}-{year_config['end_row']}")
+        
+        for row_num in range(year_config['start_row'], year_config['end_row'] + 1):
+            year_cell = f"{year_column}{row_num}"
+            year_value = self._get_cell_value(worksheet, year_cell)
+            
+            self.logger.debug(f"Строка {row_num}: проверяем ячейку {year_cell}, значение: '{year_value}'")
+            
+            # Проверяем, есть ли валидное значение года
+            if year_value is not None and str(year_value).strip():
+                try:
+                    year_int = int(year_value)
+                    if 1 <= year_int <= 10:  # Разумные ограничения для года страхования
+                        available_rows.append(row_num)
+                        self.logger.info(f"Строка {row_num}: найден валидный год страхования {year_int}")
+                    else:
+                        skipped_rows.append(row_num)
+                        self.logger.warning(f"Строка {row_num}: год {year_int} вне допустимого диапазона (1-10), строка пропущена")
+                except (ValueError, TypeError):
+                    skipped_rows.append(row_num)
+                    self.logger.warning(f"Строка {row_num}: некорректное значение года '{year_value}', строка пропущена")
+                    continue
+            else:
+                skipped_rows.append(row_num)
+                self.logger.debug(f"Строка {row_num}: пустое значение года, строка пропущена")
+        
+        self.logger.info(f"Обнаружение завершено: найдено {len(available_rows)} строк с данными, пропущено {len(skipped_rows)} строк")
+        self.logger.info(f"Строки с данными: {available_rows}")
+        if skipped_rows:
+            self.logger.info(f"Пропущенные строки: {skipped_rows}")
+        
+        return available_rows
+    
+    def _extract_all_years_data(self, worksheet) -> Dict[str, Any]:
+        """
+        Извлекает данные для всех обнаруженных лет с информацией об обработке
+        
+        Args:
+            worksheet: Рабочий лист Excel
+            
+        Returns:
+            Dict с данными по годам и информацией об обработке:
+            {
+                'years': List[Dict[str, Any]],  # Данные по годам
+                'processing_info': {
+                    'total_rows_checked': int,
+                    'rows_with_data': List[int],
+                    'rows_skipped': List[int],
+                    'years_processed': List[int]
+                }
+            }
+        """
+        self.logger.info("Начинаем извлечение данных по всем годам страхования")
+        
+        all_years_data = []
+        available_rows = self._detect_available_years(worksheet)
+        year_mappings = self._generate_year_mappings()
+        year_config = self.CELL_MAPPING['year_rows']
+        
+        # Информация об обработке
+        total_rows_checked = year_config['end_row'] - year_config['start_row'] + 1
+        all_possible_rows = list(range(year_config['start_row'], year_config['end_row'] + 1))
+        rows_skipped = [row for row in all_possible_rows if row not in available_rows]
+        years_processed = []
+        processing_errors = []
+        
+        self.logger.info(f"Будет обработано {len(available_rows)} строк с данными: {available_rows}")
+        
+        for row_num in available_rows:
+            try:
+                self.logger.debug(f"Обрабатываем строку {row_num}")
+                
+                # Создаем маппинг для конкретной строки
+                row_mapping = {}
+                for field_name, column_letter in year_config['columns'].items():
+                    cell_address = f"{column_letter}{row_num}"
+                    row_mapping[field_name] = cell_address
+                
+                self.logger.debug(f"Строка {row_num}: маппинг ячеек создан - {row_mapping}")
+                
+                # Извлекаем данные для этой строки
+                year_data = self._extract_year_data(worksheet, row_mapping, row_num)
+                if year_data:
+                    all_years_data.append(year_data)
+                    years_processed.append(year_data['year'])
+                    self.logger.info(f"Строка {row_num}: успешно извлечены данные для {year_data['year']} года (сумма: {year_data['insurance_sum']}, премия: {year_data['premium']})")
+                else:
+                    self.logger.warning(f"Строка {row_num}: данные не извлечены (пустая строка)")
+                    
+            except RowProcessingError as e:
+                # Логируем ошибку обработки строки и добавляем строку в пропущенные
+                error_info = f"Строка {row_num}: {str(e)}"
+                processing_errors.append(error_info)
+                self.logger.error(f"Ошибка обработки - {error_info}")
+                
+                if row_num in available_rows:
+                    available_rows.remove(row_num)
+                if row_num not in rows_skipped:
+                    rows_skipped.append(row_num)
+                continue
+        
+        processing_info = {
+            'total_rows_checked': total_rows_checked,
+            'rows_with_data': [row for row in available_rows if any(year['year'] for year in all_years_data)],
+            'rows_skipped': rows_skipped,
+            'years_processed': years_processed,
+            'processing_errors': processing_errors
+        }
+        
+        # Итоговое логирование
+        self.logger.info(f"Извлечение данных завершено:")
+        self.logger.info(f"  - Всего проверено строк: {total_rows_checked}")
+        self.logger.info(f"  - Успешно обработано лет: {len(all_years_data)}")
+        self.logger.info(f"  - Годы страхования: {sorted(years_processed) if years_processed else 'нет'}")
+        self.logger.info(f"  - Пропущено строк: {len(rows_skipped)} {rows_skipped if rows_skipped else ''}")
+        
+        if processing_errors:
+            self.logger.warning(f"  - Ошибки обработки ({len(processing_errors)}): {processing_errors}")
+        
+        return {
+            'years': all_years_data,
+            'processing_info': processing_info
+        }
     
     def process_excel_file(self, file, summary: InsuranceSummary) -> Dict[str, Any]:
         """
@@ -324,20 +508,33 @@ class ExcelResponseProcessor:
         Raises:
             ExcelProcessingError: При ошибках обработки файла
         """
-        self.logger.info(f"Начинаем обработку Excel файла для свода ID: {summary.id}")
+        self.logger.info(f"=== НАЧАЛО ОБРАБОТКИ EXCEL ФАЙЛА ===")
+        self.logger.info(f"Свод ID: {summary.id}, Файл: {file.name}")
         
         try:
             # Загружаем Excel файл
+            self.logger.info("Этап 1: Загрузка Excel файла")
             workbook = self._load_excel_file(file)
             worksheet = self._get_worksheet(workbook)
             
             # Извлекаем данные компании
+            self.logger.info("Этап 2: Извлечение данных компании")
             company_data = self.extract_company_data(worksheet)
             
+            # Логируем результаты извлечения
+            processing_info = company_data.get('processing_info', {})
+            self.logger.info(f"Результаты извлечения данных:")
+            self.logger.info(f"  - Компания: {company_data['company_name']}")
+            self.logger.info(f"  - Найдено лет: {len(company_data['years'])}")
+            self.logger.info(f"  - Обработано строк: {processing_info.get('rows_with_data', [])}")
+            self.logger.info(f"  - Пропущено строк: {processing_info.get('rows_skipped', [])}")
+            
             # Валидируем извлеченные данные
+            self.logger.info("Этап 3: Валидация извлеченных данных")
             self.validate_extracted_data(company_data)
             
             # Создаем предложения
+            self.logger.info("Этап 4: Создание предложений в базе данных")
             created_offers = self.create_offers(company_data, summary)
             
             result = {
@@ -345,17 +542,25 @@ class ExcelResponseProcessor:
                 'company_name': company_data['company_name'],
                 'offers_created': len(created_offers),
                 'years': [offer.insurance_year for offer in created_offers],
-                'company_matching_info': company_data.get('company_matching_info', {})
+                'skipped_rows': processing_info.get('rows_skipped', []),
+                'processed_rows': processing_info.get('rows_with_data', []),
+                'company_matching_info': company_data.get('company_matching_info', {}),
+                'processing_errors': processing_info.get('processing_errors', [])
             }
             
-            self.logger.info(f"Excel файл успешно обработан для свода ID: {summary.id}. Создано предложений: {len(created_offers)}")
+            self.logger.info(f"=== ОБРАБОТКА ЗАВЕРШЕНА УСПЕШНО ===")
+            self.logger.info(f"Создано предложений: {len(created_offers)} для лет: {sorted([offer.insurance_year for offer in created_offers])}")
+            
             return result
             
-        except (ExcelProcessingError, DuplicateOfferError):
+        except (ExcelProcessingError, DuplicateOfferError) as e:
+            self.logger.error(f"=== ОБРАБОТКА ЗАВЕРШЕНА С ОШИБКОЙ ===")
+            self.logger.error(f"Тип ошибки: {type(e).__name__}, Сообщение: {str(e)}")
             # Переброс известных исключений
             raise
         except Exception as e:
             error_msg = f"Неожиданная ошибка при обработке Excel файла: {str(e)}"
+            self.logger.error(f"=== ОБРАБОТКА ЗАВЕРШЕНА С КРИТИЧЕСКОЙ ОШИБКОЙ ===")
             self.logger.error(error_msg, exc_info=True)
             raise ExcelProcessingError(error_msg) from e
     
@@ -431,18 +636,22 @@ class ExcelResponseProcessor:
         Raises:
             MissingDataError: При отсутствии обязательных данных
         """
-        self.logger.debug("Извлекаем данные компании из Excel файла")
+        self.logger.info("Начинаем извлечение данных компании из Excel файла")
         
         try:
             data = {}
             
             # Извлекаем название компании
+            self.logger.debug(f"Извлекаем название компании из ячейки {self.CELL_MAPPING['company_name']}")
             raw_company_name = self._get_cell_value(worksheet, self.CELL_MAPPING['company_name'])
             if not raw_company_name:
+                self.logger.error(f"Название компании не найдено в ячейке {self.CELL_MAPPING['company_name']}")
                 raise MissingDataError([self.CELL_MAPPING['company_name']])
             
             # Сопоставляем название компании с закрытым списком
             raw_name_str = str(raw_company_name).strip()
+            self.logger.info(f"Исходное название компании: '{raw_name_str}'")
+            
             standardized_name = self.company_matcher.match_company_name(raw_name_str)
             data['company_name'] = standardized_name
             
@@ -461,26 +670,24 @@ class ExcelResponseProcessor:
             elif standardized_name != raw_name_str:
                 self.logger.info(f"Название компании сопоставлено: '{raw_name_str}' -> '{standardized_name}'")
             else:
-                self.logger.debug(f"Название компании '{raw_name_str}' точно совпадает с элементом закрытого списка")
+                self.logger.info(f"Название компании '{raw_name_str}' точно совпадает с элементом закрытого списка")
             
-            # Извлекаем данные по годам
-            data['years'] = []
-            
-            # Обрабатываем первый год
-            year_1_data = self._extract_year_data(worksheet, self.CELL_MAPPING['year_1'], 1)
-            if year_1_data:
-                data['years'].append(year_1_data)
-            
-            # Обрабатываем второй год
-            year_2_data = self._extract_year_data(worksheet, self.CELL_MAPPING['year_2'], 2)
-            if year_2_data:
-                data['years'].append(year_2_data)
+            # Извлекаем данные по годам с использованием динамического обнаружения
+            self.logger.info("Начинаем извлечение данных по годам страхования")
+            years_result = self._extract_all_years_data(worksheet)
+            data['years'] = years_result['years']
+            data['processing_info'] = years_result['processing_info']
             
             # Проверяем, что есть хотя бы один год с данными
             if not data['years']:
+                self.logger.error("Не найдено ни одного года с валидными данными страхования")
                 raise MissingDataError(['данные по годам страхования'])
             
-            self.logger.debug(f"Извлечены данные для компании '{data['company_name']}' на {len(data['years'])} лет")
+            self.logger.info(f"Извлечение данных компании завершено успешно:")
+            self.logger.info(f"  - Компания: '{data['company_name']}'")
+            self.logger.info(f"  - Количество лет: {len(data['years'])}")
+            self.logger.info(f"  - Годы: {[year['year'] for year in data['years']]}")
+            
             return data
             
         except (MissingDataError, InvalidDataError):
@@ -490,56 +697,68 @@ class ExcelResponseProcessor:
             self.logger.error(error_msg, exc_info=True)
             raise ExcelProcessingError(error_msg) from e
     
-    def _extract_year_data(self, worksheet, year_mapping: Dict[str, str], year_number: int) -> Optional[Dict[str, Any]]:
+    def _extract_year_data(self, worksheet, year_mapping: Dict[str, str], row_number: int) -> Optional[Dict[str, Any]]:
         """
         Извлекает данные для конкретного года
         
         Args:
             worksheet: Рабочий лист Excel
             year_mapping: Маппинг ячеек для года
-            year_number: Номер года (для логирования)
+            row_number: Номер строки Excel (для ошибок и логирования)
             
         Returns:
             Dict с данными года или None, если данных нет
+            
+        Raises:
+            RowProcessingError: При ошибках валидации данных в строке
         """
         try:
             # Проверяем, есть ли год в ячейке
             year_value = self._get_cell_value(worksheet, year_mapping['year'])
             if not year_value:
-                self.logger.debug(f"Год {year_number} не указан, пропускаем")
+                self.logger.debug(f"Строка {row_number}: год не указан, пропускаем")
                 return None
             
-            # Извлекаем все данные года
+            # Извлекаем все данные года с обработкой ошибок для конкретной строки
             year_data = {
-                'year': self._parse_year(year_value, year_mapping['year']),
-                'insurance_sum': self._parse_decimal(
+                'year': self._parse_year_with_row(year_value, year_mapping['year'], row_number),
+                'insurance_sum': self._parse_decimal_with_row(
                     self._get_cell_value(worksheet, year_mapping['insurance_sum']),
                     year_mapping['insurance_sum'],
-                    'страховая сумма'
+                    'страховая сумма',
+                    row_number
                 ),
-                'premium': self._parse_decimal(
+                'premium': self._parse_decimal_with_row(
                     self._get_cell_value(worksheet, year_mapping['premium']),
                     year_mapping['premium'],
-                    'премия'
+                    'премия',
+                    row_number
                 ),
-                'franchise': self._parse_decimal(
+                'franchise': self._parse_decimal_with_row(
                     self._get_cell_value(worksheet, year_mapping['franchise']),
                     year_mapping['franchise'],
                     'франшиза',
+                    row_number,
                     default_value=Decimal('0')
                 ),
-                'installment': self._parse_installment(
+                'installment': self._parse_installment_with_row(
                     self._get_cell_value(worksheet, year_mapping['installment']),
-                    year_mapping['installment']
+                    year_mapping['installment'],
+                    row_number
                 )
             }
             
-            self.logger.debug(f"Извлечены данные для {year_data['year']} года")
+            self.logger.debug(f"Строка {row_number}: извлечены данные для {year_data['year']} года")
             return year_data
             
+        except RowProcessingError:
+            # Переброс ошибок строки как есть
+            raise
         except Exception as e:
-            self.logger.warning(f"Ошибка при извлечении данных {year_number} года: {str(e)}")
-            return None
+            # Неожиданные ошибки оборачиваем в RowProcessingError
+            error_msg = f"Неожиданная ошибка при обработке данных: {str(e)}"
+            self.logger.error(f"Строка {row_number}: {error_msg}")
+            raise RowProcessingError(row_number, 'общая обработка', error_msg)
     
     def _get_cell_value(self, worksheet, cell_address: str):
         """
@@ -561,7 +780,7 @@ class ExcelResponseProcessor:
     
     def _parse_year(self, value, cell_address: str) -> int:
         """
-        Парсит значение года
+        Парсит значение года (устаревший метод для обратной совместимости)
         
         Args:
             value: Значение из ячейки
@@ -586,9 +805,37 @@ class ExcelResponseProcessor:
         except (ValueError, TypeError):
             raise InvalidDataError('год', value, 'положительное число')
     
+    def _parse_year_with_row(self, value, cell_address: str, row_number: int) -> int:
+        """
+        Парсит значение года с указанием номера строки
+        
+        Args:
+            value: Значение из ячейки
+            cell_address: Адрес ячейки для ошибок
+            row_number: Номер строки Excel
+            
+        Returns:
+            Номер года
+            
+        Raises:
+            RowProcessingError: При некорректном значении года
+        """
+        try:
+            if value is None:
+                raise RowProcessingError(row_number, 'год', 'значение не указано', cell_address)
+            
+            year = int(value)
+            if year < 1 or year > 10:  # Разумные ограничения для года страхования
+                raise RowProcessingError(row_number, 'год', f'значение {value} вне допустимого диапазона (1-10)', cell_address)
+            
+            return year
+            
+        except (ValueError, TypeError):
+            raise RowProcessingError(row_number, 'год', f'некорректное значение "{value}", ожидается положительное число', cell_address)
+    
     def _parse_decimal(self, value, cell_address: str, field_name: str, default_value: Optional[Decimal] = None) -> Decimal:
         """
-        Парсит десятичное значение
+        Парсит десятичное значение (устаревший метод для обратной совместимости)
         
         Args:
             value: Значение из ячейки
@@ -620,9 +867,44 @@ class ExcelResponseProcessor:
         except (InvalidOperation, ValueError, TypeError):
             raise InvalidDataError(field_name, value, 'числовое значение')
     
+    def _parse_decimal_with_row(self, value, cell_address: str, field_name: str, row_number: int, default_value: Optional[Decimal] = None) -> Decimal:
+        """
+        Парсит десятичное значение с указанием номера строки
+        
+        Args:
+            value: Значение из ячейки
+            cell_address: Адрес ячейки для ошибок
+            field_name: Название поля для ошибок
+            row_number: Номер строки Excel
+            default_value: Значение по умолчанию
+            
+        Returns:
+            Десятичное значение
+            
+        Raises:
+            RowProcessingError: При некорректном значении
+        """
+        try:
+            if value is None or value == '':
+                if default_value is not None:
+                    return default_value
+                raise RowProcessingError(row_number, field_name, 'значение не указано', cell_address)
+            
+            # Преобразуем в Decimal
+            decimal_value = Decimal(str(value))
+            
+            # Проверяем, что значение положительное (кроме франшизы, которая может быть 0)
+            if decimal_value < 0:
+                raise RowProcessingError(row_number, field_name, f'отрицательное значение {value}, ожидается положительное число', cell_address)
+            
+            return decimal_value
+            
+        except (InvalidOperation, ValueError, TypeError):
+            raise RowProcessingError(row_number, field_name, f'некорректное значение "{value}", ожидается числовое значение', cell_address)
+    
     def _parse_installment(self, value, cell_address: str) -> int:
         """
-        Парсит значение рассрочки
+        Парсит значение рассрочки (устаревший метод для обратной совместимости)
         
         Args:
             value: Значение из ячейки
@@ -654,6 +936,47 @@ class ExcelResponseProcessor:
                 'рассрочка', 
                 value, 
                 f'одно из значений: {", ".join(map(str, self.VALID_INSTALLMENT_VALUES))}'
+            )
+    
+    def _parse_installment_with_row(self, value, cell_address: str, row_number: int) -> int:
+        """
+        Парсит значение рассрочки с указанием номера строки
+        
+        Args:
+            value: Значение из ячейки
+            cell_address: Адрес ячейки для ошибок
+            row_number: Номер строки Excel
+            
+        Returns:
+            Количество платежей в год
+            
+        Raises:
+            RowProcessingError: При некорректном значении рассрочки
+        """
+        try:
+            if value is None or value == '':
+                return 1  # По умолчанию - единовременная оплата
+            
+            installment = int(value)
+            
+            if installment not in self.VALID_INSTALLMENT_VALUES:
+                valid_values = ", ".join(map(str, self.VALID_INSTALLMENT_VALUES))
+                raise RowProcessingError(
+                    row_number, 
+                    'рассрочка', 
+                    f'недопустимое значение {value}, ожидается одно из: {valid_values}',
+                    cell_address
+                )
+            
+            return installment
+            
+        except (ValueError, TypeError):
+            valid_values = ", ".join(map(str, self.VALID_INSTALLMENT_VALUES))
+            raise RowProcessingError(
+                row_number, 
+                'рассрочка', 
+                f'некорректное значение "{value}", ожидается одно из: {valid_values}',
+                cell_address
             )
     
     def validate_extracted_data(self, data: Dict[str, Any]) -> None:

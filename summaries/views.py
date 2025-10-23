@@ -647,7 +647,7 @@ def upload_company_response(request, summary_id):
     Требования: 1.3, 2.1, 4.3, 5.1, 5.2, 5.3, 5.4, 5.5
     """
     from .services import get_excel_response_processor
-    from .services import ExcelProcessingError, InvalidFileFormatError, MissingDataError, InvalidDataError
+    from .services import ExcelProcessingError, InvalidFileFormatError, MissingDataError, InvalidDataError, RowProcessingError
     from .forms import CompanyResponseUploadForm
     
     # Получаем свод с проверкой доступа
@@ -722,13 +722,39 @@ def upload_company_response(request, summary_id):
         logger.info(f"Company response uploaded successfully for summary {summary_id} by user {request.user.username}: "
                    f"Company '{result['company_name']}', {result['offers_created']} offers created for years {result['years']}")
         
-        # Формируем сообщение с учетом сопоставления названия компании
-        base_message = f'Предложение от компании "{result["company_name"]}" успешно загружено'
+        # Формируем улучшенное сообщение об успешной обработке (требование 3.1, 3.2)
+        years_processed = result.get('years', [])
+        skipped_rows = result.get('skipped_rows', [])
+        processed_rows = result.get('processed_rows', [])
+        
+        # Основное сообщение с количеством обработанных лет
+        if len(years_processed) == 1:
+            base_message = f'Предложение от компании "{result["company_name"]}" успешно загружено для {years_processed[0]} года страхования'
+        else:
+            years_str = ', '.join(map(str, sorted(years_processed)))
+            base_message = f'Предложение от компании "{result["company_name"]}" успешно загружено для {len(years_processed)} лет страхования ({years_str})'
         
         # Проверяем информацию о сопоставлении компании
         matching_info = result.get('company_matching_info', {})
         additional_messages = []
         
+        # Информация о пропущенных строках (требование 3.2)
+        if skipped_rows:
+            if len(processed_rows) > 0:
+                additional_messages.append(
+                    f'Обработано строк: {len(processed_rows)} ({", ".join(map(str, processed_rows))}). '
+                    f'Пропущено строк: {len(skipped_rows)} ({", ".join(map(str, skipped_rows))})'
+                )
+            else:
+                additional_messages.append(
+                    f'Пропущено строк с пустыми данными: {len(skipped_rows)} ({", ".join(map(str, skipped_rows))})'
+                )
+        elif processed_rows:
+            additional_messages.append(
+                f'Все данные успешно обработаны из {len(processed_rows)} строк ({", ".join(map(str, processed_rows))})'
+            )
+        
+        # Информация о сопоставлении названия компании
         if matching_info.get('assigned_other'):
             additional_messages.append(
                 f'Внимание: Название компании "{matching_info["original_name"]}" не найдено в списке, '
@@ -748,42 +774,153 @@ def upload_company_response(request, summary_id):
                 'company_name': result['company_name'],
                 'offers_created': result['offers_created'],
                 'years': result['years'],
+                'processed_rows': processed_rows,
+                'skipped_rows': skipped_rows,
                 'matching_info': matching_info
             }
         })
         
     except InvalidFileFormatError as e:
-        # Обработка ошибок валидации файлов (требование 5.1, 5.3, 5.5)
-        error_message = f"Ошибка формата файла: {str(e)}"
+        # Улучшенная обработка ошибок формата файла (требование 3.4, 4.3)
+        error_details = str(e)
+        error_message = f"Ошибка формата файла: {error_details}"
+        
+        # Добавляем инструкции по исправлению
+        correction_instructions = []
+        if 'расширение' in error_details.lower() or '.xlsx' in error_details:
+            correction_instructions.append("Убедитесь, что файл имеет расширение .xlsx")
+            correction_instructions.append("Сохраните файл в формате Excel (.xlsx) если он в другом формате")
+        elif 'лист' in error_details.lower():
+            correction_instructions.append("Убедитесь, что файл содержит хотя бы один рабочий лист")
+        elif 'поврежден' in error_details.lower() or 'corrupt' in error_details.lower():
+            correction_instructions.append("Файл может быть поврежден - попробуйте пересохранить его")
+        else:
+            correction_instructions.append("Убедитесь, что загружаете корректный Excel файл (.xlsx)")
+            correction_instructions.append("Проверьте, что файл не поврежден и открывается в Excel")
+        
+        if correction_instructions:
+            error_message += f". Рекомендации: {'; '.join(correction_instructions)}"
+        
         logger.warning(f"Invalid file format for summary {summary_id} by user {request.user.username}: {error_message}")
         return JsonResponse({
             'success': False,
             'error': error_message,
-            'error_type': 'file_format'
+            'error_type': 'file_format',
+            'correction_instructions': correction_instructions
         }, status=400)
         
     except MissingDataError as e:
-        # Обработка ошибок извлечения данных (требование 5.1, 5.3, 5.5)
-        error_message = f"Отсутствуют обязательные данные: {str(e)}"
+        # Улучшенная обработка ошибок отсутствующих данных (требование 3.4, 4.3)
+        missing_cells = getattr(e, 'missing_cells', [])
+        
+        if missing_cells:
+            cells_str = ', '.join(missing_cells)
+            error_message = f"Отсутствуют обязательные данные в ячейках: {cells_str}"
+            
+            # Добавляем инструкции по исправлению для конкретных ячеек
+            correction_instructions = []
+            for cell in missing_cells:
+                if cell == 'B2':
+                    correction_instructions.append("Ячейка B2: укажите название страховой компании")
+                elif cell.startswith('A') and cell[1:].isdigit():
+                    row = cell[1:]
+                    correction_instructions.append(f"Ячейка A{row}: укажите номер года страхования (1, 2, 3 и т.д.)")
+                elif cell.startswith('B') and cell[1:].isdigit():
+                    row = cell[1:]
+                    correction_instructions.append(f"Ячейка B{row}: укажите страховую сумму")
+                elif cell.startswith('D') and cell[1:].isdigit():
+                    row = cell[1:]
+                    correction_instructions.append(f"Ячейка D{row}: укажите размер премии")
+                elif cell.startswith('E') and cell[1:].isdigit():
+                    row = cell[1:]
+                    correction_instructions.append(f"Ячейка E{row}: укажите размер франшизы (может быть 0)")
+                elif cell.startswith('F') and cell[1:].isdigit():
+                    row = cell[1:]
+                    correction_instructions.append(f"Ячейка F{row}: укажите тип рассрочки (1, 2, 3, 4 или 12)")
+            
+            if correction_instructions:
+                error_message += f". Необходимо заполнить: {'; '.join(correction_instructions)}"
+        else:
+            error_message = f"Отсутствуют обязательные данные: {str(e)}"
+            correction_instructions = ["Проверьте, что файл содержит данные в правильном формате"]
+        
         logger.warning(f"Missing data in file for summary {summary_id} by user {request.user.username}: {error_message}")
         return JsonResponse({
             'success': False,
             'error': error_message,
             'error_type': 'missing_data',
-            'missing_cells': getattr(e, 'missing_cells', [])
+            'missing_cells': missing_cells,
+            'correction_instructions': correction_instructions
         }, status=400)
         
     except InvalidDataError as e:
-        # Обработка ошибок извлечения данных (требование 5.1, 5.3, 5.5)
-        error_message = f"Некорректные данные в файле: {str(e)}"
+        # Улучшенная обработка ошибок некорректных данных (требование 3.4, 4.3)
+        field_name = getattr(e, 'field_name', 'неизвестное поле')
+        field_value = getattr(e, 'value', 'неизвестное значение')
+        expected_format = getattr(e, 'expected_format', 'корректный формат')
+        
+        error_message = f"Некорректные данные в поле '{field_name}': значение '{field_value}' не соответствует ожидаемому формату ({expected_format})"
+        
+        # Добавляем инструкции по исправлению
+        correction_instructions = []
+        if 'год' in field_name.lower():
+            correction_instructions.append("Убедитесь, что год указан числом от 1 до 10")
+        elif 'сумма' in field_name.lower() or 'премия' in field_name.lower() or 'франшиза' in field_name.lower():
+            correction_instructions.append("Убедитесь, что сумма указана числом без пробелов и специальных символов")
+        elif 'рассрочка' in field_name.lower():
+            correction_instructions.append("Рассрочка должна быть одним из значений: 1, 2, 3, 4, 12")
+        
+        if correction_instructions:
+            error_message += f". {' '.join(correction_instructions)}"
+        
         logger.warning(f"Invalid data in file for summary {summary_id} by user {request.user.username}: {error_message}")
         return JsonResponse({
             'success': False,
             'error': error_message,
             'error_type': 'invalid_data',
-            'field_name': getattr(e, 'field_name', None),
-            'field_value': getattr(e, 'value', None),
-            'expected_format': getattr(e, 'expected_format', None)
+            'field_name': field_name,
+            'field_value': field_value,
+            'expected_format': expected_format,
+            'correction_instructions': correction_instructions
+        }, status=400)
+        
+    except RowProcessingError as e:
+        # Обработка ошибок конкретных строк (требование 3.4, 4.3)
+        row_number = getattr(e, 'row_number', 'неизвестная')
+        field_name = getattr(e, 'field_name', 'неизвестное поле')
+        cell_address = getattr(e, 'cell_address', None)
+        error_details = getattr(e, 'error_message', str(e))
+        
+        if cell_address:
+            error_message = f"Ошибка в строке {row_number}, ячейка {cell_address} (поле '{field_name}'): {error_details}"
+        else:
+            error_message = f"Ошибка в строке {row_number} (поле '{field_name}'): {error_details}"
+        
+        # Добавляем инструкции по исправлению в зависимости от типа ошибки
+        correction_instructions = []
+        if 'год' in field_name.lower():
+            correction_instructions.append(f"Проверьте ячейку {cell_address or f'A{row_number}'} - год должен быть числом от 1 до 10")
+        elif 'сумма' in field_name.lower():
+            correction_instructions.append(f"Проверьте ячейку {cell_address or f'B{row_number}'} - страховая сумма должна быть положительным числом")
+        elif 'премия' in field_name.lower():
+            correction_instructions.append(f"Проверьте ячейку {cell_address or f'D{row_number}'} - премия должна быть положительным числом")
+        elif 'франшиза' in field_name.lower():
+            correction_instructions.append(f"Проверьте ячейку {cell_address or f'E{row_number}'} - франшиза должна быть числом (может быть 0)")
+        elif 'рассрочка' in field_name.lower():
+            correction_instructions.append(f"Проверьте ячейку {cell_address or f'F{row_number}'} - рассрочка должна быть одним из значений: 1, 2, 3, 4, 12")
+        
+        if correction_instructions:
+            error_message += f". {' '.join(correction_instructions)}"
+        
+        logger.warning(f"Row processing error for summary {summary_id} by user {request.user.username}: {error_message}")
+        return JsonResponse({
+            'success': False,
+            'error': error_message,
+            'error_type': 'row_processing_error',
+            'row_number': row_number,
+            'field_name': field_name,
+            'cell_address': cell_address,
+            'correction_instructions': correction_instructions
         }, status=400)
         
     except DuplicateOfferError as e:
