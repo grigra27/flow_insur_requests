@@ -41,15 +41,17 @@ class TestOfferForms(TestCase):
         """Test OfferForm with valid data"""
         
         form_data = {
-            'company_name': 'Test Insurance Company',
+            'company_name': 'Абсолют',
             'insurance_year': 2,
             'insurance_sum': Decimal('1000000.00'),
             'franchise_1': Decimal('0.00'),
             'premium_with_franchise_1': Decimal('50000.00'),
             'franchise_2': Decimal('25000.00'),
             'premium_with_franchise_2': Decimal('45000.00'),
-            'installment_available': True,
-            'payments_per_year': 4,
+            'installment_variant_1': True,
+            'payments_per_year_variant_1': 4,
+            'installment_variant_2': False,
+            'payments_per_year_variant_2': 1,
             'notes': 'Test notes'
         }
         
@@ -61,11 +63,11 @@ class TestOfferForms(TestCase):
         offer.summary = self.summary
         offer.save()
         
-        self.assertEqual(offer.company_name, 'Test Insurance Company')
+        self.assertEqual(offer.company_name, 'Абсолют')
         self.assertEqual(offer.insurance_year, 2)
         self.assertEqual(offer.franchise_1, Decimal('0.00'))
         self.assertEqual(offer.premium_with_franchise_1, Decimal('50000.00'))
-        self.assertEqual(offer.payments_per_year, 4)
+        self.assertEqual(offer.payments_per_year_variant_1, 4)
     
     def test_offer_form_year_validation(self):
         """Test year field validation"""
@@ -73,7 +75,7 @@ class TestOfferForms(TestCase):
         # Test valid years
         for year in [1, 2, 3, 5, 10]:
             form_data = {
-                'company_name': 'Test Company',
+                'company_name': 'ВСК',
                 'insurance_year': year,
                 'insurance_sum': Decimal('1000000.00'),
                 'franchise_1': Decimal('0.00'),
@@ -86,7 +88,7 @@ class TestOfferForms(TestCase):
         # Test invalid years (only test values that would actually fail validation)
         for year in [11, 15]:  # 0 and -1 are handled by HTML5 min validation, not Django
             form_data = {
-                'company_name': 'Test Company',
+                'company_name': 'ВСК',
                 'insurance_year': year,
                 'insurance_sum': Decimal('1000000.00'),
                 'franchise_1': Decimal('0.00'),
@@ -102,7 +104,7 @@ class TestOfferForms(TestCase):
         # Test valid payment counts
         for payments in [1, 2, 3, 4, 12]:
             form_data = {
-                'company_name': 'Test Company',
+                'company_name': 'ВСК',
                 'insurance_year': 1,
                 'insurance_sum': Decimal('1000000.00'),
                 'franchise_1': Decimal('0.00'),
@@ -115,7 +117,7 @@ class TestOfferForms(TestCase):
         # Test invalid payment counts when installment is available
         for payments in [13, 24]:
             form_data = {
-                'company_name': 'Test Company',
+                'company_name': 'ВСК',
                 'insurance_year': 1,
                 'insurance_sum': Decimal('1000000.00'),
                 'franchise_1': Decimal('0.00'),
@@ -131,7 +133,7 @@ class TestOfferForms(TestCase):
         
         # Test that when installment is not available, payments_per_year defaults to 1
         form_data = {
-            'company_name': 'Test Company',
+            'company_name': 'ВСК',
             'insurance_year': 1,
             'insurance_sum': Decimal('1000000.00'),
             'franchise_1': Decimal('0.00'),
@@ -154,7 +156,7 @@ class TestOfferForms(TestCase):
         """Test AddOfferToSummaryForm functionality"""
         
         form_data = {
-            'company_name': 'Summary Test Company',
+            'company_name': 'Согаз',
             'insurance_year': 3,
             'insurance_sum': Decimal('800000.00'),
             'franchise_1': Decimal('5000.00'),
@@ -170,7 +172,7 @@ class TestOfferForms(TestCase):
         offer.summary = self.summary
         offer.save()
         
-        self.assertEqual(offer.company_name, 'Summary Test Company')
+        self.assertEqual(offer.company_name, 'Согаз')
         self.assertEqual(offer.insurance_year, 3)
         self.assertEqual(offer.franchise_1, Decimal('5000.00'))
     
@@ -179,7 +181,7 @@ class TestOfferForms(TestCase):
         
         # Test that franchise_1 cannot be negative
         form_data = {
-            'company_name': 'Test Company',
+            'company_name': 'ВСК',
             'insurance_year': 1,
             'insurance_sum': Decimal('1000000.00'),
             'franchise_1': Decimal('-1000.00'),  # Negative franchise
@@ -309,7 +311,7 @@ class TestOfferViews(TestCase):
         url = reverse('summaries:add_offer', kwargs={'summary_id': self.summary.pk})
         
         post_data = {
-            'company_name': 'POST Test Company',
+            'company_name': 'РЕСО',
             'insurance_year': 2,
             'insurance_sum': '1500000.00',
             'franchise_1': '0.00',
@@ -327,7 +329,7 @@ class TestOfferViews(TestCase):
         self.assertEqual(response.status_code, 302)
         
         # Check that offer was created
-        offer = InsuranceOffer.objects.get(company_name='POST Test Company')
+        offer = InsuranceOffer.objects.get(company_name='РЕСО')
         self.assertEqual(offer.insurance_year, 2)
         self.assertEqual(offer.franchise_1, Decimal('0.00'))
         self.assertEqual(offer.premium_with_franchise_1, Decimal('65000.00'))
@@ -342,7 +344,7 @@ class TestOfferViews(TestCase):
         # Create offer to edit
         offer = InsuranceOffer.objects.create(
             summary=self.summary,
-            company_name="Edit Test Company",
+            company_name="Ингосстрах",
             insurance_year=1,
             insurance_sum=Decimal("900000.00"),
             franchise_1=Decimal("5000.00"),

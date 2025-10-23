@@ -12,6 +12,16 @@
                 <small class="text-muted">Копирование предложения от {{ original_offer.company_name }} ({{ original_offer.get_insurance_year_display }}) - Свод к {{ original_offer.summary.request.get_display_name }}</small>
             </div>
             <div class="card-body">
+                <!-- Информационное сообщение о выборе страховой компании -->
+                <div class="alert alert-info d-flex align-items-center mb-4" role="alert">
+                    <i class="bi bi-info-circle-fill me-2"></i>
+                    <div>
+                        <strong>Выбор страховой компании:</strong> Используйте выпадающий список для выбора страховщика. 
+                        Если нужной компании нет в списке, выберите вариант "Другое". 
+                        Это обеспечит единообразие данных в системе.
+                    </div>
+                </div>
+                
                 <form method="post">
                     {% csrf_token %}
                     
@@ -20,13 +30,18 @@
                         <div class="col-md-6">
                             <div class="mb-3">
                                 <label for="{{ form.company_name.id_for_label }}" class="form-label">
-                                    {{ form.company_name.label }}
+                                    {{ form.company_name.label }} <span class="text-danger">*</span>
                                 </label>
                                 {{ form.company_name }}
+                                {% if form.company_name.help_text %}
+                                    <div class="form-text">
+                                        <i class="bi bi-info-circle"></i> {{ form.company_name.help_text }}
+                                    </div>
+                                {% endif %}
                                 {% if form.company_name.errors %}
                                     <div class="text-danger">
                                         {% for error in form.company_name.errors %}
-                                            <small>{{ error }}</small>
+                                            <small><i class="bi bi-exclamation-triangle"></i> {{ error }}</small>
                                         {% endfor %}
                                     </div>
                                 {% endif %}
@@ -336,6 +351,32 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
         }
+    }
+    
+    // Обработчик для выбора страховой компании
+    const companySelect = document.getElementById('id_company_name');
+    if (companySelect) {
+        companySelect.addEventListener('change', function(e) {
+            const selectedValue = e.target.value;
+            const existingAlert = document.querySelector('.company-selection-alert');
+            
+            // Удаляем предыдущее уведомление
+            if (existingAlert) {
+                existingAlert.remove();
+            }
+            
+            // Показываем уведомление при выборе "другое"
+            if (selectedValue === 'другое') {
+                const alert = document.createElement('div');
+                alert.className = 'alert alert-warning company-selection-alert mt-2';
+                alert.innerHTML = `
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    <strong>Выбрано "Другое":</strong> Этот вариант используется для страховых компаний, 
+                    которых нет в основном списке. Убедитесь, что нужной компании действительно нет среди предложенных вариантов.
+                `;
+                e.target.parentNode.appendChild(alert);
+            }
+        });
     }
     
     // Добавляем обработчики событий

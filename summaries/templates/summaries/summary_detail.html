@@ -315,6 +315,47 @@
                 {% endif %}
             </div>
         </div>
+
+        <!-- Ответы компаний -->
+        {% if summary.status == 'collecting' %}
+        <div class="card mt-4">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-upload"></i> Ответы компаний</h6>
+            </div>
+            <div class="card-body">
+                <form id="company-response-form" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="company-response-file" class="form-label">Файл с предложением</label>
+                        <input type="file" class="form-control" id="company-response-file" 
+                               name="excel_file" accept=".xlsx" required>
+                        <div class="form-text">
+                            <i class="bi bi-info-circle"></i> 
+                            Загрузите Excel файл (.xlsx) с предложением от страховой компании 
+                            по утвержденному шаблону. Один файл = одно предложение от одной компании.
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-upload"></i> Загрузить предложение
+                    </button>
+                </form>
+                
+                <!-- Индикатор загрузки -->
+                <div id="upload-progress" class="mt-3" style="display: none;">
+                    <div class="progress">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                             role="progressbar" style="width: 100%"></div>
+                    </div>
+                    <small class="text-muted">Обработка файла...</small>
+                </div>
+
+                <!-- Результаты загрузки -->
+                <div id="upload-results" class="mt-3" style="display: none;">
+                    <!-- Сообщения будут добавлены через JavaScript -->
+                </div>
+            </div>
+        </div>
+        {% endif %}
     </div>
 </div>
 {% endblock %}
@@ -679,6 +720,122 @@
         opacity: 1;
     }
 }
+
+/* Company response upload styles */
+#company-response-form {
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    padding: 1.5rem;
+    border: 2px dashed #dee2e6;
+    transition: all 0.3s ease;
+}
+
+#company-response-form:hover {
+    border-color: #0d6efd;
+    background-color: #f0f8ff;
+}
+
+#company-response-form.dragover {
+    border-color: #198754;
+    background-color: #f0fff4;
+    transform: scale(1.02);
+}
+
+#company-response-file {
+    border: 2px solid #dee2e6;
+    border-radius: 6px;
+    padding: 0.75rem;
+    transition: border-color 0.3s ease;
+}
+
+#company-response-file:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+#upload-progress .progress {
+    height: 8px;
+    border-radius: 4px;
+    background-color: #e9ecef;
+}
+
+#upload-progress .progress-bar {
+    background: linear-gradient(45deg, #0d6efd, #198754);
+}
+
+#upload-results .alert {
+    border-radius: 6px;
+    border-left: 4px solid;
+    animation: fadeInUp 0.3s ease-out;
+}
+
+#upload-results .alert-success {
+    border-left-color: #198754;
+    background-color: #d1e7dd;
+}
+
+#upload-results .alert-danger {
+    border-left-color: #dc3545;
+    background-color: #f8d7da;
+}
+
+#upload-results .alert ul {
+    margin-bottom: 0;
+    padding-left: 1.5rem;
+}
+
+#upload-results .alert li {
+    margin-bottom: 0.25rem;
+    color: inherit;
+}
+
+#upload-results .alert strong {
+    font-weight: 600;
+}
+
+#upload-results .alert .bi {
+    margin-right: 0.5rem;
+    font-size: 1.1em;
+}
+
+/* Highlight problematic fields in error messages */
+#upload-results .field-error {
+    background-color: rgba(220, 53, 69, 0.1);
+    padding: 0.2rem 0.4rem;
+    border-radius: 3px;
+    font-family: monospace;
+    font-weight: 600;
+}
+
+#upload-results .success-detail {
+    background-color: rgba(25, 135, 84, 0.1);
+    padding: 0.2rem 0.4rem;
+    border-radius: 3px;
+    font-weight: 600;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Responsive styles for upload form */
+@media (max-width: 768px) {
+    #company-response-form {
+        padding: 1rem;
+        margin: 0 -0.5rem;
+    }
+    
+    #company-response-form .form-text {
+        font-size: 0.85rem;
+    }
+}
 </style>
 {% endblock %}
 
@@ -1022,6 +1179,295 @@ function hideLoadingIndicator() {
     }
 }
 
+// Company response upload functionality
+function initializeCompanyResponseUpload() {
+    const form = document.getElementById('company-response-form');
+    const fileInput = document.getElementById('company-response-file');
+    const progressDiv = document.getElementById('upload-progress');
+    const resultsDiv = document.getElementById('upload-results');
+    
+    if (!form) return; // Form only exists when status is 'collecting'
+    
+    // Handle form submission
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const file = fileInput.files[0];
+        if (!file) {
+            showUploadError('Пожалуйста, выберите файл для загрузки');
+            return;
+        }
+        
+        // Validate file type
+        if (!file.name.toLowerCase().endsWith('.xlsx')) {
+            showUploadError('Пожалуйста, выберите файл в формате .xlsx');
+            return;
+        }
+        
+        // Validate file size (5MB limit)
+        if (file.size > 5 * 1024 * 1024) {
+            showUploadError('Размер файла не должен превышать 5MB');
+            return;
+        }
+        
+        uploadCompanyResponse(file);
+    });
+    
+    // Add drag and drop functionality
+    form.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        form.classList.add('dragover');
+    });
+    
+    form.addEventListener('dragleave', function(e) {
+        e.preventDefault();
+        form.classList.remove('dragover');
+    });
+    
+    form.addEventListener('drop', function(e) {
+        e.preventDefault();
+        form.classList.remove('dragover');
+        
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            fileInput.files = files;
+            // Trigger change event
+            const event = new Event('change', { bubbles: true });
+            fileInput.dispatchEvent(event);
+        }
+    });
+    
+    // File input change handler
+    fileInput.addEventListener('change', function() {
+        const file = this.files[0];
+        if (file) {
+            // Clear previous results
+            hideUploadResults();
+            
+            // Show file info
+            const fileInfo = document.createElement('div');
+            fileInfo.className = 'mt-2 text-muted small';
+            fileInfo.innerHTML = `<i class="bi bi-file-earmark-excel"></i> ${file.name} (${formatFileSize(file.size)})`;
+            
+            // Remove previous file info
+            const existingInfo = form.querySelector('.file-info');
+            if (existingInfo) {
+                existingInfo.remove();
+            }
+            
+            fileInfo.className += ' file-info';
+            fileInput.parentNode.appendChild(fileInfo);
+        }
+    });
+}
+
+function uploadCompanyResponse(file) {
+    const form = document.getElementById('company-response-form');
+    const submitButton = form.querySelector('button[type="submit"]');
+    const progressDiv = document.getElementById('upload-progress');
+    const resultsDiv = document.getElementById('upload-results');
+    
+    // Show progress indicator
+    showUploadProgress();
+    
+    // Disable form
+    submitButton.disabled = true;
+    submitButton.innerHTML = '<i class="bi bi-hourglass-split"></i> Загрузка...';
+    
+    // Prepare form data
+    const formData = new FormData();
+    formData.append('excel_file', file);
+    formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+    
+    // Get summary ID from URL or data attribute
+    const summaryId = getSummaryId();
+    
+    // Upload file
+    fetch(`/summaries/${summaryId}/upload-company-response/`, {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        hideUploadProgress();
+        
+        if (data.success) {
+            // Prepare details array including additional messages
+            let allDetails = [];
+            
+            if (data.details) {
+                allDetails.push(`Создано предложений: ${data.details.offers_created}`);
+                if (data.details.years && data.details.years.length > 0) {
+                    allDetails.push(`Годы страхования: ${data.details.years.join(', ')}`);
+                }
+            }
+            
+            // Add additional messages about company matching
+            if (data.additional_messages && data.additional_messages.length > 0) {
+                allDetails = allDetails.concat(data.additional_messages);
+            }
+            
+            showUploadSuccess(data.message, allDetails);
+            
+            // Clear form
+            form.reset();
+            const fileInfo = form.querySelector('.file-info');
+            if (fileInfo) {
+                fileInfo.remove();
+            }
+            
+            // Reload page after short delay to show new offers
+            setTimeout(() => {
+                location.reload();
+            }, 2000);
+        } else {
+            showUploadError(data.error, data.details);
+        }
+    })
+    .catch(error => {
+        console.error('Upload error:', error);
+        hideUploadProgress();
+        showUploadError('Произошла ошибка при загрузке файла. Попробуйте еще раз.');
+    })
+    .finally(() => {
+        // Re-enable form
+        submitButton.disabled = false;
+        submitButton.innerHTML = '<i class="bi bi-upload"></i> Загрузить предложение';
+    });
+}
+
+function showUploadProgress() {
+    const progressDiv = document.getElementById('upload-progress');
+    if (progressDiv) {
+        progressDiv.style.display = 'block';
+    }
+}
+
+function hideUploadProgress() {
+    const progressDiv = document.getElementById('upload-progress');
+    if (progressDiv) {
+        progressDiv.style.display = 'none';
+    }
+}
+
+function showUploadResults(content, type = 'info') {
+    const resultsDiv = document.getElementById('upload-results');
+    if (resultsDiv) {
+        resultsDiv.innerHTML = content;
+        resultsDiv.style.display = 'block';
+    }
+}
+
+function hideUploadResults() {
+    const resultsDiv = document.getElementById('upload-results');
+    if (resultsDiv) {
+        resultsDiv.style.display = 'none';
+        resultsDiv.innerHTML = '';
+    }
+}
+
+function showUploadSuccess(message, details) {
+    let content = `
+        <div class="alert alert-success">
+            <i class="bi bi-check-circle"></i>
+            <strong>Успешно!</strong> ${message}
+    `;
+    
+    if (details && details.length > 0) {
+        content += '<ul class="mt-2 mb-0">';
+        details.forEach(detail => {
+            // Check if this is a company matching message
+            if (detail.includes('Внимание:') || detail.includes('не найдено в списке')) {
+                // Style warning messages differently
+                content += `<li class="text-warning"><i class="bi bi-exclamation-triangle"></i> ${detail}</li>`;
+            } else if (detail.includes('автоматически сопоставлено')) {
+                // Style matching info messages
+                content += `<li class="text-info"><i class="bi bi-info-circle"></i> ${detail}</li>`;
+            } else {
+                // Regular success details
+                const formattedDetail = detail.replace(/(\d+\s*год[а-я]*)/gi, '<span class="success-detail">$1</span>');
+                content += `<li>${formattedDetail}</li>`;
+            }
+        });
+        content += '</ul>';
+    }
+    
+    content += '</div>';
+    showUploadResults(content, 'success');
+    
+    // Also show a toast notification
+    showSuccessMessage('Предложение успешно загружено!', 3000);
+}
+
+function showUploadError(message, details) {
+    let content = `
+        <div class="alert alert-danger">
+            <i class="bi bi-exclamation-triangle"></i>
+            <strong>Ошибка!</strong> ${message}
+    `;
+    
+    if (details && details.length > 0) {
+        content += '<ul class="mt-2 mb-0">';
+        details.forEach(detail => {
+            // Highlight field names and cell references in error messages
+            let formattedDetail = detail
+                .replace(/([A-Z]\d+)/g, '<span class="field-error">$1</span>') // Excel cell references
+                .replace(/(франшиза|премия|страховая сумма|рассрочка|год|компания)/gi, '<span class="field-error">$1</span>'); // Field names
+            
+            content += `<li>${formattedDetail}</li>`;
+        });
+        content += '</ul>';
+    }
+    
+    content += '</div>';
+    showUploadResults(content, 'error');
+    
+    // Also show a toast notification
+    showErrorMessage('Ошибка при загрузке файла', 5000);
+}
+
+function getSummaryId() {
+    // Try to get from URL path
+    const pathParts = window.location.pathname.split('/');
+    const summaryIndex = pathParts.indexOf('summary');
+    if (summaryIndex !== -1 && pathParts[summaryIndex + 1]) {
+        return pathParts[summaryIndex + 1];
+    }
+    
+    // Fallback: try to get from data attribute or other sources
+    const summaryElement = document.querySelector('[data-summary-id]');
+    if (summaryElement) {
+        return summaryElement.dataset.summaryId;
+    }
+    
+    // Last resort: extract from existing buttons/links
+    const statusButton = document.querySelector('button[onclick*="changeStatus"]');
+    if (statusButton) {
+        const match = statusButton.getAttribute('onclick').match(/changeStatus\((\d+)\)/);
+        if (match) {
+            return match[1];
+        }
+    }
+    
+    throw new Error('Could not determine summary ID');
+}
+
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
 // Инициализация при загрузке страницы
 document.addEventListener('DOMContentLoaded', function() {
     // Сохраняем время загрузки страницы
@@ -1030,6 +1476,7 @@ document.addEventListener('DOMContentLoaded', function() {
     checkBrowserCompatibility();
     updateOfferDisplay();
     enhanceTableInteractivity();
+    initializeCompanyResponseUpload();
     
     // Устанавливаем текущий статус в селекте
     const statusSelect = document.getElementById('status-select');

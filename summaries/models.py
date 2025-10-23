@@ -1,7 +1,100 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
 from insurance_requests.models import InsuranceRequest
 from decimal import Decimal
+
+
+class InsuranceCompany(models.Model):
+    """Модель для управления списком страховых компаний"""
+    
+    name = models.CharField(
+        max_length=255, 
+        unique=True, 
+        verbose_name='Название компании',
+        help_text='Уникальное название страховой компании'
+    )
+    display_name = models.CharField(
+        max_length=255, 
+        verbose_name='Отображаемое название',
+        help_text='Название для отображения в формах (может совпадать с основным названием)'
+    )
+    is_active = models.BooleanField(
+        default=True, 
+        verbose_name='Активная',
+        help_text='Доступна ли компания для выбора в формах'
+    )
+    is_other = models.BooleanField(
+        default=False, 
+        verbose_name='Значение "другое"',
+        help_text='Является ли это значением "другое" для нестандартных компаний'
+    )
+    sort_order = models.PositiveIntegerField(
+        default=100, 
+        verbose_name='Порядок сортировки',
+        help_text='Порядок отображения в списках (меньшее значение = выше в списке)'
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Дата создания')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Дата обновления')
+    
+    class Meta:
+        verbose_name = 'Страховая компания'
+        verbose_name_plural = 'Страховые компании'
+        ordering = ['sort_order', 'name']
+    
+    def __str__(self):
+        return self.display_name or self.name
+    
+    def clean(self):
+        """Валидация модели"""
+        super().clean()
+        
+        # Проверяем, что есть только одно значение "другое"
+        if self.is_other:
+            existing_other = InsuranceCompany.objects.filter(is_other=True)
+            if self.pk:
+                existing_other = existing_other.exclude(pk=self.pk)
+            if existing_other.exists():
+                raise ValidationError({
+                    'is_other': 'Может существовать только одно значение "другое"'
+                })
+        
+        # Устанавливаем display_name равным name, если не указано
+        if not self.display_name:
+            self.display_name = self.name
+    
+    def save(self, *args, **kwargs):
+        """Переопределенное сохранение с валидацией"""
+        self.full_clean()
+        super().save(*args, **kwargs)
+    
+    def get_offers_count(self):
+        """Возвращает количество предложений от этой компании"""
+        return InsuranceOffer.objects.filter(company_name=self.name).count()
+    
+    def has_offers(self):
+        """Проверяет, есть ли предложения от этой компании"""
+        return self.get_offers_count() > 0
+    
+    @classmethod
+    def get_choices_for_forms(cls):
+        """Возвращает список выборов для использования в формах"""
+        companies = cls.objects.filter(is_active=True).order_by('sort_order', 'name')
+        choices = [('', 'Выберите страховщика')]
+        choices.extend([(company.name, company.display_name) for company in companies])
+        return choices
+    
+    @classmethod
+    def get_company_names(cls):
+        """Возвращает список названий активных компаний"""
+        return list(cls.objects.filter(is_active=True).values_list('name', flat=True))
+    
+    @classmethod
+    def is_valid_company_name(cls, name):
+        """Проверяет, является ли название компании валидным"""
+        if not name:
+            return False
+        return cls.objects.filter(name=name, is_active=True).exists()
 
 
 class InsuranceSummary(models.Model):
@@ -471,6 +564,36 @@ class InsuranceOffer(models.Model):
             })
         
         return variants
+    
+    def clean(self):
+        """Валидация модели на уровне объекта"""
+        super().clean()
+        
+        # Импортируем функцию валидации из constants
+        from .constants import is_valid_company_name, normalize_company_name
+        
+        # Нормализуем название компании
+        if self.company_name:
+            self.company_name = normalize_company_name(self.company_name)
+        
+        # Валидируем название страховой компании
+        if self.company_name and not is_valid_company_name(self.company_name):
+            raise ValidationError({
+                'company_name': f'Недопустимое название страховой компании: "{self.company_name}". '
+                               f'Выберите компанию из предопределенного списка или используйте "другое".'
+            })
+        
+        # Дополнительная валидация: проверяем, что название не пустое
+        if not self.company_name:
+            raise ValidationError({
+                'company_name': 'Название страховой компании не может быть пустым.'
+            })
+    
+    def save(self, *args, **kwargs):
+        """Переопределенное сохранение с автоматической валидацией"""
+        # Выполняем валидацию перед сохранением
+        self.full_clean()
+        super().save(*args, **kwargs)
 
 
 class SummaryTemplate(models.Model):

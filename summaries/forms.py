@@ -4,31 +4,30 @@
 from django import forms
 from django.core.exceptions import ValidationError
 from .models import InsuranceOffer, InsuranceSummary, SummaryTemplate
+from .constants import get_company_choices, is_valid_company_name, get_company_names
 from decimal import Decimal
-
-
-# Константа со списком страховых компаний
-INSURANCE_COMPANIES = [
-    ('', 'Выберите страховщика'),
-    ('Абсолют', 'Абсолют'),
-    ('Альфа', 'Альфа'),
-    ('ВСК', 'ВСК'),
-    ('Согаз', 'Согаз'),
-    ('РЕСО', 'РЕСО'),
-    ('Ингосстрах', 'Ингосстрах'),
-    ('Ренессанс', 'Ренессанс'),
-    ('Росгосстрах', 'Росгосстрах'),
-    ('Пари', 'Пари'),
-    ('Совкомбанк СК', 'Совкомбанк СК'),
-    ('Согласие', 'Согласие'),
-    ('Энергогарант', 'Энергогарант'),
-    ('ПСБ-страхование', 'ПСБ-страхование'),
-    ('Зетта', 'Зетта'),
-]
+import os
 
 
 class OfferForm(forms.ModelForm):
     """Форма для добавления/редактирования предложения от страховщика"""
+    
+    # Поле для выбора страховщика из предопределенного списка
+    company_name = forms.ChoiceField(
+        choices=[],  # Будет заполнено в __init__
+        label='Страховая компания',
+        help_text='Выберите страховую компанию из списка. Если нужной компании нет в списке, выберите "Другое".',
+        error_messages={
+            'required': 'Пожалуйста, выберите страховую компанию из выпадающего списка.',
+            'invalid_choice': 'Выберите страховую компанию из предложенного списка. Если нужной компании нет, используйте вариант "Другое".'
+        },
+        widget=forms.Select(attrs={
+            'class': 'form-select',
+            'data-bs-toggle': 'tooltip',
+            'data-bs-placement': 'top',
+            'title': 'Список содержит основные страховые компании. Для нестандартных компаний используйте "Другое".'
+        })
+    )
     
     # Новые поля для рассрочки по вариантам премии
     payments_per_year_variant_1 = forms.IntegerField(
@@ -49,6 +48,10 @@ class OfferForm(forms.ModelForm):
         )
     )
     
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Динамически загружаем список страховых компаний
+        self.fields['company_name'].choices = get_company_choices()
     class Meta:
         model = InsuranceOffer
         fields = [
@@ -60,7 +63,6 @@ class OfferForm(forms.ModelForm):
             'notes', 'attachment_file'
         ]
         widgets = {
-            'company_name': forms.TextInput(attrs={'class': 'form-control'}),
             'insurance_year': forms.NumberInput(attrs={
                 'class': 'form-control',
                 'min': '1',
@@ -94,6 +96,21 @@ class OfferForm(forms.ModelForm):
             'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
             'attachment_file': forms.FileInput(attrs={'class': 'form-control'}),
         }
+    
+    def clean_company_name(self):
+        """Валидация выбора страховой компании"""
+        company_name = self.cleaned_data.get('company_name')
+        
+        if not company_name:
+            raise ValidationError('Пожалуйста, выберите страховую компанию из выпадающего списка.')
+        
+        if not is_valid_company_name(company_name):
+            raise ValidationError(
+                'Выберите страховую компанию из предложенного списка. '
+                'Если нужной компании нет, используйте вариант "Другое".'
+            )
+        
+        return company_name
     
     def clean_insurance_year(self):
         """Валидация года страхования"""
@@ -262,9 +279,19 @@ class AddOfferToSummaryForm(forms.ModelForm):
     
     # Поле для выбора страховщика из предопределенного списка
     company_name = forms.ChoiceField(
-        choices=INSURANCE_COMPANIES,
+        choices=[],  # Будет заполнено в __init__
         label='Страховая компания',
-        widget=forms.Select(attrs={'class': 'form-select'})
+        help_text='Выберите страховую компанию из списка. Если нужной компании нет в списке, выберите "Другое".',
+        error_messages={
+            'required': 'Пожалуйста, выберите страховую компанию из выпадающего списка.',
+            'invalid_choice': 'Выберите страховую компанию из предложенного списка. Если нужной компании нет, используйте вариант "Другое".'
+        },
+        widget=forms.Select(attrs={
+            'class': 'form-select',
+            'data-bs-toggle': 'tooltip',
+            'data-bs-placement': 'top',
+            'title': 'Список содержит основные страховые компании. Для нестандартных компаний используйте "Другое".'
+        })
     )
     
     # Новые поля для рассрочки по вариантам премии
@@ -286,6 +313,10 @@ class AddOfferToSummaryForm(forms.ModelForm):
         )
     )
     
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Динамически загружаем список страховых компаний
+        self.fields['company_name'].choices = get_company_choices()
     class Meta:
         model = InsuranceOffer
         fields = [
@@ -334,13 +365,15 @@ class AddOfferToSummaryForm(forms.ModelForm):
     def clean_company_name(self):
         """Валидация выбора страховщика"""
         company_name = self.cleaned_data.get('company_name')
-        valid_companies = [choice[0] for choice in INSURANCE_COMPANIES if choice[0]]  # Исключаем пустой выбор
         
         if not company_name:
-            raise ValidationError('Выберите страховую компанию')
+            raise ValidationError('Пожалуйста, выберите страховую компанию из выпадающего списка.')
         
-        if company_name not in valid_companies:
-            raise ValidationError('Выберите страховщика из списка')
+        if not is_valid_company_name(company_name):
+            raise ValidationError(
+                'Выберите страховую компанию из предложенного списка. '
+                'Если нужной компании нет, используйте вариант "Другое".'
+            )
         
         return company_name
     
@@ -606,6 +639,136 @@ class SummaryFilterForm(forms.Form):
             cleaned_data['year'] = datetime.now().year
         
         return cleaned_data
+
+
+class CompanyResponseUploadForm(forms.Form):
+    """Форма для загрузки ответов страховых компаний"""
+    
+    excel_file = forms.FileField(
+        label='Файл с предложением',
+        help_text='Загрузите Excel файл (.xlsx) с предложением от страховой компании по утвержденному шаблону',
+        widget=forms.FileInput(attrs={
+            'class': 'form-control',
+            'accept': '.xlsx',
+            'id': 'company-response-file'
+        })
+    )
+    
+    def clean_excel_file(self):
+        """Валидация загружаемого Excel файла"""
+        file = self.cleaned_data.get('excel_file')
+        
+        if not file:
+            raise ValidationError('Файл не выбран')
+        
+        # Проверяем расширение файла - только .xlsx
+        ext = os.path.splitext(file.name)[1].lower()
+        if ext != '.xlsx':
+            raise ValidationError(
+                'Поддерживаются только файлы формата .xlsx. '
+                'Пожалуйста, сохраните файл в формате Excel (.xlsx) и попробуйте снова.'
+            )
+        
+        # Проверяем размер файла (максимум 5MB)
+        max_size = 5 * 1024 * 1024  # 5MB в байтах
+        if file.size > max_size:
+            raise ValidationError(
+                f'Размер файла не должен превышать 5MB. '
+                f'Текущий размер: {file.size / (1024 * 1024):.1f}MB'
+            )
+        
+        # Проверяем минимальный размер файла (не менее 1KB)
+        min_size = 1024  # 1KB
+        if file.size < min_size:
+            raise ValidationError(
+                'Файл слишком мал. Убедитесь, что загружаете корректный Excel файл.'
+            )
+        
+        # Проверяем MIME тип для дополнительной безопасности
+        valid_mime_types = [
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'application/octet-stream'  # Иногда браузеры отправляют этот тип для .xlsx
+        ]
+        
+        if hasattr(file, 'content_type') and file.content_type:
+            if file.content_type not in valid_mime_types:
+                raise ValidationError(
+                    'Неверный тип файла. Загрузите файл Excel в формате .xlsx'
+                )
+        
+        # Базовая проверка структуры файла
+        try:
+            # Пытаемся прочитать файл как Excel для проверки его корректности
+            import openpyxl
+            from io import BytesIO
+            
+            # Создаем копию файла для проверки, не изменяя оригинальный
+            file_content = file.read()
+            file.seek(0)  # Возвращаем указатель в начало файла
+            
+            # Проверяем, что файл можно открыть как Excel
+            try:
+                workbook = openpyxl.load_workbook(BytesIO(file_content), read_only=True)
+                
+                # Проверяем, что есть хотя бы один лист
+                if not workbook.worksheets:
+                    raise ValidationError(
+                        'Excel файл не содержит листов с данными'
+                    )
+                
+                # Проверяем первый лист на наличие базовой структуры
+                worksheet = workbook.active
+                
+                # Проверяем наличие ключевых ячеек согласно шаблону
+                # B2 должна содержать название компании
+                company_cell = worksheet['B2']
+                if not company_cell.value or str(company_cell.value).strip() == '':
+                    raise ValidationError(
+                        'Ошибка в структуре файла: ячейка B2 должна содержать название страховой компании'
+                    )
+                
+                # Проверяем наличие данных в строке 6 (первый год)
+                year_1_cells = ['A6', 'B6', 'D6', 'E6', 'F6']
+                has_year_1_data = any(
+                    worksheet[cell].value is not None and str(worksheet[cell].value).strip() != ''
+                    for cell in year_1_cells
+                )
+                
+                # Проверяем наличие данных в строке 7 (второй год)
+                year_2_cells = ['A7', 'B7', 'D7', 'E7', 'F7']
+                has_year_2_data = any(
+                    worksheet[cell].value is not None and str(worksheet[cell].value).strip() != ''
+                    for cell in year_2_cells
+                )
+                
+                if not has_year_1_data and not has_year_2_data:
+                    raise ValidationError(
+                        'Ошибка в структуре файла: не найдены данные предложений в строках 6 или 7. '
+                        'Убедитесь, что файл соответствует утвержденному шаблону.'
+                    )
+                
+                workbook.close()
+                
+            except openpyxl.utils.exceptions.InvalidFileException:
+                raise ValidationError(
+                    'Поврежденный или некорректный Excel файл. '
+                    'Убедитесь, что файл не поврежден и соответствует формату .xlsx'
+                )
+            except Exception as e:
+                # Если это не наша ValidationError, то это системная ошибка
+                if isinstance(e, ValidationError):
+                    raise e
+                raise ValidationError(
+                    'Не удалось прочитать Excel файл. '
+                    'Убедитесь, что файл не поврежден и соответствует утвержденному шаблону.'
+                )
+                
+        except ImportError:
+            # Если openpyxl не установлен, пропускаем детальную проверку структуры
+            # Это будет обработано на уровне сервиса
+            pass
+        
+        return file
 
 
 class CompanyOfferSearchForm(forms.Form):
