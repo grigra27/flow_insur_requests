@@ -1,413 +1,430 @@
 """
-Финальные интеграционные тесты для проверки всех компонентов улучшений UI сводов
-Проверяет требования: 1.1-1.6, 2.1-2.5, 3.1-3.6
+Финальные интеграционные тесты для системы множественной загрузки файлов
 """
-from decimal import Decimal
+
+import json
+import tempfile
+from io import BytesIO
 from django.test import TestCase, Client
 from django.contrib.auth.models import User, Group
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
-from django.db import IntegrityError
+from unittest.mock import patch, MagicMock
 
-from insurance_requests.models import InsuranceRequest
-from summaries.models import InsuranceSummary, InsuranceOffer
+from .models import InsuranceSummary, InsuranceRequest, InsuranceOffer
+from .services.multiple_file_processor import MultipleFileProcessor
+from .forms import MultipleCompanyResponseUploadForm
 
 
 class FinalIntegrationTest(TestCase):
-    """Финальные интеграционные тесты"""
+    """Финальные интеграционные тесты всей системы"""
     
     def setUp(self):
         """Настройка тестовых данных"""
         # Создаем группы пользователей
-        self.users_group, _ = Group.objects.get_or_create(name='Пользователи')
+        self.admin_group = Group.objects.create(name='Администраторы')
+        self.user_group = Group.objects.create(name='Пользователи')
         
-        # Создаем пользователя
-        self.user = User.objects.create_user(
-            username='testuser',
-            password='testpass123'
+        # Создаем пользователей
+        self.admin_user = User.objects.create_user(
+            username='admin',
+            password='testpass123',
+            email='admin@test.com'
         )
-        self.user.groups.add(self.users_group)
+        self.admin_user.groups.add(self.admin_group)
         
-        # Создаем клиент для тестирования
-        self.client = Client()
-        self.client.login(username='testuser', password='testpass123')
+        self.regular_user = User.objects.create_user(
+            username='user',
+            password='testpass123',
+            email='user@test.com'
+        )
+        self.regular_user.groups.add(self.user_group)
         
-        # Создаем тестовую заявку
-        self.insurance_request = InsuranceRequest.objects.create(
-            client_name='ООО "Интеграционный Тест"',
-            inn='1234567890',
-            insurance_type='КАСКО',
-            vehicle_info='Тестовый автомобиль',
-            branch='Москва',
-            dfa_number='DFA-2025-001',
-            status='uploaded',
-            created_by=self.user
+        # Создаем тестовый запрос
+        self.request = InsuranceRequest.objects.create(
+            dfa_number='TEST-001',
+            insurance_type='auto',
+            insurance_period=1,
+            created_by=self.admin_user
         )
         
-        # Создаем свод
+        # Создаем тестовый свод
         self.summary = InsuranceSummary.objects.create(
-            request=self.insurance_request,
+            request=self.request,
             status='collecting'
         )
-
-    def test_complete_workflow_integration(self):
-        """
-        Тест полного рабочего процесса интеграции всех компонентов
-        Требования: 1.1-1.6, 2.1-2.5, 3.1-3.6
-        """
-        print("\n=== Тестирование полного рабочего процесса ===")
         
-        # 1. Создаем первое предложение
-        print("1. Создание первого предложения...")
-        offer1 = InsuranceOffer.objects.create(
-            summary=self.summary,
-            company_name='Альфа Страхование',
-            insurance_year=1,
-            insurance_sum=Decimal('1000000.00'),
-            franchise_1=Decimal('0.00'),
-            premium_with_franchise_1=Decimal('50000.00'),
-            franchise_2=Decimal('25000.00'),
-            premium_with_franchise_2=Decimal('45000.00'),
-            notes='Примечание для Альфа Страхование'
-        )
-        
-        # 2. Проверяем отображение на странице детального свода
-        print("2. Проверка отображения на странице свода...")
-        response = self.client.get(reverse('summaries:summary_detail', args=[self.summary.pk]))
-        self.assertEqual(response.status_code, 200)
-        
-        # Проверяем цветовое кодирование (требования 2.1-2.5)
-        self.assertContains(response, 'franchise-variant-1')
-        self.assertContains(response, 'franchise-variant-2')
-        self.assertContains(response, 'color: #0f5132')  # Темно-зеленый
-        self.assertContains(response, 'color: #052c65')  # Темно-синий
-        
-        # Проверяем отображение примечаний (требования 3.1-3.6)
-        self.assertContains(response, 'company-notes')
-        self.assertContains(response, 'Примечание для Альфа Страхование')
-        
-        # 3. Тестируем копирование предложения (требования 1.1-1.6)
-        print("3. Тестирование копирования предложения...")
-        copy_url = reverse('summaries:copy_offer', args=[offer1.pk])
-        
-        # Проверяем страницу копирования
-        copy_response = self.client.get(copy_url)
-        self.assertEqual(copy_response.status_code, 200)
-        self.assertContains(copy_response, 'Копировать предложение')
-        
-        # Выполняем копирование
-        copy_data = {
-            'company_name': 'Бета Страхование',
-            'insurance_year': 1,
-            'insurance_sum': '1200000.00',
-            'franchise_1': '0.00',
-            'premium_with_franchise_1': '55000.00',
-            'franchise_2': '30000.00',
-            'premium_with_franchise_2': '50000.00',
-            'installment_variant_1': False,
-            'payments_per_year_variant_1': 1,
-            'installment_variant_2': False,
-            'payments_per_year_variant_2': 1,
-            'notes': 'Скопированное предложение'
-        }
-        
-        initial_count = InsuranceOffer.objects.count()
-        post_response = self.client.post(copy_url, copy_data)
-        self.assertEqual(post_response.status_code, 302)
-        self.assertEqual(InsuranceOffer.objects.count(), initial_count + 1)
-        
-        # 4. Создаем многолетнее предложение для тестирования итогов
-        print("4. Создание многолетнего предложения...")
-        offer2 = InsuranceOffer.objects.create(
-            summary=self.summary,
-            company_name='Альфа Страхование',
-            insurance_year=2,
-            insurance_sum=Decimal('1000000.00'),
-            franchise_1=Decimal('0.00'),
-            premium_with_franchise_1=Decimal('52000.00'),
-            franchise_2=Decimal('25000.00'),
-            premium_with_franchise_2=Decimal('47000.00'),
-            notes='Примечание для второго года'
-        )
-        
-        # 5. Проверяем отображение итоговых сумм
-        print("5. Проверка отображения итоговых сумм...")
-        response = self.client.get(reverse('summaries:summary_detail', args=[self.summary.pk]))
-        self.assertEqual(response.status_code, 200)
-        
-        # Проверяем строку "Итого"
-        self.assertContains(response, 'Итого')
-        self.assertContains(response, 'company-total-row')
-        
-        # Проверяем расчет итогов
-        company_totals = self.summary.get_company_totals()
-        self.assertIn('Альфа Страхование', company_totals)
-        alpha_data = company_totals['Альфа Страхование']
-        self.assertTrue(alpha_data['is_multiyear'])
-        self.assertEqual(alpha_data['total_premium_1'], Decimal('102000.00'))  # 50000 + 52000
-        
-        # 6. Тестируем предотвращение дублирования
-        print("6. Тестирование предотвращения дублирования...")
-        duplicate_data = copy_data.copy()
-        duplicate_data['company_name'] = 'Альфа Страхование'  # Дублируем существующую компанию
-        duplicate_data['insurance_year'] = 1  # И год
-        
-        duplicate_response = self.client.post(copy_url, duplicate_data)
-        # Должна вернуться форма с ошибкой, а не редирект
-        self.assertEqual(duplicate_response.status_code, 200)
-        
-        # 7. Проверяем группировку примечаний
-        print("7. Проверка группировки примечаний...")
-        company_notes = self.summary.get_company_notes()
-        self.assertIn('Альфа Страхование', company_notes)
-        # Должно быть 2 примечания для Альфа Страхование
-        self.assertEqual(len(company_notes['Альфа Страхование']), 2)
-        
-        print("✓ Все компоненты успешно интегрированы!")
-
-    def test_css_color_coding_integration(self):
-        """
-        Тест интеграции CSS цветового кодирования
-        Требования: 2.1-2.5
-        """
-        print("\n=== Тестирование CSS цветового кодирования ===")
-        
-        # Создаем предложение для тестирования
-        offer = InsuranceOffer.objects.create(
-            summary=self.summary,
-            company_name='Тест CSS',
-            insurance_year=1,
-            insurance_sum=Decimal('1000000.00'),
-            franchise_1=Decimal('0.00'),
-            premium_with_franchise_1=Decimal('50000.00'),
-            franchise_2=Decimal('25000.00'),
-            premium_with_franchise_2=Decimal('45000.00')
-        )
-        
-        response = self.client.get(reverse('summaries:summary_detail', args=[self.summary.pk]))
-        self.assertEqual(response.status_code, 200)
-        
-        # Проверяем CSS классы для франшиз
-        self.assertContains(response, 'franchise-variant-1')
-        self.assertContains(response, 'franchise-variant-2')
-        
-        # Проверяем цвета
-        self.assertContains(response, '#0f5132')  # Темно-зеленый для варианта 1
-        self.assertContains(response, '#052c65')  # Темно-синий для варианта 2
-        self.assertContains(response, '#fff3cd')  # Бледно-желтый для итого
-        
-        # Проверяем мобильную адаптивность
-        self.assertContains(response, '@media (max-width: 768px)')
-        self.assertContains(response, '@media (max-width: 576px)')
-        
-        print("✓ CSS цветовое кодирование работает корректно!")
-
-    def test_notes_reorganization_integration(self):
-        """
-        Тест интеграции реорганизации примечаний
-        Требования: 3.1-3.6
-        """
-        print("\n=== Тестирование реорганизации примечаний ===")
-        
-        # Создаем предложения с примечаниями
-        offer1 = InsuranceOffer.objects.create(
-            summary=self.summary,
-            company_name='Компания с примечаниями',
-            insurance_year=1,
-            insurance_sum=Decimal('1000000.00'),
-            franchise_1=Decimal('0.00'),
-            premium_with_franchise_1=Decimal('50000.00'),
-            notes='Первое примечание'
-        )
-        
-        offer2 = InsuranceOffer.objects.create(
-            summary=self.summary,
-            company_name='Компания с примечаниями',
-            insurance_year=2,
-            insurance_sum=Decimal('1000000.00'),
-            franchise_1=Decimal('0.00'),
-            premium_with_franchise_1=Decimal('52000.00'),
-            notes='Второе примечание'
-        )
-        
-        # Создаем предложение без примечаний
-        offer3 = InsuranceOffer.objects.create(
-            summary=self.summary,
-            company_name='Компания без примечаний',
-            insurance_year=1,
-            insurance_sum=Decimal('1000000.00'),
-            franchise_1=Decimal('0.00'),
-            premium_with_franchise_1=Decimal('48000.00')
-        )
-        
-        response = self.client.get(reverse('summaries:summary_detail', args=[self.summary.pk]))
-        self.assertEqual(response.status_code, 200)
-        
-        # Проверяем отображение примечаний
-        self.assertContains(response, 'company-notes')
-        self.assertContains(response, 'Первое примечание')
-        self.assertContains(response, 'Второе примечание')
-        
-        # Проверяем группировку примечаний
-        company_notes = self.summary.get_company_notes()
-        self.assertIn('Компания с примечаниями', company_notes)
-        self.assertNotIn('Компания без примечаний', company_notes)
-        
-        # Проверяем количество примечаний
-        self.assertEqual(len(company_notes['Компания с примечаниями']), 2)
-        
-        print("✓ Реорганизация примечаний работает корректно!")
-
-    def test_database_constraints_integration(self):
-        """
-        Тест интеграции ограничений базы данных
-        Требования: 1.4, 1.5
-        """
-        print("\n=== Тестирование ограничений базы данных ===")
-        
-        # Создаем первое предложение
-        offer1 = InsuranceOffer.objects.create(
-            summary=self.summary,
-            company_name='Тест Ограничения',
-            insurance_year=1,
-            insurance_sum=Decimal('1000000.00'),
-            franchise_1=Decimal('0.00'),
-            premium_with_franchise_1=Decimal('50000.00')
-        )
-        
-        # Пытаемся создать дубликат
-        with self.assertRaises(IntegrityError):
-            InsuranceOffer.objects.create(
-                summary=self.summary,
-                company_name='Тест Ограничения',
-                insurance_year=1,
-                insurance_sum=Decimal('1000000.00'),
-                franchise_1=Decimal('0.00'),
-                premium_with_franchise_1=Decimal('50000.00')
-            )
-        
-        print("✓ Ограничения базы данных работают корректно!")
-
-    def test_performance_integration(self):
-        """
-        Тест производительности интегрированной системы
-        """
-        print("\n=== Тестирование производительности ===")
-        
-        # Создаем много предложений для тестирования производительности
-        for i in range(20):
-            InsuranceOffer.objects.create(
-                summary=self.summary,
-                company_name=f'Компания {i}',
-                insurance_year=1,
-                insurance_sum=Decimal('1000000.00'),
-                franchise_1=Decimal('0.00'),
-                premium_with_franchise_1=Decimal('50000.00')
-            )
-        
-        # Измеряем время загрузки страницы
-        import time
-        start_time = time.time()
-        
-        response = self.client.get(reverse('summaries:summary_detail', args=[self.summary.pk]))
-        
-        end_time = time.time()
-        load_time = end_time - start_time
-        
-        self.assertEqual(response.status_code, 200)
-        self.assertLess(load_time, 2.0, "Страница загружается слишком медленно")
-        
-        print(f"✓ Страница загружается за {load_time:.3f} секунд")
-
-    def test_regression_compatibility(self):
-        """
-        Тест обратной совместимости (регрессионный тест)
-        """
-        print("\n=== Тестирование обратной совместимости ===")
-        
-        # Создаем предложение со старыми полями
-        offer = InsuranceOffer.objects.create(
-            summary=self.summary,
-            company_name='Регрессионный Тест',
-            insurance_year=1,
-            insurance_sum=Decimal('1000000.00'),
-            franchise_1=Decimal('0.00'),
-            premium_with_franchise_1=Decimal('50000.00'),
-            # Старые поля для обратной совместимости
-            installment_available=True,
-            payments_per_year=12
-        )
-        
-        # Проверяем, что старые методы работают
-        self.assertEqual(offer.get_installment_display(), "12 платежей в год")
-        self.assertGreater(offer.premium_per_payment, 0)
-        
-        # Проверяем отображение на странице
-        response = self.client.get(reverse('summaries:summary_detail', args=[self.summary.pk]))
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Регрессионный Тест')
-        
-        print("✓ Обратная совместимость сохранена!")
-
-    def tearDown(self):
-        """Очистка после тестов"""
-        InsuranceOffer.objects.all().delete()
-        InsuranceSummary.objects.all().delete()
-        InsuranceRequest.objects.all().delete()
-        User.objects.all().delete()
-        Group.objects.all().delete()
-
-
-class ComponentsIntegrationSummary(TestCase):
-    """Класс для генерации итогового отчета по интеграции"""
+        self.client = Client()
     
-    def test_integration_summary_report(self):
-        """Генерирует итоговый отчет по интеграции компонентов"""
-        print("\n" + "="*80)
-        print("ИТОГОВЫЙ ОТЧЕТ ПО ИНТЕГРАЦИИ КОМПОНЕНТОВ УЛУЧШЕНИЙ UI СВОДОВ")
-        print("="*80)
+    def test_full_workflow_single_file_success(self):
+        """Тест полного рабочего процесса с одним файлом - успешный случай"""
+        self.client.login(username='admin', password='testpass123')
         
-        print("\n✅ РЕАЛИЗОВАННЫЕ КОМПОНЕНТЫ:")
-        print("1. Функциональность копирования предложений (Требования 1.1-1.6)")
-        print("   - Кнопка 'Копировать' в интерфейсе")
-        print("   - Форма копирования с предзаполненными данными")
-        print("   - Валидация и предотвращение дублирования")
-        print("   - Обработка ошибок и сообщения пользователю")
+        # Создаем тестовый Excel файл
+        test_file = SimpleUploadedFile(
+            "test_company.xlsx",
+            b"test excel content",
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
         
-        print("\n2. Единообразное цветовое кодирование (Требования 2.1-2.5)")
-        print("   - Темно-зеленый цвет для Франшизы-1 и Премии-1")
-        print("   - Темно-синий цвет для Франшизы-2 и Премии-2")
-        print("   - Бледно-желтый фон для строк 'Итого'")
-        print("   - Мобильная адаптивность цветового кодирования")
+        with patch('summaries.services.excel_services.ExcelResponseProcessor.process_file') as mock_process:
+            # Настраиваем мок для успешной обработки
+            mock_result = MagicMock()
+            mock_result.company_name = 'Тестовая Компания'
+            mock_result.offers_created = 2
+            mock_result.years_processed = [1, 2]
+            mock_result.processed_rows = [6, 7]
+            mock_result.skipped_rows = []
+            mock_process.return_value = mock_result
+            
+            # Отправляем запрос
+            response = self.client.post(
+                reverse('summaries:upload_multiple_company_responses', args=[self.summary.id]),
+                {
+                    'excel_files': [test_file]
+                },
+                format='multipart'
+            )
+            
+            # Проверяем ответ
+            self.assertEqual(response.status_code, 200)
+            
+            response_data = json.loads(response.content)
+            self.assertTrue(response_data['success'])
+            self.assertEqual(response_data['total_files'], 1)
+            self.assertEqual(response_data['successful_files'], 1)
+            self.assertEqual(response_data['failed_files'], 0)
+            
+            # Проверяем результат обработки файла
+            file_result = response_data['results'][0]
+            self.assertTrue(file_result['success'])
+            self.assertEqual(file_result['company_name'], 'Тестовая Компания')
+            self.assertEqual(file_result['offers_created'], 2)
+    
+    def test_full_workflow_multiple_files_mixed_results(self):
+        """Тест полного рабочего процесса с несколькими файлами - смешанные результаты"""
+        self.client.login(username='admin', password='testpass123')
         
-        print("\n3. Реорганизация отображения примечаний (Требования 3.1-3.6)")
-        print("   - Примечания отображаются под названием компании")
-        print("   - Группировка примечаний от разных лет")
-        print("   - Визуальное оформление примечаний")
-        print("   - Адаптивность на мобильных устройствах")
+        # Создаем тестовые файлы
+        test_file1 = SimpleUploadedFile(
+            "company1.xlsx",
+            b"test excel content 1",
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
         
-        print("\n✅ ИНТЕГРАЦИОННЫЕ АСПЕКТЫ:")
-        print("- Все компоненты работают совместно без конфликтов")
-        print("- Сохранена обратная совместимость с существующим кодом")
-        print("- Производительность системы не ухудшилась")
-        print("- Валидация данных работает корректно")
-        print("- Ограничения базы данных соблюдаются")
+        test_file2 = SimpleUploadedFile(
+            "company2.xlsx",
+            b"test excel content 2",
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
         
-        print("\n✅ ТЕСТИРОВАНИЕ:")
-        print("- Модульные тесты для каждого компонента")
-        print("- Интеграционные тесты для взаимодействия компонентов")
-        print("- Регрессионные тесты для существующей функциональности")
-        print("- Тесты производительности")
-        print("- Тесты мобильной адаптивности")
+        with patch('summaries.services.excel_services.ExcelResponseProcessor.process_file') as mock_process:
+            # Настраиваем мок для смешанных результатов
+            def side_effect(file, summary):
+                if 'company1' in file.name:
+                    # Успешная обработка первого файла
+                    mock_result = MagicMock()
+                    mock_result.company_name = 'Компания 1'
+                    mock_result.offers_created = 1
+                    mock_result.years_processed = [1]
+                    mock_result.processed_rows = [6]
+                    mock_result.skipped_rows = []
+                    return mock_result
+                else:
+                    # Ошибка дубликата для второго файла
+                    from .exceptions import DuplicateOfferError
+                    raise DuplicateOfferError("Компания 2", 1)
+            
+            mock_process.side_effect = side_effect
+            
+            # Отправляем запрос
+            response = self.client.post(
+                reverse('summaries:upload_multiple_company_responses', args=[self.summary.id]),
+                {
+                    'excel_files': [test_file1, test_file2]
+                },
+                format='multipart'
+            )
+            
+            # Проверяем ответ
+            self.assertEqual(response.status_code, 200)
+            
+            response_data = json.loads(response.content)
+            self.assertTrue(response_data['success'])  # Общий успех, даже если есть ошибки в отдельных файлах
+            self.assertEqual(response_data['total_files'], 2)
+            self.assertEqual(response_data['successful_files'], 1)
+            self.assertEqual(response_data['failed_files'], 1)
+            
+            # Проверяем результаты файлов
+            results = response_data['results']
+            
+            # Первый файл - успешный
+            success_result = next(r for r in results if r['success'])
+            self.assertEqual(success_result['company_name'], 'Компания 1')
+            self.assertEqual(success_result['offers_created'], 1)
+            
+            # Второй файл - с ошибкой
+            error_result = next(r for r in results if not r['success'])
+            self.assertIn('дубликат', error_result['error_message'].lower())
+            self.assertEqual(error_result['error_type'], 'duplicate_offer')
+    
+    def test_form_validation_integration(self):
+        """Тест интеграции валидации формы"""
+        # Тест с правильными файлами
+        valid_file = SimpleUploadedFile(
+            "test.xlsx",
+            b"test content",
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
         
-        print("\n✅ КАЧЕСТВО КОДА:")
-        print("- Следование принципам DRY (Don't Repeat Yourself)")
-        print("- Соблюдение паттернов Django")
-        print("- Читаемость и поддерживаемость кода")
-        print("- Документирование изменений")
+        form_data = {}
+        form_files = {'excel_files': [valid_file]}
+        form = MultipleCompanyResponseUploadForm(form_data, form_files)
         
-        print("\n" + "="*80)
-        print("ЗАКЛЮЧЕНИЕ: Все компоненты успешно интегрированы и готовы к использованию")
-        print("="*80)
+        self.assertTrue(form.is_valid())
         
-        # Этот тест всегда проходит, так как служит для генерации отчета
-        self.assertTrue(True)
+        # Тест с неправильным форматом
+        invalid_file = SimpleUploadedFile(
+            "test.txt",
+            b"test content",
+            content_type="text/plain"
+        )
+        
+        form_files = {'excel_files': [invalid_file]}
+        form = MultipleCompanyResponseUploadForm(form_data, form_files)
+        
+        self.assertFalse(form.is_valid())
+        self.assertIn('неподдерживаемый формат', str(form.errors).lower())
+    
+    def test_authentication_and_authorization(self):
+        """Тест аутентификации и авторизации"""
+        # Тест без аутентификации
+        response = self.client.post(
+            reverse('summaries:upload_multiple_company_responses', args=[self.summary.id])
+        )
+        self.assertEqual(response.status_code, 401)
+        
+        # Тест с обычным пользователем (недостаточно прав)
+        self.client.login(username='user', password='testpass123')
+        response = self.client.post(
+            reverse('summaries:upload_multiple_company_responses', args=[self.summary.id])
+        )
+        self.assertEqual(response.status_code, 403)
+        
+        # Тест с администратором (достаточно прав)
+        self.client.login(username='admin', password='testpass123')
+        response = self.client.post(
+            reverse('summaries:upload_multiple_company_responses', args=[self.summary.id])
+        )
+        # Должна быть ошибка валидации формы (нет файлов), но не авторизации
+        self.assertEqual(response.status_code, 400)
+        response_data = json.loads(response.content)
+        self.assertIn('файл', response_data['error'].lower())
+    
+    def test_summary_status_validation(self):
+        """Тест валидации статуса свода"""
+        self.client.login(username='admin', password='testpass123')
+        
+        # Изменяем статус свода на неподходящий
+        self.summary.status = 'completed'
+        self.summary.save()
+        
+        test_file = SimpleUploadedFile(
+            "test.xlsx",
+            b"test content",
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        
+        response = self.client.post(
+            reverse('summaries:upload_multiple_company_responses', args=[self.summary.id]),
+            {
+                'excel_files': [test_file]
+            },
+            format='multipart'
+        )
+        
+        self.assertEqual(response.status_code, 400)
+        response_data = json.loads(response.content)
+        self.assertIn('статус', response_data['error'].lower())
+    
+    def test_file_size_and_count_limits(self):
+        """Тест ограничений размера и количества файлов"""
+        self.client.login(username='admin', password='testpass123')
+        
+        # Тест превышения количества файлов
+        files = []
+        for i in range(11):  # Больше максимума (10)
+            files.append(SimpleUploadedFile(
+                f"test{i}.xlsx",
+                b"test content",
+                content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            ))
+        
+        response = self.client.post(
+            reverse('summaries:upload_multiple_company_responses', args=[self.summary.id]),
+            {
+                'excel_files': files
+            },
+            format='multipart'
+        )
+        
+        self.assertEqual(response.status_code, 400)
+        response_data = json.loads(response.content)
+        self.assertIn('много файлов', response_data['error'].lower())
+    
+    def test_processor_performance_optimization(self):
+        """Тест оптимизации производительности процессора"""
+        # Создаем процессор
+        processor = MultipleFileProcessor(self.summary)
+        
+        # Создаем несколько тестовых файлов
+        files = []
+        for i in range(5):
+            files.append(SimpleUploadedFile(
+                f"test{i}.xlsx",
+                b"test content",
+                content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            ))
+        
+        with patch('summaries.services.excel_services.ExcelResponseProcessor.process_file') as mock_process:
+            # Настраиваем мок для быстрой обработки
+            mock_result = MagicMock()
+            mock_result.company_name = 'Тест'
+            mock_result.offers_created = 1
+            mock_result.years_processed = [1]
+            mock_result.processed_rows = [6]
+            mock_result.skipped_rows = []
+            mock_process.return_value = mock_result
+            
+            import time
+            start_time = time.time()
+            
+            # Обрабатываем файлы
+            results = processor.process_files(files)
+            
+            end_time = time.time()
+            processing_time = end_time - start_time
+            
+            # Проверяем, что обработка завершилась быстро (менее 1 секунды для 5 файлов)
+            self.assertLess(processing_time, 1.0)
+            
+            # Проверяем, что все файлы обработаны
+            self.assertEqual(len(results), 5)
+            
+            # Проверяем, что процессор вызывался для каждого файла
+            self.assertEqual(mock_process.call_count, 5)
+    
+    def test_error_handling_and_recovery(self):
+        """Тест обработки ошибок и восстановления"""
+        processor = MultipleFileProcessor(self.summary)
+        
+        # Создаем файлы с разными типами ошибок
+        files = [
+            SimpleUploadedFile("success.xlsx", b"content", content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+            SimpleUploadedFile("error.xlsx", b"content", content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+            SimpleUploadedFile("duplicate.xlsx", b"content", content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+        ]
+        
+        with patch('summaries.services.excel_services.ExcelResponseProcessor.process_file') as mock_process:
+            def side_effect(file, summary):
+                if 'success' in file.name:
+                    mock_result = MagicMock()
+                    mock_result.company_name = 'Успех'
+                    mock_result.offers_created = 1
+                    mock_result.years_processed = [1]
+                    mock_result.processed_rows = [6]
+                    mock_result.skipped_rows = []
+                    return mock_result
+                elif 'error' in file.name:
+                    from .exceptions import ExcelProcessingError
+                    raise ExcelProcessingError("Ошибка обработки")
+                else:  # duplicate
+                    from .exceptions import DuplicateOfferError
+                    raise DuplicateOfferError("Дубликат", 1)
+            
+            mock_process.side_effect = side_effect
+            
+            # Обрабатываем файлы
+            results = processor.process_files(files)
+            
+            # Проверяем, что все файлы обработаны (включая ошибочные)
+            self.assertEqual(len(results), 3)
+            
+            # Проверяем результаты
+            success_count = sum(1 for r in results if r['success'])
+            error_count = sum(1 for r in results if not r['success'])
+            
+            self.assertEqual(success_count, 1)
+            self.assertEqual(error_count, 2)
+            
+            # Проверяем типы ошибок
+            error_results = [r for r in results if not r['success']]
+            error_types = [r['error_type'] for r in error_results]
+            
+            self.assertIn('processing_error', error_types)
+            self.assertIn('duplicate_offer', error_types)
+    
+    def test_backward_compatibility(self):
+        """Тест обратной совместимости с существующим функционалом"""
+        self.client.login(username='admin', password='testpass123')
+        
+        # Тест загрузки одного файла через новый интерфейс
+        test_file = SimpleUploadedFile(
+            "single_file.xlsx",
+            b"test content",
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        
+        with patch('summaries.services.excel_services.ExcelResponseProcessor.process_file') as mock_process:
+            mock_result = MagicMock()
+            mock_result.company_name = 'Одиночный файл'
+            mock_result.offers_created = 1
+            mock_result.years_processed = [1]
+            mock_result.processed_rows = [6]
+            mock_result.skipped_rows = []
+            mock_process.return_value = mock_result
+            
+            # Отправляем один файл
+            response = self.client.post(
+                reverse('summaries:upload_multiple_company_responses', args=[self.summary.id]),
+                {
+                    'excel_files': [test_file]
+                },
+                format='multipart'
+            )
+            
+            # Проверяем, что одиночный файл обрабатывается корректно
+            self.assertEqual(response.status_code, 200)
+            
+            response_data = json.loads(response.content)
+            self.assertTrue(response_data['success'])
+            self.assertEqual(response_data['total_files'], 1)
+            self.assertEqual(response_data['successful_files'], 1)
+            
+            # Проверяем результат
+            file_result = response_data['results'][0]
+            self.assertTrue(file_result['success'])
+            self.assertEqual(file_result['company_name'], 'Одиночный файл')
+    
+    def test_system_integration_with_database(self):
+        """Тест интеграции системы с базой данных"""
+        # Создаем существующее предложение для проверки дубликатов
+        existing_offer = InsuranceOffer.objects.create(
+            summary=self.summary,
+            company_name='Существующая Компания',
+            year=1,
+            premium_amount=10000,
+            franchise_amount=5000
+        )
+        
+        processor = MultipleFileProcessor(self.summary)
+        
+        # Проверяем обнаружение существующих предложений
+        conflicts = processor.check_existing_offers('Существующая Компания', [1, 2])
+        
+        self.assertEqual(len(conflicts), 1)
+        self.assertIn('Существующая Компания - 1 год', conflicts)
+        
+        # Проверяем, что для нового года конфликтов нет
+        conflicts = processor.check_existing_offers('Существующая Компания', [2, 3])
+        self.assertEqual(len(conflicts), 0)

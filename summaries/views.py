@@ -8,6 +8,7 @@ from django.views.decorators.http import require_http_methods
 from django.db import transaction, IntegrityError
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 import logging
+import os
 
 from .models import InsuranceSummary, InsuranceOffer, SummaryTemplate
 from insurance_requests.models import InsuranceRequest
@@ -638,6 +639,8 @@ def change_summary_status(request, summary_id):
     })
 
 
+# Удалена дублирующаяся функция upload_multiple_company_responses - используется версия ниже
+
 @require_http_methods(["POST"])
 @user_required
 def upload_company_response(request, summary_id):
@@ -956,7 +959,239 @@ def upload_company_response(request, summary_id):
         }, status=500)
 
 
-
+@require_http_methods(["POST"])
+@user_required
+def upload_multiple_company_responses(request, summary_id):
+    """
+    Загрузка множественных ответов страховых компаний через Excel файлы
+    
+    Требования: 1.1, 1.2, 2.1, 2.2, 3.1, 3.2, 4.1, 4.2
+    """
+    import time
+    from .services.multiple_file_processor import MultipleFileProcessor
+    from .forms import MultipleCompanyResponseUploadForm
+    
+    # Получаем свод с проверкой доступа
+    summary = get_object_or_404(InsuranceSummary, pk=summary_id)
+    
+    # Проверка аутентификации и прав пользователя
+    if not request.user.is_authenticated:
+        logger.warning(
+            f"UPLOAD_MULTIPLE_AUTH_ERROR - Неавторизованная попытка загрузки | "
+            f"summary_id={summary_id} | ip={request.META.get('REMOTE_ADDR', 'unknown')}"
+        )
+        return JsonResponse({
+            'success': False,
+            'error': 'Необходимо войти в систему для загрузки ответов компаний'
+        }, status=401)
+    
+    # Проверяем права пользователя на изменение сводов
+    from insurance_requests.decorators import has_user_access
+    if not has_user_access(request.user):
+        logger.warning(
+            f"UPLOAD_MULTIPLE_PERMISSION_ERROR - Недостаточно прав | "
+            f"user={request.user.username} | user_id={request.user.id} | summary_id={summary_id}"
+        )
+        return JsonResponse({
+            'success': False,
+            'error': 'У вас недостаточно прав для загрузки ответов компаний'
+        }, status=403)
+    
+    # Валидация статуса свода (только "Сбор предложений")
+    if summary.status != 'collecting':
+        logger.warning(
+            f"UPLOAD_MULTIPLE_STATUS_ERROR - Неверный статус свода | "
+            f"user={request.user.username} | summary_id={summary_id} | "
+            f"current_status={summary.status} | required_status=collecting"
+        )
+        return JsonResponse({
+            'success': False,
+            'error': 'Загрузка ответов компаний доступна только при статусе "Сбор предложений"'
+        }, status=400)
+    
+    # Обработка POST запросов с файлами
+    if request.method != 'POST':
+        return JsonResponse({
+            'success': False,
+            'error': 'Метод не поддерживается. Используйте POST для загрузки файлов.'
+        }, status=405)
+    
+    # Получаем загруженные файлы напрямую
+    excel_files = request.FILES.getlist('excel_files')
+    
+    # Базовая валидация файлов
+    if not excel_files:
+        error_message = 'Ни одного файла не было отправлено. Проверьте тип кодировки формы.'
+        logger.warning(
+            f"UPLOAD_MULTIPLE_FORM_VALIDATION_ERROR - Ошибка валидации формы | "
+            f"user={request.user.username} | summary_id={summary_id} | "
+            f"error_message={error_message} | form_errors=<ul class=\"errorlist\"><li>excel_files<ul class=\"errorlist\"><li>{error_message}</li></ul></li></ul>"
+        )
+        return JsonResponse({
+            'success': False,
+            'error': error_message
+        }, status=400)
+    
+    # Валидация файлов
+    MAX_FILES = 10
+    MAX_FILE_SIZE_MB = 1
+    MAX_TOTAL_SIZE_MB = 10
+    
+    if len(excel_files) > MAX_FILES:
+        error_message = f'Слишком много файлов ({len(excel_files)}). Максимальное количество файлов: {MAX_FILES}'
+        logger.warning(
+            f"UPLOAD_MULTIPLE_FORM_VALIDATION_ERROR - Ошибка валидации формы | "
+            f"user={request.user.username} | summary_id={summary_id} | "
+            f"error_message={error_message}"
+        )
+        return JsonResponse({
+            'success': False,
+            'error': error_message
+        }, status=400)
+    
+    # Проверка каждого файла
+    total_size = 0
+    for file in excel_files:
+        # Проверка расширения
+        ext = os.path.splitext(file.name)[1].lower()
+        if ext != '.xlsx':
+            error_message = f'Файл "{file.name}" имеет неподдерживаемый формат. Разрешены только файлы .xlsx'
+            logger.warning(
+                f"UPLOAD_MULTIPLE_FORM_VALIDATION_ERROR - Ошибка валидации формы | "
+                f"user={request.user.username} | summary_id={summary_id} | "
+                f"error_message={error_message}"
+            )
+            return JsonResponse({
+                'success': False,
+                'error': error_message
+            }, status=400)
+        
+        # Проверка размера файла
+        max_size_bytes = MAX_FILE_SIZE_MB * 1024 * 1024
+        if file.size > max_size_bytes:
+            error_message = f'Файл "{file.name}" слишком большой ({file.size / (1024*1024):.1f}MB). Максимальный размер: {MAX_FILE_SIZE_MB}MB'
+            logger.warning(
+                f"UPLOAD_MULTIPLE_FORM_VALIDATION_ERROR - Ошибка валидации формы | "
+                f"user={request.user.username} | summary_id={summary_id} | "
+                f"error_message={error_message}"
+            )
+            return JsonResponse({
+                'success': False,
+                'error': error_message
+            }, status=400)
+        
+        # Проверка на пустой файл
+        if file.size == 0:
+            error_message = f'Файл "{file.name}" пустой. Загрузите файл с данными'
+            logger.warning(
+                f"UPLOAD_MULTIPLE_FORM_VALIDATION_ERROR - Ошибка валидации формы | "
+                f"user={request.user.username} | summary_id={summary_id} | "
+                f"error_message={error_message}"
+            )
+            return JsonResponse({
+                'success': False,
+                'error': error_message
+            }, status=400)
+        
+        total_size += file.size
+    
+    # Проверка общего размера
+    max_total_size_bytes = MAX_TOTAL_SIZE_MB * 1024 * 1024
+    if total_size > max_total_size_bytes:
+        error_message = f'Общий размер файлов слишком большой ({total_size / (1024*1024):.1f}MB). Максимальный общий размер: {MAX_TOTAL_SIZE_MB}MB'
+        logger.warning(
+            f"UPLOAD_MULTIPLE_FORM_VALIDATION_ERROR - Ошибка валидации формы | "
+            f"user={request.user.username} | summary_id={summary_id} | "
+            f"error_message={error_message}"
+        )
+        return JsonResponse({
+            'success': False,
+            'error': error_message
+        }, status=400)
+    
+# Файлы уже получены выше в блоке валидации
+    
+    try:
+        # Засекаем время начала обработки
+        start_time = time.time()
+        total_size_mb = sum(file.size for file in excel_files) / (1024 * 1024)
+        
+        # Логирование начала операции
+        logger.info(
+            f"UPLOAD_MULTIPLE_START - Начало загрузки множественных файлов | "
+            f"user={request.user.username} | user_id={request.user.id} | "
+            f"summary_id={summary_id} | files_count={len(excel_files)} | "
+            f"total_size_mb={total_size_mb:.2f} | "
+            f"files=[{', '.join(f.name for f in excel_files)}]"
+        )
+        
+        # Создаем процессор для множественных файлов
+        processor = MultipleFileProcessor(summary)
+        
+        # Обрабатываем файлы
+        results = processor.process_files(excel_files)
+        
+        # Вычисляем время обработки
+        processing_time = time.time() - start_time
+        
+        # Подсчитываем статистику
+        successful_files = sum(1 for result in results if result['success'])
+        failed_files = len(results) - successful_files
+        total_offers_created = sum(result.get('offers_created', 0) for result in results if result['success'])
+        
+        # Детальное логирование результатов
+        logger.info(
+            f"UPLOAD_MULTIPLE_COMPLETE - Загрузка множественных файлов завершена | "
+            f"user={request.user.username} | summary_id={summary_id} | "
+            f"total_files={len(results)} | successful={successful_files} | failed={failed_files} | "
+            f"success_rate={successful_files/len(results)*100:.1f}% | "
+            f"total_offers_created={total_offers_created} | processing_time={processing_time:.2f}s"
+        )
+        
+        # Логирование деталей каждого файла
+        for result in results:
+            if result['success']:
+                logger.debug(
+                    f"UPLOAD_MULTIPLE_FILE_SUCCESS - Файл успешно обработан | "
+                    f"filename={result['file_name']} | company={result.get('company_name', 'N/A')} | "
+                    f"offers_created={result.get('offers_created', 0)}"
+                )
+            else:
+                logger.debug(
+                    f"UPLOAD_MULTIPLE_FILE_ERROR - Ошибка обработки файла | "
+                    f"filename={result['file_name']} | error_type={result.get('error_type', 'unknown')} | "
+                    f"error_message={result.get('error_message', 'N/A')}"
+                )
+        
+        # Формируем ответ
+        response_data = {
+            'success': True,
+            'total_files': len(results),
+            'successful_files': successful_files,
+            'failed_files': failed_files,
+            'processing_time': processing_time,
+            'results': results
+        }
+        
+        return JsonResponse(response_data)
+        
+    except Exception as e:
+        processing_time = time.time() - start_time if 'start_time' in locals() else 0
+        error_message = f"Неожиданная ошибка при загрузке множественных ответов компаний: {str(e)}"
+        
+        logger.error(
+            f"UPLOAD_MULTIPLE_EXCEPTION - Неожиданная ошибка | "
+            f"user={request.user.username} | summary_id={summary_id} | "
+            f"files_count={len(excel_files)} | processing_time={processing_time:.2f}s | "
+            f"error={error_message}",
+            exc_info=True
+        )
+        
+        return JsonResponse({
+            'success': False,
+            'error': 'Произошла неожиданная ошибка при обработке файлов. Обратитесь к администратору.',
+            'error_type': 'unexpected_error'
+        }, status=500)
 
 
 @user_required

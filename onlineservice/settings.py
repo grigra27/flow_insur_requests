@@ -164,6 +164,12 @@ LOGGING = {
             'class': 'logging.StreamHandler',
             'formatter': 'verbose',
         },
+        'multiple_upload_file': {
+            'level': 'DEBUG',
+            'class': 'logging.FileHandler',
+            'filename': BASE_DIR / 'logs' / 'multiple_upload.log',
+            'formatter': 'verbose',
+        },
     },
     'root': {
         'handlers': ['console', 'file'],
@@ -183,6 +189,11 @@ LOGGING = {
         'summaries.excel_export': {
             'handlers': ['console', 'file'],
             'level': 'INFO',
+            'propagate': False,
+        },
+        'summaries.services.multiple_file_processor': {
+            'handlers': ['console', 'file', 'multiple_upload_file'],
+            'level': 'DEBUG',
             'propagate': False,
         },
     },

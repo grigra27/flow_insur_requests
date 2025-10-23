@@ -9,6 +9,9 @@ from decimal import Decimal
 import os
 
 
+# Удаляем дублирующийся виджет - используем тот что ниже
+
+
 class OfferForm(forms.ModelForm):
     """Форма для добавления/редактирования предложения от страховщика"""
     
@@ -641,6 +644,7 @@ class SummaryFilterForm(forms.Form):
         return cleaned_data
 
 
+
 class CompanyResponseUploadForm(forms.Form):
     """Форма для загрузки ответов страховых компаний"""
     
@@ -769,6 +773,152 @@ class CompanyResponseUploadForm(forms.Form):
             pass
         
         return file
+
+
+class MultipleFileInput(forms.FileInput):
+    """Custom widget for multiple file input"""
+    allow_multiple_selected = True
+    
+    def __init__(self, attrs=None):
+        if attrs is None:
+            attrs = {}
+        attrs.update({'multiple': True})
+        super().__init__(attrs)
+    
+    def value_from_datadict(self, data, files, name):
+        """Return a list of files from the datadict"""
+        if hasattr(files, 'getlist'):
+            return files.getlist(name)
+        else:
+            return files.get(name)
+
+
+class MultipleCompanyResponseUploadForm(forms.Form):
+    """Форма для множественной загрузки ответов страховых компаний"""
+    
+    excel_files = forms.FileField(
+        widget=MultipleFileInput(attrs={
+            'accept': '.xlsx',
+            'class': 'form-control',
+            'id': 'company-response-files'
+        }),
+        label='Файлы с предложениями',
+        help_text='Выберите один или несколько Excel файлов (.xlsx) с предложениями от страховых компаний. Максимум 10 файлов, размер каждого файла до 1MB, общий размер до 10MB.',
+        required=False  # Делаем поле не обязательным для формы, проверим в clean_excel_files
+    )
+    
+    def clean_excel_files(self):
+        """Валидация множественных файлов"""
+        # Получаем файлы из request.FILES через форму
+        if hasattr(self, 'files') and self.files:
+            files = self.files.getlist('excel_files')
+        else:
+            files = []
+        
+        if not files:
+            raise ValidationError('Не выбрано ни одного файла для загрузки')
+        
+        # Ограничения согласно требованиям
+        MAX_FILES = 10
+        MAX_FILE_SIZE_MB = 1
+        MAX_TOTAL_SIZE_MB = 10
+        
+        # Проверка количества файлов
+        if len(files) > MAX_FILES:
+            raise ValidationError(f'Слишком много файлов ({len(files)}). Максимальное количество файлов: {MAX_FILES}')
+        
+        # Проверка каждого файла
+        total_size = 0
+        valid_mime_types = [
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        ]
+        
+        for i, file in enumerate(files, 1):
+            # Проверка расширения
+            ext = os.path.splitext(file.name)[1].lower()
+            if ext != '.xlsx':
+                raise ValidationError(f'Файл "{file.name}" имеет неподдерживаемый формат. Разрешены только файлы .xlsx')
+            
+            # Проверка MIME типа
+            if hasattr(file, 'content_type') and file.content_type:
+                if file.content_type not in valid_mime_types:
+                    raise ValidationError(f'Файл "{file.name}" имеет неверный тип. Загрузите файл Excel в формате .xlsx')
+            
+            # Проверка размера файла
+            max_size_bytes = MAX_FILE_SIZE_MB * 1024 * 1024
+            if file.size > max_size_bytes:
+                raise ValidationError(f'Файл "{file.name}" слишком большой ({file.size / (1024*1024):.1f}MB). Максимальный размер: {MAX_FILE_SIZE_MB}MB')
+            
+            # Проверка на пустой файл
+            if file.size == 0:
+                raise ValidationError(f'Файл "{file.name}" пуст')
+            
+            total_size += file.size
+            
+            # Базовая проверка структуры файла (аналогично CompanyResponseUploadForm)
+            try:
+                import openpyxl
+                from io import BytesIO
+                
+                # Создаем копию файла для проверки
+                file_content = file.read()
+                file.seek(0)  # Возвращаем указатель в начало файла
+                
+                # Проверяем, что файл можно открыть как Excel
+                try:
+                    workbook = openpyxl.load_workbook(BytesIO(file_content), read_only=True)
+                    
+                    # Проверяем, что есть хотя бы один лист
+                    if not workbook.worksheets:
+                        raise ValidationError(f'Файл "{file.name}" не содержит листов с данными')
+                    
+                    # Проверяем первый лист на наличие базовой структуры
+                    worksheet = workbook.active
+                    
+                    # Проверяем наличие ключевых ячеек согласно шаблону
+                    # B2 должна содержать название компании
+                    company_cell = worksheet['B2']
+                    if not company_cell.value or str(company_cell.value).strip() == '':
+                        raise ValidationError(f'Ошибка в структуре файла "{file.name}": ячейка B2 должна содержать название страховой компании')
+                    
+                    # Проверяем наличие данных в строке 6 (первый год)
+                    year_1_cells = ['A6', 'B6', 'D6', 'E6', 'F6']
+                    has_year_1_data = any(
+                        worksheet[cell].value is not None and str(worksheet[cell].value).strip() != ''
+                        for cell in year_1_cells
+                    )
+                    
+                    # Проверяем наличие данных в строке 7 (второй год)
+                    year_2_cells = ['A7', 'B7', 'D7', 'E7', 'F7']
+                    has_year_2_data = any(
+                        worksheet[cell].value is not None and str(worksheet[cell].value).strip() != ''
+                        for cell in year_2_cells
+                    )
+                    
+                    if not has_year_1_data and not has_year_2_data:
+                        raise ValidationError(f'Ошибка в структуре файла "{file.name}": не найдены данные предложений в строках 6 или 7. Убедитесь, что файл соответствует утвержденному шаблону.')
+                    
+                    workbook.close()
+                    
+                except openpyxl.utils.exceptions.InvalidFileException:
+                    raise ValidationError(f'Файл "{file.name}" поврежден или имеет некорректный формат. Убедитесь, что файл не поврежден и соответствует формату .xlsx')
+                except Exception as e:
+                    # Если это не наша ValidationError, то это системная ошибка
+                    if isinstance(e, ValidationError):
+                        raise e
+                    raise ValidationError(f'Не удалось прочитать файл "{file.name}". Убедитесь, что файл не поврежден и соответствует утвержденному шаблону.')
+                        
+            except ImportError:
+                # Если openpyxl не установлен, пропускаем детальную проверку структуры
+                # Это будет обработано на уровне сервиса
+                pass
+        
+        # Проверка общего размера
+        max_total_size_bytes = MAX_TOTAL_SIZE_MB * 1024 * 1024
+        if total_size > max_total_size_bytes:
+            raise ValidationError(f'Общий размер файлов слишком большой ({total_size / (1024*1024):.1f}MB). Максимальный общий размер: {MAX_TOTAL_SIZE_MB}MB')
+        
+        return files
 
 
 class CompanyOfferSearchForm(forms.Form):

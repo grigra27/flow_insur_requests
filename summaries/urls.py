@@ -27,4 +27,5 @@ urlpatterns = [
     
     # Загрузка ответов компаний
     path('<int:summary_id>/upload-company-response/', views.upload_company_response, name='upload_company_response'),
+    path('<int:summary_id>/upload-multiple-company-responses/', views.upload_multiple_company_responses, name='upload_multiple_company_responses'),
 ]

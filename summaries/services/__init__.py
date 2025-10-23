@@ -18,3 +18,9 @@ from .excel_services import (
     RowProcessingError,
     DuplicateOfferError
 )
+
+# Import multiple file processing services
+from .multiple_file_processor import (
+    MultipleFileProcessor,
+    get_multiple_file_processor
+)
