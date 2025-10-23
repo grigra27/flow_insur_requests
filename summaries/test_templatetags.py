@@ -5,7 +5,7 @@ from django.test import TestCase
 from summaries.templatetags.summary_extras import (
     status_color, format_branch, status_display_name,
     companies_count_badge_class, companies_count_size_class,
-    format_currency_with_spaces
+    format_currency_with_spaces, status_badge_class
 )
 
 
@@ -51,6 +51,23 @@ class SummaryTemplatetagsTest(TestCase):
         self.assertEqual(status_display_name('invalid_status'), 'invalid_status')
         self.assertEqual(status_display_name(None), None)
         self.assertEqual(status_display_name(''), '')
+
+    def test_status_badge_class_filter(self):
+        """Test status_badge_class filter returns correct CSS classes with text color"""
+        # Test statuses that should have dark text (info and warning)
+        self.assertEqual(status_badge_class('collecting'), 'bg-warning text-dark')
+        self.assertEqual(status_badge_class('ready'), 'bg-info text-dark')
+        
+        # Test statuses that should have default (white) text
+        self.assertEqual(status_badge_class('sent'), 'bg-secondary')
+        self.assertEqual(status_badge_class('completed'), 'bg-secondary')
+        self.assertEqual(status_badge_class('completed_accepted'), 'bg-success')
+        self.assertEqual(status_badge_class('completed_rejected'), 'bg-danger')
+        
+        # Test invalid status returns default
+        self.assertEqual(status_badge_class('invalid_status'), 'bg-secondary')
+        self.assertEqual(status_badge_class(None), 'bg-secondary')
+        self.assertEqual(status_badge_class(''), 'bg-secondary')
 
     def test_companies_count_badge_class_filter(self):
         """Test companies_count_badge_class filter returns correct CSS classes"""

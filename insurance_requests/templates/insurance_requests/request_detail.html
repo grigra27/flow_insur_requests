@@ -210,7 +210,7 @@
                     <label class="form-label small text-muted">Текущий статус:</label>
                     <div>
                         <span id="status-badge"
-                            class="badge bg-{% load summary_extras %}{{ request.status|status_color }} fs-6">
+                            class="badge {% load summary_extras %}{{ request.status|status_badge_class }} fs-6">
                             {{ request.get_status_display }}
                         </span>
                     </div>
@@ -240,7 +240,7 @@
                     <div>
                         <div class="fw-bold">Свод к {{ request.get_display_name }}</div>
                         <span
-                            class="badge bg-{{ request.summary.status|status_color }}">
+                            class="badge {{ request.summary.status|status_badge_class }}">
                             {{ request.summary.get_status_display }}
                         </span>
                         {% if request.summary.total_offers > 0 %}
@@ -364,27 +364,27 @@
         const statusBadge = document.getElementById('status-badge');
         if (!statusBadge) return;
         
-        // Remove existing status classes
-        statusBadge.className = statusBadge.className.replace(/bg-\w+/g, '');
+        // Remove existing status and text color classes
+        statusBadge.classList.remove('bg-success', 'bg-info', 'bg-warning', 'bg-secondary', 'text-dark');
         
-        // Add new status class
-        let badgeClass = 'bg-secondary';
+        // Add new status class with appropriate text color
         switch(status) {
             case 'completed':
-                badgeClass = 'bg-success';
+                statusBadge.classList.add('bg-success');
                 break;
             case 'email_sent':
-                badgeClass = 'bg-info';
+                statusBadge.classList.add('bg-info', 'text-dark');
                 break;
             case 'email_generated':
-                badgeClass = 'bg-warning';
+                statusBadge.classList.add('bg-warning', 'text-dark');
                 break;
             case 'uploaded':
-                badgeClass = 'bg-secondary';
+                statusBadge.classList.add('bg-secondary');
+                break;
+            default:
+                statusBadge.classList.add('bg-secondary');
                 break;
         }
-        
-        statusBadge.className += ' ' + badgeClass;
         statusBadge.textContent = statusDisplay;
     }
 

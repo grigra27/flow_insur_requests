@@ -183,7 +183,7 @@
                         </td>
                         <td>
                             {% load summary_extras %}
-                            <span class="badge bg-{{ request.status|status_color }}">
+                            <span class="badge {{ request.status|status_badge_class }}">
                                 <span class="d-none d-sm-inline">{{ request.get_status_display }}</span>
                                 <span class="d-sm-none">
                                     {% if request.status == 'emails_sent' %}✓

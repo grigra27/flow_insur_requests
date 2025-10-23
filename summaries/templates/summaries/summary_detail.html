@@ -31,7 +31,7 @@
         <div class="card mb-4">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">Информация о заявке</h5>
-                <span class="badge bg-{{ summary.status|status_color }} fs-6">
+                <span class="badge {{ summary.status|status_badge_class }} fs-6">
                     {{ summary.get_status_display }}
                 </span>
             </div>
@@ -281,7 +281,7 @@
                 <div class="mb-3">
                     <label class="form-label">Текущий статус:</label>
                     <div>
-                        <span id="current-status-badge" class="badge bg-{{ summary.status|status_color }} fs-6">
+                        <span id="current-status-badge" class="badge {{ summary.status|status_badge_class }} fs-6">
                             {{ summary.get_status_display }}
                         </span>
                     </div>
@@ -2261,10 +2261,10 @@ function quickStatusChange(summaryId, newStatus) {
 function updateStatusBadge(status, statusDisplay) {
     const badge = document.getElementById('current-status-badge');
     if (badge) {
-        // Удаляем все классы цветов
-        badge.classList.remove('bg-success', 'bg-info', 'bg-warning', 'bg-secondary');
+        // Удаляем все классы цветов и текста
+        badge.classList.remove('bg-success', 'bg-info', 'bg-warning', 'bg-secondary', 'bg-danger', 'text-dark');
         
-        // Добавляем соответствующий класс цвета
+        // Добавляем соответствующий класс цвета и текста
         switch(status) {
             case 'completed_accepted':
                 badge.classList.add('bg-success');
@@ -2276,10 +2276,10 @@ function updateStatusBadge(status, statusDisplay) {
                 badge.classList.add('bg-secondary');
                 break;
             case 'ready':
-                badge.classList.add('bg-info');
+                badge.classList.add('bg-info', 'text-dark');
                 break;
             case 'collecting':
-                badge.classList.add('bg-warning');
+                badge.classList.add('bg-warning', 'text-dark');
                 break;
             default:
                 badge.classList.add('bg-secondary');

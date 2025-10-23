@@ -32,6 +32,18 @@ def status_color(status):
     return get_status_color(status)
 
 @register.filter
+def status_badge_class(status):
+    """Возвращает полный CSS класс для бейджа статуса с правильным цветом текста"""
+    from ..status_colors import get_status_color
+    color = get_status_color(status)
+    
+    # Для голубого (info) и желтого (warning) бейджей используем черный текст
+    if color in ['info', 'warning']:
+        return f"bg-{color} text-dark"
+    else:
+        return f"bg-{color}"
+
+@register.filter
 def format_branch(branch):
     """Форматирует отображение филиала"""
     if not branch or branch.strip() == '':
