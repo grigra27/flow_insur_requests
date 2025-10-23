@@ -306,7 +306,10 @@ class ExcelResponseProcessor:
         'insurance_sum': 'B',
         'premium': 'D',
         'franchise': 'E',
-        'installment': 'F'
+        'installment': 'F',
+        'premium_2': 'H',
+        'franchise_2': 'I',
+        'installment_2': 'J'
     }
     
     # Динамическая конфигурация маппинга ячеек
@@ -320,7 +323,7 @@ class ExcelResponseProcessor:
     }
     
     # Допустимые значения рассрочки
-    VALID_INSTALLMENT_VALUES = [1, 2, 3, 4, 12]
+    VALID_INSTALLMENT_VALUES = [1, 2, 3, 4, 6, 12]
     
     def __init__(self):
         """Инициализация процессора"""
@@ -719,7 +722,7 @@ class ExcelResponseProcessor:
                 self.logger.debug(f"Строка {row_number}: год не указан, пропускаем")
                 return None
             
-            # Извлекаем все данные года с обработкой ошибок для конкретной строки
+            # Извлекаем основные данные года с обработкой ошибок для конкретной строки
             year_data = {
                 'year': self._parse_year_with_row(year_value, year_mapping['year'], row_number),
                 'insurance_sum': self._parse_decimal_with_row(
@@ -747,6 +750,35 @@ class ExcelResponseProcessor:
                     row_number
                 )
             }
+            
+            # Извлекаем дополнительные поля (H, I, J), если они присутствуют в маппинге
+            if 'premium_2' in year_mapping:
+                year_data['premium_2'] = self._parse_decimal_with_row(
+                    self._get_cell_value(worksheet, year_mapping['premium_2']),
+                    year_mapping['premium_2'],
+                    'премия-2',
+                    row_number,
+                    required=False,
+                    default_value=None
+                )
+            
+            if 'franchise_2' in year_mapping:
+                year_data['franchise_2'] = self._parse_decimal_with_row(
+                    self._get_cell_value(worksheet, year_mapping['franchise_2']),
+                    year_mapping['franchise_2'],
+                    'франшиза-2',
+                    row_number,
+                    required=False,
+                    default_value=None
+                )
+            
+            if 'installment_2' in year_mapping:
+                year_data['installment_2'] = self._parse_installment_with_row(
+                    self._get_cell_value(worksheet, year_mapping['installment_2']),
+                    year_mapping['installment_2'],
+                    row_number,
+                    required=False
+                )
             
             self.logger.debug(f"Строка {row_number}: извлечены данные для {year_data['year']} года")
             return year_data
@@ -867,7 +899,7 @@ class ExcelResponseProcessor:
         except (InvalidOperation, ValueError, TypeError):
             raise InvalidDataError(field_name, value, 'числовое значение')
     
-    def _parse_decimal_with_row(self, value, cell_address: str, field_name: str, row_number: int, default_value: Optional[Decimal] = None) -> Decimal:
+    def _parse_decimal_with_row(self, value, cell_address: str, field_name: str, row_number: int, default_value: Optional[Decimal] = None, required: bool = True) -> Optional[Decimal]:
         """
         Парсит десятичное значение с указанием номера строки
         
@@ -877,9 +909,10 @@ class ExcelResponseProcessor:
             field_name: Название поля для ошибок
             row_number: Номер строки Excel
             default_value: Значение по умолчанию
+            required: Обязательно ли поле (если False, пустые значения возвращают None)
             
         Returns:
-            Десятичное значение
+            Десятичное значение или None для необязательных полей
             
         Raises:
             RowProcessingError: При некорректном значении
@@ -888,6 +921,8 @@ class ExcelResponseProcessor:
             if value is None or value == '':
                 if default_value is not None:
                     return default_value
+                if not required:
+                    return None
                 raise RowProcessingError(row_number, field_name, 'значение не указано', cell_address)
             
             # Преобразуем в Decimal
@@ -938,7 +973,7 @@ class ExcelResponseProcessor:
                 f'одно из значений: {", ".join(map(str, self.VALID_INSTALLMENT_VALUES))}'
             )
     
-    def _parse_installment_with_row(self, value, cell_address: str, row_number: int) -> int:
+    def _parse_installment_with_row(self, value, cell_address: str, row_number: int, required: bool = True) -> Optional[int]:
         """
         Парсит значение рассрочки с указанием номера строки
         
@@ -946,15 +981,18 @@ class ExcelResponseProcessor:
             value: Значение из ячейки
             cell_address: Адрес ячейки для ошибок
             row_number: Номер строки Excel
+            required: Обязательно ли поле (если False, пустые значения возвращают None)
             
         Returns:
-            Количество платежей в год
+            Количество платежей в год или None для необязательных полей
             
         Raises:
             RowProcessingError: При некорректном значении рассрочки
         """
         try:
             if value is None or value == '':
+                if not required:
+                    return None
                 return 1  # По умолчанию - единовременная оплата
             
             installment = int(value)
@@ -1092,24 +1130,45 @@ class ExcelResponseProcessor:
         Returns:
             Созданное предложение
         """
-        # Определяем параметры рассрочки
+        # Определяем параметры рассрочки для основного варианта
         installment_available = year_data['installment'] > 1
         payments_per_year = year_data['installment']
         
-        offer = InsuranceOffer.objects.create(
-            summary=summary,
-            company_name=company_data['company_name'],
-            insurance_year=year_data['year'],
-            insurance_sum=year_data['insurance_sum'],
-            franchise_1=year_data['franchise'],
-            premium_with_franchise_1=year_data['premium'],
-            installment_variant_1=installment_available,
-            payments_per_year_variant_1=payments_per_year,
+        # Определяем параметры рассрочки для дополнительного варианта (если есть)
+        installment_2_available = False
+        payments_per_year_2 = 1
+        if year_data.get('installment_2') is not None:
+            installment_2_available = year_data['installment_2'] > 1
+            payments_per_year_2 = year_data['installment_2']
+        
+        # Подготавливаем данные для создания предложения
+        offer_data = {
+            'summary': summary,
+            'company_name': company_data['company_name'],
+            'insurance_year': year_data['year'],
+            'insurance_sum': year_data['insurance_sum'],
+            'franchise_1': year_data['franchise'],
+            'premium_with_franchise_1': year_data['premium'],
+            'installment_variant_1': installment_available,
+            'payments_per_year_variant_1': payments_per_year,
             # Для обратной совместимости
-            installment_available=installment_available,
-            payments_per_year=payments_per_year,
-            is_valid=True
-        )
+            'installment_available': installment_available,
+            'payments_per_year': payments_per_year,
+            'is_valid': True
+        }
+        
+        # Добавляем дополнительные поля, если они присутствуют
+        if year_data.get('premium_2') is not None:
+            offer_data['premium_with_franchise_2'] = year_data['premium_2']
+        
+        if year_data.get('franchise_2') is not None:
+            offer_data['franchise_2'] = year_data['franchise_2']
+        
+        if year_data.get('installment_2') is not None:
+            offer_data['installment_variant_2'] = installment_2_available
+            offer_data['payments_per_year_variant_2'] = payments_per_year_2
+        
+        offer = InsuranceOffer.objects.create(**offer_data)
         
         return offer
 
