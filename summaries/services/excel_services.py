@@ -121,6 +121,17 @@ class ExcelExportService:
     SEPARATOR_ROW = 9  # Номер строки-разделителя для копирования
     FIRST_DATA_ROW = 10  # Первая строка для данных компаний
     
+    # Константы для технического листа (tech_info)
+    TECH_INFO_CELLS = {
+        'request_number': 'B5',      # Номер заявки
+        'client_name': 'B6',         # Название клиента
+        'client_inn': 'B7',          # ИНН клиента
+        'branch': 'B10',             # Филиал
+        'insurance_type': 'B11',     # Тип страхования
+        'vehicle_info': 'B12',       # Информация о предмете лизинга
+        'letter_text': 'B14'         # Текст письма заявки
+    }
+    
     # Константы для обработки граничных случаев и валидации
     MAX_ROWS_LIMIT = 1000  # Максимальное количество строк для предотвращения зависания
     MAX_COMPANIES_LIMIT = 100  # Максимальное количество компаний
@@ -290,6 +301,9 @@ class ExcelExportService:
             
             # Заполнение данных компаний с учетом типа шаблона
             self._fill_company_data(workbook, summary, template_type)
+            
+            # Заполнение технического листа (tech_info)
+            self._fill_tech_info_sheet(workbook, summary)
             
             logger.info(f"Данные успешно заполнены для свода ID: {summary.id} с шаблоном типа '{template_type}'")
             
@@ -468,6 +482,98 @@ class ExcelExportService:
             
         except Exception as e:
             logger.warning(f"Ошибка при логировании выбора шаблона: {e}")
+    
+    def _get_tech_info_worksheet(self, workbook: Workbook):
+        """
+        Получает лист tech_info из книги Excel
+        
+        Args:
+            workbook: Книга Excel
+            
+        Returns:
+            Worksheet или None если лист не найден
+        """
+        try:
+            if 'tech_info' in workbook.sheetnames:
+                logger.debug("Найден лист 'tech_info'")
+                return workbook['tech_info']
+            else:
+                logger.debug("Лист 'tech_info' не найден в шаблоне")
+                return None
+        except Exception as e:
+            logger.warning(f"Ошибка при поиске листа tech_info: {e}")
+            return None
+    
+    def _fill_tech_cell(self, worksheet, cell_address: str, value, field_name: str) -> None:
+        """
+        Безопасно заполняет ячейку на техническом листе
+        
+        Args:
+            worksheet: Рабочий лист
+            cell_address: Адрес ячейки
+            value: Значение для записи
+            field_name: Название поля для логирования
+        """
+        try:
+            if value is not None and str(value).strip():
+                worksheet[cell_address].value = str(value)
+                logger.debug(f"Записано {field_name} в ячейку {cell_address}: {str(value)[:50]}...")
+            else:
+                logger.debug(f"Значение {field_name} отсутствует, ячейка {cell_address} остается пустой")
+        except Exception as e:
+            logger.warning(f"Ошибка при записи {field_name} в ячейку {cell_address}: {e}")
+    
+    def _fill_tech_info_sheet(self, workbook: Workbook, summary: InsuranceSummary) -> None:
+        """
+        Заполняет лист tech_info техническими данными о заявке и своде
+        
+        Args:
+            workbook: Книга Excel
+            summary: Объект свода предложений
+        """
+        try:
+            logger.debug(f"Начинаем заполнение листа tech_info для свода ID: {summary.id}")
+            
+            # Ищем лист tech_info
+            tech_sheet = self._get_tech_info_worksheet(workbook)
+            if not tech_sheet:
+                logger.warning("Лист tech_info не найден в шаблоне, пропускаем заполнение")
+                return
+            
+            request = summary.request
+            if not request:
+                logger.warning("Связанная заявка не найдена, пропускаем заполнение tech_info")
+                return
+            
+            # Заполняем основные данные заявки
+            self._fill_tech_cell(tech_sheet, self.TECH_INFO_CELLS['request_number'], 
+                               request.dfa_number, 'номер заявки')
+            
+            self._fill_tech_cell(tech_sheet, self.TECH_INFO_CELLS['client_name'], 
+                               request.client_name, 'название клиента')
+            
+            self._fill_tech_cell(tech_sheet, self.TECH_INFO_CELLS['client_inn'], 
+                               request.inn, 'ИНН клиента')
+            
+            # Заполняем дополнительные данные
+            self._fill_tech_cell(tech_sheet, self.TECH_INFO_CELLS['branch'], 
+                               request.branch, 'филиал')
+            
+            self._fill_tech_cell(tech_sheet, self.TECH_INFO_CELLS['insurance_type'], 
+                               request.get_insurance_type_display(), 'тип страхования')
+            
+            self._fill_tech_cell(tech_sheet, self.TECH_INFO_CELLS['vehicle_info'], 
+                               request.vehicle_info, 'информация о предмете лизинга')
+            
+            # Заполняем текст письма
+            self._fill_tech_cell(tech_sheet, self.TECH_INFO_CELLS['letter_text'], 
+                               request.email_body, 'текст письма')
+            
+            logger.info(f"Лист tech_info успешно заполнен техническими данными для свода ID: {summary.id}")
+            
+        except Exception as e:
+            logger.warning(f"Ошибка при заполнении листа tech_info для свода ID {summary.id}: {e}")
+            # Не прерываем выполнение, продолжаем работу
     
     def _get_companies_sorted_data(self, summary: InsuranceSummary) -> Dict[str, List]:
         """
