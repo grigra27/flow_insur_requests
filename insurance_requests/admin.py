@@ -18,7 +18,7 @@ class InsuranceRequestAdmin(admin.ModelAdmin):
     
     # Улучшенные фильтры по ключевым полям
     list_filter = [
-        'status', 'insurance_type', 'branch', 'has_franchise', 
+        'status', 'insurance_type', 'branch', 'franchise_type', 'has_franchise', 
         'has_installment', 'has_autostart', 'created_at'
     ]
     
@@ -56,7 +56,7 @@ class InsuranceRequestAdmin(admin.ModelAdmin):
         }),
         ('Параметры', {
             'fields': (
-                'has_franchise', 'has_installment', 'has_autostart', 
+                'franchise_type', 'has_franchise', 'has_installment', 'has_autostart', 
                 'response_deadline'
             )
         }),

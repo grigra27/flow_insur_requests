@@ -200,7 +200,7 @@
                         </td>
                         <td>
                             <div class="d-flex flex-wrap gap-1">
-                                {% if request.has_franchise %}
+                                {% if request.franchise_type == 'with_franchise' or request.franchise_type == 'both_variants' %}
                                     <span class="badge bg-warning text-dark" title="Франшиза">
                                         <span class="d-none d-xl-inline">Франшиза</span>
                                         <span class="d-xl-none">Ф</span>

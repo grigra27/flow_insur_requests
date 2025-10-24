@@ -11,6 +11,13 @@ logger = logging.getLogger(__name__)
 class EmailTemplateGenerator:
     """Класс для генерации писем по шаблонам"""
     
+    # Константы с текстами для каждого сценария франшизы
+    FRANCHISE_TEXTS = {
+        'none': '',
+        'with_franchise': 'Обратите внимание, требуется тариф с франшизой.\n',
+        'both_variants': 'Обратите внимание, требуется два варианта тарифа: тариф с франшизой и без франшизы.\n'
+    }
+    
     # Маппинг типов страхования на расширенные описания для писем
     INSURANCE_TYPE_DESCRIPTIONS = {
     'КАСКО': (
@@ -113,6 +120,18 @@ ${franshiza_text}${installment_text}${avtozapusk_text}${transportation_text}${co
             logger.error(f"Error generating email body: {str(e)}")
             raise
     
+    def _get_franchise_text(self, franchise_type: str) -> str:
+        """
+        Возвращает текст о франшизе в зависимости от типа
+        
+        Args:
+            franchise_type: Тип франшизы ('none', 'with_franchise', 'both_variants')
+        
+        Returns:
+            Соответствующий текст для письма
+        """
+        return self.FRANCHISE_TEXTS.get(franchise_type, '')
+    
     def _prepare_template_data(self, data: Dict[str, Any]) -> Dict[str, str]:
         """
         Подготавливает данные для подстановки в шаблон
@@ -141,11 +160,9 @@ ${franshiza_text}${installment_text}${avtozapusk_text}${transportation_text}${co
             'response_time': response_time,
         }
         
-        # Условные блоки текста
-        template_data['franshiza_text'] = (
-            'Обратите внимание, требуется тариф с франшизой.\n'
-            if data.get('has_franchise') else ''
-        )
+        # Условные блоки текста - используем новую логику для франшизы
+        franchise_type = data.get('franchise_type', 'none')
+        template_data['franshiza_text'] = self._get_franchise_text(franchise_type)
         
         template_data['installment_text'] = (
             'Обратите внимание, требуется рассрочка платежа.\n'

@@ -324,6 +324,11 @@ def upload_excel(request):
                     else:
                         logger.debug(f"No CASCO C/E indicators found in file: {excel_file.name} ({detailed_context}) | {format_context}")
                     
+                    # Дополнительная проверка и логирование для типа франшизы
+                    franchise_type_from_excel = excel_data.get('franchise_type', 'none')
+                    has_franchise_from_excel = excel_data.get('has_franchise', False)
+                    logger.info(f"Franchise processing for file: {excel_file.name} ({detailed_context}) - franchise_type: '{franchise_type_from_excel}', has_franchise: {has_franchise_from_excel} | {format_context}")
+                    
                     # Обрабатываем дату ответа
                     response_deadline = None
                     if excel_data.get('response_deadline'):
@@ -367,6 +372,13 @@ def upload_excel(request):
                         logger.warning(f"Invalid insurance type '{insurance_type}' from Excel file {excel_file.name} ({detailed_context}), defaulting to 'КАСКО' | {format_context}")
                         insurance_type = 'КАСКО'
                     
+                    # Валидируем тип франшизы
+                    franchise_type = excel_data.get('franchise_type', 'none')
+                    valid_franchise_types = ['none', 'with_franchise', 'both_variants']
+                    if franchise_type not in valid_franchise_types:
+                        logger.warning(f"Invalid franchise type '{franchise_type}' from Excel file {excel_file.name} ({detailed_context}), defaulting to 'none' | {format_context}")
+                        franchise_type = 'none'
+                    
                     # Создаем заявку
                     insurance_request = InsuranceRequest.objects.create(
                         client_name=excel_data.get('client_name', ''),
@@ -376,6 +388,7 @@ def upload_excel(request):
                         vehicle_info=excel_data.get('vehicle_info', ''),
                         dfa_number=excel_data.get('dfa_number', ''),
                         branch=excel_data.get('branch', ''),
+                        franchise_type=franchise_type,
                         has_franchise=bool(excel_data.get('has_franchise')),
                         has_installment=bool(excel_data.get('has_installment')),
                         has_autostart=bool(excel_data.get('has_autostart')),
@@ -395,8 +408,8 @@ def upload_excel(request):
                         file_type=os.path.splitext(excel_file.name)[1]
                     )
                     
-                    # Логируем успешное создание заявки с полной информацией о формате
-                    logger.info(f"Successfully created request #{insurance_request.id} from file '{excel_file.name}' ({detailed_context}) by user {request.user.username} | {format_context}")
+                    # Логируем успешное создание заявки с полной информацией о формате и франшизе
+                    logger.info(f"Successfully created request #{insurance_request.id} from file '{excel_file.name}' ({detailed_context}) by user {request.user.username} - franchise_type: '{franchise_type}', has_franchise: {insurance_request.has_franchise} | {format_context}")
                     
                     # Улучшенное сообщение об успехе с информацией о формате
                     app_type_display = "заявка от ИП" if application_type == 'individual_entrepreneur' else "заявка от юр.лица"

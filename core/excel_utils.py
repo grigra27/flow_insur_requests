@@ -307,9 +307,17 @@ class ExcelReader:
         # Определяем срок ответа (текущее время + 3 часа) (одинаково для всех форматов)
         response_deadline = timezone.now() + timedelta(hours=3)
         
-        # Определяем наличие франшизы (если D29 не пустая, то франшизы НЕТ) (одинаково для всех форматов)
-        d29_value = self._get_cell_with_adjustment_openpyxl(sheet, 'D', 29)
-        has_franchise = not bool(d29_value and str(d29_value).strip())
+        # Определяем тип франшизы на основе анализа ячеек D29/D30, E29/E30, F29/F30
+        logger.info(f"Starting franchise type determination (openpyxl) ({detailed_context}) | {format_context}")
+        franchise_type = self._determine_franchise_type(sheet, is_openpyxl=True)
+        
+        # Обновляем has_franchise для обратной совместимости
+        has_franchise = franchise_type in ['with_franchise', 'both_variants']
+        logger.info(f"Franchise processing completed (openpyxl) ({detailed_context}): franchise_type='{franchise_type}', has_franchise={has_franchise} (backward compatibility) | {format_context}")
+        
+        # Получаем детальную информацию о франшизе для сохранения в additional_data
+        franchise_details = self._get_franchise_details_openpyxl(sheet)
+        logger.debug(f"Franchise details extracted (openpyxl) ({detailed_context}): {franchise_details} | {format_context}")
         
         # Определяем рассрочку (если F34 не пустая, то рассрочки НЕТ) (одинаково для всех форматов)
         has_installment = not bool(self._get_cell_with_adjustment_openpyxl(sheet, 'F', 34))
@@ -358,6 +366,7 @@ class ExcelReader:
             'vehicle_info': vehicle_info,
             'dfa_number': dfa_number,
             'branch': branch,
+            'franchise_type': franchise_type,
             'has_franchise': has_franchise,
             'has_installment': has_installment,
             'has_autostart': has_autostart,
@@ -365,10 +374,16 @@ class ExcelReader:
             'has_transportation': has_transportation,
             'has_construction_work': has_construction_work,
             'response_deadline': response_deadline,
+            'additional_data': {
+                'franchise_details': franchise_details,
+                'extraction_timestamp': timezone.now().isoformat(),
+                'application_type': self.application_type,
+                'application_format': self.application_format
+            }
         }
         
         # Логируем успешное извлечение данных с информацией о формате и новых параметрах
-        logger.info(f"Successfully extracted data with openpyxl ({detailed_context}): client='{client_name}', insurance_type='{insurance_type}', dfa_number='{dfa_number}', branch='{branch}', has_autostart={has_autostart}, has_casco_ce={has_casco_ce}, has_transportation={has_transportation}, has_construction_work={has_construction_work} | {format_context}")
+        logger.info(f"Successfully extracted data with openpyxl ({detailed_context}): client='{client_name}', insurance_type='{insurance_type}', dfa_number='{dfa_number}', branch='{branch}', franchise_type='{franchise_type}', has_franchise={has_franchise}, has_autostart={has_autostart}, has_casco_ce={has_casco_ce}, has_transportation={has_transportation}, has_construction_work={has_construction_work} | {format_context}")
         
         return extracted_data
     
@@ -406,9 +421,17 @@ class ExcelReader:
         # Определяем срок ответа (текущее время + 3 часа) (одинаково для всех форматов)
         response_deadline = timezone.now() + timedelta(hours=3)
         
-        # Определяем наличие франшизы (если D29 не пустая, то франшизы НЕТ) (одинаково для всех форматов)
-        franchise_value = self._get_cell_with_adjustment_pandas(df, 29, 3)  # D29
-        has_franchise = not bool(franchise_value and str(franchise_value).strip())
+        # Определяем тип франшизы на основе анализа ячеек D29/D30, E29/E30, F29/F30
+        logger.info(f"Starting franchise type determination (pandas) ({detailed_context}) | {format_context}")
+        franchise_type = self._determine_franchise_type(sheet=None, is_openpyxl=False, df=df)
+        
+        # Обновляем has_franchise для обратной совместимости
+        has_franchise = franchise_type in ['with_franchise', 'both_variants']
+        logger.info(f"Franchise processing completed (pandas) ({detailed_context}): franchise_type='{franchise_type}', has_franchise={has_franchise} (backward compatibility) | {format_context}")
+        
+        # Получаем детальную информацию о франшизе для сохранения в additional_data
+        franchise_details = self._get_franchise_details_pandas(df)
+        logger.debug(f"Franchise details extracted (pandas) ({detailed_context}): {franchise_details} | {format_context}")
         
         # Определяем рассрочку (если F34 не пустая, то рассрочки НЕТ) (одинаково для всех форматов)
         installment_value = self._get_cell_with_adjustment_pandas(df, 34, 5)  # F34
@@ -458,6 +481,7 @@ class ExcelReader:
             'vehicle_info': vehicle_info,
             'dfa_number': dfa_number,
             'branch': branch,
+            'franchise_type': franchise_type,
             'has_franchise': has_franchise,
             'has_installment': has_installment,
             'has_autostart': has_autostart,
@@ -465,10 +489,16 @@ class ExcelReader:
             'has_transportation': has_transportation,
             'has_construction_work': has_construction_work,
             'response_deadline': response_deadline,
+            'additional_data': {
+                'franchise_details': franchise_details,
+                'extraction_timestamp': timezone.now().isoformat(),
+                'application_type': self.application_type,
+                'application_format': self.application_format
+            }
         }
         
         # Логируем успешное извлечение данных с информацией о формате и новых параметрах
-        logger.info(f"Successfully extracted data with pandas ({detailed_context}): client='{client_name}', insurance_type='{insurance_type}', dfa_number='{dfa_number}', branch='{branch}', has_autostart={has_autostart}, has_casco_ce={has_casco_ce}, has_transportation={has_transportation}, has_construction_work={has_construction_work} | {format_context}")
+        logger.info(f"Successfully extracted data with pandas ({detailed_context}): client='{client_name}', insurance_type='{insurance_type}', dfa_number='{dfa_number}', branch='{branch}', franchise_type='{franchise_type}', has_franchise={has_franchise}, has_autostart={has_autostart}, has_casco_ce={has_casco_ce}, has_transportation={has_transportation}, has_construction_work={has_construction_work} | {format_context}")
         
         return extracted_data
     
@@ -897,6 +927,7 @@ class ExcelReader:
             'vehicle_info': f'Информация о предмете лизинга не указана ({app_type_display}, {format_display})',
             'dfa_number': f'Номер ДФА не указан ({app_type_display}, {format_display})',
             'branch': f'Филиал не указан ({app_type_display}, {format_display})',
+            'franchise_type': 'none',
             'has_franchise': False,
             'has_installment': False,
             'has_autostart': False,
@@ -906,6 +937,15 @@ class ExcelReader:
             'response_deadline': timezone.now() + timedelta(hours=3),
             'application_type': self.application_type,
             'application_format': self.application_format,
+            'additional_data': {
+                'franchise_details': {
+                    'error': 'Failed to extract franchise details',
+                    'fallback_used': True
+                },
+                'extraction_timestamp': timezone.now().isoformat(),
+                'application_type': self.application_type,
+                'application_format': self.application_format
+            }
         }
     
 
@@ -1320,6 +1360,198 @@ class ExcelReader:
             return str(cell_value) if cell_value is not None else None
         except Exception:
             return None
+    
+    def _determine_franchise_type(self, sheet, is_openpyxl: bool = True, df=None) -> str:
+        """
+        Определяет тип франшизы на основе анализа ячеек Excel
+        
+        Логика определения:
+        1. Определяет тип заявки (ИП или обычная компания) на основе application_type
+        2. Выбирает соответствующие ячейки:
+           - Обычная компания: D29, E29, F29
+           - ИП: D30, E30, F30
+        3. Анализирует содержимое ячеек:
+           - Если D29/D30 не пустая И E29/E30, F29/F30 пустые -> 'none' (без франшизы)
+           - Если D29/D30 пустая И (E29/E30 ИЛИ F29/F30) не пустые -> 'with_franchise' (только с франшизой)
+           - Если D29/D30 не пустая И (E29/E30 ИЛИ F29/F30) не пустые -> 'both_variants' (оба варианта)
+           - Если все ячейки пустые -> 'none' (по умолчанию)
+        
+        Args:
+            sheet: Лист Excel (для openpyxl) или None (для pandas)
+            is_openpyxl: True если используется openpyxl, False для pandas
+            df: DataFrame (для pandas) или None (для openpyxl)
+            
+        Returns:
+            str: Тип франшизы ('none', 'with_franchise', 'both_variants')
+        """
+        format_context = self._get_format_context()
+        detailed_context = self._get_detailed_format_context()
+        
+        try:
+            # Определяем, является ли это заявкой от ИП
+            is_ip_format = self.application_type == 'individual_entrepreneur'
+            
+            # Используем базовую строку 29 для всех типов заявок
+            # Смещение для ИП будет применено автоматически в _get_adjusted_row
+            d_row, e_row, f_row = 29, 29, 29
+            
+            if is_ip_format:
+                logger.debug(f"Using base row 29 for IP format (will be adjusted to 30 automatically): D29->D30, E29->E30, F29->F30 ({detailed_context}) | {format_context}")
+            else:
+                logger.debug(f"Using legal entity format cells: D29, E29, F29 ({detailed_context}) | {format_context}")
+            
+            # Получаем значения ячеек в зависимости от используемой библиотеки
+            if is_openpyxl:
+                d_value = self._get_cell_with_adjustment_openpyxl(sheet, 'D', d_row)
+                e_value = self._get_cell_with_adjustment_openpyxl(sheet, 'E', e_row)
+                f_value = self._get_cell_with_adjustment_openpyxl(sheet, 'F', f_row)
+            else:
+                # Для pandas: D=колонка 3, E=колонка 4, F=колонка 5 (0-based)
+                d_value = self._get_cell_with_adjustment_pandas(df, d_row, 3)
+                e_value = self._get_cell_with_adjustment_pandas(df, e_row, 4)
+                f_value = self._get_cell_with_adjustment_pandas(df, f_row, 5)
+            
+            # Проверяем наличие значений в ячейках
+            d_has_value = self._has_value(d_value)
+            e_has_value = self._has_value(e_value)
+            f_has_value = self._has_value(f_value)
+            
+            # Определяем фактические ячейки после корректировки для логирования
+            actual_d_row = self._get_adjusted_row(d_row)
+            actual_e_row = self._get_adjusted_row(e_row)
+            actual_f_row = self._get_adjusted_row(f_row)
+            
+            # Логируем значения ячеек для отладки
+            logger.debug(f"Franchise cells analysis ({detailed_context}): D{actual_d_row}='{d_value}' ({d_has_value}), E{actual_e_row}='{e_value}' ({e_has_value}), F{actual_f_row}='{f_value}' ({f_has_value}) | {format_context}")
+            
+            # Определяем тип франшизы по логике
+            if d_has_value and not e_has_value and not f_has_value:
+                # D не пустая, E и F пустые -> без франшизы
+                franchise_type = 'none'
+                logger.info(f"Determined franchise type 'none' ({detailed_context}): D{actual_d_row} has value, E{actual_e_row} and F{actual_f_row} are empty | {format_context}")
+            elif not d_has_value and (e_has_value or f_has_value):
+                # D пустая, но E или F не пустые -> только с франшизой
+                franchise_type = 'with_franchise'
+                logger.info(f"Determined franchise type 'with_franchise' ({detailed_context}): D{actual_d_row} is empty, E{actual_e_row} or F{actual_f_row} has value | {format_context}")
+            elif d_has_value and (e_has_value or f_has_value):
+                # D не пустая И (E или F не пустые) -> оба варианта
+                franchise_type = 'both_variants'
+                logger.info(f"Determined franchise type 'both_variants' ({detailed_context}): D{actual_d_row} has value AND E{actual_e_row} or F{actual_f_row} has value | {format_context}")
+            else:
+                # Все ячейки пустые или неопределенное состояние -> по умолчанию без франшизы
+                franchise_type = 'none'
+                logger.info(f"Determined franchise type 'none' (default) ({detailed_context}): all cells are empty or undefined state | {format_context}")
+            
+            # Сохраняем детальную информацию о франшизе в additional_data для анализа
+            franchise_details = {
+                'd_cell_value': str(d_value) if d_value is not None else None,
+                'e_cell_value': str(e_value) if e_value is not None else None,
+                'f_cell_value': str(f_value) if f_value is not None else None,
+                'is_ip_format': is_ip_format,
+                'base_d_row': d_row,
+                'base_e_row': e_row,
+                'base_f_row': f_row,
+                'actual_d_row': actual_d_row,
+                'actual_e_row': actual_e_row,
+                'actual_f_row': actual_f_row,
+                'determined_type': franchise_type
+            }
+            
+            logger.info(f"Franchise type determination completed ({detailed_context}): '{franchise_type}' | {format_context}")
+            
+            return franchise_type
+            
+        except Exception as e:
+            logger.error(f"Error determining franchise type ({detailed_context}): {str(e)} | {format_context}")
+            # В случае ошибки возвращаем безопасное значение по умолчанию
+            logger.warning(f"Falling back to franchise type 'none' due to error ({detailed_context}) | {format_context}")
+            return 'none'
+    
+    def _get_franchise_details_openpyxl(self, sheet) -> Dict[str, Any]:
+        """
+        Получает детальную информацию о франшизе для сохранения в additional_data (openpyxl)
+        
+        Args:
+            sheet: Лист Excel (openpyxl)
+            
+        Returns:
+            Dict с детальной информацией о франшизе
+        """
+        try:
+            is_ip_format = self.application_type == 'individual_entrepreneur'
+            
+            # Используем базовую строку 29 для всех типов заявок
+            # Смещение для ИП будет применено автоматически в _get_adjusted_row
+            d_row, e_row, f_row = 29, 29, 29
+            
+            d_value = self._get_cell_with_adjustment_openpyxl(sheet, 'D', d_row)
+            e_value = self._get_cell_with_adjustment_openpyxl(sheet, 'E', e_row)
+            f_value = self._get_cell_with_adjustment_openpyxl(sheet, 'F', f_row)
+            
+            # Определяем фактические строки после корректировки
+            actual_d_row = self._get_adjusted_row(d_row)
+            actual_e_row = self._get_adjusted_row(e_row)
+            actual_f_row = self._get_adjusted_row(f_row)
+            
+            return {
+                'd_cell_value': str(d_value) if d_value is not None else None,
+                'e_cell_value': str(e_value) if e_value is not None else None,
+                'f_cell_value': str(f_value) if f_value is not None else None,
+                'is_ip_format': is_ip_format,
+                'base_d_row': d_row,
+                'base_e_row': e_row,
+                'base_f_row': f_row,
+                'actual_d_row': actual_d_row,
+                'actual_e_row': actual_e_row,
+                'actual_f_row': actual_f_row,
+                'extraction_method': 'openpyxl'
+            }
+        except Exception as e:
+            logger.error(f"Error getting franchise details (openpyxl): {str(e)}")
+            return {}
+    
+    def _get_franchise_details_pandas(self, df) -> Dict[str, Any]:
+        """
+        Получает детальную информацию о франшизе для сохранения в additional_data (pandas)
+        
+        Args:
+            df: DataFrame (pandas)
+            
+        Returns:
+            Dict с детальной информацией о франшизе
+        """
+        try:
+            is_ip_format = self.application_type == 'individual_entrepreneur'
+            
+            # Используем базовую строку 29 для всех типов заявок
+            # Смещение для ИП будет применено автоматически в _get_adjusted_row
+            d_row, e_row, f_row = 29, 29, 29
+            
+            d_value = self._get_cell_with_adjustment_pandas(df, d_row, 3)  # D
+            e_value = self._get_cell_with_adjustment_pandas(df, e_row, 4)  # E
+            f_value = self._get_cell_with_adjustment_pandas(df, f_row, 5)  # F
+            
+            # Определяем фактические строки после корректировки
+            actual_d_row = self._get_adjusted_row(d_row)
+            actual_e_row = self._get_adjusted_row(e_row)
+            actual_f_row = self._get_adjusted_row(f_row)
+            
+            return {
+                'd_cell_value': str(d_value) if d_value is not None else None,
+                'e_cell_value': str(e_value) if e_value is not None else None,
+                'f_cell_value': str(f_value) if f_value is not None else None,
+                'is_ip_format': is_ip_format,
+                'base_d_row': d_row,
+                'base_e_row': e_row,
+                'base_f_row': f_row,
+                'actual_d_row': actual_d_row,
+                'actual_e_row': actual_e_row,
+                'actual_f_row': actual_f_row,
+                'extraction_method': 'pandas'
+            }
+        except Exception as e:
+            logger.error(f"Error getting franchise details (pandas): {str(e)}")
+            return {}
 
 
 class ExcelWriter:

@@ -97,7 +97,7 @@
                 <hr>
                 <h6>Дополнительные параметры:</h6>
                 <div class="d-flex gap-2 mb-3">
-                    {% if request.has_franchise %}
+                    {% if request.franchise_type == 'with_franchise' or request.franchise_type == 'both_variants' %}
                     <span class="badge bg-warning text-dark">Франшиза</span>
                     {% endif %}
                     {% if request.has_installment %}
@@ -115,7 +115,7 @@
                     {% if request.has_construction_work %}
                     <span class="badge bg-dark text-light">СМР</span>
                     {% endif %}
-                    {% if not request.has_franchise and not request.has_installment and not request.has_autostart and not request.has_casco_ce and not request.has_transportation and not request.has_construction_work %}
+                    {% if request.franchise_type == 'none' and not request.has_installment and not request.has_autostart and not request.has_casco_ce and not request.has_transportation and not request.has_construction_work %}
                     <span class="text-muted">Дополнительных параметров нет</span>
                     {% endif %}
                 </div>

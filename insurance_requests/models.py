@@ -28,6 +28,12 @@ class InsuranceRequest(models.Model):
         ('на весь срок лизинга', 'на весь срок лизинга'),
     ]
     
+    FRANCHISE_TYPE_CHOICES = [
+        ('none', 'Без франшизы'),
+        ('with_franchise', 'Только с франшизой'),
+        ('both_variants', 'Оба варианта'),
+    ]
+    
     # Основные поля
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Дата создания')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='Дата обновления')
@@ -54,6 +60,12 @@ class InsuranceRequest(models.Model):
     branch = models.CharField(max_length=255, blank=True, verbose_name='Филиал')
     
     # Дополнительные параметры
+    franchise_type = models.CharField(
+        max_length=20,
+        choices=FRANCHISE_TYPE_CHOICES,
+        default='none',
+        verbose_name='Тип франшизы'
+    )
     has_franchise = models.BooleanField(default=False, verbose_name='Требуется франшиза')
     has_installment = models.BooleanField(default=False, verbose_name='Требуется рассрочка')
     has_autostart = models.BooleanField(default=False, verbose_name='Есть автозапуск')
@@ -90,12 +102,16 @@ class InsuranceRequest(models.Model):
         return f"{self.get_display_name()} - {self.client_name} ({self.get_status_display()})"
     
     def save(self, *args, **kwargs):
-        """Override save method to set automatic response deadline in Moscow timezone"""
+        """Override save method to set automatic response deadline in Moscow timezone and update has_franchise"""
         if not self.response_deadline:
             # Получаем текущее время в московском часовом поясе
             moscow_tz = pytz.timezone('Europe/Moscow')
             moscow_now = timezone.now().astimezone(moscow_tz)
             self.response_deadline = moscow_now + timedelta(hours=3)
+        
+        # Автоматическое обновление has_franchise на основе franchise_type
+        self.has_franchise = self.franchise_type in ['with_franchise', 'both_variants']
+        
         super().save(*args, **kwargs)
     
     def get_moscow_time(self, field_name):
@@ -130,6 +146,7 @@ class InsuranceRequest(models.Model):
             'vehicle_info': self.vehicle_info,
             'dfa_number': self.dfa_number,
             'branch': self.branch,
+            'franchise_type': self.franchise_type,
             'has_franchise': self.has_franchise,
             'has_installment': self.has_installment,
             'has_autostart': self.has_autostart,
