@@ -84,7 +84,8 @@ class ExcelExportService:
     """Сервис для генерации Excel-файлов сводов предложений"""
     
     # Константы для маппинга колонок и строк данных компаний
-    COMPANY_DATA_COLUMNS = {
+    # Полный шаблон (существующий)
+    FULL_TEMPLATE_COLUMNS = {
         'company_name': 'A',      # Название компании
         'year': 'B',              # Год страхования
         'insurance_sum': 'C',     # Страховая сумма
@@ -100,6 +101,22 @@ class ExcelExportService:
         'premium_2_summary': 'O', # Сумма премий-2
         'notes': 'Q'              # Примечания
     }
+    
+    # Упрощенный шаблон (новый)
+    SIMPLIFIED_TEMPLATE_COLUMNS = {
+        'company_name': 'A',      # Название компании
+        'year': 'B',              # Год страхования
+        'insurance_sum': 'C',     # Страховая сумма
+        'rate_1': 'E',            # Страховой тариф-1 (в процентах)
+        'premium_1': 'F',         # Премия-1
+        'franchise_1': 'G',       # Франшиза-1
+        'installment_1': 'H',     # Рассрочка-1
+        'premium_1_summary': 'I', # Сумма премий-1
+        'notes': 'K'              # Примечания (сдвинутая колонка)
+    }
+    
+    # Обратная совместимость
+    COMPANY_DATA_COLUMNS = FULL_TEMPLATE_COLUMNS
     
     SEPARATOR_ROW = 9  # Номер строки-разделителя для копирования
     FIRST_DATA_ROW = 10  # Первая строка для данных компаний
@@ -154,11 +171,14 @@ class ExcelExportService:
             # Валидация данных свода
             self._validate_summary_data(summary)
             
-            # Загрузка шаблона
-            workbook = self._load_template()
+            # Определение типа шаблона на основе данных свода
+            template_type = self._determine_template_type_safe(summary)
             
-            # Заполнение данными
-            self._fill_template_data(workbook, summary)
+            # Загрузка соответствующего шаблона
+            workbook = self._load_template(template_type)
+            
+            # Заполнение данными с учетом типа шаблона
+            self._fill_template_data(workbook, summary, template_type)
             
             # Сохранение в память
             excel_buffer = BytesIO()
@@ -211,9 +231,12 @@ class ExcelExportService:
         
         logger.debug(f"Валидация данных свода ID {summary.id} успешно пройдена")
     
-    def _load_template(self) -> Workbook:
+    def _load_template(self, template_type: str = 'full') -> Workbook:
         """
-        Загружает шаблон Excel из файла
+        Загружает соответствующий шаблон Excel из файла
+        
+        Args:
+            template_type: Тип шаблона ('full' или 'simplified')
         
         Returns:
             Workbook: Загруженная книга Excel
@@ -222,28 +245,30 @@ class ExcelExportService:
             ExcelExportServiceError: При ошибках загрузки шаблона
         """
         try:
-            logger.debug(f"Загружаем шаблон из файла: {self.template_path}")
-            workbook = load_workbook(self.template_path)
-            logger.debug("Шаблон успешно загружен")
+            template_path = self._get_template_path(template_type)
+            logger.debug(f"Загружаем шаблон из файла: {template_path}")
+            workbook = load_workbook(template_path)
+            logger.debug(f"Шаблон типа '{template_type}' успешно загружен")
             return workbook
         except Exception as e:
-            error_msg = f"Ошибка при загрузке шаблона Excel: {str(e)}"
+            error_msg = f"Ошибка при загрузке шаблона Excel типа '{template_type}': {str(e)}"
             logger.error(error_msg, exc_info=True)
             raise ExcelExportServiceError(error_msg) from e
     
-    def _fill_template_data(self, workbook: Workbook, summary: InsuranceSummary) -> None:
+    def _fill_template_data(self, workbook: Workbook, summary: InsuranceSummary, template_type: str = 'full') -> None:
         """
         Заполняет шаблон данными из свода
         
         Args:
             workbook: Книга Excel для заполнения
             summary: Объект свода предложений
+            template_type: Тип шаблона ('full' или 'simplified')
             
         Raises:
             ExcelExportServiceError: При ошибках заполнения данных
         """
         try:
-            logger.debug(f"Начинаем заполнение данных для свода ID: {summary.id}")
+            logger.debug(f"Начинаем заполнение данных для свода ID: {summary.id} с шаблоном типа '{template_type}'")
             
             # Получаем рабочий лист (используем первый лист или ищем по имени)
             worksheet = self._get_target_worksheet(workbook)
@@ -263,10 +288,10 @@ class ExcelExportService:
             self._set_merged_cell_value(worksheet, 'C3', request.client_name)
             logger.debug(f"Записано название клиента в C3: {request.client_name}")
             
-            # Заполнение данных компаний (новый функционал)
-            self._fill_company_data(workbook, summary)
+            # Заполнение данных компаний с учетом типа шаблона
+            self._fill_company_data(workbook, summary, template_type)
             
-            logger.info(f"Данные успешно заполнены для свода ID: {summary.id}")
+            logger.info(f"Данные успешно заполнены для свода ID: {summary.id} с шаблоном типа '{template_type}'")
             
         except Exception as e:
             error_msg = f"Ошибка при заполнении данных в Excel: {str(e)}"
@@ -324,6 +349,126 @@ class ExcelExportService:
             logger.error(error_msg, exc_info=True)
             raise ExcelExportServiceError(error_msg) from e
     
+    def _determine_template_type(self, summary: InsuranceSummary) -> str:
+        """
+        Определяет тип шаблона на основе анализа предложений в своде
+        
+        Args:
+            summary: Объект свода предложений
+        
+        Returns:
+            str: 'full' если есть хотя бы одно предложение с премией-2,
+                 'simplified' если нет ни одного предложения с премией-2
+        """
+        try:
+            logger.debug(f"Анализируем предложения свода ID: {summary.id} для определения типа шаблона")
+            
+            # Получаем все предложения свода
+            offers = summary.offers.all()
+            total_offers = offers.count()
+            
+            # Проверяем наличие хотя бы одного предложения с премией-2
+            offers_with_premium_2 = offers.filter(
+                premium_with_franchise_2__isnull=False,
+                premium_with_franchise_2__gt=0
+            ).count()
+            
+            # Логируем статистику
+            logger.info(f"Свод ID: {summary.id} - всего предложений: {total_offers}, с премией-2: {offers_with_premium_2}")
+            
+            if offers_with_premium_2 > 0:
+                logger.info(f"Найдено {offers_with_premium_2} предложений с премией-2, используем полный шаблон")
+                return 'full'
+            else:
+                logger.info("Предложений с премией-2 не найдено, используем упрощенный шаблон")
+                return 'simplified'
+                
+        except Exception as e:
+            logger.error(f"Ошибка при анализе предложений для определения типа шаблона: {e}")
+            raise
+    
+    def _determine_template_type_safe(self, summary: InsuranceSummary) -> str:
+        """
+        Безопасное определение типа шаблона с fallback к полному шаблону
+        
+        Args:
+            summary: Объект свода предложений
+        
+        Returns:
+            str: Тип шаблона ('full' или 'simplified')
+        """
+        try:
+            template_type = self._determine_template_type(summary)
+            self._log_template_selection(template_type, summary)
+            return template_type
+        except Exception as e:
+            logger.error(f"Ошибка при определении типа шаблона для свода ID {summary.id}: {e}")
+            logger.info("Используем полный шаблон по умолчанию")
+            return 'full'  # Fallback к полному шаблону
+    
+    def _get_template_path(self, template_type: str) -> str:
+        """
+        Возвращает путь к соответствующему шаблону
+        
+        Args:
+            template_type: Тип шаблона ('full' или 'simplified')
+        
+        Returns:
+            str: Путь к файлу шаблона
+        """
+        if template_type == 'simplified':
+            return str(settings.BASE_DIR / 'templates' / 'summary_template_simplified.xlsx')
+        else:
+            return str(settings.BASE_DIR / 'templates' / 'summary_template.xlsx')
+    
+    def _get_columns_mapping(self, template_type: str) -> dict:
+        """
+        Возвращает маппинг колонок для указанного типа шаблона
+        
+        Args:
+            template_type: Тип шаблона ('full' или 'simplified')
+        
+        Returns:
+            dict: Маппинг колонок
+        """
+        if template_type == 'simplified':
+            return self.SIMPLIFIED_TEMPLATE_COLUMNS
+        else:
+            return self.FULL_TEMPLATE_COLUMNS
+    
+    def _log_template_selection(self, template_type: str, summary: InsuranceSummary) -> None:
+        """
+        Логирует информацию о выборе шаблона
+        
+        Args:
+            template_type: Выбранный тип шаблона
+            summary: Объект свода предложений
+        """
+        try:
+            total_offers = summary.offers.count()
+            offers_with_premium_2 = summary.offers.filter(
+                premium_with_franchise_2__isnull=False,
+                premium_with_franchise_2__gt=0
+            ).count()
+            
+            logger.info(f"=== ВЫБОР ШАБЛОНА ДЛЯ СВОДА ID: {summary.id} ===")
+            logger.info(f"Выбран тип шаблона: {template_type}")
+            logger.info(f"Всего предложений в своде: {total_offers}")
+            logger.info(f"Предложений с премией-2: {offers_with_premium_2}")
+            
+            if template_type == 'simplified':
+                logger.info("Будет использован упрощенный шаблон без колонок для второго предложения")
+                logger.info("Колонки J, K, L, M, N, O будут отсутствовать")
+                logger.info("Примечания будут в колонке K вместо Q")
+            else:
+                logger.info("Будет использован полный шаблон с колонками для обоих предложений")
+                logger.info("Все колонки A-Q будут присутствовать")
+            
+            logger.info("=" * 50)
+            
+        except Exception as e:
+            logger.warning(f"Ошибка при логировании выбора шаблона: {e}")
+    
     def _get_companies_sorted_data(self, summary: InsuranceSummary) -> Dict[str, List]:
         """
         Получает данные компаний, отсортированные по алфавиту
@@ -358,19 +503,24 @@ class ExcelExportService:
             logger.error(error_msg, exc_info=True)
             raise ExcelExportServiceError(error_msg) from e
     
-    def _fill_company_data(self, workbook: Workbook, summary: InsuranceSummary) -> None:
+    def _fill_company_data(self, workbook: Workbook, summary: InsuranceSummary, template_type: str = 'full') -> None:
         """
         Основная логика заполнения данных компаний в Excel
         
         Args:
             workbook: Книга Excel для заполнения
             summary: Объект свода предложений
+            template_type: Тип шаблона ('full' или 'simplified')
             
         Raises:
             ExcelExportServiceError: При ошибках заполнения данных компаний
         """
         try:
-            logger.info(f"Начинаем заполнение данных компаний для свода ID: {summary.id}")
+            logger.info(f"Начинаем заполнение данных компаний для свода ID: {summary.id} с шаблоном типа '{template_type}'")
+            
+            # Получаем маппинг колонок для текущего типа шаблона
+            columns = self._get_columns_mapping(template_type)
+            logger.debug(f"Используем маппинг колонок для шаблона '{template_type}': {columns}")
             
             # Получаем отсортированные данные компаний
             raw_companies_data = self._get_companies_sorted_data(summary)
@@ -419,16 +569,16 @@ class ExcelExportService:
                     company_name_for_row = company_name if year_index == 0 else None
                     
                     # Заполняем строку с данными года
-                    self._fill_company_year_row(worksheet, current_row, company_name_for_row, offer, year_display)
+                    self._fill_company_year_row(worksheet, current_row, company_name_for_row, offer, year_display, columns)
                     current_row += 1
                 
                 # Объединяем ячейки с названием компании если у неё несколько лет
                 if len(offers) > 1:
-                    self._merge_company_name_cells(worksheet, company_start_row, current_row - 1, company_name)
+                    self._merge_company_name_cells(worksheet, company_start_row, current_row - 1, company_name, columns)
                     # Объединяем ячейки с суммами премий
-                    self._merge_premium_summary_cells(worksheet, company_start_row, current_row - 1, company_name, offers)
+                    self._merge_premium_summary_cells(worksheet, company_start_row, current_row - 1, company_name, offers, columns)
                     # Объединяем ячейки с примечаниями
-                    self._merge_notes_cells(worksheet, company_start_row, current_row - 1, company_name, offers)
+                    self._merge_notes_cells(worksheet, company_start_row, current_row - 1, company_name, offers, columns)
                 
                 # Добавляем разделитель между компаниями (кроме последней)
                 if company_index < total_companies - 1 and current_row < self.MAX_ROWS_LIMIT:
@@ -666,7 +816,7 @@ class ExcelExportService:
             return False
     
     def _fill_company_year_row(self, worksheet, row_num: int, company_name: str, 
-                              offer, year_display: str) -> None:
+                              offer, year_display: str, columns_mapping: dict = None) -> None:
         """
         Заполняет строку с данными года страхования с корректным форматированием
         
@@ -679,11 +829,15 @@ class ExcelExportService:
             company_name: Название страховой компании (может быть None для объединенных ячеек)
             offer: Объект предложения InsuranceOffer
             year_display: Отображаемое значение года (например, "1 год")
+            columns_mapping: Маппинг колонок (если None, используется COMPANY_DATA_COLUMNS)
             
         Raises:
             ExcelExportServiceError: При ошибках заполнения строки
         """
         try:
+            # Используем переданный маппинг или значение по умолчанию
+            columns = columns_mapping if columns_mapping is not None else self.COMPANY_DATA_COLUMNS
+            
             logger.debug(f"Заполняем строку {row_num} для компании '{company_name}', {year_display}")
             
             # Копируем стили из строки 10 (первой строки с данными) перед заполнением данных
@@ -693,15 +847,15 @@ class ExcelExportService:
             # Основные данные
             # Название компании записываем только если передано (для первой строки компании)
             if company_name is not None:
-                worksheet[f"{self.COMPANY_DATA_COLUMNS['company_name']}{row_num}"].value = company_name
-            worksheet[f"{self.COMPANY_DATA_COLUMNS['year']}{row_num}"].value = year_display
+                worksheet[f"{columns['company_name']}{row_num}"].value = company_name
+            worksheet[f"{columns['year']}{row_num}"].value = year_display
             
             # Страховая сумма с форматированием и валидацией
             insurance_sum = self._format_insurance_sum(offer)
             if insurance_sum is not None and self._validate_numeric_data_before_write(
                 insurance_sum, 'страховая сумма', company_name, getattr(offer, 'insurance_year', 0)
             ):
-                worksheet[f"{self.COMPANY_DATA_COLUMNS['insurance_sum']}{row_num}"].value = insurance_sum
+                worksheet[f"{columns['insurance_sum']}{row_num}"].value = insurance_sum
                 logger.debug(f"Записана страховая сумма: {insurance_sum}")
             else:
                 logger.warning(f"Страховая сумма не записана для компании '{company_name}' из-за ошибок валидации")
@@ -712,13 +866,13 @@ class ExcelExportService:
             installment_1 = self._format_installment_payments(offer, 1)
             
             # Заполняем страховой тариф-1 (колонка E)
-            self._fill_insurance_rate(worksheet, row_num, self.COMPANY_DATA_COLUMNS['rate_1'], 1)
+            self._fill_insurance_rate(worksheet, row_num, columns['rate_1'], 1)
             
             # Валидация и запись премии-1
             if premium_1 is not None and self._validate_numeric_data_before_write(
                 premium_1, 'премия-1', company_name, getattr(offer, 'insurance_year', 0)
             ):
-                worksheet[f"{self.COMPANY_DATA_COLUMNS['premium_1']}{row_num}"].value = premium_1
+                worksheet[f"{columns['premium_1']}{row_num}"].value = premium_1
                 logger.debug(f"Записана премия-1: {premium_1}")
             elif premium_1 is None:
                 logger.warning(f"Премия-1 отсутствует для компании '{company_name}', ячейка останется пустой")
@@ -727,30 +881,30 @@ class ExcelExportService:
             if franchise_1 is not None and self._validate_numeric_data_before_write(
                 franchise_1, 'франшиза-1', company_name, getattr(offer, 'insurance_year', 0)
             ):
-                worksheet[f"{self.COMPANY_DATA_COLUMNS['franchise_1']}{row_num}"].value = franchise_1
+                worksheet[f"{columns['franchise_1']}{row_num}"].value = franchise_1
                 logger.debug(f"Записана франшиза-1: {franchise_1}")
             elif franchise_1 is None:
                 # Для франшизы None допустимо - ячейка останется пустой
                 logger.debug(f"Франшиза-1 отсутствует для компании '{company_name}', ячейка останется пустой")
             
             # Рассрочка всегда записывается (минимум 1)
-            worksheet[f"{self.COMPANY_DATA_COLUMNS['installment_1']}{row_num}"].value = installment_1
+            worksheet[f"{columns['installment_1']}{row_num}"].value = installment_1
             logger.debug(f"Записана рассрочка-1: {installment_1} платежей в год")
             
-            # Предложение 2 (если есть) с форматированием и валидацией
-            if offer.has_second_franchise_variant():
+            # Предложение 2 (если есть и поддерживается шаблоном) с форматированием и валидацией
+            if offer.has_second_franchise_variant() and 'rate_2' in columns:
                 premium_2 = self._format_premium(offer, 2)
                 franchise_2 = self._format_franchise(offer, 2)
                 installment_2 = self._format_installment_payments(offer, 2)
                 
-                # Заполняем страховой тариф-2 (колонка K)
-                self._fill_insurance_rate(worksheet, row_num, self.COMPANY_DATA_COLUMNS['rate_2'], 2)
+                # Заполняем страховой тариф-2 (только если колонка существует)
+                self._fill_insurance_rate(worksheet, row_num, columns['rate_2'], 2)
                 
                 # Валидация и запись премии-2
                 if premium_2 is not None and self._validate_numeric_data_before_write(
                     premium_2, 'премия-2', company_name, getattr(offer, 'insurance_year', 0)
                 ):
-                    worksheet[f"{self.COMPANY_DATA_COLUMNS['premium_2']}{row_num}"].value = premium_2
+                    worksheet[f"{columns['premium_2']}{row_num}"].value = premium_2
                     logger.debug(f"Записана премия-2: {premium_2}")
                 elif premium_2 is None:
                     logger.warning(f"Премия-2 отсутствует для компании '{company_name}', ячейка останется пустой")
@@ -759,13 +913,13 @@ class ExcelExportService:
                 if franchise_2 is not None and self._validate_numeric_data_before_write(
                     franchise_2, 'франшиза-2', company_name, getattr(offer, 'insurance_year', 0)
                 ):
-                    worksheet[f"{self.COMPANY_DATA_COLUMNS['franchise_2']}{row_num}"].value = franchise_2
+                    worksheet[f"{columns['franchise_2']}{row_num}"].value = franchise_2
                     logger.debug(f"Записана франшиза-2: {franchise_2}")
                 elif franchise_2 is None:
                     logger.debug(f"Франшиза-2 отсутствует для компании '{company_name}', ячейка останется пустой")
                 
                 # Рассрочка-2 всегда записывается
-                worksheet[f"{self.COMPANY_DATA_COLUMNS['installment_2']}{row_num}"].value = installment_2
+                worksheet[f"{columns['installment_2']}{row_num}"].value = installment_2
                 logger.debug(f"Записана рассрочка-2: {installment_2} платежей в год")
             else:
                 logger.debug("Второй вариант франшизы отсутствует, пропускаем заполнение")
@@ -784,7 +938,7 @@ class ExcelExportService:
                     notes = notes.replace('\x00', '').replace('\x01', '').replace('\x02', '')
                     
                     if notes:  # Проверяем, что после очистки что-то осталось
-                        worksheet[f"{self.COMPANY_DATA_COLUMNS['notes']}{row_num}"].value = notes
+                        worksheet[f"{columns['notes']}{row_num}"].value = notes
                         logger.debug(f"Записаны примечания: {notes[:50]}...")
                     else:
                         logger.debug(f"Примечания для компании '{company_name}' пусты после очистки")
@@ -1276,7 +1430,7 @@ class ExcelExportService:
             logger.error(error_msg, exc_info=True)
             raise ExcelExportServiceError(error_msg) from e
     
-    def _merge_company_name_cells(self, worksheet, start_row: int, end_row: int, company_name: str) -> None:
+    def _merge_company_name_cells(self, worksheet, start_row: int, end_row: int, company_name: str, columns_mapping: dict = None) -> None:
         """
         Объединяет ячейки в столбце A для названия страховой компании
         
@@ -1285,21 +1439,26 @@ class ExcelExportService:
             start_row: Первая строка компании
             end_row: Последняя строка компании
             company_name: Название страховой компании
+            columns_mapping: Маппинг колонок (если None, используется COMPANY_DATA_COLUMNS)
             
         Raises:
             ExcelExportServiceError: При критических ошибках объединения
         """
         try:
-            logger.debug(f"Объединяем ячейки для компании '{company_name}' в диапазоне A{start_row}:A{end_row}")
+            # Используем переданный маппинг или значение по умолчанию
+            columns = columns_mapping if columns_mapping is not None else self.COMPANY_DATA_COLUMNS
+            company_column = columns['company_name']
+            
+            logger.debug(f"Объединяем ячейки для компании '{company_name}' в диапазоне {company_column}{start_row}:{company_column}{end_row}")
             
             # Определяем диапазон для объединения
-            merge_range = f'A{start_row}:A{end_row}'
+            merge_range = f'{company_column}{start_row}:{company_column}{end_row}'
             
             # Объединяем ячейки
             worksheet.merge_cells(merge_range)
             
             # Записываем название компании в объединенную ячейку
-            merged_cell = worksheet[f'A{start_row}']
+            merged_cell = worksheet[f'{company_column}{start_row}']
             merged_cell.value = company_name
             
             # Применяем вертикальное выравнивание по центру
@@ -1382,7 +1541,7 @@ class ExcelExportService:
             logger.error(f"Критическая ошибка при fallback заполнении названия компании '{company_name}': {e}")
     
     def _merge_premium_summary_cells(self, worksheet, start_row: int, end_row: int, 
-                                    company_name: str, offers: List) -> None:
+                                    company_name: str, offers: List, columns_mapping: dict = None) -> None:
         """
         Объединяет ячейки в столбцах I и O с суммированием премий по всем годам страхования
         
@@ -1392,32 +1551,38 @@ class ExcelExportService:
             end_row: Последняя строка компании
             company_name: Название страховой компании
             offers: Список предложений компании
+            columns_mapping: Маппинг колонок (если None, используется COMPANY_DATA_COLUMNS)
             
         Raises:
             ExcelExportServiceError: При критических ошибках объединения
         """
         try:
+            # Используем переданный маппинг или значение по умолчанию
+            columns = columns_mapping if columns_mapping is not None else self.COMPANY_DATA_COLUMNS
+            
             logger.debug(f"Объединяем ячейки премий для компании '{company_name}' в диапазоне {start_row}:{end_row}")
             
             # Вычисляем суммы премий
             premium_1_total = self._calculate_premium_sum(offers, 1)
             premium_2_total = self._calculate_premium_sum(offers, 2)
             
-            # Объединяем и заполняем ячейки в столбце I (премии-1)
+            # Объединяем и заполняем ячейки в столбце премий-1
             if premium_1_total is not None:
-                merge_range_i = f'I{start_row}:I{end_row}'
+                premium_1_column = columns['premium_1_summary']
+                merge_range_i = f'{premium_1_column}{start_row}:{premium_1_column}{end_row}'
                 worksheet.merge_cells(merge_range_i)
-                merged_cell_i = worksheet[f'I{start_row}']
+                merged_cell_i = worksheet[f'{premium_1_column}{start_row}']
                 merged_cell_i.value = premium_1_total
                 
                 # Применяем форматирование
-                self._apply_premium_cell_formatting(worksheet, f'I{start_row}', self.FIRST_DATA_ROW)
+                self._apply_premium_cell_formatting(worksheet, f'{premium_1_column}{start_row}', self.FIRST_DATA_ROW)
                 
                 logger.debug(f"Объединены ячейки {merge_range_i} с суммой премий-1: {premium_1_total}")
             
-            # Объединяем и заполняем ячейки в столбце O (премии-2) только если есть данные
-            if premium_2_total is not None and premium_2_total > 0:
-                merge_range_o = f'O{start_row}:O{end_row}'
+            # Объединяем и заполняем ячейки в столбце премий-2 только если есть данные и колонка существует
+            if premium_2_total is not None and premium_2_total > 0 and 'premium_2_summary' in columns:
+                premium_2_column = columns['premium_2_summary']
+                merge_range_o = f'{premium_2_column}{start_row}:{premium_2_column}{end_row}'
                 worksheet.merge_cells(merge_range_o)
                 merged_cell_o = worksheet[f'O{start_row}']
                 merged_cell_o.value = premium_2_total
@@ -1592,9 +1757,9 @@ class ExcelExportService:
             logger.error(f"Критическая ошибка при fallback заполнении премий: {e}")
     
     def _merge_notes_cells(self, worksheet, start_row: int, end_row: int, 
-                          company_name: str, offers: List) -> None:
+                          company_name: str, offers: List, columns_mapping: dict = None) -> None:
         """
-        Объединяет ячейки в столбце Q с консолидацией примечаний по всем годам страхования
+        Объединяет ячейки в столбце примечаний с консолидацией примечаний по всем годам страхования
         
         Args:
             worksheet: Рабочий лист Excel
@@ -1602,22 +1767,27 @@ class ExcelExportService:
             end_row: Последняя строка компании
             company_name: Название страховой компании
             offers: Список предложений компании
+            columns_mapping: Маппинг колонок (если None, используется COMPANY_DATA_COLUMNS)
             
         Raises:
             ExcelExportServiceError: При критических ошибках объединения
         """
         try:
-            logger.debug(f"Объединяем ячейки примечаний для компании '{company_name}' в диапазоне {start_row}:{end_row}")
+            # Используем переданный маппинг или значение по умолчанию
+            columns = columns_mapping if columns_mapping is not None else self.COMPANY_DATA_COLUMNS
+            notes_column = columns['notes']
+            
+            logger.debug(f"Объединяем ячейки примечаний для компании '{company_name}' в диапазоне {notes_column}{start_row}:{notes_column}{end_row}")
             
             # Консолидируем примечания из всех предложений
             consolidated_notes = self._consolidate_notes(offers)
             
-            # Определяем диапазон для объединения в столбце Q
-            merge_range_q = f'Q{start_row}:Q{end_row}'
+            # Определяем диапазон для объединения в столбце примечаний
+            merge_range_q = f'{notes_column}{start_row}:{notes_column}{end_row}'
             
             # Объединяем ячейки
             worksheet.merge_cells(merge_range_q)
-            merged_cell_q = worksheet[f'Q{start_row}']
+            merged_cell_q = worksheet[f'{notes_column}{start_row}']
             
             # Записываем консолидированные примечания
             if consolidated_notes:
@@ -1628,7 +1798,7 @@ class ExcelExportService:
                 logger.debug("Примечания отсутствуют, ячейка оставлена пустой")
             
             # Применяем форматирование
-            self._apply_notes_cell_formatting(worksheet, f'Q{start_row}', self.FIRST_DATA_ROW)
+            self._apply_notes_cell_formatting(worksheet, f'{notes_column}{start_row}', self.FIRST_DATA_ROW)
             
             logger.info(f"Объединены ячейки {merge_range_q} для примечаний компании '{company_name}'")
             
