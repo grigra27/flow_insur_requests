@@ -399,6 +399,9 @@ class ExcelExportService:
                     logger.warning(f"Достигнут лимит строк ({self.MAX_ROWS_LIMIT}), останавливаем обработку на компании '{company_name}'")
                     break
                 
+                # Запоминаем начальную строку компании для объединения ячеек
+                company_start_row = current_row
+                
                 # Заполняем данные по годам для текущей компании
                 for year_index, offer in enumerate(offers):
                     # Дополнительная проверка лимита строк
@@ -410,9 +413,16 @@ class ExcelExportService:
                     
                     logger.debug(f"Заполняем строку {current_row} для компании '{company_name}', {year_display}")
                     
+                    # Название компании записываем только в первую строку
+                    company_name_for_row = company_name if year_index == 0 else None
+                    
                     # Заполняем строку с данными года
-                    self._fill_company_year_row(worksheet, current_row, company_name, offer, year_display)
+                    self._fill_company_year_row(worksheet, current_row, company_name_for_row, offer, year_display)
                     current_row += 1
+                
+                # Объединяем ячейки с названием компании если у неё несколько лет
+                if len(offers) > 1:
+                    self._merge_company_name_cells(worksheet, company_start_row, current_row - 1, company_name)
                 
                 # Добавляем разделитель между компаниями (кроме последней)
                 if company_index < total_companies - 1 and current_row < self.MAX_ROWS_LIMIT:
@@ -660,7 +670,7 @@ class ExcelExportService:
         Args:
             worksheet: Рабочий лист Excel
             row_num: Номер строки для заполнения
-            company_name: Название страховой компании
+            company_name: Название страховой компании (может быть None для объединенных ячеек)
             offer: Объект предложения InsuranceOffer
             year_display: Отображаемое значение года (например, "1 год")
             
@@ -675,7 +685,9 @@ class ExcelExportService:
                 self._copy_row_styles(worksheet, self.FIRST_DATA_ROW, row_num)
             
             # Основные данные
-            worksheet[f"{self.COMPANY_DATA_COLUMNS['company_name']}{row_num}"].value = company_name
+            # Название компании записываем только если передано (для первой строки компании)
+            if company_name is not None:
+                worksheet[f"{self.COMPANY_DATA_COLUMNS['company_name']}{row_num}"].value = company_name
             worksheet[f"{self.COMPANY_DATA_COLUMNS['year']}{row_num}"].value = year_display
             
             # Страховая сумма с форматированием и валидацией
@@ -1257,6 +1269,111 @@ class ExcelExportService:
             error_msg = f"Ошибка при копировании строки-разделителя из строки {source_row} в строку {target_row}: {str(e)}"
             logger.error(error_msg, exc_info=True)
             raise ExcelExportServiceError(error_msg) from e
+    
+    def _merge_company_name_cells(self, worksheet, start_row: int, end_row: int, company_name: str) -> None:
+        """
+        Объединяет ячейки в столбце A для названия страховой компании
+        
+        Args:
+            worksheet: Рабочий лист Excel
+            start_row: Первая строка компании
+            end_row: Последняя строка компании
+            company_name: Название страховой компании
+            
+        Raises:
+            ExcelExportServiceError: При критических ошибках объединения
+        """
+        try:
+            logger.debug(f"Объединяем ячейки для компании '{company_name}' в диапазоне A{start_row}:A{end_row}")
+            
+            # Определяем диапазон для объединения
+            merge_range = f'A{start_row}:A{end_row}'
+            
+            # Объединяем ячейки
+            worksheet.merge_cells(merge_range)
+            
+            # Записываем название компании в объединенную ячейку
+            merged_cell = worksheet[f'A{start_row}']
+            merged_cell.value = company_name
+            
+            # Применяем вертикальное выравнивание по центру
+            if merged_cell.alignment:
+                # Сохраняем существующее выравнивание и добавляем вертикальное
+                from copy import copy
+                alignment = copy(merged_cell.alignment)
+                alignment.vertical = 'center'
+                merged_cell.alignment = alignment
+            else:
+                # Создаем новое выравнивание
+                from openpyxl.styles import Alignment
+                merged_cell.alignment = Alignment(vertical='center')
+            
+            # Применяем границы к объединенной ячейке
+            self._apply_borders_to_merged_cell(worksheet, start_row, end_row)
+            
+            logger.info(f"Объединены ячейки {merge_range} для компании '{company_name}'")
+            
+        except Exception as e:
+            logger.warning(f"Не удалось объединить ячейки для компании '{company_name}' в диапазоне A{start_row}:A{end_row}: {e}")
+            # Fallback: записываем название в каждую ячейку
+            self._fill_company_name_fallback(worksheet, start_row, end_row, company_name)
+    
+    def _apply_borders_to_merged_cell(self, worksheet, start_row: int, end_row: int) -> None:
+        """
+        Применяет границы к объединенной ячейке, копируя стиль из первой строки данных
+        
+        Args:
+            worksheet: Рабочий лист Excel
+            start_row: Первая строка объединенной ячейки
+            end_row: Последняя строка объединенной ячейки
+        """
+        try:
+            # Получаем стиль границ из первой строки данных (строка 10)
+            source_cell = worksheet['A10']
+            merged_cell = worksheet[f'A{start_row}']
+            
+            # Копируем границы
+            if source_cell.border:
+                from copy import copy
+                merged_cell.border = copy(source_cell.border)
+            
+            logger.debug(f"Применены границы к объединенной ячейке A{start_row}:A{end_row}")
+            
+        except Exception as e:
+            logger.warning(f"Не удалось применить границы к объединенной ячейке A{start_row}:A{end_row}: {e}")
+    
+    def _fill_company_name_fallback(self, worksheet, start_row: int, end_row: int, company_name: str) -> None:
+        """
+        Fallback метод: заполняет название компании в каждую ячейку если объединение не удалось
+        
+        Args:
+            worksheet: Рабочий лист Excel
+            start_row: Первая строка компании
+            end_row: Последняя строка компании
+            company_name: Название страховой компании
+        """
+        try:
+            # Сначала попытаемся разъединить ячейки если они были объединены
+            try:
+                merge_range = f'A{start_row}:A{end_row}'
+                if merge_range in [str(r) for r in worksheet.merged_cells.ranges]:
+                    worksheet.unmerge_cells(merge_range)
+                    logger.debug(f"Разъединены ячейки {merge_range} для fallback")
+            except Exception as unmerge_error:
+                logger.debug(f"Не удалось разъединить ячейки (возможно, они не были объединены): {unmerge_error}")
+            
+            # Теперь заполняем каждую ячейку
+            for row_num in range(start_row, end_row + 1):
+                try:
+                    worksheet[f'A{row_num}'].value = company_name
+                except Exception as cell_error:
+                    logger.warning(f"Не удалось записать в ячейку A{row_num}: {cell_error}")
+                    continue
+            
+            logger.info(f"Использован fallback для компании '{company_name}': название записано в каждую строку {start_row}-{end_row}")
+            
+        except Exception as e:
+            logger.error(f"Критическая ошибка при fallback заполнении названия компании '{company_name}': {e}")
 
 
 class ExcelResponseProcessor:
