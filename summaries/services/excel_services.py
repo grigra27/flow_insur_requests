@@ -427,6 +427,8 @@ class ExcelExportService:
                     self._merge_company_name_cells(worksheet, company_start_row, current_row - 1, company_name)
                     # Объединяем ячейки с суммами премий
                     self._merge_premium_summary_cells(worksheet, company_start_row, current_row - 1, company_name, offers)
+                    # Объединяем ячейки с примечаниями
+                    self._merge_notes_cells(worksheet, company_start_row, current_row - 1, company_name, offers)
                 
                 # Добавляем разделитель между компаниями (кроме последней)
                 if company_index < total_companies - 1 and current_row < self.MAX_ROWS_LIMIT:
@@ -1588,6 +1590,234 @@ class ExcelExportService:
             
         except Exception as e:
             logger.error(f"Критическая ошибка при fallback заполнении премий: {e}")
+    
+    def _merge_notes_cells(self, worksheet, start_row: int, end_row: int, 
+                          company_name: str, offers: List) -> None:
+        """
+        Объединяет ячейки в столбце Q с консолидацией примечаний по всем годам страхования
+        
+        Args:
+            worksheet: Рабочий лист Excel
+            start_row: Первая строка компании
+            end_row: Последняя строка компании
+            company_name: Название страховой компании
+            offers: Список предложений компании
+            
+        Raises:
+            ExcelExportServiceError: При критических ошибках объединения
+        """
+        try:
+            logger.debug(f"Объединяем ячейки примечаний для компании '{company_name}' в диапазоне {start_row}:{end_row}")
+            
+            # Консолидируем примечания из всех предложений
+            consolidated_notes = self._consolidate_notes(offers)
+            
+            # Определяем диапазон для объединения в столбце Q
+            merge_range_q = f'Q{start_row}:Q{end_row}'
+            
+            # Объединяем ячейки
+            worksheet.merge_cells(merge_range_q)
+            merged_cell_q = worksheet[f'Q{start_row}']
+            
+            # Записываем консолидированные примечания
+            if consolidated_notes:
+                merged_cell_q.value = consolidated_notes
+                logger.debug(f"Записаны консолидированные примечания: {consolidated_notes[:50]}...")
+            else:
+                merged_cell_q.value = None
+                logger.debug("Примечания отсутствуют, ячейка оставлена пустой")
+            
+            # Применяем форматирование
+            self._apply_notes_cell_formatting(worksheet, f'Q{start_row}', self.FIRST_DATA_ROW)
+            
+            logger.info(f"Объединены ячейки {merge_range_q} для примечаний компании '{company_name}'")
+            
+        except Exception as e:
+            logger.warning(f"Не удалось объединить ячейки примечаний для компании '{company_name}': {e}")
+            # Fallback: заполняем примечания в отдельные ячейки
+            self._fill_notes_fallback(worksheet, start_row, end_row, offers)
+    
+    def _consolidate_notes(self, offers: List) -> Optional[str]:
+        """
+        Объединяет все примечания по годам в единый текст с разделением пробелом
+        
+        Пример:
+        - Год 1: "тест1"
+        - Год 2: "тест2" 
+        - Год 3: "" (пустое)
+        Результат: "тест1 тест2"
+        
+        Args:
+            offers: Список предложений компании
+            
+        Returns:
+            Optional[str]: Объединенный текст примечаний или None если нет примечаний
+        """
+        try:
+            logger.debug(f"Консолидируем примечания из {len(offers)} предложений")
+            
+            consolidated_parts = []
+            
+            # Сортируем предложения по годам для правильного порядка
+            sorted_offers = sorted(offers, key=lambda x: getattr(x, 'insurance_year', 0))
+            
+            for offer in sorted_offers:
+                try:
+                    # Получаем примечания из предложения
+                    notes = getattr(offer, 'notes', None)
+                    
+                    if notes:
+                        # Преобразуем в строку и очищаем от лишних пробелов
+                        notes_str = str(notes).strip()
+                        
+                        if notes_str:  # Пропускаем пустые примечания
+                            # Удаляем потенциально проблемные символы для Excel
+                            notes_str = notes_str.replace('\x00', '').replace('\x01', '').replace('\x02', '')
+                            notes_str = notes_str.replace('\n', ' ').replace('\r', ' ')
+                            
+                            # Убираем множественные пробелы
+                            notes_str = ' '.join(notes_str.split())
+                            
+                            if notes_str:  # Проверяем, что после очистки что-то осталось
+                                consolidated_parts.append(notes_str)
+                                logger.debug(f"Добавлены примечания для года {getattr(offer, 'insurance_year', 'неизвестно')}: {notes_str[:30]}...")
+                            else:
+                                logger.debug(f"Примечания для года {getattr(offer, 'insurance_year', 'неизвестно')} пусты после очистки")
+                        else:
+                            logger.debug(f"Примечания для года {getattr(offer, 'insurance_year', 'неизвестно')} пусты")
+                    else:
+                        logger.debug(f"Примечания отсутствуют для года {getattr(offer, 'insurance_year', 'неизвестно')}")
+                        
+                except Exception as offer_error:
+                    logger.warning(f"Ошибка при обработке примечаний для года {getattr(offer, 'insurance_year', 'неизвестно')}: {offer_error}")
+                    continue
+            
+            # Объединяем все части с разделением пробелом
+            if consolidated_parts:
+                consolidated_text = ' '.join(consolidated_parts)
+                
+                # Ограничиваем длину для Excel (максимум 32767 символов)
+                max_excel_length = 32767
+                if len(consolidated_text) > max_excel_length:
+                    consolidated_text = consolidated_text[:max_excel_length - 3] + "..."
+                    logger.warning(f"Консолидированные примечания обрезаны до {max_excel_length} символов")
+                
+                logger.debug(f"Консолидированы примечания: {len(consolidated_parts)} частей, итоговая длина: {len(consolidated_text)}")
+                return consolidated_text
+            else:
+                logger.debug("Нет примечаний для консолидации")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Ошибка при консолидации примечаний: {e}")
+            return None
+    
+    def _apply_notes_cell_formatting(self, worksheet, cell_address: str, template_row: int) -> None:
+        """
+        Применяет форматирование к ячейкам с объединенными примечаниями, 
+        копируя стили из строки 10
+        
+        Args:
+            worksheet: Рабочий лист Excel
+            cell_address: Адрес ячейки для форматирования (например, 'Q10')
+            template_row: Номер строки-шаблона для копирования стилей (обычно 10)
+        """
+        try:
+            logger.debug(f"Применяем форматирование к ячейке примечаний {cell_address}")
+            
+            # Получаем колонку из адреса ячейки (должна быть Q)
+            column = cell_address[0]  # Первый символ - это колонка
+            
+            # Копируем стили из соответствующей ячейки шаблона (Q10)
+            template_cell = worksheet[f'{column}{template_row}']
+            target_cell = worksheet[cell_address]
+            
+            # Копируем все стили из шаблона
+            if template_cell.has_style:
+                from copy import copy
+                
+                if template_cell.font:
+                    target_cell.font = copy(template_cell.font)
+                if template_cell.border:
+                    target_cell.border = copy(template_cell.border)
+                if template_cell.fill:
+                    target_cell.fill = copy(template_cell.fill)
+                if template_cell.number_format:
+                    target_cell.number_format = template_cell.number_format
+                if template_cell.protection:
+                    target_cell.protection = copy(template_cell.protection)
+            
+            # Применяем вертикальное выравнивание по центру
+            from openpyxl.styles import Alignment
+            if target_cell.alignment:
+                from copy import copy
+                alignment = copy(target_cell.alignment)
+                alignment.vertical = 'center'
+                target_cell.alignment = alignment
+            else:
+                target_cell.alignment = Alignment(vertical='center')
+            
+            logger.debug(f"Форматирование применено к ячейке примечаний {cell_address}")
+            
+        except Exception as e:
+            logger.warning(f"Не удалось применить форматирование к ячейке примечаний {cell_address}: {e}")
+    
+    def _fill_notes_fallback(self, worksheet, start_row: int, end_row: int, offers: List) -> None:
+        """
+        Fallback метод: заполняет примечания в отдельные ячейки при ошибке объединения
+        
+        Args:
+            worksheet: Рабочий лист Excel
+            start_row: Первая строка компании
+            end_row: Последняя строка компании
+            offers: Список предложений компании
+        """
+        try:
+            logger.info(f"Используем fallback для заполнения примечаний в строках {start_row}-{end_row}")
+            
+            # Сначала пытаемся разъединить ячейки если они были объединены
+            try:
+                merge_range = f'Q{start_row}:Q{end_row}'
+                if merge_range in [str(r) for r in worksheet.merged_cells.ranges]:
+                    worksheet.unmerge_cells(merge_range)
+                    logger.debug(f"Разъединены ячейки {merge_range} для fallback")
+            except Exception as unmerge_error:
+                logger.debug(f"Не удалось разъединить ячейки (возможно, они не были объединены): {unmerge_error}")
+            
+            # Заполняем каждую строку отдельно
+            for i, offer in enumerate(offers):
+                if i >= (end_row - start_row + 1):
+                    break  # Защита от выхода за границы
+                
+                current_row = start_row + i
+                
+                try:
+                    # Получаем примечания для текущего предложения
+                    notes = getattr(offer, 'notes', None)
+                    
+                    if notes:
+                        notes_str = str(notes).strip()
+                        if notes_str:
+                            # Ограничиваем длину примечаний для Excel
+                            if len(notes_str) > self.MAX_NOTES_LENGTH:
+                                notes_str = notes_str[:self.MAX_NOTES_LENGTH] + "..."
+                                logger.warning(f"Примечания обрезаны до {self.MAX_NOTES_LENGTH} символов для строки {current_row}")
+                            
+                            # Очищаем проблемные символы
+                            notes_str = notes_str.replace('\x00', '').replace('\x01', '').replace('\x02', '')
+                            
+                            if notes_str:  # Проверяем, что после очистки что-то осталось
+                                worksheet[f'Q{current_row}'].value = notes_str
+                                logger.debug(f"Записаны примечания в строку {current_row}: {notes_str[:30]}...")
+                    
+                except Exception as row_error:
+                    logger.warning(f"Не удалось заполнить примечания для строки {current_row}: {row_error}")
+                    continue
+            
+            logger.info(f"Fallback заполнение примечаний завершено для строк {start_row}-{end_row}")
+            
+        except Exception as e:
+            logger.error(f"Критическая ошибка при fallback заполнении примечаний: {e}")
 
 
 class ExcelResponseProcessor:
