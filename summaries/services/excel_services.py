@@ -83,6 +83,33 @@ class RowProcessingError(ExcelProcessingError):
 class ExcelExportService:
     """Сервис для генерации Excel-файлов сводов предложений"""
     
+    # Константы для маппинга колонок и строк данных компаний
+    COMPANY_DATA_COLUMNS = {
+        'company_name': 'A',      # Название компании
+        'year': 'B',              # Год страхования
+        'insurance_sum': 'C',     # Страховая сумма
+        'rate_1': 'E',            # Страховой тариф-1 (в процентах)
+        'premium_1': 'F',         # Премия-1
+        'franchise_1': 'G',       # Франшиза-1
+        'installment_1': 'H',     # Рассрочка-1
+        'rate_2': 'K',            # Страховой тариф-2 (в процентах)
+        'premium_2': 'L',         # Премия-2
+        'franchise_2': 'M',       # Франшиза-2
+        'installment_2': 'N',     # Рассрочка-2
+        'notes': 'Q'              # Примечания
+    }
+    
+    SEPARATOR_ROW = 9  # Номер строки-разделителя для копирования
+    FIRST_DATA_ROW = 10  # Первая строка для данных компаний
+    
+    # Константы для обработки граничных случаев и валидации
+    MAX_ROWS_LIMIT = 1000  # Максимальное количество строк для предотвращения зависания
+    MAX_COMPANIES_LIMIT = 100  # Максимальное количество компаний
+    MAX_YEARS_PER_COMPANY = 10  # Максимальное количество лет на компанию
+    MAX_NOTES_LENGTH = 1000  # Максимальная длина примечаний
+    MIN_INSURANCE_SUM = Decimal('1')  # Минимальная страховая сумма
+    MAX_INSURANCE_SUM = Decimal('1000000000')  # Максимальная страховая сумма (1 млрд)
+    
     def __init__(self, template_path: str):
         """
         Инициализация сервиса
@@ -221,7 +248,7 @@ class ExcelExportService:
             
             request = summary.request
             
-            # Заполнение данных согласно требованиям:
+            # Заполнение заголовков согласно требованиям:
             # CDE1 - номер заявки
             self._set_merged_cell_value(worksheet, 'C1', request.dfa_number)
             logger.debug(f"Записан номер заявки в C1: {request.dfa_number}")
@@ -233,6 +260,9 @@ class ExcelExportService:
             # CDE3 - название клиента
             self._set_merged_cell_value(worksheet, 'C3', request.client_name)
             logger.debug(f"Записано название клиента в C3: {request.client_name}")
+            
+            # Заполнение данных компаний (новый функционал)
+            self._fill_company_data(workbook, summary)
             
             logger.info(f"Данные успешно заполнены для свода ID: {summary.id}")
             
@@ -289,6 +319,942 @@ class ExcelExportService:
             logger.debug(f"Установлено значение в ячейку {cell_address}: {value}")
         except Exception as e:
             error_msg = f"Ошибка при записи в ячейку {cell_address}: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            raise ExcelExportServiceError(error_msg) from e
+    
+    def _get_companies_sorted_data(self, summary: InsuranceSummary) -> Dict[str, List]:
+        """
+        Получает данные компаний, отсортированные по алфавиту
+        
+        Args:
+            summary: Объект свода предложений
+            
+        Returns:
+            Dict: Словарь с компаниями и их предложениями, отсортированными по алфавиту
+            Формат: {'Компания': [offer_year1, offer_year2, ...], ...}
+            
+        Raises:
+            ExcelExportServiceError: При ошибках получения данных
+        """
+        try:
+            logger.debug(f"Получаем отсортированные данные компаний для свода ID: {summary.id}")
+            
+            # Используем существующий метод модели для получения сгруппированных данных
+            companies_data = summary.get_offers_grouped_by_company()
+            
+            logger.info(f"Найдено {len(companies_data)} компаний для свода ID: {summary.id}")
+            
+            # Логируем информацию о каждой компании
+            for company_name, offers in companies_data.items():
+                years = [offer.insurance_year for offer in offers]
+                logger.debug(f"Компания '{company_name}': {len(offers)} предложений для лет {years}")
+            
+            return companies_data
+            
+        except Exception as e:
+            error_msg = f"Ошибка при получении данных компаний для свода ID {summary.id}: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            raise ExcelExportServiceError(error_msg) from e
+    
+    def _fill_company_data(self, workbook: Workbook, summary: InsuranceSummary) -> None:
+        """
+        Основная логика заполнения данных компаний в Excel
+        
+        Args:
+            workbook: Книга Excel для заполнения
+            summary: Объект свода предложений
+            
+        Raises:
+            ExcelExportServiceError: При ошибках заполнения данных компаний
+        """
+        try:
+            logger.info(f"Начинаем заполнение данных компаний для свода ID: {summary.id}")
+            
+            # Получаем отсортированные данные компаний
+            raw_companies_data = self._get_companies_sorted_data(summary)
+            
+            # Валидируем и обрабатываем граничные случаи
+            companies_data = self._validate_companies_data(raw_companies_data)
+            
+            # Проверяем, есть ли данные для заполнения после валидации
+            if not companies_data:
+                logger.warning(f"Нет валидных предложений от компаний для свода ID: {summary.id}, пропускаем заполнение")
+                return
+            
+            # Получаем рабочий лист
+            worksheet = self._get_target_worksheet(workbook)
+            
+            current_row = self.FIRST_DATA_ROW
+            total_companies = len(companies_data)
+            
+            logger.info(f"Будет обработано {total_companies} компаний, начиная со строки {current_row}")
+            
+            # Обрабатываем каждую компанию
+            for company_index, (company_name, offers) in enumerate(companies_data.items()):
+                logger.debug(f"Обрабатываем компанию {company_index + 1}/{total_companies}: '{company_name}'")
+                
+                # Проверяем ограничение на количество строк перед обработкой компании
+                estimated_rows_needed = len(offers) + (1 if company_index < total_companies - 1 else 0)  # +1 для разделителя
+                if current_row + estimated_rows_needed > self.MAX_ROWS_LIMIT:
+                    logger.warning(f"Достигнут лимит строк ({self.MAX_ROWS_LIMIT}), останавливаем обработку на компании '{company_name}'")
+                    break
+                
+                # Заполняем данные по годам для текущей компании
+                for year_index, offer in enumerate(offers):
+                    # Дополнительная проверка лимита строк
+                    if current_row >= self.MAX_ROWS_LIMIT:
+                        logger.warning(f"Достигнут лимит строк ({self.MAX_ROWS_LIMIT}), останавливаем заполнение")
+                        break
+                    
+                    year_display = f"{offer.insurance_year} год"
+                    
+                    logger.debug(f"Заполняем строку {current_row} для компании '{company_name}', {year_display}")
+                    
+                    # Заполняем строку с данными года
+                    self._fill_company_year_row(worksheet, current_row, company_name, offer, year_display)
+                    current_row += 1
+                
+                # Добавляем разделитель между компаниями (кроме последней)
+                if company_index < total_companies - 1 and current_row < self.MAX_ROWS_LIMIT:
+                    logger.debug(f"Добавляем разделитель после компании '{company_name}' в строку {current_row}")
+                    self._copy_separator_row(worksheet, self.SEPARATOR_ROW, current_row)
+                    current_row += 1
+            
+            logger.info(f"Заполнение данных компаний завершено. Обработано {total_companies} компаний, заполнено строк до {current_row - 1}")
+            
+        except Exception as e:
+            error_msg = f"Ошибка при заполнении данных компаний для свода ID {summary.id}: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            raise ExcelExportServiceError(error_msg) from e
+    
+    def _validate_companies_data(self, companies_data: Dict[str, List]) -> Dict[str, List]:
+        """
+        Валидирует данные компаний и применяет ограничения для предотвращения проблем
+        
+        Обрабатывает граничные случаи:
+        - Отсутствие предложений от компаний
+        - Превышение лимитов по количеству компаний и лет
+        - Компании с одним годом страхования
+        
+        Args:
+            companies_data: Словарь с данными компаний
+            
+        Returns:
+            Dict: Валидированные и ограниченные данные компаний
+            
+        Raises:
+            InvalidSummaryDataError: При критических проблемах с данными
+        """
+        try:
+            logger.debug(f"Начинаем валидацию данных {len(companies_data)} компаний")
+            
+            # Обработка случая отсутствия предложений от компаний (требование 7.1)
+            if not companies_data:
+                logger.warning("Нет предложений от компаний для обработки")
+                return {}
+            
+            # Применяем ограничение на количество компаний
+            if len(companies_data) > self.MAX_COMPANIES_LIMIT:
+                logger.warning(f"Количество компаний ({len(companies_data)}) превышает лимит ({self.MAX_COMPANIES_LIMIT}), обрезаем")
+                # Берем первые N компаний по алфавиту
+                sorted_companies = sorted(companies_data.keys())[:self.MAX_COMPANIES_LIMIT]
+                companies_data = {name: companies_data[name] for name in sorted_companies}
+            
+            validated_data = {}
+            total_rows_estimated = 0
+            
+            for company_name, offers in companies_data.items():
+                # Валидация названия компании
+                if not company_name or not company_name.strip():
+                    logger.warning(f"Пропускаем компанию с пустым названием")
+                    continue
+                
+                # Обработка компаний с одним годом страхования (требование 7.2)
+                if len(offers) == 1:
+                    logger.info(f"Компания '{company_name}' имеет только один год страхования - это нормально")
+                
+                # Применяем ограничение на количество лет на компанию
+                if len(offers) > self.MAX_YEARS_PER_COMPANY:
+                    logger.warning(f"Компания '{company_name}' имеет {len(offers)} лет, ограничиваем до {self.MAX_YEARS_PER_COMPANY}")
+                    offers = offers[:self.MAX_YEARS_PER_COMPANY]
+                
+                # Валидируем каждое предложение
+                valid_offers = []
+                for offer in offers:
+                    if self._validate_offer_data(offer, company_name):
+                        valid_offers.append(offer)
+                
+                # Добавляем компанию только если есть валидные предложения
+                if valid_offers:
+                    validated_data[company_name] = valid_offers
+                    # Оцениваем количество строк (предложения + разделители)
+                    total_rows_estimated += len(valid_offers) + 1  # +1 для разделителя
+                else:
+                    logger.warning(f"Компания '{company_name}' не имеет валидных предложений, пропускаем")
+            
+            # Проверяем общее ограничение на количество строк (требование 7.4)
+            if total_rows_estimated > self.MAX_ROWS_LIMIT:
+                logger.warning(f"Оценочное количество строк ({total_rows_estimated}) превышает лимит ({self.MAX_ROWS_LIMIT})")
+                # Обрезаем данные до достижения лимита
+                validated_data = self._limit_data_by_rows(validated_data)
+            
+            logger.info(f"Валидация завершена: {len(validated_data)} компаний прошли проверку")
+            return validated_data
+            
+        except Exception as e:
+            error_msg = f"Ошибка при валидации данных компаний: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            raise InvalidSummaryDataError(error_msg) from e
+    
+    def _validate_offer_data(self, offer, company_name: str) -> bool:
+        """
+        Валидирует данные отдельного предложения
+        
+        Проверяет:
+        - Наличие обязательных данных
+        - Корректность числовых значений
+        - Обработка отсутствующих данных по франшизе или премии (требование 7.3)
+        
+        Args:
+            offer: Объект предложения InsuranceOffer
+            company_name: Название компании для логирования
+            
+        Returns:
+            bool: True если предложение валидно, False если нужно пропустить
+        """
+        try:
+            # Проверяем наличие года страхования
+            if not hasattr(offer, 'insurance_year') or offer.insurance_year is None:
+                logger.warning(f"Компания '{company_name}': предложение без года страхования, пропускаем")
+                return False
+            
+            # Проверяем корректность года
+            if not isinstance(offer.insurance_year, int) or offer.insurance_year < 1 or offer.insurance_year > 20:
+                logger.warning(f"Компания '{company_name}': некорректный год страхования {offer.insurance_year}, пропускаем")
+                return False
+            
+            # Проверяем страховую сумму
+            insurance_sum = getattr(offer, 'insurance_sum', None)
+            if insurance_sum is None or insurance_sum <= 0:
+                logger.warning(f"Компания '{company_name}', год {offer.insurance_year}: отсутствует или некорректная страховая сумма, пропускаем")
+                return False
+            
+            # Валидируем числовые данные перед записью в Excel (требование 7.3)
+            premium_1 = getattr(offer, 'premium_with_franchise_1', None)
+            franchise_1 = getattr(offer, 'franchise_1', None)
+            
+            # Для первого варианта премия обязательна
+            if premium_1 is None or premium_1 <= 0:
+                logger.warning(f"Компания '{company_name}', год {offer.insurance_year}: отсутствует премия-1, пропускаем предложение")
+                return False
+            
+            # Франшиза может отсутствовать (будет 0 по умолчанию)
+            if franchise_1 is None:
+                logger.debug(f"Компания '{company_name}', год {offer.insurance_year}: франшиза-1 отсутствует, будет использован 0")
+            
+            # Проверяем второй вариант если он есть
+            if offer.has_second_franchise_variant():
+                premium_2 = getattr(offer, 'premium_with_franchise_2', None)
+                franchise_2 = getattr(offer, 'franchise_2', None)
+                
+                if premium_2 is None or premium_2 <= 0:
+                    logger.warning(f"Компания '{company_name}', год {offer.insurance_year}: некорректная премия-2, второй вариант будет пропущен")
+                
+                if franchise_2 is None:
+                    logger.debug(f"Компания '{company_name}', год {offer.insurance_year}: франшиза-2 отсутствует")
+            
+            logger.debug(f"Компания '{company_name}', год {offer.insurance_year}: предложение прошло валидацию")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Ошибка при валидации предложения компании '{company_name}': {str(e)}")
+            return False
+    
+    def _limit_data_by_rows(self, companies_data: Dict[str, List]) -> Dict[str, List]:
+        """
+        Ограничивает данные компаний по количеству строк для предотвращения превышения лимитов
+        
+        Args:
+            companies_data: Данные компаний
+            
+        Returns:
+            Dict: Ограниченные данные компаний
+        """
+        try:
+            limited_data = {}
+            current_rows = self.FIRST_DATA_ROW
+            
+            logger.info(f"Применяем ограничение по строкам, лимит: {self.MAX_ROWS_LIMIT}")
+            
+            for company_name, offers in companies_data.items():
+                # Рассчитываем сколько строк займет эта компания
+                company_rows = len(offers) + 1  # +1 для разделителя
+                
+                # Проверяем, поместится ли компания в лимит
+                if current_rows + company_rows > self.MAX_ROWS_LIMIT:
+                    logger.warning(f"Компания '{company_name}' не помещается в лимит строк, останавливаем обработку")
+                    break
+                
+                limited_data[company_name] = offers
+                current_rows += company_rows
+                
+                logger.debug(f"Компания '{company_name}': {len(offers)} предложений, текущая строка: {current_rows}")
+            
+            logger.info(f"Ограничение применено: {len(limited_data)} компаний, ожидаемая строка: {current_rows}")
+            return limited_data
+            
+        except Exception as e:
+            logger.error(f"Ошибка при ограничении данных по строкам: {str(e)}")
+            return companies_data  # Возвращаем исходные данные при ошибке
+    
+    def _validate_numeric_data_before_write(self, value, field_name: str, company_name: str, year: int) -> bool:
+        """
+        Валидирует числовые данные перед записью в Excel
+        
+        Args:
+            value: Значение для проверки
+            field_name: Название поля
+            company_name: Название компании
+            year: Год страхования
+            
+        Returns:
+            bool: True если данные валидны для записи
+        """
+        try:
+            if value is None:
+                logger.debug(f"Компания '{company_name}', год {year}, поле '{field_name}': значение None")
+                return True  # None допустимо, будет пропущено при записи
+            
+            # Проверяем, что это число
+            if not isinstance(value, (int, float, Decimal)):
+                try:
+                    float(value)
+                except (ValueError, TypeError):
+                    logger.warning(f"Компания '{company_name}', год {year}, поле '{field_name}': не числовое значение '{value}'")
+                    return False
+            
+            # Проверяем разумные пределы
+            numeric_value = float(value)
+            if numeric_value < 0:
+                logger.warning(f"Компания '{company_name}', год {year}, поле '{field_name}': отрицательное значение {numeric_value}")
+                return False
+            
+            if numeric_value > float(self.MAX_INSURANCE_SUM):
+                logger.warning(f"Компания '{company_name}', год {year}, поле '{field_name}': значение {numeric_value} превышает максимум")
+                return False
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Ошибка валидации числовых данных для поля '{field_name}': {str(e)}")
+            return False
+    
+    def _fill_company_year_row(self, worksheet, row_num: int, company_name: str, 
+                              offer, year_display: str) -> None:
+        """
+        Заполняет строку с данными года страхования с корректным форматированием
+        
+        Использует специализированные методы форматирования для обеспечения
+        корректного отображения числовых данных в Excel.
+        
+        Args:
+            worksheet: Рабочий лист Excel
+            row_num: Номер строки для заполнения
+            company_name: Название страховой компании
+            offer: Объект предложения InsuranceOffer
+            year_display: Отображаемое значение года (например, "1 год")
+            
+        Raises:
+            ExcelExportServiceError: При ошибках заполнения строки
+        """
+        try:
+            logger.debug(f"Заполняем строку {row_num} для компании '{company_name}', {year_display}")
+            
+            # Копируем стили из строки 10 (первой строки с данными) перед заполнением данных
+            if row_num != self.FIRST_DATA_ROW:
+                self._copy_row_styles(worksheet, self.FIRST_DATA_ROW, row_num)
+            
+            # Основные данные
+            worksheet[f"{self.COMPANY_DATA_COLUMNS['company_name']}{row_num}"].value = company_name
+            worksheet[f"{self.COMPANY_DATA_COLUMNS['year']}{row_num}"].value = year_display
+            
+            # Страховая сумма с форматированием и валидацией
+            insurance_sum = self._format_insurance_sum(offer)
+            if insurance_sum is not None and self._validate_numeric_data_before_write(
+                insurance_sum, 'страховая сумма', company_name, getattr(offer, 'insurance_year', 0)
+            ):
+                worksheet[f"{self.COMPANY_DATA_COLUMNS['insurance_sum']}{row_num}"].value = insurance_sum
+                logger.debug(f"Записана страховая сумма: {insurance_sum}")
+            else:
+                logger.warning(f"Страховая сумма не записана для компании '{company_name}' из-за ошибок валидации")
+            
+            # Предложение 1 (обязательное) с форматированием и валидацией
+            premium_1 = self._format_premium(offer, 1)
+            franchise_1 = self._format_franchise(offer, 1)
+            installment_1 = self._format_installment_payments(offer, 1)
+            
+            # Заполняем страховой тариф-1 (колонка E)
+            self._fill_insurance_rate(worksheet, row_num, self.COMPANY_DATA_COLUMNS['rate_1'], 1)
+            
+            # Валидация и запись премии-1
+            if premium_1 is not None and self._validate_numeric_data_before_write(
+                premium_1, 'премия-1', company_name, getattr(offer, 'insurance_year', 0)
+            ):
+                worksheet[f"{self.COMPANY_DATA_COLUMNS['premium_1']}{row_num}"].value = premium_1
+                logger.debug(f"Записана премия-1: {premium_1}")
+            elif premium_1 is None:
+                logger.warning(f"Премия-1 отсутствует для компании '{company_name}', ячейка останется пустой")
+            
+            # Валидация и запись франшизы-1 (может быть 0 или отсутствовать)
+            if franchise_1 is not None and self._validate_numeric_data_before_write(
+                franchise_1, 'франшиза-1', company_name, getattr(offer, 'insurance_year', 0)
+            ):
+                worksheet[f"{self.COMPANY_DATA_COLUMNS['franchise_1']}{row_num}"].value = franchise_1
+                logger.debug(f"Записана франшиза-1: {franchise_1}")
+            elif franchise_1 is None:
+                # Для франшизы None допустимо - ячейка останется пустой
+                logger.debug(f"Франшиза-1 отсутствует для компании '{company_name}', ячейка останется пустой")
+            
+            # Рассрочка всегда записывается (минимум 1)
+            worksheet[f"{self.COMPANY_DATA_COLUMNS['installment_1']}{row_num}"].value = installment_1
+            logger.debug(f"Записана рассрочка-1: {installment_1} платежей в год")
+            
+            # Предложение 2 (если есть) с форматированием и валидацией
+            if offer.has_second_franchise_variant():
+                premium_2 = self._format_premium(offer, 2)
+                franchise_2 = self._format_franchise(offer, 2)
+                installment_2 = self._format_installment_payments(offer, 2)
+                
+                # Заполняем страховой тариф-2 (колонка K)
+                self._fill_insurance_rate(worksheet, row_num, self.COMPANY_DATA_COLUMNS['rate_2'], 2)
+                
+                # Валидация и запись премии-2
+                if premium_2 is not None and self._validate_numeric_data_before_write(
+                    premium_2, 'премия-2', company_name, getattr(offer, 'insurance_year', 0)
+                ):
+                    worksheet[f"{self.COMPANY_DATA_COLUMNS['premium_2']}{row_num}"].value = premium_2
+                    logger.debug(f"Записана премия-2: {premium_2}")
+                elif premium_2 is None:
+                    logger.warning(f"Премия-2 отсутствует для компании '{company_name}', ячейка останется пустой")
+                
+                # Валидация и запись франшизы-2
+                if franchise_2 is not None and self._validate_numeric_data_before_write(
+                    franchise_2, 'франшиза-2', company_name, getattr(offer, 'insurance_year', 0)
+                ):
+                    worksheet[f"{self.COMPANY_DATA_COLUMNS['franchise_2']}{row_num}"].value = franchise_2
+                    logger.debug(f"Записана франшиза-2: {franchise_2}")
+                elif franchise_2 is None:
+                    logger.debug(f"Франшиза-2 отсутствует для компании '{company_name}', ячейка останется пустой")
+                
+                # Рассрочка-2 всегда записывается
+                worksheet[f"{self.COMPANY_DATA_COLUMNS['installment_2']}{row_num}"].value = installment_2
+                logger.debug(f"Записана рассрочка-2: {installment_2} платежей в год")
+            else:
+                logger.debug("Второй вариант франшизы отсутствует, пропускаем заполнение")
+            
+            # Примечания (если есть) с обрезкой и валидацией
+            if hasattr(offer, 'notes') and offer.notes:
+                notes = str(offer.notes).strip()
+                if notes:
+                    # Ограничиваем длину примечаний для Excel
+                    if len(notes) > self.MAX_NOTES_LENGTH:
+                        notes = notes[:self.MAX_NOTES_LENGTH] + "..."
+                        logger.warning(f"Примечания обрезаны до {self.MAX_NOTES_LENGTH} символов для компании '{company_name}'")
+                    
+                    # Дополнительная валидация примечаний
+                    # Удаляем потенциально проблемные символы для Excel
+                    notes = notes.replace('\x00', '').replace('\x01', '').replace('\x02', '')
+                    
+                    if notes:  # Проверяем, что после очистки что-то осталось
+                        worksheet[f"{self.COMPANY_DATA_COLUMNS['notes']}{row_num}"].value = notes
+                        logger.debug(f"Записаны примечания: {notes[:50]}...")
+                    else:
+                        logger.debug(f"Примечания для компании '{company_name}' пусты после очистки")
+                else:
+                    logger.debug(f"Примечания для компании '{company_name}' пусты после обрезки пробелов")
+            
+            logger.info(f"Строка {row_num} успешно заполнена для компании '{company_name}', {year_display}")
+            
+        except Exception as e:
+            error_msg = f"Ошибка при заполнении строки {row_num} для компании '{company_name}': {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            raise ExcelExportServiceError(error_msg) from e
+    
+    def _format_installment_payments(self, offer, variant: int = 1) -> int:
+        """
+        Форматирует количество платежей в год для указанного варианта рассрочки
+        
+        Логика определения:
+        - 1 если рассрочки нет (единовременный платеж)
+        - Фактическое количество платежей в год если есть рассрочка (2, 3, 4, 12 и т.д.)
+        
+        Args:
+            offer: Объект предложения InsuranceOffer
+            variant: Номер варианта (1 или 2)
+            
+        Returns:
+            int: Количество платежей в год (1 если нет рассрочки, иначе фактическое количество)
+            
+        Raises:
+            ValueError: Если variant не равен 1 или 2
+        """
+        try:
+            # Валидация входного параметра
+            if variant not in [1, 2]:
+                logger.error(f"Некорректный номер варианта: {variant}. Ожидается 1 или 2")
+                raise ValueError(f"Номер варианта должен быть 1 или 2, получен: {variant}")
+            
+            # Получаем данные для соответствующего варианта
+            if variant == 1:
+                payments_per_year = getattr(offer, 'payments_per_year_variant_1', 1)
+                has_installment = getattr(offer, 'installment_variant_1', False)
+                logger.debug(f"Вариант 1: платежей в год={payments_per_year}, рассрочка={has_installment}")
+            else:  # variant == 2
+                payments_per_year = getattr(offer, 'payments_per_year_variant_2', 1)
+                has_installment = getattr(offer, 'installment_variant_2', False)
+                logger.debug(f"Вариант 2: платежей в год={payments_per_year}, рассрочка={has_installment}")
+            
+            # Проверяем валидность данных
+            if payments_per_year is None:
+                payments_per_year = 1
+                logger.warning(f"Количество платежей в год для варианта {variant} равно None, используем 1")
+            
+            # Если рассрочки нет или только один платеж в год - возвращаем 1
+            if not has_installment or payments_per_year <= 1:
+                logger.debug(f"Рассрочка недоступна для варианта {variant}: has_installment={has_installment}, payments_per_year={payments_per_year}")
+                return 1
+            
+            # Возвращаем фактическое количество платежей в год без преобразований
+            logger.debug(f"Рассрочка вариант {variant}: {payments_per_year} платежей в год")
+            
+            return payments_per_year
+            
+        except ValueError:
+            # Переброс ошибок валидации
+            raise
+        except Exception as e:
+            error_msg = f"Ошибка при форматировании рассрочки для варианта {variant}: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            # В случае ошибки возвращаем 1 (единовременный платеж)
+            return 1
+    
+    def _format_numeric_value(self, value, field_name: str = "значение") -> Optional[Decimal]:
+        """
+        Форматирует числовое значение для записи в Excel
+        
+        Обеспечивает корректное форматирование премий, франшиз и страховых сумм.
+        Обрабатывает различные типы входных данных и валидирует их.
+        
+        Args:
+            value: Числовое значение (может быть Decimal, float, int, str или None)
+            field_name: Название поля для логирования (для отладки)
+            
+        Returns:
+            Optional[Decimal]: Отформатированное значение или None если значение пустое/некорректное
+        """
+        try:
+            # Если значение None или пустое - возвращаем None
+            if value is None:
+                logger.debug(f"Поле '{field_name}': значение None, возвращаем None")
+                return None
+            
+            # Если это строка - пытаемся преобразовать
+            if isinstance(value, str):
+                value = value.strip()
+                if not value:
+                    logger.debug(f"Поле '{field_name}': пустая строка, возвращаем None")
+                    return None
+                
+                # Убираем пробелы и запятые для парсинга
+                value = value.replace(' ', '').replace(',', '')
+                
+                try:
+                    value = Decimal(value)
+                except (ValueError, InvalidOperation) as e:
+                    logger.warning(f"Поле '{field_name}': не удалось преобразовать строку '{value}' в число: {e}")
+                    return None
+            
+            # Преобразуем в Decimal для точности
+            if isinstance(value, (int, float)):
+                value = Decimal(str(value))
+            elif not isinstance(value, Decimal):
+                logger.warning(f"Поле '{field_name}': неподдерживаемый тип данных {type(value)}, пытаемся преобразовать")
+                value = Decimal(str(value))
+            
+            # Валидация: проверяем, что значение не отрицательное
+            if value < 0:
+                logger.warning(f"Поле '{field_name}': отрицательное значение {value}, возвращаем 0")
+                return Decimal('0')
+            
+            # Валидация: проверяем разумные пределы
+            if value > self.MAX_INSURANCE_SUM:
+                logger.warning(f"Поле '{field_name}': значение {value} превышает максимальный лимит {self.MAX_INSURANCE_SUM}")
+                return self.MAX_INSURANCE_SUM
+            
+            # Проверяем минимальные пределы
+            if value < self.MIN_INSURANCE_SUM and value > 0:
+                logger.warning(f"Поле '{field_name}': значение {value} меньше минимального лимита {self.MIN_INSURANCE_SUM}")
+                return self.MIN_INSURANCE_SUM
+            
+            # Округляем до 2 знаков после запятой для денежных значений
+            result = value.quantize(Decimal('0.01'))
+            
+            logger.debug(f"Поле '{field_name}': успешно отформатировано значение {result}")
+            return result
+            
+        except Exception as e:
+            error_msg = f"Ошибка при форматировании числового значения для поля '{field_name}': {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            return None
+    
+    def _format_insurance_sum(self, offer) -> Optional[Decimal]:
+        """
+        Форматирует страховую сумму для записи в Excel
+        
+        Args:
+            offer: Объект предложения InsuranceOffer
+            
+        Returns:
+            Optional[Decimal]: Отформатированная страховая сумма
+        """
+        try:
+            insurance_sum = getattr(offer, 'insurance_sum', None)
+            return self._format_numeric_value(insurance_sum, 'страховая сумма')
+        except Exception as e:
+            logger.error(f"Ошибка при форматировании страховой суммы: {str(e)}")
+            return None
+    
+    def _format_premium(self, offer, variant: int = 1) -> Optional[Decimal]:
+        """
+        Форматирует премию для указанного варианта
+        
+        Args:
+            offer: Объект предложения InsuranceOffer
+            variant: Номер варианта (1 или 2)
+            
+        Returns:
+            Optional[Decimal]: Отформатированная премия
+        """
+        try:
+            if variant == 1:
+                premium = getattr(offer, 'premium_with_franchise_1', None)
+                field_name = 'премия-1'
+            else:
+                premium = getattr(offer, 'premium_with_franchise_2', None)
+                field_name = 'премия-2'
+            
+            return self._format_numeric_value(premium, field_name)
+        except Exception as e:
+            logger.error(f"Ошибка при форматировании премии для варианта {variant}: {str(e)}")
+            return None
+    
+    def _format_franchise(self, offer, variant: int = 1) -> Optional[Decimal]:
+        """
+        Форматирует франшизу для указанного варианта
+        
+        Args:
+            offer: Объект предложения InsuranceOffer
+            variant: Номер варианта (1 или 2)
+            
+        Returns:
+            Optional[Decimal]: Отформатированная франшиза
+        """
+        try:
+            if variant == 1:
+                franchise = getattr(offer, 'franchise_1', None)
+                field_name = 'франшиза-1'
+            else:
+                franchise = getattr(offer, 'franchise_2', None)
+                field_name = 'франшиза-2'
+            
+            # Для франшизы 0 - это валидное значение, не None
+            formatted_value = self._format_numeric_value(franchise, field_name)
+            
+            # Если франшиза None, но это вариант 1 - возвращаем 0 (по умолчанию)
+            if formatted_value is None and variant == 1:
+                logger.debug(f"Франшиза-1 равна None, используем значение по умолчанию 0")
+                return Decimal('0')
+            
+            return formatted_value
+        except Exception as e:
+            logger.error(f"Ошибка при форматировании франшизы для варианта {variant}: {str(e)}")
+            return Decimal('0') if variant == 1 else None
+    
+    def _copy_formula_to_row(self, worksheet, source_row: int, target_row: int, column: str) -> None:
+        """
+        Копирует формулу из исходной ячейки в целевую ячейку с адаптацией к новой строке
+        
+        Поскольку openpyxl не автоматически адаптирует формулы при копировании,
+        мы вручную заменяем номера строк в формуле.
+        
+        Args:
+            worksheet: Рабочий лист Excel
+            source_row: Номер исходной строки (обычно 10)
+            target_row: Номер целевой строки
+            column: Буква колонки ('E' для тарифа-1 или 'K' для тарифа-2)
+            
+        Raises:
+            ExcelExportServiceError: При критических ошибках копирования
+        """
+        try:
+            logger.debug(f"Копируем формулу из ячейки {column}{source_row} в {column}{target_row}")
+            
+            source_cell = worksheet[f'{column}{source_row}']
+            target_cell = worksheet[f'{column}{target_row}']
+            
+            # Проверяем, есть ли формула в исходной ячейке
+            if hasattr(source_cell, 'data_type') and source_cell.data_type == 'f' and source_cell.value:
+                # Получаем формулу и адаптируем её к новой строке
+                source_formula = str(source_cell.value)
+                logger.debug(f"Исходная формула: {source_formula}")
+                
+                # Заменяем номер строки в формуле более точно (только ссылки на ячейки)
+                # Заменяем конкретные ссылки на ячейки
+                adapted_formula = source_formula
+                adapted_formula = adapted_formula.replace(f'C{source_row}', f'C{target_row}')
+                adapted_formula = adapted_formula.replace(f'F{source_row}', f'F{target_row}')
+                adapted_formula = adapted_formula.replace(f'L{source_row}', f'L{target_row}')
+                target_cell.value = adapted_formula
+                
+                logger.debug(f"Адаптированная формула в ячейке {column}{target_row}: {adapted_formula}")
+            else:
+                # Если формулы нет, создаем новую
+                logger.debug(f"Формула не найдена в {column}{source_row}, создаем новую для {column}{target_row}")
+                self._create_rate_formula(worksheet, target_row, column)
+                
+        except Exception as e:
+            logger.warning(f"Не удалось скопировать формулу в ячейку {column}{target_row}: {str(e)}")
+            # Fallback: создаем формулу вручную
+            try:
+                self._create_rate_formula(worksheet, target_row, column)
+            except Exception as fallback_error:
+                logger.warning(f"Не удалось создать формулу для ячейки {column}{target_row}: {str(fallback_error)}")
+    
+    def _create_rate_formula(self, worksheet, row_num: int, column: str) -> None:
+        """
+        Создает формулу для вычисления страхового тарифа в процентах
+        
+        Формула вычисляет тариф как отношение премии к страховой сумме, умноженное на 100.
+        Включает проверки на деление на ноль и пустые ячейки.
+        
+        Args:
+            worksheet: Рабочий лист Excel
+            row_num: Номер строки
+            column: Колонка тарифа ('E' для варианта 1, 'K' для варианта 2)
+            
+        Raises:
+            ValueError: При неизвестной колонке тарифа
+        """
+        try:
+            # Определяем колонку премии в зависимости от варианта тарифа
+            if column == 'E':  # Тариф для варианта 1
+                premium_column = 'F'
+                variant_name = "тариф-1"
+            elif column == 'K':  # Тариф для варианта 2
+                premium_column = 'L'
+                variant_name = "тариф-2"
+            else:
+                error_msg = f"Неизвестная колонка тарифа: {column}. Ожидается 'E' или 'K'"
+                logger.error(error_msg)
+                raise ValueError(error_msg)
+            
+            # Создаем формулу с проверками на пустые ячейки и деление на ноль
+            # Формула: ЕСЛИ(И(страховая_сумма<>0, премия<>0), премия/страховая_сумма*100, "")
+            formula = f'=IF(AND(C{row_num}<>0,{premium_column}{row_num}<>0),{premium_column}{row_num}/C{row_num}*100,"")'
+            
+            worksheet[f'{column}{row_num}'].value = formula
+            logger.debug(f"Создана формула для {variant_name} в ячейке {column}{row_num}: {formula}")
+            
+        except ValueError:
+            # Переброс ошибок валидации
+            raise
+        except Exception as e:
+            error_msg = f"Ошибка при создании формулы для ячейки {column}{row_num}: {str(e)}"
+            logger.warning(error_msg)
+            raise
+    
+    def _fill_insurance_rate(self, worksheet, row_num: int, column: str, variant: int) -> None:
+        """
+        Заполняет ячейку страхового тарифа формулой или вычисленным значением
+        
+        Основной метод для заполнения тарифов. Сначала пытается скопировать формулу
+        из строки 10, если не получается - создает новую формулу.
+        
+        Args:
+            worksheet: Рабочий лист Excel
+            row_num: Номер строки для заполнения
+            column: Колонка тарифа ('E' или 'K')
+            variant: Номер варианта предложения (1 или 2)
+        """
+        try:
+            logger.debug(f"Заполняем страховой тариф для варианта {variant} в ячейке {column}{row_num}")
+            
+            # Если заполняем строку 10, ничего не делаем (там уже должна быть формула из шаблона)
+            if row_num == self.FIRST_DATA_ROW:
+                logger.debug(f"Строка {row_num} - исходная строка данных, пропускаем заполнение тарифа")
+                return
+            
+            # Пытаемся скопировать формулу из строки 10
+            self._copy_formula_to_row(worksheet, self.FIRST_DATA_ROW, row_num, column)
+            
+            logger.debug(f"Страховой тариф для варианта {variant} успешно заполнен в ячейке {column}{row_num}")
+            
+        except Exception as e:
+            logger.warning(f"Ошибка при заполнении тарифа в ячейке {column}{row_num}: {str(e)}")
+            # Не выбрасываем исключение, чтобы не прерывать заполнение других данных
+    
+    def _copy_row_styles(self, worksheet, source_row: int, target_row: int) -> None:
+        """
+        Копирует стили форматирования из исходной строки в целевую строку
+        
+        Копирует все атрибуты форматирования включая:
+        - Шрифт (размер, цвет, жирность, курсив и т.д.)
+        - Границы ячеек
+        - Заливку и цвет фона
+        - Выравнивание текста
+        - Формат чисел
+        - Защиту ячеек
+        - Высоту строки и другие свойства строки
+        
+        Args:
+            worksheet: Рабочий лист Excel
+            source_row: Номер исходной строки для копирования стилей
+            target_row: Номер целевой строки для применения стилей
+            
+        Raises:
+            ExcelExportServiceError: При критических ошибках копирования стилей
+        """
+        try:
+            logger.debug(f"Копируем стили из строки {source_row} в строку {target_row}")
+            
+            # Копируем свойства самой строки (высота, скрытость, группировка)
+            try:
+                source_row_dimension = worksheet.row_dimensions[source_row]
+                target_row_dimension = worksheet.row_dimensions[target_row]
+                
+                # Копируем высоту строки если она задана
+                if source_row_dimension.height is not None:
+                    target_row_dimension.height = source_row_dimension.height
+                    logger.debug(f"Скопирована высота строки: {source_row_dimension.height}")
+                
+                # Копируем скрытость строки
+                target_row_dimension.hidden = source_row_dimension.hidden
+                
+                # Копируем уровень группировки
+                target_row_dimension.outline_level = source_row_dimension.outline_level
+                
+            except Exception as row_error:
+                logger.warning(f"Не удалось скопировать свойства строки из {source_row} в {target_row}: {str(row_error)}")
+            
+            # Определяем диапазон колонок для копирования (A-Z, достаточно для большинства случаев)
+            columns_to_copy = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+            cells_copied = 0
+            cells_with_errors = 0
+            
+            for col_letter in columns_to_copy:
+                try:
+                    source_cell = worksheet[f'{col_letter}{source_row}']
+                    target_cell = worksheet[f'{col_letter}{target_row}']
+                    
+                    # Копируем стили только если у исходной ячейки есть стили
+                    if source_cell.has_style:
+                        # Копируем шрифт
+                        if source_cell.font:
+                            target_cell.font = source_cell.font.copy()
+                        
+                        # Копируем границы
+                        if source_cell.border:
+                            target_cell.border = source_cell.border.copy()
+                        
+                        # Копируем заливку
+                        if source_cell.fill:
+                            target_cell.fill = source_cell.fill.copy()
+                        
+                        # Копируем выравнивание
+                        if source_cell.alignment:
+                            target_cell.alignment = source_cell.alignment.copy()
+                        
+                        # Копируем защиту
+                        if source_cell.protection:
+                            target_cell.protection = source_cell.protection.copy()
+                        
+                        # Копируем формат чисел
+                        if source_cell.number_format:
+                            target_cell.number_format = source_cell.number_format
+                        
+                        cells_copied += 1
+                        
+                except Exception as cell_error:
+                    cells_with_errors += 1
+                    logger.warning(f"Не удалось скопировать стили ячейки {col_letter}{source_row} в {col_letter}{target_row}: {str(cell_error)}")
+                    continue
+            
+            logger.debug(f"Копирование стилей завершено: скопировано {cells_copied} ячеек, ошибок {cells_with_errors}")
+            
+            if cells_with_errors > 0:
+                logger.warning(f"При копировании стилей из строки {source_row} в строку {target_row} возникло {cells_with_errors} ошибок")
+            
+        except Exception as e:
+            error_msg = f"Критическая ошибка при копировании стилей из строки {source_row} в строку {target_row}: {str(e)}"
+            logger.warning(error_msg)
+            # Не выбрасываем исключение, чтобы не прерывать заполнение данных
+            # Заполнение может продолжиться без стилей
+    
+    def _copy_separator_row(self, worksheet, source_row: int, target_row: int) -> None:
+        """
+        Копирует строку-разделитель с сохранением всех стилей форматирования и содержимого
+        
+        Копирует все ячейки из исходной строки в целевую строку, включая:
+        - Значения ячеек
+        - Все стили форматирования (через _copy_row_styles)
+        - Комментарии ячеек
+        
+        Args:
+            worksheet: Рабочий лист Excel
+            source_row: Номер исходной строки для копирования (строка 9 по умолчанию)
+            target_row: Номер целевой строки для вставки разделителя
+            
+        Raises:
+            ExcelExportServiceError: При ошибках копирования строки или стилей
+        """
+        try:
+            logger.debug(f"Копируем строку-разделитель из строки {source_row} в строку {target_row}")
+            
+            # Сначала копируем все стили с помощью специализированного метода
+            self._copy_row_styles(worksheet, source_row, target_row)
+            
+            # Затем копируем содержимое ячеек и комментарии
+            source_row_obj = worksheet[source_row]
+            cells_copied = 0
+            cells_with_errors = 0
+            
+            for cell in source_row_obj:
+                # Копируем содержимое всех ячеек, включая пустые с комментариями
+                if cell.value is not None or cell.comment:
+                    try:
+                        # Получаем целевую ячейку
+                        target_cell = worksheet.cell(row=target_row, column=cell.column)
+                        
+                        # Копируем значение
+                        if cell.value is not None:
+                            target_cell.value = cell.value
+                        
+                        # Копируем комментарии (если есть)
+                        if cell.comment:
+                            target_cell.comment = cell.comment
+                        
+                        cells_copied += 1
+                        
+                    except Exception as cell_error:
+                        cells_with_errors += 1
+                        logger.warning(f"Не удалось скопировать содержимое ячейки {cell.coordinate}: {str(cell_error)}")
+                        continue
+            
+            logger.info(f"Строка-разделитель успешно скопирована из строки {source_row} в строку {target_row}")
+            logger.debug(f"Скопировано ячеек с содержимым: {cells_copied}, ошибок при копировании: {cells_with_errors}")
+            
+        except Exception as e:
+            error_msg = f"Ошибка при копировании строки-разделителя из строки {source_row} в строку {target_row}: {str(e)}"
             logger.error(error_msg, exc_info=True)
             raise ExcelExportServiceError(error_msg) from e
 
