@@ -92,10 +92,12 @@ class ExcelExportService:
         'premium_1': 'F',         # Премия-1
         'franchise_1': 'G',       # Франшиза-1
         'installment_1': 'H',     # Рассрочка-1
+        'premium_1_summary': 'I', # Сумма премий-1
         'rate_2': 'K',            # Страховой тариф-2 (в процентах)
         'premium_2': 'L',         # Премия-2
         'franchise_2': 'M',       # Франшиза-2
         'installment_2': 'N',     # Рассрочка-2
+        'premium_2_summary': 'O', # Сумма премий-2
         'notes': 'Q'              # Примечания
     }
     
@@ -423,6 +425,8 @@ class ExcelExportService:
                 # Объединяем ячейки с названием компании если у неё несколько лет
                 if len(offers) > 1:
                     self._merge_company_name_cells(worksheet, company_start_row, current_row - 1, company_name)
+                    # Объединяем ячейки с суммами премий
+                    self._merge_premium_summary_cells(worksheet, company_start_row, current_row - 1, company_name, offers)
                 
                 # Добавляем разделитель между компаниями (кроме последней)
                 if company_index < total_companies - 1 and current_row < self.MAX_ROWS_LIMIT:
@@ -1374,6 +1378,216 @@ class ExcelExportService:
             
         except Exception as e:
             logger.error(f"Критическая ошибка при fallback заполнении названия компании '{company_name}': {e}")
+    
+    def _merge_premium_summary_cells(self, worksheet, start_row: int, end_row: int, 
+                                    company_name: str, offers: List) -> None:
+        """
+        Объединяет ячейки в столбцах I и O с суммированием премий по всем годам страхования
+        
+        Args:
+            worksheet: Рабочий лист Excel
+            start_row: Первая строка компании
+            end_row: Последняя строка компании
+            company_name: Название страховой компании
+            offers: Список предложений компании
+            
+        Raises:
+            ExcelExportServiceError: При критических ошибках объединения
+        """
+        try:
+            logger.debug(f"Объединяем ячейки премий для компании '{company_name}' в диапазоне {start_row}:{end_row}")
+            
+            # Вычисляем суммы премий
+            premium_1_total = self._calculate_premium_sum(offers, 1)
+            premium_2_total = self._calculate_premium_sum(offers, 2)
+            
+            # Объединяем и заполняем ячейки в столбце I (премии-1)
+            if premium_1_total is not None:
+                merge_range_i = f'I{start_row}:I{end_row}'
+                worksheet.merge_cells(merge_range_i)
+                merged_cell_i = worksheet[f'I{start_row}']
+                merged_cell_i.value = premium_1_total
+                
+                # Применяем форматирование
+                self._apply_premium_cell_formatting(worksheet, f'I{start_row}', self.FIRST_DATA_ROW)
+                
+                logger.debug(f"Объединены ячейки {merge_range_i} с суммой премий-1: {premium_1_total}")
+            
+            # Объединяем и заполняем ячейки в столбце O (премии-2) только если есть данные
+            if premium_2_total is not None and premium_2_total > 0:
+                merge_range_o = f'O{start_row}:O{end_row}'
+                worksheet.merge_cells(merge_range_o)
+                merged_cell_o = worksheet[f'O{start_row}']
+                merged_cell_o.value = premium_2_total
+                
+                # Применяем форматирование
+                self._apply_premium_cell_formatting(worksheet, f'O{start_row}', self.FIRST_DATA_ROW)
+                
+                logger.debug(f"Объединены ячейки {merge_range_o} с суммой премий-2: {premium_2_total}")
+            else:
+                # Если нет премий-2, все равно объединяем ячейки но оставляем пустыми
+                merge_range_o = f'O{start_row}:O{end_row}'
+                worksheet.merge_cells(merge_range_o)
+                merged_cell_o = worksheet[f'O{start_row}']
+                merged_cell_o.value = None
+                
+                # Применяем форматирование
+                self._apply_premium_cell_formatting(worksheet, f'O{start_row}', self.FIRST_DATA_ROW)
+                
+                logger.debug(f"Объединены ячейки {merge_range_o} без данных (премии-2 отсутствуют)")
+            
+            logger.info(f"Объединение ячеек премий для компании '{company_name}' завершено успешно")
+            
+        except Exception as e:
+            logger.warning(f"Не удалось объединить ячейки премий для компании '{company_name}': {e}")
+            # Fallback: заполняем премии в отдельные ячейки
+            self._fill_premium_summary_fallback(worksheet, start_row, end_row, offers)
+    
+    def _calculate_premium_sum(self, offers: List, premium_type: int) -> Optional[Decimal]:
+        """
+        Вычисляет сумму премий по всем годам страхования для указанного типа
+        
+        Args:
+            offers: Список предложений компании
+            premium_type: Тип премии (1 или 2)
+            
+        Returns:
+            Optional[Decimal]: Сумма премий или None если нет валидных данных
+        """
+        try:
+            logger.debug(f"Вычисляем сумму премий типа {premium_type} для {len(offers)} предложений")
+            
+            total_sum = Decimal('0')
+            valid_premiums_count = 0
+            
+            for offer in offers:
+                try:
+                    if premium_type == 1:
+                        premium = self._format_premium(offer, 1)
+                    else:
+                        premium = self._format_premium(offer, 2)
+                    
+                    if premium is not None and premium > 0:
+                        total_sum += premium
+                        valid_premiums_count += 1
+                        logger.debug(f"Добавлена премия-{premium_type}: {premium}, текущая сумма: {total_sum}")
+                    else:
+                        logger.debug(f"Премия-{premium_type} отсутствует или равна 0 для года {getattr(offer, 'insurance_year', 'неизвестно')}")
+                        
+                except Exception as offer_error:
+                    logger.warning(f"Ошибка при обработке премии-{premium_type} для года {getattr(offer, 'insurance_year', 'неизвестно')}: {offer_error}")
+                    continue
+            
+            if valid_premiums_count == 0:
+                logger.debug(f"Не найдено валидных премий типа {premium_type}")
+                return None
+            
+            logger.debug(f"Сумма премий-{premium_type}: {total_sum} (из {valid_premiums_count} валидных значений)")
+            return total_sum
+            
+        except Exception as e:
+            logger.error(f"Ошибка при вычислении суммы премий типа {premium_type}: {e}")
+            return None
+    
+    def _apply_premium_cell_formatting(self, worksheet, cell_address: str, template_row: int) -> None:
+        """
+        Применяет форматирование к ячейкам с суммами премий
+        
+        Args:
+            worksheet: Рабочий лист Excel
+            cell_address: Адрес ячейки для форматирования
+            template_row: Номер строки-шаблона для копирования стилей
+        """
+        try:
+            logger.debug(f"Применяем форматирование к ячейке {cell_address}")
+            
+            # Получаем колонку из адреса ячейки
+            column = cell_address[0]  # Первый символ - это колонка (I или O)
+            
+            # Копируем стили из соответствующей ячейки шаблона
+            template_cell = worksheet[f'{column}{template_row}']
+            target_cell = worksheet[cell_address]
+            
+            # Копируем все стили
+            if template_cell.has_style:
+                from copy import copy
+                
+                if template_cell.font:
+                    target_cell.font = copy(template_cell.font)
+                if template_cell.border:
+                    target_cell.border = copy(template_cell.border)
+                if template_cell.fill:
+                    target_cell.fill = copy(template_cell.fill)
+                if template_cell.number_format:
+                    target_cell.number_format = template_cell.number_format
+                if template_cell.protection:
+                    target_cell.protection = copy(template_cell.protection)
+            
+            # Применяем вертикальное выравнивание по центру
+            from openpyxl.styles import Alignment
+            if target_cell.alignment:
+                from copy import copy
+                alignment = copy(target_cell.alignment)
+                alignment.vertical = 'center'
+                target_cell.alignment = alignment
+            else:
+                target_cell.alignment = Alignment(vertical='center')
+            
+            logger.debug(f"Форматирование применено к ячейке {cell_address}")
+            
+        except Exception as e:
+            logger.warning(f"Не удалось применить форматирование к ячейке {cell_address}: {e}")
+    
+    def _fill_premium_summary_fallback(self, worksheet, start_row: int, end_row: int, offers: List) -> None:
+        """
+        Fallback метод: заполняет премии в отдельные ячейки при ошибке объединения
+        
+        Args:
+            worksheet: Рабочий лист Excel
+            start_row: Первая строка компании
+            end_row: Последняя строка компании
+            offers: Список предложений компании
+        """
+        try:
+            logger.info(f"Используем fallback для заполнения премий в строках {start_row}-{end_row}")
+            
+            # Сначала пытаемся разъединить ячейки если они были объединены
+            try:
+                for column in ['I', 'O']:
+                    merge_range = f'{column}{start_row}:{column}{end_row}'
+                    if merge_range in [str(r) for r in worksheet.merged_cells.ranges]:
+                        worksheet.unmerge_cells(merge_range)
+                        logger.debug(f"Разъединены ячейки {merge_range} для fallback")
+            except Exception as unmerge_error:
+                logger.debug(f"Не удалось разъединить ячейки (возможно, они не были объединены): {unmerge_error}")
+            
+            # Заполняем каждую строку отдельно
+            for i, offer in enumerate(offers):
+                if i >= (end_row - start_row + 1):
+                    break  # Защита от выхода за границы
+                
+                current_row = start_row + i
+                
+                try:
+                    # Заполняем премию-1
+                    premium_1 = self._format_premium(offer, 1)
+                    if premium_1 is not None:
+                        worksheet[f'I{current_row}'].value = premium_1
+                    
+                    # Заполняем премию-2 если есть
+                    if offer.has_second_franchise_variant():
+                        premium_2 = self._format_premium(offer, 2)
+                        if premium_2 is not None:
+                            worksheet[f'O{current_row}'].value = premium_2
+                    
+                except Exception as row_error:
+                    logger.warning(f"Не удалось заполнить премии для строки {current_row}: {row_error}")
+                    continue
+            
+            logger.info(f"Fallback заполнение премий завершено для строк {start_row}-{end_row}")
+            
+        except Exception as e:
+            logger.error(f"Критическая ошибка при fallback заполнении премий: {e}")
 
 
 class ExcelResponseProcessor:
