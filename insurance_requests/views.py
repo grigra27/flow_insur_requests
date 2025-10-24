@@ -639,7 +639,7 @@ def generate_email(request, pk):
 
 @user_required
 def preview_email(request, pk):
-    """Предварительный просмотр и редактирование письма"""
+    """Редактирование письма"""
     insurance_request = get_object_or_404(InsuranceRequest, pk=pk)
     
     if request.method == 'POST':
@@ -650,8 +650,8 @@ def preview_email(request, pk):
             insurance_request.email_body = form.cleaned_data['email_body']
             insurance_request.save()
             
-            # TODO: Здесь будет отправка письма
-            messages.success(request, 'Письмо готово к отправке')
+            # Сохраняем изменения и возвращаемся к заявке
+            messages.success(request, 'Изменения в письме сохранены')
             return redirect('insurance_requests:request_detail', pk=pk)
     else:
         # Если письмо еще не сгенерировано, генерируем его
@@ -666,7 +666,6 @@ def preview_email(request, pk):
         form = EmailPreviewForm(initial={
             'email_subject': insurance_request.email_subject,
             'email_body': insurance_request.email_body,
-            'recipients': ''  # TODO: Получить из настроек
         })
     
     return render(request, 'insurance_requests/preview_email.html', {

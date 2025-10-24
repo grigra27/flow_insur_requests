@@ -594,7 +594,7 @@ class InsuranceRequestForm(forms.ModelForm):
 
 
 class EmailPreviewForm(forms.Form):
-    """Форма для предварительного просмотра и редактирования письма"""
+    """Форма для редактирования письма"""
     
     email_subject = forms.CharField(
         label='Тема письма',
@@ -606,29 +606,6 @@ class EmailPreviewForm(forms.Form):
         label='Текст письма',
         widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 15})
     )
-    
-    recipients = forms.CharField(
-        label='Получатели (через запятую)',
-        help_text='Введите email адреса получателей через запятую',
-        widget=forms.TextInput(attrs={'class': 'form-control'})
-    )
-    
-    def clean_recipients(self):
-        """Валидация email адресов получателей"""
-        recipients = self.cleaned_data.get('recipients', '')
-        emails = [email.strip() for email in recipients.split(',') if email.strip()]
-        
-        if not emails:
-            raise ValidationError('Укажите хотя бы один email адрес')
-        
-        # Проверяем каждый email
-        for email in emails:
-            try:
-                forms.EmailField().clean(email)
-            except ValidationError:
-                raise ValidationError(f'Некорректный email адрес: {email}')
-        
-        return emails
 
 
 class RequestStatusForm(forms.Form):
