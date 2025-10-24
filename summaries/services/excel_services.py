@@ -685,6 +685,9 @@ class ExcelExportService:
                     self._merge_premium_summary_cells(worksheet, company_start_row, current_row - 1, company_name, offers, columns)
                     # Объединяем ячейки с примечаниями
                     self._merge_notes_cells(worksheet, company_start_row, current_row - 1, company_name, offers, columns)
+                else:
+                    # Для компаний с одним годом заполняем столбцы I и O значениями из F и L
+                    self._fill_single_year_premium_summary(worksheet, company_start_row, company_name, offers[0], columns)
                 
                 # Добавляем разделитель между компаниями (кроме последней)
                 if company_index < total_companies - 1 and current_row < self.MAX_ROWS_LIMIT:
@@ -1861,6 +1864,54 @@ class ExcelExportService:
             
         except Exception as e:
             logger.error(f"Критическая ошибка при fallback заполнении премий: {e}")
+    
+    def _fill_single_year_premium_summary(self, worksheet, row_num: int, company_name: str, 
+                                         offer, columns_mapping: dict) -> None:
+        """
+        Заполняет столбцы I и O для компаний с одним годом страхования
+        
+        Для компаний с одним годом не нужно объединение ячеек, но нужно 
+        скопировать значения премий из столбцов F и L в столбцы I и O соответственно.
+        
+        Args:
+            worksheet: Рабочий лист Excel
+            row_num: Номер строки компании
+            company_name: Название страховой компании
+            offer: Предложение компании (единственное)
+            columns_mapping: Маппинг колонок
+        """
+        try:
+            logger.debug(f"Заполняем столбцы премий для компании с одним годом '{company_name}' в строке {row_num}")
+            
+            # Получаем значения премий из столбцов F и L
+            premium_1_cell = f"{columns_mapping['premium_1']}{row_num}"
+            premium_1_value = worksheet[premium_1_cell].value
+            
+            # Заполняем столбец I значением из столбца F
+            if premium_1_value is not None:
+                premium_1_summary_cell = f"{columns_mapping['premium_1_summary']}{row_num}"
+                worksheet[premium_1_summary_cell].value = premium_1_value
+                logger.debug(f"Скопирована премия-1 из {premium_1_cell} в {premium_1_summary_cell}: {premium_1_value}")
+            
+            # Заполняем столбец O значением из столбца L (если есть и колонка существует)
+            if 'premium_2' in columns_mapping and 'premium_2_summary' in columns_mapping:
+                premium_2_cell = f"{columns_mapping['premium_2']}{row_num}"
+                premium_2_value = worksheet[premium_2_cell].value
+                
+                if premium_2_value is not None:
+                    premium_2_summary_cell = f"{columns_mapping['premium_2_summary']}{row_num}"
+                    worksheet[premium_2_summary_cell].value = premium_2_value
+                    logger.debug(f"Скопирована премия-2 из {premium_2_cell} в {premium_2_summary_cell}: {premium_2_value}")
+                else:
+                    logger.debug(f"Премия-2 отсутствует для компании '{company_name}', столбец O остается пустым")
+            else:
+                logger.debug(f"Столбцы для премии-2 отсутствуют в шаблоне (упрощенный шаблон)")
+            
+            logger.info(f"Столбцы премий заполнены для компании с одним годом '{company_name}' в строке {row_num}")
+            
+        except Exception as e:
+            logger.warning(f"Ошибка при заполнении столбцов премий для компании '{company_name}' в строке {row_num}: {e}")
+            # Не прерываем выполнение, продолжаем работу
     
     def _merge_notes_cells(self, worksheet, start_row: int, end_row: int, 
                           company_name: str, offers: List, columns_mapping: dict = None) -> None:

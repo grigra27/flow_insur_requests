@@ -130,7 +130,7 @@
                 <div>
                     {% if request.status == 'email_generated' %}
                     <a href="{% url 'insurance_requests:preview_email' request.pk %}" class="btn btn-primary btn-sm">
-                        <i class="bi bi-envelope"></i> Предварительный просмотр
+                        <i class="bi bi-envelope"></i> Изменить
                     </a>
                     {% endif %}
                     {% if request.status == 'uploaded' %}
