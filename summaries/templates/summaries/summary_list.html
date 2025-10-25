@@ -22,7 +22,7 @@
             <a class="nav-link{% if not current_branch %} active{% endif %}" 
                href="#" 
                onclick="filterByBranch('')">
-                <i class="bi bi-list-ul"></i> Все своды
+                <i class="bi bi-list-ul"></i> Все
                 {% if show_total_count %}
                     <span class="badge bg-primary ms-1">{{ total_summaries_count }}</span>
                 {% endif %}
@@ -86,7 +86,7 @@
 
 {% if summaries %}
     <div class="table-responsive">
-        <table class="table table-hover">
+        <table class="table table-striped table-hover">
             <thead class="table-dark">
                 <tr>
                     <th>Номер заявки</th>
@@ -235,8 +235,34 @@
 
 {% block extra_css %}
 <style>
-    .summary-row:hover {
-        background-color: rgba(0, 123, 255, 0.1);
+    /* Простые улучшения для таблицы сводов */
+    .table-striped > tbody > tr:nth-of-type(odd) > td {
+        background-color: rgba(0, 0, 0, 0.02);
+    }
+    
+    .table-hover tbody tr:hover {
+        background-color: rgba(13, 110, 253, 0.08) !important;
+    }
+    
+    .table thead th {
+        font-weight: 600;
+        font-size: 0.9rem;
+        border-bottom: 2px solid #495057;
+    }
+    
+    .table tbody td {
+        vertical-align: middle;
+        padding: 0.9rem 0.75rem;
+    }
+    
+    .badge {
+        font-size: 0.8rem;
+        font-weight: 500;
+    }
+    
+    .btn-outline-primary, .btn-outline-success {
+        font-size: 0.85rem;
+        font-weight: 500;
     }
     
     .filter-form {

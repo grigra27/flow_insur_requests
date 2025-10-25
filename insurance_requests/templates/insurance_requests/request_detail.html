@@ -21,39 +21,39 @@
         <!-- Основная информация -->
         <div class="card mb-4">
             <div class="card-header">
-                <h5 class="mb-0">Информация о заявке</h5>
+                <h5 class="mb-0">Основная информация о заявке</h5>
             </div>
             <div class="card-body">
                 <div class="row">
-                    <div class="col-md-6">
+                    <div class="col-md-7">
                         <dl class="row">
-                            <dt class="col-sm-4">Клиент:</dt>
-                            <dd class="col-sm-8">{{ request.client_name }}</dd>
+                            <dt class="col-sm-5">Клиент:</dt>
+                            <dd class="col-sm-7 text-start">{{ request.client_name }}</dd>
 
-                            <dt class="col-sm-4">ИНН:</dt>
-                            <dd class="col-sm-8">{{ request.inn }}</dd>
+                            <dt class="col-sm-5">ИНН:</dt>
+                            <dd class="col-sm-7">{{ request.inn }}</dd>
 
-                            <dt class="col-sm-4">Тип страхования:</dt>
-                            <dd class="col-sm-8">{{ request.insurance_type }}</dd>
+                            <dt class="col-sm-5">Тип страхования:</dt>
+                            <dd class="col-sm-7">{{ request.insurance_type }}</dd>
 
-                            <dt class="col-sm-4">Срок страхования:</dt>
-                            <dd class="col-sm-8">{{ request.insurance_period|default:"Период не указан" }}</dd>
+                            <dt class="col-sm-5">Срок страхования:</dt>
+                            <dd class="col-sm-7">{{ request.insurance_period|default:"Период не указан" }}</dd>
 
-                            <dt class="col-sm-4">Филиал:</dt>
-                            <dd class="col-sm-8">{{ request.branch|default:"Не указан" }}</dd>
+                            <dt class="col-sm-5">Филиал:</dt>
+                            <dd class="col-sm-7">{{ request.branch|default:"Не указан" }}</dd>
 
-                            <dt class="col-sm-4">Номер ДФА:</dt>
-                            <dd class="col-sm-8">{{ request.dfa_number|default:"Не указан" }}</dd>
+                            <dt class="col-sm-5">Номер ДФА:</dt>
+                            <dd class="col-sm-7">{{ request.dfa_number|default:"Не указан" }}</dd>
                         </dl>
                     </div>
-                    <div class="col-md-6">
+                    <div class="col-md-5">
                         <dl class="row">
-                            <dt class="col-sm-4">Создана:</dt>
-                            <dd class="col-sm-8">{% timezone "Europe/Moscow" %}{{ request.created_at|date:"d.m.Y H:i" }}{% endtimezone %} (МСК)</dd>
+                            <dt class="col-sm-5 text-end"><small class="text-muted">Создана:</small></dt>
+                            <dd class="col-sm-7">{% timezone "Europe/Moscow" %}{{ request.created_at|date:"d.m.Y в H:i" }}{% endtimezone %}</dd>
 
                             {% if request.additional_data.application_format_display %}
-                            <dt class="col-sm-4">Формат заявки:</dt>
-                            <dd class="col-sm-8">
+                            <dt class="col-sm-5 text-end">Формат заявки:</dt>
+                            <dd class="col-sm-7">
                                 <span
                                     class="badge bg-{% if request.additional_data.application_format == 'property' %}info{% else %}secondary{% endif %}">
                                     {{ request.additional_data.application_format_display }}
@@ -64,13 +64,13 @@
                             </dd>
                             {% endif %}
 
-                            <dt class="col-sm-4">Обновлена:</dt>
-                            <dd class="col-sm-8">{% timezone "Europe/Moscow" %}{{ request.updated_at|date:"d.m.Y H:i" }}{% endtimezone %} (МСК)</dd>
+                            <dt class="col-sm-5 text-end"><small class="text-muted">Обновлена:</small></dt>
+                            <dd class="col-sm-7">{% timezone "Europe/Moscow" %}{{ request.updated_at|date:"d.m.Y в H:i" }}{% endtimezone %}</dd>
 
-                            <dt class="col-sm-4">Срок ответа:</dt>
-                            <dd class="col-sm-8">
+                            <dt class="col-sm-5 text-end"><small class="text-muted">Срок ответа:</small></dt>
+                            <dd class="col-sm-7">
                                 {% if request.response_deadline %}
-                                {% timezone "Europe/Moscow" %}{{ request.response_deadline|date:"d.m.Y в H:i" }}{% endtimezone %} (МСК)
+                                {% timezone "Europe/Moscow" %}{{ request.response_deadline|date:"d.m.Y в H:i" }}{% endtimezone %}
                                 {% else %}
                                 Не указан
                                 {% endif %}

@@ -175,72 +175,96 @@
                         {% endif %}
                     </div>
 
-                    <div class="row">
-                        <div class="col-md-2">
-                            <div class="form-check mb-3">
-                                {{ form.has_franchise }}
-                                <label class="form-check-label" for="{{ form.has_franchise.id_for_label }}">
-                                    {{ form.has_franchise.label }}
-                                </label>
-                            </div>
-                        </div>
-
-                        <div class="col-md-2">
-                            <div class="form-check mb-3">
-                                {{ form.has_installment }}
-                                <label class="form-check-label" for="{{ form.has_installment.id_for_label }}">
-                                    {{ form.has_installment.label }}
-                                </label>
-                            </div>
-                        </div>
-
-                        <div class="col-md-2">
-                            <div class="form-check mb-3">
-                                {{ form.has_autostart }}
-                                <label class="form-check-label" for="{{ form.has_autostart.id_for_label }}">
-                                    {{ form.has_autostart.label }}
-                                </label>
-                            </div>
-                        </div>
-
-                        <div class="col-md-2">
-                            <div class="form-check mb-3">
-                                {{ form.has_casco_ce }}
-                                <label class="form-check-label" for="{{ form.has_casco_ce.id_for_label }}">
-                                    {{ form.has_casco_ce.label }}
-                                </label>
-                            </div>
-                        </div>
-
-                        <div class="col-md-2">
-                            <div class="form-check mb-3">
-                                {{ form.has_transportation }}
-                                <label class="form-check-label" for="{{ form.has_transportation.id_for_label }}">
-                                    {{ form.has_transportation.label }}
-                                </label>
-                                {% if form.has_transportation.errors %}
-                                <div class="text-danger">
-                                    {% for error in form.has_transportation.errors %}
-                                    <small>{{ error }}</small>
-                                    {% endfor %}
+                    <!-- Дополнительные параметры -->
+                    <div class="mb-4">
+                        <h6 class="text-muted mb-3">Дополнительные параметры</h6>
+                        
+                        <!-- Общие параметры -->
+                        <div class="card border-0 bg-light mb-3">
+                            <div class="card-body py-2">
+                                <h6 class="card-subtitle mb-2 text-muted small">Общие</h6>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-check">
+                                            {{ form.has_franchise }}
+                                            <label class="form-check-label" for="{{ form.has_franchise.id_for_label }}">
+                                                {{ form.has_franchise.label }}
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-check">
+                                            {{ form.has_installment }}
+                                            <label class="form-check-label" for="{{ form.has_installment.id_for_label }}">
+                                                {{ form.has_installment.label }}
+                                            </label>
+                                        </div>
+                                    </div>
                                 </div>
-                                {% endif %}
                             </div>
                         </div>
 
-                        <div class="col-md-2">
-                            <div class="form-check mb-3">
-                                {{ form.has_construction_work }}
-                                <label class="form-check-label" for="{{ form.has_construction_work.id_for_label }}">
-                                    {{ form.has_construction_work.label }}
-                                </label>
-                                {% if form.has_construction_work.errors %}
-                                <div class="text-danger">
-                                    {% for error in form.has_construction_work.errors %}
-                                    <small>{{ error }}</small>
-                                    {% endfor %}
+                        <!-- Параметры для КАСКО и СТ -->
+                        <div class="card border-0 bg-light mb-3">
+                            <div class="card-body py-2">
+                                <h6 class="card-subtitle mb-2 text-muted small">КАСКО и СТ</h6>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-check">
+                                            {{ form.has_autostart }}
+                                            <label class="form-check-label" for="{{ form.has_autostart.id_for_label }}">
+                                                {{ form.has_autostart.label }}
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-check">
+                                            {{ form.has_casco_ce }}
+                                            <label class="form-check-label" for="{{ form.has_casco_ce.id_for_label }}">
+                                                {{ form.has_casco_ce.label }}
+                                            </label>
+                                        </div>
+                                    </div>
                                 </div>
-                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Параметры для имущества -->
+                        <div class="card border-0 bg-light mb-3">
+                            <div class="card-body py-2">
+                                <h6 class="card-subtitle mb-2 text-muted small">Имущество</h6>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-check">
+                                            {{ form.has_transportation }}
+                                            <label class="form-check-label" for="{{ form.has_transportation.id_for_label }}">
+                                                {{ form.has_transportation.label }}
+                                            </label>
+                                            {% if form.has_transportation.errors %}
+                                            <div class="text-danger">
+                                                {% for error in form.has_transportation.errors %}
+                                                <small>{{ error }}</small>
+                                                {% endfor %}
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-check">
+                                            {{ form.has_construction_work }}
+                                            <label class="form-check-label" for="{{ form.has_construction_work.id_for_label }}">
+                                                {{ form.has_construction_work.label }}
+                                            </label>
+                                            {% if form.has_construction_work.errors %}
+                                            <div class="text-danger">
+                                                {% for error in form.has_construction_work.errors %}
+                                                <small>{{ error }}</small>
+                                                {% endfor %}
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -483,6 +507,38 @@
         clip: rect(0, 0, 0, 0);
         white-space: nowrap;
         border: 0;
+    }
+
+    /* Стили для блоков дополнительных параметров */
+    .card.border-0.bg-light {
+        background-color: #f8f9fa !important;
+        border-radius: 0.5rem;
+    }
+
+    .card.border-0.bg-light .card-body {
+        padding: 0.75rem 1rem;
+    }
+
+    .card.border-0.bg-light .card-subtitle {
+        font-weight: 600;
+        color: #6c757d !important;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        font-size: 0.75rem;
+    }
+
+    .card.border-0.bg-light .form-check {
+        margin-bottom: 0.5rem;
+    }
+
+    .card.border-0.bg-light .form-check-label {
+        font-size: 0.9rem;
+        color: #495057;
+    }
+
+    .card.border-0.bg-light:hover {
+        background-color: #e9ecef !important;
+        transition: background-color 0.2s ease;
     }
 </style>
 {% endblock %}
