@@ -129,7 +129,10 @@ class ExcelExportService:
         'branch': 'B10',             # Филиал
         'insurance_type': 'B11',     # Тип страхования
         'vehicle_info': 'B12',       # Информация о предмете лизинга
-        'letter_text': 'B14'         # Текст письма заявки
+        'letter_text': 'B14',        # Текст письма заявки
+        'franchise_info': 'B15',     # Информация о франшизе
+        'autostart_info': 'B16',     # Информация об автозапуске
+        'installment_info': 'B17'    # Информация о рассрочке
     }
     
     # Константы для обработки граничных случаев и валидации
@@ -523,6 +526,109 @@ class ExcelExportService:
         except Exception as e:
             logger.warning(f"Ошибка при записи {field_name} в ячейку {cell_address}: {e}")
     
+    def _get_franchise_text_for_tech_info(self, franchise_type: str) -> str:
+        """
+        Возвращает текст о франшизе для технического листа
+        
+        Args:
+            franchise_type: Тип франшизы ('none', 'with_franchise', 'both_variants')
+        
+        Returns:
+            str: Соответствующий текст для технического листа
+        """
+        franchise_texts = {
+            'none': 'Запрос котировок без франшизы',
+            'with_franchise': 'Запрос котировок с франшизой',
+            'both_variants': 'Запрос котировок включая оба варианта (с франшизой и без)'
+        }
+        return franchise_texts.get(franchise_type, 'не указано')
+    
+    def _get_autostart_text_for_tech_info(self, has_autostart: bool) -> str:
+        """
+        Возвращает текст об автозапуске для технического листа
+        
+        Args:
+            has_autostart: Наличие автозапуска
+        
+        Returns:
+            str: Соответствующий текст для технического листа
+        """
+        if has_autostart:
+            return 'Запрос с условием автозапуска'
+        else:
+            return 'Запрос без автозапуска'
+    
+    def _get_installment_text_for_tech_info(self, has_installment: bool) -> str:
+        """
+        Возвращает текст о рассрочке для технического листа
+        
+        Args:
+            has_installment: Наличие рассрочки
+        
+        Returns:
+            str: Соответствующий текст для технического листа
+        """
+        if has_installment:
+            return 'Запрос тарифа с рассрочкой'
+        else:
+            return 'Запрос тарифа без рассрочки'
+    
+    def _get_insurance_description_for_tech_info(self, request) -> str:
+        """
+        Формирует описание страхования для технического листа (аналог ins_type + casco_type_ce)
+        
+        Args:
+            request: Объект заявки
+        
+        Returns:
+            str: Описание типа страхования с дополнительными рисками
+        """
+        # Маппинг типов страхования (аналогично core/templates.py)
+        insurance_type_descriptions = {
+            'КАСКО': 'Стандартный запрос по КАСКО. ',
+            'страхование спецтехники': (
+                'Запрос по страхованию спецтехники (максимальный пакет с транспортировкой (погрузкой/выгрузкой) на весь срок '
+                'страхования).\n Запрашивались:\n - риск кражи / угона в ночное время с неохраняемой стоянки.\n - риск просадки '
+                'грунта, провала дорог или мостов, обвала тоннелей\n - риск провала под лед, затопления специальной техники, '
+                'дополнительного оборудования.'
+            ),
+            'страхование имущества': (
+                'Запрос по страхованию имущества ("полный пакет рисков"). Отдельно запрашивались:\n '
+                '1. Риски РНПК\n'
+                '2. Ограничения по выплате страхового возмещения в той степени, в которой предоставление '
+                'такого покрытия, возмещение такого убытка или предоставление такой компенсации подвергло бы Страховщика '
+                'действиям любых санкций, запретов или ограничений установленных (резолюциями Организации Объединенных '
+                'Наций; законами или правилами Европейского союза, Соединенного Королевства Великобритании или Соединенных '
+                'Штатов Америки; законодательством РФ, указами Президента РФ и/или иными нормативными подзаконными актами '
+                'РФ, принятыми в соответствии с резолюциями СБ ООН, указами Президента РФ и/или иными нормативными '
+                'подзаконными актами РФ).\n'
+                '3. Наличие рисков:\n а) Бой стекол \n б) Риск повреждения животными'
+            ),
+            'другое': 'Иной запрос по страхованию предмета лизинга.'
+        }
+        
+        # Получаем базовое описание типа страхования
+        insurance_type = request.insurance_type or 'КАСКО'
+        base_description = insurance_type_descriptions.get(insurance_type, insurance_type)
+        
+        # Добавляем информацию о КАСКО C/E если необходимо
+        casco_ce_text = ''
+        if request.has_casco_ce:
+            casco_ce_text = (
+                '\n \n Также запрашивались доп. риски для категории C/E:\n'
+                '- страхование вне дорог общего пользования,\n'
+                '- провал грунта,\n'
+                '- переворот\n'
+                '- опрокидывание.'
+            )
+        
+        # Объединяем описания
+        result = base_description
+        if casco_ce_text:
+            result += casco_ce_text
+        
+        return result.strip()
+    
     def _fill_tech_info_sheet(self, workbook: Workbook, summary: InsuranceSummary) -> None:
         """
         Заполняет лист tech_info техническими данными о заявке и своде
@@ -565,9 +671,25 @@ class ExcelExportService:
             self._fill_tech_cell(tech_sheet, self.TECH_INFO_CELLS['vehicle_info'], 
                                request.vehicle_info, 'информация о предмете лизинга')
             
-            # Заполняем текст письма
+            # Заполняем описание страхования (вместо полного текста письма)
+            insurance_description = self._get_insurance_description_for_tech_info(request)
             self._fill_tech_cell(tech_sheet, self.TECH_INFO_CELLS['letter_text'], 
-                               request.email_body, 'текст письма')
+                               insurance_description, 'описание страхования')
+            
+            # Заполняем информацию о франшизе (B15)
+            franchise_text = self._get_franchise_text_for_tech_info(request.franchise_type)
+            self._fill_tech_cell(tech_sheet, self.TECH_INFO_CELLS['franchise_info'], 
+                               franchise_text, 'информация о франшизе')
+            
+            # Заполняем информацию об автозапуске (B16)
+            autostart_text = self._get_autostart_text_for_tech_info(request.has_autostart)
+            self._fill_tech_cell(tech_sheet, self.TECH_INFO_CELLS['autostart_info'], 
+                               autostart_text, 'информация об автозапуске')
+            
+            # Заполняем информацию о рассрочке (B17)
+            installment_text = self._get_installment_text_for_tech_info(request.has_installment)
+            self._fill_tech_cell(tech_sheet, self.TECH_INFO_CELLS['installment_info'], 
+                               installment_text, 'информация о рассрочке')
             
             logger.info(f"Лист tech_info успешно заполнен техническими данными для свода ID: {summary.id}")
             
