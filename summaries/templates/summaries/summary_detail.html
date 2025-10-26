@@ -37,7 +37,7 @@
             </div>
             <div class="card-body">
                 <div class="row">
-                    <div class="col-md-6">
+                    <div class="col-md-8">
                         <dl class="row">
                             <dt class="col-sm-5">Клиент:</dt>
                             <dd class="col-sm-7">{{ summary.request.client_name }}</dd>
@@ -55,19 +55,19 @@
                             <dd class="col-sm-7">{{ summary.request.vehicle_info|default:"Не указано" }}</dd>
                         </dl>
                     </div>
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                         <dl class="row">
-                            <dt class="col-sm-5">Заявка:</dt>
+                            <dt class="col-sm-5 text-end">Заявка:</dt>
                             <dd class="col-sm-7">
                                 <a href="{% url 'insurance_requests:request_detail' summary.request.pk %}">{{ summary.request.get_display_name }}</a>
                             </dd>
                             
-                            <dt class="col-sm-5">Создан:</dt>
-                            <dd class="col-sm-7">{% timezone "Europe/Moscow" %}{{ summary.created_at|date:"d.m.Y H:i" }}{% endtimezone %} (МСК)</dd>
+                            <dt class="col-sm-5 text-end">Создан:</dt>
+                            <dd class="col-sm-7">{% timezone "Europe/Moscow" %}{{ summary.created_at|date:"d.m.Y H:i" }}{% endtimezone %}</dd>
                             
                             {% if summary.sent_to_client_at %}
-                                <dt class="col-sm-5">Отправлен:</dt>
-                                <dd class="col-sm-7">{% timezone "Europe/Moscow" %}{{ summary.sent_to_client_at|date:"d.m.Y H:i" }}{% endtimezone %} (МСК)</dd>
+                                <dt class="col-sm-5 text-end">Отправлен:</dt>
+                                <dd class="col-sm-7">{% timezone "Europe/Moscow" %}{{ summary.sent_to_client_at|date:"d.m.Y H:i" }}{% endtimezone %}</dd>
                             {% endif %}
                         </dl>
                     </div>

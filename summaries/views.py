@@ -358,6 +358,8 @@ def add_offer(request, summary_id):
 def generate_summary_file(request, summary_id):
     """Генерация Excel файла свода"""
     from datetime import datetime
+    from urllib.parse import quote
+    import re
     from .services import get_excel_export_service, ExcelExportServiceError, InvalidSummaryDataError, TemplateNotFoundError
     
     summary = get_object_or_404(InsuranceSummary.objects.select_related('request'), pk=summary_id)
@@ -376,8 +378,12 @@ def generate_summary_file(request, summary_id):
         # Генерация Excel файла - требование 1.2, 1.3
         excel_file = service.generate_summary_excel(summary)
         
-        # Формирование имени файла - требование 3.2
-        filename = f"svod_{summary.request.dfa_number}_{datetime.now().strftime('%Y%m%d')}.xlsx"
+        # Формирование имени файла - требование 3.2, 15.1-15.8
+        # Обработка номера ДФА: извлечение только цифр
+        dfa_number_digits_only = re.sub(r'[^\d]', '', summary.request.dfa_number)
+        # Изменение формата даты на день_месяц_год
+        date_formatted = datetime.now().strftime('%d_%m_%Y')
+        filename = f"svod_{dfa_number_digits_only}_{date_formatted}.xlsx"
         
         # Создание HTTP response с Excel файлом - требование 3.1
         response = HttpResponse(
