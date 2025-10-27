@@ -102,7 +102,7 @@ class TestInstallmentIntegration(TestCase):
         # Создаем предложение для редактирования
         offer = InsuranceOffer.objects.create(
             summary=self.summary,
-            company_name="Edit Test Company",
+            company_name="Пари",
             insurance_year=1,
             insurance_sum=Decimal("800000.00"),
             franchise_1=Decimal("0.00"),

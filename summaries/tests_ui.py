@@ -102,7 +102,7 @@ class TestUIElements(TestCase):
         # Create offer to edit
         offer = InsuranceOffer.objects.create(
             summary=self.summary,
-            company_name="UI Edit Company",
+            company_name="Согласие",
             insurance_year=3,
             insurance_sum=Decimal("1200000.00"),
             franchise_1=Decimal("5000.00"),
@@ -120,7 +120,7 @@ class TestUIElements(TestCase):
         self.assertEqual(response.status_code, 200)
         
         # Check pre-populated values
-        self.assertContains(response, 'value="UI Edit Company"')
+        self.assertContains(response, 'value="Согласие"')
         self.assertContains(response, 'value="3"')  # insurance_year
         self.assertContains(response, 'value="1200000.00"')  # insurance_sum
         self.assertContains(response, 'value="5000.00"')  # franchise_1
@@ -139,7 +139,7 @@ class TestUIElements(TestCase):
         # Create test offers
         offer1 = InsuranceOffer.objects.create(
             summary=self.summary,
-            company_name="UI Display Company A",
+            company_name="Энергогарант",
             insurance_year=1,
             insurance_sum=Decimal("1000000.00"),
             franchise_1=Decimal("0.00"),
@@ -150,7 +150,7 @@ class TestUIElements(TestCase):
         
         offer2 = InsuranceOffer.objects.create(
             summary=self.summary,
-            company_name="UI Display Company B",
+            company_name="ПСБ-страхование",
             insurance_year=2,
             insurance_sum=Decimal("1000000.00"),
             franchise_1=Decimal("0.00"),
@@ -177,8 +177,8 @@ class TestUIElements(TestCase):
         
         # Check offers section
         self.assertContains(response, 'Предложения страховщиков')
-        self.assertContains(response, 'UI Display Company A')
-        self.assertContains(response, 'UI Display Company B')
+        self.assertContains(response, 'Энергогарант')
+        self.assertContains(response, 'ПСБ-страхование')
         
         # Check table structure
         self.assertContains(response, '<table')
@@ -330,7 +330,7 @@ class TestJavaScriptFunctionality(TestCase):
         # Create offer to test delete functionality
         offer = InsuranceOffer.objects.create(
             summary=self.summary,
-            company_name="Delete Test Company",
+            company_name="Совкомбанк СК",
             insurance_year=1,
             insurance_sum=Decimal("1000000.00"),
             franchise_1=Decimal("0.00"),
@@ -356,7 +356,7 @@ class TestJavaScriptFunctionality(TestCase):
         # Create offers for testing dynamic content
         offer1 = InsuranceOffer.objects.create(
             summary=self.summary,
-            company_name="Dynamic Company A",
+            company_name="ВСК",
             insurance_year=1,
             insurance_sum=Decimal("1000000.00"),
             franchise_1=Decimal("0.00"),
@@ -499,7 +499,7 @@ class TestUIConsistency(TestCase):
         
         self.offer = InsuranceOffer.objects.create(
             summary=self.summary,
-            company_name="Consistency Company",
+            company_name="РЕСО",
             insurance_year=1,
             insurance_sum=Decimal("1000000.00"),
             franchise_1=Decimal("0.00"),

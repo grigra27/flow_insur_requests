@@ -43,7 +43,7 @@ class RequestDetailViewTest(TestCase):
         
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Создать свод')
-        self.assertContains(response, 'Можно создать свод и добавить предложения вручную')
+        self.assertContains(response, 'Свод предложений не создан')
         self.assertNotContains(response, 'Свод недоступен')
     
     def test_create_summary_button_shown_for_email_generated_status(self):
@@ -56,7 +56,7 @@ class RequestDetailViewTest(TestCase):
         
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Создать свод')
-        self.assertContains(response, 'Рекомендуется сначала отправить письма страховщикам')
+        self.assertContains(response, 'Свод предложений не создан')
         self.assertNotContains(response, 'Свод недоступен')
     
     def test_create_summary_button_shown_for_emails_sent_status(self):

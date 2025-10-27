@@ -77,7 +77,6 @@ class InsuranceRequest(models.Model):
     # Сгенерированное письмо
     email_subject = models.CharField(max_length=255, blank=True, verbose_name='Тема письма')
     email_body = models.TextField(blank=True, verbose_name='Текст письма')
-    email_sent_at = models.DateTimeField(null=True, blank=True, verbose_name='Время отправки')
     
     # Дополнительные данные в JSON формате
     additional_data = models.JSONField(default=dict, blank=True, verbose_name='Дополнительные данные')
@@ -191,45 +190,4 @@ class RequestAttachment(models.Model):
         return f"{self.original_filename} (Заявка {self.request.get_display_name()})"
 
 
-class InsuranceResponse(models.Model):
-    """Модель ответа от страховой компании"""
-    
-    request = models.ForeignKey(InsuranceRequest, on_delete=models.CASCADE, related_name='responses')
-    company_name = models.CharField(max_length=255, verbose_name='Название компании')
-    company_email = models.EmailField(verbose_name='Email компании')
-    
-    # Данные ответа
-    received_at = models.DateTimeField(auto_now_add=True, verbose_name='Дата получения')
-    email_subject = models.CharField(max_length=255, verbose_name='Тема письма')
-    email_body = models.TextField(verbose_name='Текст письма')
-    
-    # Извлеченные данные
-    insurance_sum = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True, verbose_name='Страховая сумма')
-    insurance_premium = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True, verbose_name='Страховая премия')
-    
-    # Дополнительные данные в JSON
-    parsed_data = models.JSONField(default=dict, blank=True, verbose_name='Распарсенные данные')
-    
-    class Meta:
-        verbose_name = 'Ответ страховой компании'
-        verbose_name_plural = 'Ответы страховых компаний'
-        ordering = ['-received_at']
-    
-    def __str__(self):
-        return f"Ответ от {self.company_name} на заявку #{self.request.id}"
 
-
-class ResponseAttachment(models.Model):
-    """Модель вложений к ответу"""
-    
-    response = models.ForeignKey(InsuranceResponse, on_delete=models.CASCADE, related_name='attachments')
-    file = models.FileField(upload_to='response_attachments/%Y/%m/%d/', verbose_name='Файл')
-    original_filename = models.CharField(max_length=255, verbose_name='Оригинальное имя файла')
-    file_type = models.CharField(max_length=50, verbose_name='Тип файла')
-    
-    class Meta:
-        verbose_name = 'Вложение к ответу'
-        verbose_name_plural = 'Вложения к ответам'
-    
-    def __str__(self):
-        return f"{self.original_filename} (Ответ от {self.response.company_name})"

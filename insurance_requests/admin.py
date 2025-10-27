@@ -4,7 +4,7 @@ from django.urls import reverse
 from django.utils import timezone
 from datetime import timedelta
 import pytz
-from .models import InsuranceRequest, RequestAttachment, InsuranceResponse, ResponseAttachment
+from .models import InsuranceRequest, RequestAttachment
 
 
 @admin.register(InsuranceRequest)
@@ -30,12 +30,12 @@ class InsuranceRequestAdmin(admin.ModelAdmin):
     
     # Поля только для чтения
     readonly_fields = [
-        'created_at', 'updated_at', 'email_sent_at',
+        'created_at', 'updated_at',
         'get_attachments_count'
     ]
     
     # Массовые операции для управления статусами и сроками ответа
-    actions = ['mark_as_emails_sent', 'mark_as_email_generated', 'reset_response_deadline']
+    actions = ['reset_response_deadline']
     
     # Логически сгруппированные fieldsets для удобного редактирования
     fieldsets = (
@@ -62,7 +62,7 @@ class InsuranceRequestAdmin(admin.ModelAdmin):
         }),
         ('Письмо', {
             'fields': (
-                'email_subject', 'email_body', 'email_sent_at'
+                'email_subject', 'email_body'
             ),
             'classes': ('collapse',)
         }),
@@ -109,17 +109,6 @@ class InsuranceRequestAdmin(admin.ModelAdmin):
     get_attachments_count.short_description = 'Вложения'
     
     # Массовые операции для управления статусами и сроками ответа
-    def mark_as_emails_sent(self, request, queryset):
-        """Массовая операция: отметить как письма отправлены"""
-        updated = queryset.update(status='emails_sent')
-        self.message_user(request, f'{updated} заявок отмечено как письма отправлены.')
-    mark_as_emails_sent.short_description = 'Отметить как письма отправлены'
-    
-    def mark_as_email_generated(self, request, queryset):
-        """Массовая операция: отметить как письмо сгенерировано"""
-        updated = queryset.update(status='email_generated')
-        self.message_user(request, f'{updated} заявок отмечено как письмо сгенерировано.')
-    mark_as_email_generated.short_description = 'Отметить как письмо сгенерировано'
     
     def reset_response_deadline(self, request, queryset):
         """Массовая операция: сбросить срок ответа (+3 часа от текущего времени)"""
@@ -151,48 +140,4 @@ class RequestAttachmentAdmin(admin.ModelAdmin):
     uploaded_at_moscow.admin_order_field = 'uploaded_at'
 
 
-@admin.register(InsuranceResponse)
-class InsuranceResponseAdmin(admin.ModelAdmin):
-    list_display = ['company_name', 'get_request_display', 'insurance_sum', 'insurance_premium', 'received_at_moscow']
-    list_filter = ['company_name', 'received_at']
-    search_fields = ['company_name', 'email_subject', 'request__client_name', 'request__dfa_number']
-    readonly_fields = ['received_at']
-    
-    fieldsets = (
-        ('Основная информация', {
-            'fields': ('request', 'company_name', 'company_email', 'received_at')
-        }),
-        ('Данные письма', {
-            'fields': ('email_subject', 'email_body')
-        }),
-        ('Извлеченные данные', {
-            'fields': ('insurance_sum', 'insurance_premium', 'parsed_data'),
-            'classes': ('collapse',)
-        })
-    )
-    
-    def get_request_display(self, obj):
-        """Отображает заявку с ссылкой"""
-        url = reverse('admin:insurance_requests_insurancerequest_change', args=[obj.request.id])
-        return format_html('<a href="{}">{}</a>', url, obj.request.get_display_name())
-    get_request_display.short_description = 'Заявка'
-    
-    def received_at_moscow(self, obj):
-        """Отображает время получения в московском часовом поясе"""
-        moscow_time = timezone.localtime(obj.received_at)
-        return moscow_time.strftime('%d.%m.%Y %H:%M')
-    received_at_moscow.short_description = 'Получено (МСК)'
-    received_at_moscow.admin_order_field = 'received_at'
 
-
-@admin.register(ResponseAttachment)
-class ResponseAttachmentAdmin(admin.ModelAdmin):
-    list_display = ['original_filename', 'get_response_display', 'file_type']
-    list_filter = ['file_type']
-    search_fields = ['original_filename', 'response__company_name']
-    
-    def get_response_display(self, obj):
-        """Отображает ответ с ссылкой"""
-        url = reverse('admin:insurance_requests_insuranceresponse_change', args=[obj.response.id])
-        return format_html('<a href="{}">{}</a>', url, str(obj.response))
-    get_response_display.short_description = 'Ответ'

@@ -153,11 +153,7 @@
                 </div>
                 {% endif %}
 
-                {% if request.email_sent_at %}
-                <div class="alert alert-success mt-3">
-                    <i class="bi bi-check-circle"></i> Письмо отправлено {% timezone "Europe/Moscow" %}{{ request.email_sent_at|date:"d.m.Y в H:i" }}{% endtimezone %} (МСК)
-                </div>
-                {% endif %}
+
             </div>
         </div>
         {% else %}

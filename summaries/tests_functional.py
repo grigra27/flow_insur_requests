@@ -359,7 +359,7 @@ class TestOfferViews(TestCase):
         self.assertEqual(response.status_code, 200)
         
         # Check that form is pre-populated
-        self.assertContains(response, 'value="Edit Test Company"')
+        self.assertContains(response, 'value="Пари"')
         self.assertContains(response, 'value="1"')  # insurance_year
         self.assertContains(response, 'value="5000.00"')  # franchise_1
         self.assertContains(response, 'value="45000.00"')  # premium_with_franchise_1
@@ -485,7 +485,7 @@ class TestDataDisplayAndFormatting(TestCase):
         # Test single payment
         offer_single = InsuranceOffer.objects.create(
             summary=self.summary,
-            company_name="Single Payment Company",
+            company_name="Ренессанс",
             insurance_year=1,
             insurance_sum=Decimal("1000000.00"),
             franchise_1=Decimal("0.00"),
@@ -602,7 +602,7 @@ class TestDataIntegrity(TestCase):
         # Create multiple offers
         offer1 = InsuranceOffer.objects.create(
             summary=self.summary,
-            company_name="Company A",
+            company_name="ВСК",
             insurance_year=1,
             insurance_sum=Decimal("1000000.00"),
             franchise_1=Decimal("0.00"),
@@ -611,7 +611,7 @@ class TestDataIntegrity(TestCase):
         
         offer2 = InsuranceOffer.objects.create(
             summary=self.summary,
-            company_name="Company B",
+            company_name="Согаз",
             insurance_year=1,
             insurance_sum=Decimal("1000000.00"),
             franchise_1=Decimal("0.00"),
@@ -620,7 +620,7 @@ class TestDataIntegrity(TestCase):
         
         offer3 = InsuranceOffer.objects.create(
             summary=self.summary,
-            company_name="Company C",
+            company_name="РЕСО",
             insurance_year=2,
             insurance_sum=Decimal("1000000.00"),
             franchise_1=Decimal("0.00"),

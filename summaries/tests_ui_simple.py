@@ -83,7 +83,7 @@ class TestCoreUIFunctionality(TestCase):
         # Create offer to edit
         offer = InsuranceOffer.objects.create(
             summary=self.summary,
-            company_name="Edit Test Company",
+            company_name="Пари",
             insurance_year=2,
             insurance_sum=Decimal("1000000.00"),
             franchise_1=Decimal("0.00"),
@@ -95,7 +95,7 @@ class TestCoreUIFunctionality(TestCase):
         
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Редактировать предложение')
-        self.assertContains(response, 'Edit Test Company')
+        self.assertContains(response, 'Пари')
         self.assertContains(response, '<form')
     
     def test_summary_detail_page_loads(self):
@@ -115,7 +115,7 @@ class TestCoreUIFunctionality(TestCase):
         # Create test offers
         offer1 = InsuranceOffer.objects.create(
             summary=self.summary,
-            company_name="Display Company A",
+            company_name="Зетта",
             insurance_year=1,
             insurance_sum=Decimal("1000000.00"),
             franchise_1=Decimal("0.00"),
@@ -124,7 +124,7 @@ class TestCoreUIFunctionality(TestCase):
         
         offer2 = InsuranceOffer.objects.create(
             summary=self.summary,
-            company_name="Display Company B",
+            company_name="Абсолют",
             insurance_year=2,
             insurance_sum=Decimal("1000000.00"),
             franchise_1=Decimal("0.00"),
@@ -139,8 +139,8 @@ class TestCoreUIFunctionality(TestCase):
         self.assertEqual(response.status_code, 200)
         
         # Check that offers are displayed
-        self.assertContains(response, 'Display Company A')
-        self.assertContains(response, 'Display Company B')
+        self.assertContains(response, 'Зетта')
+        self.assertContains(response, 'Абсолют')
         
         # Check year display with new format
         self.assertContains(response, '1 год')
@@ -205,7 +205,7 @@ class TestCoreUIFunctionality(TestCase):
         # Create offer with installments
         offer_with_installments = InsuranceOffer.objects.create(
             summary=self.summary,
-            company_name="Installment Company",
+            company_name="Ингосстрах",
             insurance_year=1,
             insurance_sum=Decimal("1000000.00"),
             franchise_1=Decimal("0.00"),
@@ -217,7 +217,7 @@ class TestCoreUIFunctionality(TestCase):
         # Create offer without installments
         offer_without_installments = InsuranceOffer.objects.create(
             summary=self.summary,
-            company_name="Single Payment Company",
+            company_name="Ренессанс",
             insurance_year=1,
             insurance_sum=Decimal("1000000.00"),
             franchise_1=Decimal("0.00"),
@@ -232,8 +232,8 @@ class TestCoreUIFunctionality(TestCase):
         self.assertEqual(response.status_code, 200)
         
         # Check that both companies are displayed
-        self.assertContains(response, 'Installment Company')
-        self.assertContains(response, 'Single Payment Company')
+        self.assertContains(response, 'Ингосстрах')
+        self.assertContains(response, 'Ренессанс')
         
         # Check installment information is displayed
         # (Specific format depends on template implementation)
@@ -246,7 +246,7 @@ class TestCoreUIFunctionality(TestCase):
         # Create offer with two franchise variants
         offer = InsuranceOffer.objects.create(
             summary=self.summary,
-            company_name="Franchise Variants Company",
+            company_name="Альфа",
             insurance_year=1,
             insurance_sum=Decimal("1000000.00"),
             franchise_1=Decimal("0.00"),
@@ -261,7 +261,7 @@ class TestCoreUIFunctionality(TestCase):
         self.assertEqual(response.status_code, 200)
         
         # Check that company is displayed
-        self.assertContains(response, 'Franchise Variants Company')
+        self.assertContains(response, 'Альфа')
         
         # Check that both premium values are displayed
         self.assertContains(response, '50000')

@@ -1,7 +1,7 @@
 from django.core.management.base import BaseCommand
 from django.contrib.auth.models import Group, Permission, User
 from django.contrib.contenttypes.models import ContentType
-from insurance_requests.models import InsuranceRequest, RequestAttachment, InsuranceResponse, ResponseAttachment
+from insurance_requests.models import InsuranceRequest, RequestAttachment
 
 
 class Command(BaseCommand):
@@ -36,8 +36,6 @@ class Command(BaseCommand):
         # Получаем content types для наших моделей
         insurance_request_ct = ContentType.objects.get_for_model(InsuranceRequest)
         request_attachment_ct = ContentType.objects.get_for_model(RequestAttachment)
-        insurance_response_ct = ContentType.objects.get_for_model(InsuranceResponse)
-        response_attachment_ct = ContentType.objects.get_for_model(ResponseAttachment)
         
         # Разрешения для обычных пользователей
         user_permissions = Permission.objects.filter(
@@ -57,14 +55,6 @@ class Command(BaseCommand):
                 'view_requestattachment',
                 'add_requestattachment',
                 'change_requestattachment',
-                
-                # InsuranceResponse permissions
-                'view_insuranceresponse',
-                'add_insuranceresponse',
-                
-                # ResponseAttachment permissions
-                'view_responseattachment',
-                'add_responseattachment',
             ]
         )
         

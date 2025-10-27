@@ -13,10 +13,6 @@ services:
       - "5432:5432"  # <-- проброс порта для DBeaver / SSH-туннеля
     restart: unless-stopped
 
-  redis:
-    image: redis:7-alpine
-    restart: unless-stopped
-
   web:
     image: ${DOCKER_IMAGE}
     environment:
@@ -28,22 +24,13 @@ services:
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_HOST=db
       - DB_PORT=5432
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - ALLOWED_HOSTS=${ALLOWED_HOSTS}
-      - EMAIL_BACKEND=${EMAIL_BACKEND}
-      - EMAIL_HOST=${EMAIL_HOST}
-      - EMAIL_PORT=${EMAIL_PORT}
-      - EMAIL_USE_TLS=${EMAIL_USE_TLS}
-      - EMAIL_HOST_USER=${EMAIL_HOST_USER}
-      - EMAIL_HOST_PASSWORD=${EMAIL_HOST_PASSWORD}
     volumes:
       - media_data:/app/media
       - logs_data:/app/logs
       - staticfiles_data:/app/staticfiles
     depends_on:
       - db
-      - redis
     restart: unless-stopped
 
   nginx:

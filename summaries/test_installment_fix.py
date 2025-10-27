@@ -40,7 +40,7 @@ class TestInstallmentFix(TestCase):
         """Тест OfferForm без рассрочки"""
         
         form_data = {
-            'company_name': 'Test Company',
+            'company_name': 'Росгосстрах',
             'insurance_year': 2,
             'insurance_sum': '1000000.00',
             'franchise_1': '0.00',
@@ -59,7 +59,7 @@ class TestInstallmentFix(TestCase):
         """Тест OfferForm с рассрочкой"""
         
         form_data = {
-            'company_name': 'Test Company',
+            'company_name': 'Росгосстрах',
             'insurance_year': 2,
             'insurance_sum': '1000000.00',
             'franchise_1': '0.00',
@@ -78,7 +78,7 @@ class TestInstallmentFix(TestCase):
         """Тест OfferForm без рассрочки и без указания payments_per_year"""
         
         form_data = {
-            'company_name': 'Test Company',
+            'company_name': 'Росгосстрах',
             'insurance_year': 2,
             'insurance_sum': '1000000.00',
             'franchise_1': '0.00',
@@ -135,7 +135,7 @@ class TestInstallmentFix(TestCase):
         """Тест OfferForm с недопустимым количеством платежей при включенной рассрочке"""
         
         form_data = {
-            'company_name': 'Test Company',
+            'company_name': 'Росгосстрах',
             'insurance_year': 2,
             'insurance_sum': '1000000.00',
             'franchise_1': '0.00',
@@ -152,7 +152,7 @@ class TestInstallmentFix(TestCase):
         """Тест OfferForm с недопустимым количеством платежей при выключенной рассрочке"""
         
         form_data = {
-            'company_name': 'Test Company',
+            'company_name': 'Росгосстрах',
             'insurance_year': 2,
             'insurance_sum': '1000000.00',
             'franchise_1': '0.00',

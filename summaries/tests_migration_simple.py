@@ -44,7 +44,7 @@ class TestMigrationResults(TestCase):
         # Create offer with new structure
         offer = InsuranceOffer.objects.create(
             summary=self.summary,
-            company_name="Test Insurance Company",
+            company_name="ВСК",
             insurance_year=2,  # Numeric year
             insurance_sum=Decimal("1000000.00"),
             franchise_1=Decimal("0.00"),
@@ -56,7 +56,7 @@ class TestMigrationResults(TestCase):
         )
         
         # Test basic functionality
-        self.assertEqual(offer.company_name, "Test Insurance Company")
+        self.assertEqual(offer.company_name, "ВСК")
         self.assertEqual(offer.insurance_year, 2)
         self.assertEqual(offer.insurance_sum, Decimal("1000000.00"))
         
@@ -75,7 +75,7 @@ class TestMigrationResults(TestCase):
         
         offer = InsuranceOffer.objects.create(
             summary=self.summary,
-            company_name="Year Test Company",
+            company_name="Энергогарант",
             insurance_year=3,
             insurance_sum=Decimal("500000.00"),
             franchise_1=Decimal("0.00"),
@@ -95,7 +95,7 @@ class TestMigrationResults(TestCase):
         
         offer = InsuranceOffer.objects.create(
             summary=self.summary,
-            company_name="Franchise Test Company",
+            company_name="РЕСО",
             insurance_year=1,
             insurance_sum=Decimal("800000.00"),
             franchise_1=Decimal("0.00"),
@@ -124,7 +124,7 @@ class TestMigrationResults(TestCase):
         # Test single payment
         offer_single = InsuranceOffer.objects.create(
             summary=self.summary,
-            company_name="Single Payment Company",
+            company_name="Ренессанс",
             insurance_year=1,
             insurance_sum=Decimal("600000.00"),
             franchise_1=Decimal("0.00"),
@@ -139,7 +139,7 @@ class TestMigrationResults(TestCase):
         # Test multiple payments
         offer_multiple = InsuranceOffer.objects.create(
             summary=self.summary,
-            company_name="Multiple Payment Company",
+            company_name="Абсолют",
             insurance_year=1,
             insurance_sum=Decimal("600000.00"),
             franchise_1=Decimal("0.00"),
@@ -156,7 +156,7 @@ class TestMigrationResults(TestCase):
         
         offer = InsuranceOffer.objects.create(
             summary=self.summary,
-            company_name="Payment Test Company",
+            company_name="Росгосстрах",
             insurance_year=1,
             insurance_sum=Decimal("1200000.00"),
             franchise_1=Decimal("0.00"),
@@ -186,7 +186,7 @@ class TestMigrationResults(TestCase):
         
         offer = InsuranceOffer.objects.create(
             summary=self.summary,
-            company_name="Variants Test Company",
+            company_name="Альфа",
             insurance_year=1,
             insurance_sum=Decimal("900000.00"),
             franchise_1=Decimal("0.00"),
@@ -219,7 +219,7 @@ class TestMigrationResults(TestCase):
         
         offer = InsuranceOffer.objects.create(
             summary=self.summary,
-            company_name="Premium Variants Company",
+            company_name="Пари",
             insurance_year=1,
             insurance_sum=Decimal("700000.00"),
             franchise_1=Decimal("0.00"),
@@ -240,7 +240,7 @@ class TestMigrationResults(TestCase):
         # Test valid offer
         valid_offer = InsuranceOffer(
             summary=self.summary,
-            company_name="Valid Company",
+            company_name="Альфа",
             insurance_year=1,
             insurance_sum=Decimal("1000000.00"),
             franchise_1=Decimal("0.00"),
@@ -273,7 +273,7 @@ class TestMigrationResults(TestCase):
         # Create first offer
         InsuranceOffer.objects.create(
             summary=self.summary,
-            company_name="Unique Test Company",
+            company_name="Согласие",
             insurance_year=1,
             insurance_sum=Decimal("1000000.00"),
             franchise_1=Decimal("0.00"),
@@ -281,22 +281,21 @@ class TestMigrationResults(TestCase):
         )
         
         # Try to create duplicate offer (same summary, company, year)
-        from django.db import IntegrityError, transaction
-        with transaction.atomic():
-            with self.assertRaises(IntegrityError):
-                InsuranceOffer.objects.create(
-                    summary=self.summary,
-                    company_name="Unique Test Company",
-                    insurance_year=1,  # Same year
-                    insurance_sum=Decimal("1000000.00"),
-                    franchise_1=Decimal("0.00"),
-                    premium_with_franchise_1=Decimal("50000.00")
-                )
+        from django.core.exceptions import ValidationError
+        with self.assertRaises(ValidationError):
+            InsuranceOffer.objects.create(
+                summary=self.summary,
+                company_name="Согласие",
+                insurance_year=1,  # Same year
+                insurance_sum=Decimal("1000000.00"),
+                franchise_1=Decimal("0.00"),
+                premium_with_franchise_1=Decimal("50000.00")
+            )
         
         # But different year should work
         different_year_offer = InsuranceOffer.objects.create(
             summary=self.summary,
-            company_name="Unique Test Company",
+            company_name="Согласие",
             insurance_year=2,  # Different year
             insurance_sum=Decimal("1000000.00"),
             franchise_1=Decimal("0.00"),
@@ -310,7 +309,7 @@ class TestMigrationResults(TestCase):
         
         offer = InsuranceOffer.objects.create(
             summary=self.summary,
-            company_name="String Test Company",
+            company_name="Совкомбанк СК",
             insurance_year=2,
             insurance_sum=Decimal("800000.00"),
             franchise_1=Decimal("0.00"),
@@ -318,7 +317,7 @@ class TestMigrationResults(TestCase):
         )
         
         str_repr = str(offer)
-        expected = "String Test Company (2 год): 40000.00 ₽"
+        expected = "Совкомбанк СК (2 год): 40000.00 ₽"
         self.assertEqual(str_repr, expected)
     
     def test_effective_properties(self):
@@ -326,7 +325,7 @@ class TestMigrationResults(TestCase):
         
         offer = InsuranceOffer.objects.create(
             summary=self.summary,
-            company_name="Effective Test Company",
+            company_name="Согаз",
             insurance_year=1,
             insurance_sum=Decimal("1000000.00"),
             franchise_1=Decimal("5000.00"),
@@ -346,7 +345,7 @@ class TestMigrationResults(TestCase):
         # Offer with second variant
         offer_with_second = InsuranceOffer.objects.create(
             summary=self.summary,
-            company_name="Second Variant Company",
+            company_name="Ингосстрах",
             insurance_year=1,
             insurance_sum=Decimal("1000000.00"),
             franchise_1=Decimal("0.00"),
@@ -360,7 +359,7 @@ class TestMigrationResults(TestCase):
         # Offer without second variant
         offer_without_second = InsuranceOffer.objects.create(
             summary=self.summary,
-            company_name="No Second Variant Company",
+            company_name="Зетта",
             insurance_year=1,
             insurance_sum=Decimal("1000000.00"),
             franchise_1=Decimal("0.00"),
@@ -400,7 +399,7 @@ class TestSummaryIntegration(TestCase):
         # Create multiple offers
         offer1 = InsuranceOffer.objects.create(
             summary=self.summary,
-            company_name="Company A",
+            company_name="ВСК",
             insurance_year=1,
             insurance_sum=Decimal("1000000.00"),
             franchise_1=Decimal("0.00"),
@@ -409,7 +408,7 @@ class TestSummaryIntegration(TestCase):
         
         offer2 = InsuranceOffer.objects.create(
             summary=self.summary,
-            company_name="Company B",
+            company_name="Согаз",
             insurance_year=1,
             insurance_sum=Decimal("1000000.00"),
             franchise_1=Decimal("0.00"),
@@ -418,7 +417,7 @@ class TestSummaryIntegration(TestCase):
         
         offer3 = InsuranceOffer.objects.create(
             summary=self.summary,
-            company_name="Company C",
+            company_name="РЕСО",
             insurance_year=1,
             insurance_sum=Decimal("1000000.00"),
             franchise_1=Decimal("0.00"),
@@ -437,7 +436,7 @@ class TestSummaryIntegration(TestCase):
         # Create offers for different years
         offer_year1 = InsuranceOffer.objects.create(
             summary=self.summary,
-            company_name="Year Company",
+            company_name="ПСБ-страхование",
             insurance_year=1,
             insurance_sum=Decimal("1000000.00"),
             franchise_1=Decimal("0.00"),
@@ -446,7 +445,7 @@ class TestSummaryIntegration(TestCase):
         
         offer_year2 = InsuranceOffer.objects.create(
             summary=self.summary,
-            company_name="Year Company",
+            company_name="ПСБ-страхование",
             insurance_year=2,
             insurance_sum=Decimal("1000000.00"),
             franchise_1=Decimal("0.00"),
@@ -468,7 +467,7 @@ class TestSummaryIntegration(TestCase):
         # Create offers from multiple companies and years
         InsuranceOffer.objects.create(
             summary=self.summary,
-            company_name="Alpha Insurance",
+            company_name="Альфа",
             insurance_year=1,
             insurance_sum=Decimal("1000000.00"),
             franchise_1=Decimal("0.00"),
@@ -477,7 +476,7 @@ class TestSummaryIntegration(TestCase):
         
         InsuranceOffer.objects.create(
             summary=self.summary,
-            company_name="Alpha Insurance",
+            company_name="Альфа",
             insurance_year=2,
             insurance_sum=Decimal("1000000.00"),
             franchise_1=Decimal("0.00"),
@@ -486,7 +485,7 @@ class TestSummaryIntegration(TestCase):
         
         InsuranceOffer.objects.create(
             summary=self.summary,
-            company_name="Beta Insurance",
+            company_name="ВСК",
             insurance_year=1,
             insurance_sum=Decimal("1000000.00"),
             franchise_1=Decimal("0.00"),
@@ -498,15 +497,15 @@ class TestSummaryIntegration(TestCase):
         
         # Should have 2 companies
         self.assertEqual(len(grouped_offers), 2)
-        self.assertIn("Alpha Insurance", grouped_offers)
-        self.assertIn("Beta Insurance", grouped_offers)
+        self.assertIn("Альфа", grouped_offers)
+        self.assertIn("ВСК", grouped_offers)
         
         # Alpha should have 2 offers, Beta should have 1
-        self.assertEqual(len(grouped_offers["Alpha Insurance"]), 2)
-        self.assertEqual(len(grouped_offers["Beta Insurance"]), 1)
+        self.assertEqual(len(grouped_offers["Альфа"]), 2)
+        self.assertEqual(len(grouped_offers["ВСК"]), 1)
         
         # Test that offers are sorted by year within company
-        alpha_offers = grouped_offers["Alpha Insurance"]
+        alpha_offers = grouped_offers["Альфа"]
         self.assertEqual(alpha_offers[0].insurance_year, 1)
         self.assertEqual(alpha_offers[1].insurance_year, 2)
 

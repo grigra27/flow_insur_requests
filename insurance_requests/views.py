@@ -17,7 +17,6 @@ from .forms import ExcelUploadForm, InsuranceRequestForm, EmailPreviewForm, Cust
 from .decorators import user_required, admin_required
 from core.excel_utils import ExcelReader
 from core.templates import EmailTemplateGenerator
-from core.mail_utils import EmailSender, EmailMessage, EmailConfig
 
 
 logger = logging.getLogger(__name__)
@@ -677,34 +676,23 @@ def preview_email(request, pk):
 @require_http_methods(["POST"])
 @user_required
 def send_email(request, pk):
-    """Отправка письма"""
+    """Ручная установка статуса 'Письма отправлены'"""
     insurance_request = get_object_or_404(InsuranceRequest, pk=pk)
     
     try:
-        # TODO: Получить настройки email из конфигурации
-        # Пока используем заглушку
-        messages.info(request, 'Функция отправки email будет реализована после настройки SMTP')
-        
-        # Обновляем статус и время отправки в московском времени
-        from django.utils import timezone
-        import pytz
-        
-        moscow_tz = pytz.timezone('Europe/Moscow')
-        moscow_now = timezone.now().astimezone(moscow_tz)
-        
+        # Обновляем статус без фактической отправки email
         insurance_request.status = 'emails_sent'
-        insurance_request.email_sent_at = moscow_now
         insurance_request.save()
         
-        # Получаем информацию о формате для логирования успеха
+        # Получаем информацию о формате для логирования
         format_context = "Format: unknown, Type: unknown"
         if insurance_request.additional_data:
             application_type = insurance_request.additional_data.get('application_type')
             application_format = insurance_request.additional_data.get('application_format')
             format_context = _get_format_context_for_logging(application_type, application_format)
         
-        logger.info(f"Email sent successfully for request {pk} | {format_context}")
-        return JsonResponse({'success': True, 'message': 'Письмо отправлено'})
+        logger.info(f"Request {pk} status manually set to 'emails_sent' by user {request.user.username} | {format_context}")
+        return JsonResponse({'success': True, 'message': 'Статус изменен на "Письма отправлены"'})
         
     except Exception as e:
         # Получаем информацию о формате для логирования ошибки
@@ -714,7 +702,7 @@ def send_email(request, pk):
             application_format = insurance_request.additional_data.get('application_format')
             format_context = _get_format_context_for_logging(application_type, application_format)
         
-        logger.error(f"Error sending email for request {pk}: {str(e)} | {format_context}")
+        logger.error(f"Error updating request {pk} status: {str(e)} | {format_context}")
         return JsonResponse({'success': False, 'error': str(e)})
 
 

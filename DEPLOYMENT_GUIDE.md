@@ -6,7 +6,6 @@
 
 - **Django** - веб-приложение
 - **PostgreSQL** - база данных  
-- **Redis** - кэш и очереди
 - **Docker** - контейнеризация
 - **GitHub Actions** - автодеплой
 
@@ -26,12 +25,6 @@ DB_NAME=insurance_db
 DB_USER=insurance_user
 DB_PASSWORD=secure-database-password
 ALLOWED_HOSTS=your-domain.com
-EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
-EMAIL_HOST=smtp.gmail.com
-EMAIL_PORT=587
-EMAIL_USE_TLS=True
-EMAIL_HOST_USER=your-email@gmail.com
-EMAIL_HOST_PASSWORD=your-app-password
 ```
 
 ### 2. Настройка сервера
@@ -80,7 +73,7 @@ docker-compose up -d
 ## 📝 Структура проекта
 
 - `Dockerfile` - образ приложения
-- `docker-compose.yml` - сервисы (web, db, redis, nginx)
+- `docker-compose.yml` - сервисы (web, db, nginx)
 - `nginx.conf` - конфигурация веб-сервера
 - `entrypoint.sh` - скрипт запуска
 - `.github/workflows/deploy.yml` - автодеплой

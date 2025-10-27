@@ -534,13 +534,10 @@ class TestExcelReader(unittest.TestCase):
        return data
    ```
 
-2. **Асинхронная обработка**
+2. **Синхронная обработка с оптимизацией**
    ```python
-   from celery import shared_task
-   
-   @shared_task
-   def process_excel_file_async(file_path, user_id):
-       """Асинхронная обработка Excel файла"""
+   def process_excel_file_optimized(file_path, user_id):
+       """Оптимизированная обработка Excel файла"""
        try:
            reader = ExcelReader()
            data = reader.read_excel_file(file_path)

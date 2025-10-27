@@ -140,6 +140,7 @@ cython_debug/
 
 # Real client data (for security)
 avtozayavka/
+backup/
 
 # kiro files
 .kiro

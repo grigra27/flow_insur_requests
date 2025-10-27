@@ -431,11 +431,8 @@ def send_summary_to_client(request, summary_id):
     summary = get_object_or_404(InsuranceSummary, pk=summary_id)
     
     try:
-        # TODO: Реализовать отправку email клиенту
-        # Пока используем заглушку
-        
-        # Логируем действие отправки без изменения статуса
-        logger.info(f"Summary {summary_id} sent to client without status change by user {request.user.username}")
+        # Логируем действие без изменения статуса
+        logger.info(f"Summary {summary_id} manual send action by user {request.user.username}")
         
         # Возвращаем успешный результат без изменения статуса
         return JsonResponse({
