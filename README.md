@@ -352,6 +352,80 @@ python manage.py shell
 
 ## Развертывание в продакшене
 
+### Docker развертывание (рекомендуется)
+
+#### Быстрый старт с Docker
+
+1. **Подготовка окружения**
+```bash
+# Клонируйте репозиторий
+git clone https://github.com/your-repo/insurance-system.git
+cd insurance-system
+
+# Настройте переменные окружения
+cp .env.example .env
+# Отредактируйте .env для продакшена
+```
+
+2. **Запуск сервисов**
+```bash
+# Соберите и запустите контейнеры
+docker compose up -d
+
+# Проверьте статус сервисов
+docker compose ps
+
+# Проверьте здоровье сервисов
+./check-services.sh
+```
+
+3. **Первоначальная настройка**
+```bash
+# Создайте суперпользователя
+docker compose exec web python manage.py createsuperuser
+
+# Настройте группы пользователей
+docker compose exec web python manage.py setup_user_groups
+```
+
+#### Структура Docker сервисов
+
+- **db** - PostgreSQL база данных
+- **web** - Django приложение с Gunicorn
+- **nginx** - Веб-сервер и прокси
+
+#### Мониторинг Docker сервисов
+
+```bash
+# Просмотр логов
+docker compose logs -f web
+docker compose logs -f nginx
+docker compose logs -f db
+
+# Проверка здоровья
+docker compose ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}"
+
+# Выполнение команд в контейнере
+docker compose exec web python manage.py shell
+docker compose exec web python manage.py migrate
+```
+
+#### Обновление Docker деплоя
+
+```bash
+# Остановите сервисы
+docker compose down
+
+# Обновите код
+git pull origin main
+
+# Пересоберите и запустите
+docker compose up -d --build
+
+# Примените миграции
+docker compose exec web python manage.py migrate
+```
+
 ### Автоматическое развертывание
 
 Используйте скрипт автоматического развертывания:

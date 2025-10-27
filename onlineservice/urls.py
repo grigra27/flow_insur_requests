@@ -6,6 +6,7 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from django.shortcuts import redirect
+from django.http import HttpResponse
 from insurance_requests.views import login_view, logout_view, access_denied_view
 
 urlpatterns = [
@@ -15,6 +16,7 @@ urlpatterns = [
     path('access-denied/', access_denied_view, name='access_denied'),
     path('requests/', include('insurance_requests.urls')),
     path('summaries/', include('summaries.urls')),
+    path('healthz/', lambda request: HttpResponse('OK'), name='health'),
     path('', lambda request: redirect('insurance_requests:request_list')),
 ]
 

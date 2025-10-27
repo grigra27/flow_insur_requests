@@ -5,7 +5,6 @@ FROM python:3.11-slim
 RUN apt-get update && apt-get install -y \
     gcc \
     postgresql-client \
-    wget \
     && rm -rf /var/lib/apt/lists/*
 
 # Создаем пользователя для приложения
@@ -29,15 +28,14 @@ RUN mkdir -p logs media staticfiles
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-# Копируем healthcheck скрипт
-COPY healthcheck.py /app/healthcheck.py
-RUN chmod +x /app/healthcheck.py
-
 # Устанавливаем права на файлы
 RUN chown -R app:app /app
 
 # Переключаемся на пользователя app
 USER app
+
+# Собираем статические файлы (устанавливаем временные переменные для сборки)
+RUN SECRET_KEY=temp-build-key DEBUG=False ALLOWED_HOSTS=localhost python manage.py collectstatic --noinput
 
 # Открываем порт
 EXPOSE 8000
