@@ -1,4 +1,4 @@
-name: Deploy to Production
+name: 🚀 Deploy to DigitalOcean
 
 on:
   push:
@@ -6,17 +6,22 @@ on:
 
 env:
   DOCKER_IMAGE: ghcr.io/${{ github.repository }}:latest
+  PROJECT_PATH: /opt/insurance-system
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v4
+    # 1️⃣ Клонируем код
+    - name: Checkout code
+      uses: actions/checkout@v4
 
+    # 2️⃣ Настраиваем buildx (для кэшируемых multi-arch сборок)
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
+    # 3️⃣ Логинимся в GitHub Container Registry
     - name: Log in to GitHub Container Registry
       uses: docker/login-action@v3
       with:
@@ -24,6 +29,7 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
+    # 4️⃣ Сборка и пуш образа с кэшем
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
       with:
@@ -33,6 +39,7 @@ jobs:
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
+    # 5️⃣ Деплой на сервер через SSH
     - name: Deploy to Digital Ocean
       uses: appleboy/ssh-action@v1.0.0
       with:
@@ -42,32 +49,62 @@ jobs:
         passphrase: ${{ secrets.DO_PASSPHRASE }}
         port: ${{ secrets.DO_PORT }}
         script: |
+          set -e  # остановить выполнение при любой ошибке
+          
+          echo "➡️ Переходим в проект..."
           cd /opt/insurance-system
           
-          # Обновляем код
-          git pull origin main
+          echo "➡️ Проверяем, есть ли обновления в репозитории..."
+          git fetch origin main
+          git reset --hard origin/main
           
-          # Создаем .env файл
+          echo "➡️ Обновляем .env..."
           cat > .env << EOF
           SECRET_KEY=${{ secrets.SECRET_KEY }}
           DB_NAME=${{ secrets.DB_NAME }}
           DB_USER=${{ secrets.DB_USER }}
           DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          DB_HOST=db
+          DB_PORT=5432
           ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }}
           DOCKER_IMAGE=${{ env.DOCKER_IMAGE }}
           EOF
           
-          # Логинимся и загружаем образ
+          echo "➡️ Логинимся в GitHub Container Registry..."
           echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          
+          echo "➡️ Загружаем новый Docker-образ..."
           docker pull ${{ env.DOCKER_IMAGE }}
           
-          # Перезапускаем сервисы
-          docker-compose down
-          docker-compose up -d
+          echo "➡️ Перезапускаем docker-compose..."
+          docker compose down --remove-orphans
+          docker compose up -d --force-recreate
           
-          # Проверяем статус сервисов
-          sleep 10
-          docker-compose ps
+          echo "➡️ Ожидаем запуска сервисов..."
+          sleep 15
           
-          # Очищаем старые образы
+          echo "➡️ Применяем миграции БД..."
+          docker compose exec -T web python manage.py migrate --noinput
+          
+          echo "➡️ Проверяем состояние контейнеров..."
+          docker compose ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+          
+          echo "➡️ Проверяем healthcheck..."
+          if docker compose exec -T web python /app/healthcheck.py; then
+            echo "✅ Healthcheck прошел успешно!"
+          else
+            echo "❌ Healthcheck не прошел!"
+            exit 1
+          fi
+          
+          echo "➡️ Тестируем основные endpoints..."
+          if curl -f -s http://localhost/healthz/ > /dev/null; then
+            echo "✅ Health endpoint работает!"
+          else
+            echo "❌ Health endpoint недоступен!"
+          fi
+          
+          echo "➡️ Чистим неиспользуемые образы..."
           docker image prune -f
+          
+          echo "✅ Деплой успешно завершён!"
