@@ -77,20 +77,20 @@ jobs:
           docker pull ${{ env.DOCKER_IMAGE }}
           
           echo "➡️ Перезапускаем docker-compose..."
-          docker compose down --remove-orphans
-          docker compose up -d --force-recreate
+          docker-compose down --remove-orphans
+          docker-compose up -d --force-recreate
           
           echo "➡️ Ожидаем запуска сервисов..."
           sleep 15
           
           echo "➡️ Применяем миграции БД..."
-          docker compose exec -T web python manage.py migrate --noinput
+          docker-compose exec -T web python manage.py migrate --noinput
           
           echo "➡️ Проверяем состояние контейнеров..."
-          docker compose ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+          docker-compose ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
           
           echo "➡️ Проверяем healthcheck..."
-          if docker compose exec -T web python /app/healthcheck.py; then
+          if docker-compose exec -T web python /app/healthcheck.py; then
             echo "✅ Healthcheck прошел успешно!"
           else
             echo "❌ Healthcheck не прошел!"
