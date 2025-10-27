@@ -52,7 +52,7 @@ jobs:
           set -e  # остановить выполнение при любой ошибке
           
           echo "➡️ Переходим в проект..."
-          cd /opt/insurance-system
+          cd ${{ env.PROJECT_PATH }}
           
           echo "➡️ Проверяем, есть ли обновления в репозитории..."
           git fetch origin main
