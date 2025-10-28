@@ -394,10 +394,31 @@ def upload_excel(request):
                         has_casco_ce=bool(excel_data.get('has_casco_ce', False)),
                         has_transportation=bool(excel_data.get('has_transportation', False)),
                         has_construction_work=bool(excel_data.get('has_construction_work', False)),
+                        # Дополнительные параметры КАСКО/спецтехника
+                        key_completeness=excel_data.get('key_completeness', ''),
+                        pts_psm=excel_data.get('pts_psm', ''),
+                        creditor_bank=excel_data.get('creditor_bank', ''),
+                        usage_purposes=excel_data.get('usage_purposes', ''),
+                        telematics_complex=excel_data.get('telematics_complex', ''),
                         response_deadline=response_deadline,
                         additional_data=additional_data,
                         created_by=request.user
                     )
+                    
+                    # Логируем дополнительные параметры КАСКО/спецтехника если они были извлечены
+                    if application_format == 'casco_equipment':
+                        additional_params = {
+                            'key_completeness': excel_data.get('key_completeness', ''),
+                            'pts_psm': excel_data.get('pts_psm', ''),
+                            'creditor_bank': excel_data.get('creditor_bank', ''),
+                            'usage_purposes': excel_data.get('usage_purposes', ''),
+                            'telematics_complex': excel_data.get('telematics_complex', '')
+                        }
+                        non_empty_params = [k for k, v in additional_params.items() if v.strip()]
+                        if non_empty_params:
+                            logger.info(f"Saved CASCO additional parameters for request #{insurance_request.id}: {len(non_empty_params)} non-empty parameters ({', '.join(non_empty_params)}) | {format_context}")
+                        else:
+                            logger.info(f"Saved CASCO additional parameters for request #{insurance_request.id}: all parameters are empty | {format_context}")
                     
                     # Сохраняем файл как вложение
                     attachment = RequestAttachment.objects.create(

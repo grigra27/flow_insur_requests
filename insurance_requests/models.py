@@ -84,6 +84,31 @@ class InsuranceRequest(models.Model):
     # Примечание
     notes = models.TextField(blank=True, verbose_name='Примечание')
     
+    # Дополнительные параметры КАСКО/спецтехника
+    key_completeness = models.CharField(
+        max_length=255, 
+        blank=True, 
+        verbose_name='Комплектность ключей'
+    )
+    pts_psm = models.CharField(
+        max_length=255, 
+        blank=True, 
+        verbose_name='ПТС/ПСМ'
+    )
+    creditor_bank = models.CharField(
+        max_length=255, 
+        blank=True, 
+        verbose_name='Банк-кредитор'
+    )
+    usage_purposes = models.TextField(
+        blank=True, 
+        verbose_name='Цели использования'
+    )
+    telematics_complex = models.TextField(
+        blank=True, 
+        verbose_name='Телематический комплекс'
+    )
+    
     class Meta:
         verbose_name = 'Страховая заявка'
         verbose_name_plural = 'Страховые заявки'
@@ -154,6 +179,12 @@ class InsuranceRequest(models.Model):
             'has_construction_work': self.has_construction_work,
             'notes': self.notes,
             'response_deadline': moscow_deadline.strftime('%H:%M %d.%m.%Y') if moscow_deadline else None,
+            # Дополнительные параметры КАСКО/спецтехника
+            'key_completeness': self.key_completeness or 'не указано',
+            'pts_psm': self.pts_psm or 'не указано',
+            'creditor_bank': self.creditor_bank or 'не указано',
+            'usage_purposes': self.usage_purposes or 'не указано',
+            'telematics_complex': self.telematics_complex or 'не указано',
         }
     
     def can_create_summary(self) -> bool:

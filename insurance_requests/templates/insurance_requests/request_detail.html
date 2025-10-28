@@ -168,6 +168,42 @@
             </div>
         </div>
         {% endif %}
+
+        <!-- Дополнительная информация о заявке (только для КАСКО/спецтехника) -->
+        {% if request.insurance_type == 'КАСКО' or request.insurance_type == 'страхование спецтехники' %}
+            {% if request.key_completeness or request.pts_psm or request.creditor_bank or request.usage_purposes or request.telematics_complex %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Дополнительная информация о заявке</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <dl class="row">
+                                <dt class="col-sm-6">Комплектность ключей:</dt>
+                                <dd class="col-sm-6">{{ request.key_completeness|default:"Не указано" }}</dd>
+
+                                <dt class="col-sm-6">ПТС/ПСМ:</dt>
+                                <dd class="col-sm-6">{{ request.pts_psm|default:"Не указано" }}</dd>
+
+                                <dt class="col-sm-6">Банк-кредитор:</dt>
+                                <dd class="col-sm-6">{{ request.creditor_bank|default:"Не указано" }}</dd>
+                            </dl>
+                        </div>
+                        <div class="col-md-6">
+                            <dl class="row">
+                                <dt class="col-sm-6">Цели использования:</dt>
+                                <dd class="col-sm-6">{{ request.usage_purposes|default:"Не указано" }}</dd>
+
+                                <dt class="col-sm-6">Телематический комплекс:</dt>
+                                <dd class="col-sm-6">{{ request.telematics_complex|default:"Не указано" }}</dd>
+                            </dl>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        {% endif %}
     </div>
 
     <div class="col-lg-4">

@@ -358,6 +358,12 @@ class ExcelReader:
             has_construction_work = False
             logger.info(f"CASCO/equipment format ({detailed_context}): transportation and construction work parameters set to False (no automatic detection) | {format_context}")
         
+        # Извлекаем дополнительные параметры КАСКО/спецтехника
+        if self.application_format == 'casco_equipment':
+            additional_parameters = self._extract_casco_additional_parameters_openpyxl(sheet)
+        else:
+            additional_parameters = self._get_empty_additional_parameters()
+        
         extracted_data = {
             'client_name': client_name,
             'inn': self._get_cell_with_adjustment_openpyxl(sheet, 'D', 9) or '',
@@ -382,8 +388,12 @@ class ExcelReader:
             }
         }
         
+        # Добавляем дополнительные параметры в extracted_data
+        extracted_data.update(additional_parameters)
+        
         # Логируем успешное извлечение данных с информацией о формате и новых параметрах
-        logger.info(f"Successfully extracted data with openpyxl ({detailed_context}): client='{client_name}', insurance_type='{insurance_type}', dfa_number='{dfa_number}', branch='{branch}', franchise_type='{franchise_type}', has_franchise={has_franchise}, has_autostart={has_autostart}, has_casco_ce={has_casco_ce}, has_transportation={has_transportation}, has_construction_work={has_construction_work} | {format_context}")
+        additional_params_summary = f"additional_params: {len([v for v in additional_parameters.values() if v])} non-empty"
+        logger.info(f"Successfully extracted data with openpyxl ({detailed_context}): client='{client_name}', insurance_type='{insurance_type}', dfa_number='{dfa_number}', branch='{branch}', franchise_type='{franchise_type}', has_franchise={has_franchise}, has_autostart={has_autostart}, has_casco_ce={has_casco_ce}, has_transportation={has_transportation}, has_construction_work={has_construction_work}, {additional_params_summary} | {format_context}")
         
         return extracted_data
     
@@ -473,6 +483,12 @@ class ExcelReader:
             has_construction_work = False
             logger.info(f"CASCO/equipment format ({detailed_context}): transportation and construction work parameters set to False (no automatic detection) | {format_context}")
         
+        # Извлекаем дополнительные параметры КАСКО/спецтехника
+        if self.application_format == 'casco_equipment':
+            additional_parameters = self._extract_casco_additional_parameters_pandas(df)
+        else:
+            additional_parameters = self._get_empty_additional_parameters()
+        
         extracted_data = {
             'client_name': client_name,
             'inn': self._get_cell_with_adjustment_pandas(df, 9, 3) or '',  # D9
@@ -497,8 +513,12 @@ class ExcelReader:
             }
         }
         
+        # Добавляем дополнительные параметры в extracted_data
+        extracted_data.update(additional_parameters)
+        
         # Логируем успешное извлечение данных с информацией о формате и новых параметрах
-        logger.info(f"Successfully extracted data with pandas ({detailed_context}): client='{client_name}', insurance_type='{insurance_type}', dfa_number='{dfa_number}', branch='{branch}', franchise_type='{franchise_type}', has_franchise={has_franchise}, has_autostart={has_autostart}, has_casco_ce={has_casco_ce}, has_transportation={has_transportation}, has_construction_work={has_construction_work} | {format_context}")
+        additional_params_summary = f"additional_params: {len([v for v in additional_parameters.values() if v])} non-empty"
+        logger.info(f"Successfully extracted data with pandas ({detailed_context}): client='{client_name}', insurance_type='{insurance_type}', dfa_number='{dfa_number}', branch='{branch}', franchise_type='{franchise_type}', has_franchise={has_franchise}, has_autostart={has_autostart}, has_casco_ce={has_casco_ce}, has_transportation={has_transportation}, has_construction_work={has_construction_work}, {additional_params_summary} | {format_context}")
         
         return extracted_data
     
@@ -947,6 +967,141 @@ class ExcelReader:
                 'application_format': self.application_format
             }
         }
+    
+    def _get_empty_additional_parameters(self) -> Dict[str, str]:
+        """
+        Возвращает пустые значения для всех дополнительных параметров КАСКО/спецтехника
+        
+        Returns:
+            Dict[str, str]: Словарь с пустыми значениями для всех пяти дополнительных параметров
+        """
+        return {
+            'key_completeness': '',
+            'pts_psm': '',
+            'creditor_bank': '',
+            'usage_purposes': '',
+            'telematics_complex': ''
+        }
+    
+    def _extract_casco_additional_parameters_openpyxl(self, sheet) -> Dict[str, str]:
+        """
+        Извлекает дополнительные параметры КАСКО/спецтехника используя openpyxl
+        
+        Извлекает параметры из следующих ячеек:
+        - MN25: Комплектность ключей (объединенная ячейка M25:N25)
+        - MN26: ПТС/ПСМ (объединенная ячейка M25:N26)
+        - DE17: Банк-кредитор (объединенная ячейка D17:E17)
+        - DEF37: Цели использования (объединенная ячейка D37:F37)
+        - DEF70: Телематический комплекс (объединенная ячейка D70:F70)
+        
+        Args:
+            sheet: Лист Excel (openpyxl)
+            
+        Returns:
+            Dict[str, str]: Словарь с извлеченными параметрами
+        """
+        format_context = self._get_format_context()
+        
+        try:
+            # Извлекаем параметры с учетом смещения строк для заявок ИП
+            # Для объединенных ячеек используем первую ячейку диапазона
+            
+            # MN25 - Комплектность ключей (используем M25)
+            key_completeness = self._get_cell_with_adjustment_openpyxl(sheet, 'M', 25) or ''
+            
+            # MN26 - ПТС/ПСМ (используем M26)
+            pts_psm = self._get_cell_with_adjustment_openpyxl(sheet, 'M', 26) or ''
+            
+            # DE17 - Банк-кредитор (используем D17)
+            creditor_bank = self._get_cell_with_adjustment_openpyxl(sheet, 'D', 17) or ''
+            
+            # DEF37 - Цели использования (используем D37)
+            usage_purposes = self._get_cell_with_adjustment_openpyxl(sheet, 'D', 37) or ''
+            
+            # DEF70 - Телематический комплекс (используем D70)
+            telematics_complex = self._get_cell_with_adjustment_openpyxl(sheet, 'D', 70) or ''
+            
+            # Очищаем значения от лишних пробелов
+            parameters = {
+                'key_completeness': str(key_completeness).strip() if key_completeness else '',
+                'pts_psm': str(pts_psm).strip() if pts_psm else '',
+                'creditor_bank': str(creditor_bank).strip() if creditor_bank else '',
+                'usage_purposes': str(usage_purposes).strip() if usage_purposes else '',
+                'telematics_complex': str(telematics_complex).strip() if telematics_complex else ''
+            }
+            
+            # Логируем успешное извлечение параметров
+            non_empty_params = [k for k, v in parameters.items() if v]
+            if non_empty_params:
+                logger.info(f"Successfully extracted CASCO additional parameters (openpyxl): {len(non_empty_params)} non-empty parameters ({', '.join(non_empty_params)}) | {format_context}")
+            else:
+                logger.info(f"CASCO additional parameters extraction completed (openpyxl): all parameters are empty | {format_context}")
+            
+            return parameters
+            
+        except Exception as e:
+            logger.error(f"Error extracting CASCO additional parameters (openpyxl): {str(e)} | {format_context}")
+            return self._get_empty_additional_parameters()
+    
+    def _extract_casco_additional_parameters_pandas(self, df) -> Dict[str, str]:
+        """
+        Извлекает дополнительные параметры КАСКО/спецтехника используя pandas
+        
+        Извлекает параметры из следующих ячеек:
+        - MN25: Комплектность ключей (столбец M, индекс 12)
+        - MN26: ПТС/ПСМ (столбец M, индекс 12)
+        - DE17: Банк-кредитор (столбец D, индекс 3)
+        - DEF37: Цели использования (столбец D, индекс 3)
+        - DEF70: Телематический комплекс (столбец D, индекс 3)
+        
+        Args:
+            df: DataFrame
+            
+        Returns:
+            Dict[str, str]: Словарь с извлеченными параметрами
+        """
+        format_context = self._get_format_context()
+        
+        try:
+            # Извлекаем параметры с учетом смещения строк для заявок ИП
+            # Для объединенных ячеек используем первую ячейку диапазона
+            
+            # MN25 - Комплектность ключей (столбец M, индекс 12)
+            key_completeness = self._get_cell_with_adjustment_pandas(df, 25, 12) or ''
+            
+            # MN26 - ПТС/ПСМ (столбец M, индекс 12)
+            pts_psm = self._get_cell_with_adjustment_pandas(df, 26, 12) or ''
+            
+            # DE17 - Банк-кредитор (столбец D, индекс 3)
+            creditor_bank = self._get_cell_with_adjustment_pandas(df, 17, 3) or ''
+            
+            # DEF37 - Цели использования (столбец D, индекс 3)
+            usage_purposes = self._get_cell_with_adjustment_pandas(df, 37, 3) or ''
+            
+            # DEF70 - Телематический комплекс (столбец D, индекс 3)
+            telematics_complex = self._get_cell_with_adjustment_pandas(df, 70, 3) or ''
+            
+            # Очищаем значения от лишних пробелов
+            parameters = {
+                'key_completeness': str(key_completeness).strip() if key_completeness else '',
+                'pts_psm': str(pts_psm).strip() if pts_psm else '',
+                'creditor_bank': str(creditor_bank).strip() if creditor_bank else '',
+                'usage_purposes': str(usage_purposes).strip() if usage_purposes else '',
+                'telematics_complex': str(telematics_complex).strip() if telematics_complex else ''
+            }
+            
+            # Логируем успешное извлечение параметров
+            non_empty_params = [k for k, v in parameters.items() if v]
+            if non_empty_params:
+                logger.info(f"Successfully extracted CASCO additional parameters (pandas): {len(non_empty_params)} non-empty parameters ({', '.join(non_empty_params)}) | {format_context}")
+            else:
+                logger.info(f"CASCO additional parameters extraction completed (pandas): all parameters are empty | {format_context}")
+            
+            return parameters
+            
+        except Exception as e:
+            logger.error(f"Error extracting CASCO additional parameters (pandas): {str(e)} | {format_context}")
+            return self._get_empty_additional_parameters()
     
 
     
