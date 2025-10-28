@@ -400,12 +400,14 @@ def upload_excel(request):
                         creditor_bank=excel_data.get('creditor_bank', ''),
                         usage_purposes=excel_data.get('usage_purposes', ''),
                         telematics_complex=excel_data.get('telematics_complex', ''),
+                        # Дополнительные параметры для страхования имущества
+                        insurance_territory=excel_data.get('insurance_territory', ''),
                         response_deadline=response_deadline,
                         additional_data=additional_data,
                         created_by=request.user
                     )
                     
-                    # Логируем дополнительные параметры КАСКО/спецтехника если они были извлечены
+                    # Логируем дополнительные параметры в зависимости от формата заявки
                     if application_format == 'casco_equipment':
                         additional_params = {
                             'key_completeness': excel_data.get('key_completeness', ''),
@@ -419,6 +421,17 @@ def upload_excel(request):
                             logger.info(f"Saved CASCO additional parameters for request #{insurance_request.id}: {len(non_empty_params)} non-empty parameters ({', '.join(non_empty_params)}) | {format_context}")
                         else:
                             logger.info(f"Saved CASCO additional parameters for request #{insurance_request.id}: all parameters are empty | {format_context}")
+                    elif application_format == 'property':
+                        additional_params = {
+                            'creditor_bank': excel_data.get('creditor_bank', ''),
+                            'usage_purposes': excel_data.get('usage_purposes', ''),
+                            'insurance_territory': excel_data.get('insurance_territory', '')
+                        }
+                        non_empty_params = [k for k, v in additional_params.items() if v.strip()]
+                        if non_empty_params:
+                            logger.info(f"Saved property insurance additional parameters for request #{insurance_request.id}: {len(non_empty_params)} non-empty parameters ({', '.join(non_empty_params)}) | {format_context}")
+                        else:
+                            logger.info(f"Saved property insurance additional parameters for request #{insurance_request.id}: all parameters are empty | {format_context}")
                     
                     # Сохраняем файл как вложение
                     attachment = RequestAttachment.objects.create(

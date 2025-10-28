@@ -358,9 +358,11 @@ class ExcelReader:
             has_construction_work = False
             logger.info(f"CASCO/equipment format ({detailed_context}): transportation and construction work parameters set to False (no automatic detection) | {format_context}")
         
-        # Извлекаем дополнительные параметры КАСКО/спецтехника
+        # Извлекаем дополнительные параметры в зависимости от формата заявки
         if self.application_format == 'casco_equipment':
             additional_parameters = self._extract_casco_additional_parameters_openpyxl(sheet)
+        elif self.application_format == 'property':
+            additional_parameters = self._extract_property_additional_parameters_openpyxl(sheet)
         else:
             additional_parameters = self._get_empty_additional_parameters()
         
@@ -483,9 +485,11 @@ class ExcelReader:
             has_construction_work = False
             logger.info(f"CASCO/equipment format ({detailed_context}): transportation and construction work parameters set to False (no automatic detection) | {format_context}")
         
-        # Извлекаем дополнительные параметры КАСКО/спецтехника
+        # Извлекаем дополнительные параметры в зависимости от формата заявки
         if self.application_format == 'casco_equipment':
             additional_parameters = self._extract_casco_additional_parameters_pandas(df)
+        elif self.application_format == 'property':
+            additional_parameters = self._extract_property_additional_parameters_pandas(df)
         else:
             additional_parameters = self._get_empty_additional_parameters()
         
@@ -970,17 +974,18 @@ class ExcelReader:
     
     def _get_empty_additional_parameters(self) -> Dict[str, str]:
         """
-        Возвращает пустые значения для всех дополнительных параметров КАСКО/спецтехника
+        Возвращает пустые значения для всех дополнительных параметров
         
         Returns:
-            Dict[str, str]: Словарь с пустыми значениями для всех пяти дополнительных параметров
+            Dict[str, str]: Словарь с пустыми значениями для всех дополнительных параметров
         """
         return {
             'key_completeness': '',
             'pts_psm': '',
             'creditor_bank': '',
             'usage_purposes': '',
-            'telematics_complex': ''
+            'telematics_complex': '',
+            'insurance_territory': ''
         }
     
     def _extract_casco_additional_parameters_openpyxl(self, sheet) -> Dict[str, str]:
@@ -1103,6 +1108,111 @@ class ExcelReader:
             logger.error(f"Error extracting CASCO additional parameters (pandas): {str(e)} | {format_context}")
             return self._get_empty_additional_parameters()
     
+    def _extract_property_additional_parameters_openpyxl(self, sheet) -> Dict[str, str]:
+        """
+        Извлекает дополнительные параметры страхования имущества используя openpyxl
+        
+        Извлекает параметры из следующих ячеек:
+        - DE17: Банк-кредитор (объединенная ячейка D17:E17)
+        - DEF37: Цели использования (объединенная ячейка D37:F37)
+        - LMN20-22: Территория страхования (объединенная ячейка L20:N22)
+        
+        Args:
+            sheet: Лист Excel (openpyxl)
+            
+        Returns:
+            Dict[str, str]: Словарь с извлеченными параметрами
+        """
+        format_context = self._get_format_context()
+        
+        try:
+            # Извлекаем параметры с учетом смещения строк для заявок ИП
+            # Для объединенных ячеек используем первую ячейку диапазона
+            
+            # DE17 - Банк-кредитор (используем D17)
+            creditor_bank = self._get_cell_with_adjustment_openpyxl(sheet, 'D', 17) or ''
+            
+            # DEF37 - Цели использования (используем D37)
+            usage_purposes = self._get_cell_with_adjustment_openpyxl(sheet, 'D', 37) or ''
+            
+            # LMN20-22 - Территория страхования (используем L20)
+            insurance_territory = self._get_cell_with_adjustment_openpyxl(sheet, 'L', 20) or ''
+            
+            # Очищаем значения от лишних пробелов
+            parameters = {
+                'key_completeness': '',  # Не используется для страхования имущества
+                'pts_psm': '',  # Не используется для страхования имущества
+                'creditor_bank': str(creditor_bank).strip() if creditor_bank else '',
+                'usage_purposes': str(usage_purposes).strip() if usage_purposes else '',
+                'telematics_complex': '',  # Не используется для страхования имущества
+                'insurance_territory': str(insurance_territory).strip() if insurance_territory else ''
+            }
+            
+            # Логируем успешное извлечение параметров
+            non_empty_params = [k for k, v in parameters.items() if v]
+            if non_empty_params:
+                logger.info(f"Successfully extracted property insurance additional parameters (openpyxl): {len(non_empty_params)} non-empty parameters ({', '.join(non_empty_params)}) | {format_context}")
+            else:
+                logger.info(f"Property insurance additional parameters extraction completed (openpyxl): all parameters are empty | {format_context}")
+            
+            return parameters
+            
+        except Exception as e:
+            logger.error(f"Error extracting property insurance additional parameters (openpyxl): {str(e)} | {format_context}")
+            return self._get_empty_additional_parameters()
+    
+    def _extract_property_additional_parameters_pandas(self, df) -> Dict[str, str]:
+        """
+        Извлекает дополнительные параметры страхования имущества используя pandas
+        
+        Извлекает параметры из следующих ячеек:
+        - DE17: Банк-кредитор (столбец D, индекс 3)
+        - DEF37: Цели использования (столбец D, индекс 3)
+        - LMN20-22: Территория страхования (столбец L, индекс 11)
+        
+        Args:
+            df: DataFrame
+            
+        Returns:
+            Dict[str, str]: Словарь с извлеченными параметрами
+        """
+        format_context = self._get_format_context()
+        
+        try:
+            # Извлекаем параметры с учетом смещения строк для заявок ИП
+            # Для объединенных ячеек используем первую ячейку диапазона
+            
+            # DE17 - Банк-кредитор (столбец D, индекс 3)
+            creditor_bank = self._get_cell_with_adjustment_pandas(df, 17, 3) or ''
+            
+            # DEF37 - Цели использования (столбец D, индекс 3)
+            usage_purposes = self._get_cell_with_adjustment_pandas(df, 37, 3) or ''
+            
+            # LMN20-22 - Территория страхования (столбец L, индекс 11)
+            insurance_territory = self._get_cell_with_adjustment_pandas(df, 20, 11) or ''
+            
+            # Очищаем значения от лишних пробелов
+            parameters = {
+                'key_completeness': '',  # Не используется для страхования имущества
+                'pts_psm': '',  # Не используется для страхования имущества
+                'creditor_bank': str(creditor_bank).strip() if creditor_bank else '',
+                'usage_purposes': str(usage_purposes).strip() if usage_purposes else '',
+                'telematics_complex': '',  # Не используется для страхования имущества
+                'insurance_territory': str(insurance_territory).strip() if insurance_territory else ''
+            }
+            
+            # Логируем успешное извлечение параметров
+            non_empty_params = [k for k, v in parameters.items() if v]
+            if non_empty_params:
+                logger.info(f"Successfully extracted property insurance additional parameters (pandas): {len(non_empty_params)} non-empty parameters ({', '.join(non_empty_params)}) | {format_context}")
+            else:
+                logger.info(f"Property insurance additional parameters extraction completed (pandas): all parameters are empty | {format_context}")
+            
+            return parameters
+            
+        except Exception as e:
+            logger.error(f"Error extracting property insurance additional parameters (pandas): {str(e)} | {format_context}")
+            return self._get_empty_additional_parameters()
 
     
     def _find_leasing_object_info_pandas(self, df) -> str:

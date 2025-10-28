@@ -138,6 +138,9 @@ class ExcelExportService:
         'key_completeness': 'B22',   # Комплектность ключей
         'pts_psm': 'B23',           # ПТС/ПСМ
         'telematics_complex': 'B24', # Телематический комплекс
+        'insurance_territory': 'B27', # Территория страхования
+        'transportation_info': 'B28', # Информация о перевозке
+        'construction_work_info': 'B29', # Информация о СМР
     }
     
     # Константы для обработки граничных случаев и валидации
@@ -598,7 +601,7 @@ class ExcelExportService:
                 'дополнительного оборудования.'
             ),
             'страхование имущества': (
-                'Запрос по страхованию имущества ("полный пакет рисков"). Отдельно запрашивались:\n '
+                'Запрос по страхованию имущества ("полный пакет рисков").\nОтдельно запрашивались:\n'
                 '1. Риски РНПК\n'
                 '2. Ограничения по выплате страхового возмещения в той степени, в которой предоставление '
                 'такого покрытия, возмещение такого убытка или предоставление такой компенсации подвергло бы Страховщика '
@@ -686,18 +689,22 @@ class ExcelExportService:
             self._fill_tech_cell(tech_sheet, self.TECH_INFO_CELLS['franchise_info'], 
                                franchise_text, 'информация о франшизе')
             
-            # Заполняем информацию об автозапуске (B16)
-            autostart_text = self._get_autostart_text_for_tech_info(request.has_autostart)
-            self._fill_tech_cell(tech_sheet, self.TECH_INFO_CELLS['autostart_info'], 
-                               autostart_text, 'информация об автозапуске')
+            # Заполняем информацию об автозапуске (B21) - только для КАСКО/спецтехники
+            if request.insurance_type in ['КАСКО', 'страхование спецтехники']:
+                autostart_text = self._get_autostart_text_for_tech_info(request.has_autostart)
+                self._fill_tech_cell(tech_sheet, self.TECH_INFO_CELLS['autostart_info'], 
+                                   autostart_text, 'информация об автозапуске')
+                logger.debug(f"Заполнена информация об автозапуске для КАСКО/спецтехники: {autostart_text}")
+            else:
+                logger.debug(f"Автозапуск не заполняется для типа страхования: {request.insurance_type}")
             
             # Заполняем информацию о рассрочке (B17)
             installment_text = self._get_installment_text_for_tech_info(request.has_installment)
             self._fill_tech_cell(tech_sheet, self.TECH_INFO_CELLS['installment_info'], 
                                installment_text, 'информация о рассрочке')
             
-            # Заполняем дополнительные параметры КАСКО/спецтехника
-            self._fill_casco_additional_parameters(tech_sheet, request)
+            # Заполняем дополнительные параметры в зависимости от типа заявки
+            self._fill_additional_parameters(tech_sheet, request)
             
             logger.info(f"Лис�� tech_info успешно заполнен техническими данными для свода ID: {summary.id}")
             
@@ -705,42 +712,70 @@ class ExcelExportService:
             logger.warning(f"Ошибка при заполнении листа tech_info для свода ID {summary.id}: {e}")
             # Не прерываем выполнение, продолжаем работу
     
-    def _fill_casco_additional_parameters(self, tech_sheet, request) -> None:
+    def _fill_additional_parameters(self, tech_sheet, request) -> None:
         """
-        Заполняет дополнительные параметры КАСКО/спецтехника на техническом листе
+        Заполняет дополнительные параметры на техническом листе в зависимости от типа заявки
         
         Args:
             tech_sheet: Рабочий лист tech_info
             request: Объект заявки
         """
         try:
-            # Проверяем, что это заявка КАСКО/спецтехника
-            if request.insurance_type not in ['КАСКО', 'страхование спецтехники']:
-                logger.debug(f"Заявка {request.dfa_number} не является КАСКО/спецтехника, пропускаем дополнительные параметры")
-                return
+            # Общие параметры для КАСКО/спецтехника и страхования имущества
+            if request.insurance_type in ['КАСКО', 'страхование спецтехники', 'страхование имущества']:
+                logger.debug(f"Заполняем общие дополнительные параметры для заявки {request.dfa_number}")
+                
+                self._fill_tech_cell(tech_sheet, self.TECH_INFO_CELLS['creditor_bank'], 
+                                   request.creditor_bank, 'банк-кредитор')
+                
+                self._fill_tech_cell(tech_sheet, self.TECH_INFO_CELLS['usage_purposes'], 
+                                   request.usage_purposes, 'цели использования')
             
-            logger.debug(f"Заполняем дополнительные параметры КАСКО/спецтехника для заявки {request.dfa_number}")
+            # Специфичные параметры для КАСКО/спецтехника
+            if request.insurance_type in ['КАСКО', 'страхование спецтехники']:
+                logger.debug(f"Заполняем специфичные параметры КАСКО/спецтехника для заявки {request.dfa_number}")
+                
+                self._fill_tech_cell(tech_sheet, self.TECH_INFO_CELLS['key_completeness'], 
+                                   request.key_completeness, 'комплектность ключей')
+                
+                self._fill_tech_cell(tech_sheet, self.TECH_INFO_CELLS['pts_psm'], 
+                                   request.pts_psm, 'ПТС/ПСМ')
+                
+                self._fill_tech_cell(tech_sheet, self.TECH_INFO_CELLS['telematics_complex'], 
+                                   request.telematics_complex, 'телематический комплекс')
+                
+                logger.debug(f"Специфичные параметры КАСКО/спецтехника успешно заполнены для заявки {request.dfa_number}")
             
-            # Заполняем дополнительные параметры КАСКО/спецтехника
-            self._fill_tech_cell(tech_sheet, self.TECH_INFO_CELLS['creditor_bank'], 
-                               request.creditor_bank, 'банк-кредитор')
+            # Специфичные параметры для страхования имущества
+            if request.insurance_type == 'страхование имущества':
+                logger.debug(f"Заполняем специфичные параметры страхования имущества для заявки {request.dfa_number}")
+                
+                self._fill_tech_cell(tech_sheet, self.TECH_INFO_CELLS['insurance_territory'], 
+                                   request.insurance_territory, 'территория страхования')
+                
+                # Заполняем информацию о перевозке (B28)
+                if request.has_transportation:
+                    transportation_text = "Запрос с условием перевозки"
+                    self._fill_tech_cell(tech_sheet, self.TECH_INFO_CELLS['transportation_info'], 
+                                       transportation_text, 'информация о перевозке')
+                    logger.debug(f"Заполнена информация о перевозке для заявки {request.dfa_number}: {transportation_text}")
+                
+                # Заполняем информацию о СМР (B29)
+                if request.has_construction_work:
+                    construction_work_text = "Запрос с условием СМР"
+                    self._fill_tech_cell(tech_sheet, self.TECH_INFO_CELLS['construction_work_info'], 
+                                       construction_work_text, 'информация о СМР')
+                    logger.debug(f"Заполнена информация о СМР для заявки {request.dfa_number}: {construction_work_text}")
+                
+                logger.debug(f"Специфичные параметры страхования имущества успешно заполнены для заявки {request.dfa_number}")
             
-            self._fill_tech_cell(tech_sheet, self.TECH_INFO_CELLS['usage_purposes'], 
-                               request.usage_purposes, 'цели использования')
-            
-            self._fill_tech_cell(tech_sheet, self.TECH_INFO_CELLS['key_completeness'], 
-                               request.key_completeness, 'комплектность ключей')
-            
-            self._fill_tech_cell(tech_sheet, self.TECH_INFO_CELLS['pts_psm'], 
-                               request.pts_psm, 'ПТС/ПСМ')
-            
-            self._fill_tech_cell(tech_sheet, self.TECH_INFO_CELLS['telematics_complex'], 
-                               request.telematics_complex, 'телематический комплекс')
-            
-            logger.debug(f"Дополнительные параметры КАСКО/спецтехника успешно заполнены для заявки {request.dfa_number}")
+            if request.insurance_type in ['КАСКО', 'страхование спецтехники', 'страхование имущества']:
+                logger.debug(f"Дополнительные параметры успешно заполнены для заявки {request.dfa_number}")
+            else:
+                logger.debug(f"Заявка {request.dfa_number} не поддерживает дополнительные параметры")
             
         except Exception as e:
-            logger.warning(f"Ошибка при заполнении дополнительных параметров КАСКО/спецтехника для заявки {request.dfa_number}: {e}")
+            logger.warning(f"Ошибка при заполнении дополнительных параметров для заявки {request.dfa_number}: {e}")
             # Не прерываем выполнение, продолжаем работу
     
     def _get_companies_sorted_data(self, summary: InsuranceSummary) -> Dict[str, List]:

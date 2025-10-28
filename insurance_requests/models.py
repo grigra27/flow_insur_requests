@@ -109,6 +109,12 @@ class InsuranceRequest(models.Model):
         verbose_name='Телематический комплекс'
     )
     
+    # Дополнительные параметры для страхования имущества
+    insurance_territory = models.TextField(
+        blank=True, 
+        verbose_name='Территория страхования'
+    )
+    
     class Meta:
         verbose_name = 'Страховая заявка'
         verbose_name_plural = 'Страховые заявки'
@@ -185,6 +191,8 @@ class InsuranceRequest(models.Model):
             'creditor_bank': self.creditor_bank or 'не указано',
             'usage_purposes': self.usage_purposes or 'не указано',
             'telematics_complex': self.telematics_complex or 'не указано',
+            # Дополнительные параметры для страхования имущества
+            'insurance_territory': self.insurance_territory or 'не указано',
         }
     
     def can_create_summary(self) -> bool:
