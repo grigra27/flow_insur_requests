@@ -129,10 +129,15 @@ class ExcelExportService:
         'branch': 'B8',              # Филиал
         'insurance_type': 'B11',     # Тип страхования
         'vehicle_info': 'B12',       # Информация о предмете лизинга
+        'creditor_bank': 'B13',      # Банк-кредитор
         'franchise_info': 'B14',     # Информация о франшизе
         'installment_info': 'B15',   # Информация о рассрочке
+        'usage_purposes': 'B16',     # Цели использования
         'letter_text': 'B17',        # Текст письма заявки
         'autostart_info': 'B21',     # Информация об автозапуске
+        'key_completeness': 'B22',   # Комплектность ключей
+        'pts_psm': 'B23',           # ПТС/ПСМ
+        'telematics_complex': 'B24', # Телематический комплекс
     }
     
     # Константы для обработки граничных случаев и валидации
@@ -691,10 +696,51 @@ class ExcelExportService:
             self._fill_tech_cell(tech_sheet, self.TECH_INFO_CELLS['installment_info'], 
                                installment_text, 'информация о рассрочке')
             
-            logger.info(f"Лист tech_info успешно заполнен техническими данными для свода ID: {summary.id}")
+            # Заполняем дополнительные параметры КАСКО/спецтехника
+            self._fill_casco_additional_parameters(tech_sheet, request)
+            
+            logger.info(f"Лис�� tech_info успешно заполнен техническими данными для свода ID: {summary.id}")
             
         except Exception as e:
             logger.warning(f"Ошибка при заполнении листа tech_info для свода ID {summary.id}: {e}")
+            # Не прерываем выполнение, продолжаем работу
+    
+    def _fill_casco_additional_parameters(self, tech_sheet, request) -> None:
+        """
+        Заполняет дополнительные параметры КАСКО/спецтехника на техническом листе
+        
+        Args:
+            tech_sheet: Рабочий лист tech_info
+            request: Объект заявки
+        """
+        try:
+            # Проверяем, что это заявка КАСКО/спецтехника
+            if request.insurance_type not in ['КАСКО', 'страхование спецтехники']:
+                logger.debug(f"Заявка {request.dfa_number} не является КАСКО/спецтехника, пропускаем дополнительные параметры")
+                return
+            
+            logger.debug(f"Заполняем дополнительные параметры КАСКО/спецтехника для заявки {request.dfa_number}")
+            
+            # Заполняем дополнительные параметры КАСКО/спецтехника
+            self._fill_tech_cell(tech_sheet, self.TECH_INFO_CELLS['creditor_bank'], 
+                               request.creditor_bank, 'банк-кредитор')
+            
+            self._fill_tech_cell(tech_sheet, self.TECH_INFO_CELLS['usage_purposes'], 
+                               request.usage_purposes, 'цели использования')
+            
+            self._fill_tech_cell(tech_sheet, self.TECH_INFO_CELLS['key_completeness'], 
+                               request.key_completeness, 'комплектность ключей')
+            
+            self._fill_tech_cell(tech_sheet, self.TECH_INFO_CELLS['pts_psm'], 
+                               request.pts_psm, 'ПТС/ПСМ')
+            
+            self._fill_tech_cell(tech_sheet, self.TECH_INFO_CELLS['telematics_complex'], 
+                               request.telematics_complex, 'телематический комплекс')
+            
+            logger.debug(f"Дополнительные параметры КАСКО/спецтехника успешно заполнены для заявки {request.dfa_number}")
+            
+        except Exception as e:
+            logger.warning(f"Ошибка при заполнении дополнительных параметров КАСКО/спецтехника для заявки {request.dfa_number}: {e}")
             # Не прерываем выполнение, продолжаем работу
     
     def _get_companies_sorted_data(self, summary: InsuranceSummary) -> Dict[str, List]:
