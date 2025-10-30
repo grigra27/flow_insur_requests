@@ -72,8 +72,20 @@ jobs:
           echo "➡️ Логинимся в GitHub Container Registry..."
           echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
           
+          echo "➡️ Логинимся в Docker Hub для избежания rate limit..."
+          if [ -n "${{ secrets.DOCKERHUB_USERNAME }}" ] && [ -n "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
+            echo ${{ secrets.DOCKERHUB_TOKEN }} | docker login -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
+            echo "✅ Docker Hub login успешен"
+          else
+            echo "⚠️ Docker Hub credentials не настроены, возможны rate limit ошибки"
+          fi
+          
           echo "➡️ Загружаем новый Docker-образ..."
           docker pull ${{ env.DOCKER_IMAGE }}
+          
+          echo "➡️ Предварительно загружаем базовые образы..."
+          docker pull postgres:15 || echo "⚠️ Не удалось загрузить postgres:15"
+          docker pull nginx:1.25-alpine || echo "⚠️ Не удалось загрузить nginx:1.25-alpine"
           
           echo "➡️ Перезапускаем docker-compose..."
           docker-compose -f docker-compose.timeweb.yml down --remove-orphans
