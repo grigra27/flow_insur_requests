@@ -1,0 +1,61 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data_timeweb:/var/lib/postgresql/data
+    # в продакшене не раскрывай порт наружу:
+    # ports:
+    #   - "5432:5432"
+    restart: unless-stopped
+
+  web:
+    image: ${DOCKER_IMAGE}
+    environment:
+      - SECRET_KEY=${SECRET_KEY}
+      - DEBUG=False
+      - DB_ENGINE=django.db.backends.postgresql
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_HOST=db
+      - DB_PORT=5432
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS}
+    volumes:
+      - media_data_timeweb:/app/media
+      - logs_data_timeweb:/app/logs
+      - staticfiles_data_timeweb:/app/staticfiles
+    depends_on:
+      - db
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "/app/healthcheck.py"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  nginx:
+    build:
+      context: ./nginx-timeweb
+    image: custom-nginx-timeweb:latest
+    ports:
+      - "80:80"
+    volumes:
+      - staticfiles_data_timeweb:/app/staticfiles:ro
+      - media_data_timeweb:/app/media:ro
+    depends_on:
+      web:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_data_timeweb:
+  media_data_timeweb:
+  logs_data_timeweb:
+  staticfiles_data_timeweb:

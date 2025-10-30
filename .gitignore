@@ -144,3 +144,8 @@ backup/
 
 # kiro files
 .kiro
+
+# deployment guide
+DEPLOYMENT_GUIDE_TIMEWEB.md
+DEPLOYMENT_GUIDE.md
+DOMIAN_UPDATE_SUMMARY.md

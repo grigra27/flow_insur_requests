@@ -826,6 +826,53 @@ docs/
 └── README_DEPLOYMENT.md            # README для развертывания
 ```
 
+## 🚀 Деплой на два хостинга
+
+Проект настроен для автоматического деплоя на **два хостинга** через GitHub Actions при пуше в main ветку:
+
+- **Digital Ocean** → onbr.site
+- **Timeweb** → zs.insflow.tw1.su
+
+### Быстрая настройка деплоя
+
+1. **Настройте GitHub Secrets** (см. `GITHUB_SECRETS_SETUP.md`)
+2. **Настройте серверы** (см. `DEPLOYMENT_GUIDE.md` и `DEPLOYMENT_GUIDE_TIMEWEB.md`)
+3. **Сделайте пуш в main** - деплой произойдет автоматически на оба хостинга
+
+### Проверка конфигурации
+
+```bash
+# Запустите тест всех конфигураций
+./test-configs.sh
+```
+
+### Файлы конфигурации
+
+**Digital Ocean (onbr.site):**
+- `docker-compose.yml` - основная конфигурация
+- `nginx/default.conf` - nginx для onbr.site
+- `.github/workflows/deploy_do.yml` - workflow деплоя
+
+**Timeweb (insflow.ru):**
+- `docker-compose.timeweb.yml` - конфигурация для Timeweb
+- `nginx-timeweb/default.conf` - nginx для zs.insflow.tw1.su
+- `.github/workflows/deploy_timeweb.yml` - workflow деплоя
+- `.env.timeweb.example` - пример переменных окружения
+
+### Docker запуск локально
+
+```bash
+# Digital Ocean конфигурация
+docker-compose up --build
+
+# Timeweb конфигурация
+docker-compose -f docker-compose.timeweb.yml up --build
+
+# В фоновом режиме
+docker-compose up -d
+docker-compose -f docker-compose.timeweb.yml up -d
+```
+
 ## Автор
 
 **Григорий Грачев**  
