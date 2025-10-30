@@ -42,8 +42,6 @@ class Command(BaseCommand):
             content_type__in=[
                 insurance_request_ct,
                 request_attachment_ct,
-                insurance_response_ct,
-                response_attachment_ct
             ],
             codename__in=[
                 # InsuranceRequest permissions
