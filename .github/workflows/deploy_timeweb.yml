@@ -92,10 +92,23 @@ jobs:
           docker-compose -f docker-compose.timeweb.yml up -d --force-recreate
           
           echo "➡️ Ожидаем запуска сервисов..."
-          sleep 15
+          sleep 30
+          
+          echo "➡️ Проверяем статус контейнеров..."
+          docker-compose -f docker-compose.timeweb.yml ps
+          
+          echo "➡️ Проверяем логи web контейнера..."
+          docker-compose -f docker-compose.timeweb.yml logs --tail=50 web
           
           echo "➡️ Применяем миграции БД..."
-          docker-compose -f docker-compose.timeweb.yml exec -T web python manage.py migrate --noinput
+          if docker-compose -f docker-compose.timeweb.yml exec -T web python manage.py migrate --noinput; then
+            echo "✅ Миграции применены успешно"
+          else
+            echo "❌ Ошибка при применении миграций, показываем логи:"
+            docker-compose -f docker-compose.timeweb.yml logs --tail=100 web
+            docker-compose -f docker-compose.timeweb.yml logs --tail=50 db
+            exit 1
+          fi
           
           echo "➡️ Проверяем состояние контейнеров..."
           docker-compose -f docker-compose.timeweb.yml ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
