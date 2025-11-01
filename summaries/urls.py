@@ -11,6 +11,7 @@ urlpatterns = [
     path('', views.summary_list, name='summary_list'),
     path('<int:pk>/', views.summary_detail, name='summary_detail'),
     path('statistics/', views.summary_statistics, name='statistics'),
+    path('help/', views.help_page, name='help'),
     
     # Создание и управление сводами
     path('create/<int:request_id>/', views.create_summary, name='create_summary'),

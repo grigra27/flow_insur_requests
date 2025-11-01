@@ -1,0 +1,742 @@
+{% extends 'base.html' %}
+
+{% block title %}Справка по работе со сводами - {{ block.super }}{% endblock %}
+
+{% block extra_css %}
+{% load static %}
+<link rel="stylesheet" href="{% static 'css/help.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-3">
+        <!-- Быстрая навигация -->
+        <nav class="help-navigation">
+            <h5 class="mb-3"><i class="bi bi-list-ul"></i> Разделы справки</h5>
+            <ul class="nav nav-pills flex-column">
+                <li class="nav-item">
+                    <a class="nav-link" href="#upload-responses">
+                        <i class="bi bi-upload"></i> Загрузка ответов
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#export-summaries">
+                        <i class="bi bi-download"></i> Выгрузка сводов
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#workflow">
+                        <i class="bi bi-arrow-repeat"></i> Рабочий процесс
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#examples">
+                        <i class="bi bi-file-earmark-text"></i> Примеры
+                    </a>
+                </li>
+            </ul>
+            <div class="mt-3">
+                <a href="{% url 'summaries:summary_list' %}" class="btn btn-outline-primary btn-sm">
+                    <i class="bi bi-arrow-left"></i> К сводам
+                </a>
+            </div>
+        </nav>
+    </div>
+    
+    <div class="col-lg-9">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1><i class="bi bi-question-circle"></i> Справка по работе со сводами</h1>
+        </div>
+        
+        <!-- Раздел: Загрузка ответов страховщиков -->
+        <section id="upload-responses" class="help-section">
+            <h3><i class="bi bi-upload"></i> Загрузка ответов страховщиков</h3>
+            
+            <div class="highlight-info">
+                <i class="bi bi-info-circle"></i>
+                <strong>Основная информация:</strong> Система автоматически распознает данные из файлов ответов страховых компаний и создает предложения в своде.
+            </div>
+            
+            <h4>Поддерживаемые форматы файлов</h4>
+            <ul>
+                <li><strong>.xlsx</strong> - основной формат Excel (рекомендуется)</li>
+                <li><strong>.xls</strong> - старый формат Excel</li>
+                <li><strong>.xltx</strong> - шаблоны Excel</li>
+            </ul>
+            
+            <h4>Процесс загрузки файлов</h4>
+            <ol>
+                <li>Откройте свод в статусе "Сбор предложений"</li>
+                <li>Нажмите кнопку "Добавить предложение"</li>
+                <li>Выберите страховую компанию из списка</li>
+                <li>Загрузите файл с ответом компании</li>
+                <li>Система автоматически извлечет данные и создаст предложение</li>
+            </ol>
+            
+            <h4>Распознаваемые поля из файлов ответов</h4>
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Поле</th>
+                            <th>Ячейка Excel</th>
+                            <th>Описание</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Название компании</strong></td>
+                            <td><span class="table-cell-example">B2</span></td>
+                            <td>Автоматически определяется из выбранной компании</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Страховая сумма</strong></td>
+                            <td><span class="table-cell-example">E6</span></td>
+                            <td>Общая страховая сумма по договору</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Год страхования</strong></td>
+                            <td><span class="table-cell-example">A6</span></td>
+                            <td>Номер года страхования (1, 2, 3, ...)</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Франшиза-1</strong></td>
+                            <td><span class="table-cell-example">F6</span></td>
+                            <td>Размер первой франшизы (обычно 0)</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Премия с франшизой-1</strong></td>
+                            <td><span class="table-cell-example">G6</span></td>
+                            <td>Страховая премия с первой франшизой</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Франшиза-2</strong></td>
+                            <td><span class="table-cell-example">H6</span></td>
+                            <td>Размер второй франшизы (если есть)</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Премия с франшизой-2</strong></td>
+                            <td><span class="table-cell-example">I6</span></td>
+                            <td>Страховая премия со второй франшизой</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Рассрочка (вариант 1)</strong></td>
+                            <td><span class="table-cell-example">J6</span></td>
+                            <td>Количество платежей для варианта 1</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Рассрочка (вариант 2)</strong></td>
+                            <td><span class="table-cell-example">K6</span></td>
+                            <td>Количество платежей для варианта 2</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Примечания</strong></td>
+                            <td><span class="table-cell-example">L6</span></td>
+                            <td>Дополнительные условия и примечания</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="highlight-warning">
+                <i class="bi bi-exclamation-triangle"></i>
+                <strong>Важно:</strong> Если файл содержит данные для нескольких лет страхования, система создаст отдельное предложение для каждого года.
+            </div>
+        </section>
+        
+        <!-- Раздел: Выгрузка сводов -->
+        <section id="export-summaries" class="help-section">
+            <h3><i class="bi bi-download"></i> Выгрузка сводов</h3>
+            
+            <div class="highlight-info">
+                <i class="bi bi-info-circle"></i>
+                <strong>Основная информация:</strong> Система генерирует Excel файл свода с данными всех предложений, структурированными для отправки клиенту.
+            </div>
+            
+            <h4>Процесс выгрузки</h4>
+            <ol>
+                <li>Откройте свод с добавленными предложениями</li>
+                <li>Нажмите кнопку "Выгрузить свод"</li>
+                <li>Система сгенерирует Excel файл на основе шаблона</li>
+                <li>Файл будет автоматически загружен в браузер</li>
+            </ol>
+            
+            <h4>Структура выгружаемого файла</h4>
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Раздел файла</th>
+                            <th>Содержание</th>
+                            <th>Источник данных</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Заголовок</strong></td>
+                            <td>Информация о заявке и клиенте</td>
+                            <td>Данные из модели InsuranceRequest</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Основные данные</strong></td>
+                            <td>ДФА, клиент, филиал, предмет лизинга</td>
+                            <td>Поля: dfa_number, client_name, branch, vehicle_info</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Условия страхования</strong></td>
+                            <td>Тип страхования, срок, франшиза</td>
+                            <td>Поля: insurance_type, insurance_period, franchise_type</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Таблица предложений</strong></td>
+                            <td>Предложения всех компаний по годам</td>
+                            <td>Модель InsuranceOffer</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Итоговые суммы</strong></td>
+                            <td>Общие суммы по многолетним договорам</td>
+                            <td>Расчетные поля</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Примечания</strong></td>
+                            <td>Особые условия от страховщиков</td>
+                            <td>Поле notes из InsuranceOffer</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <h4>Соответствие полей БД ячейкам Excel</h4>
+            <div class="row">
+                <div class="col-md-6">
+                    <h6>Данные заявки</h6>
+                    <div class="field-mapping">request.dfa_number → C4</div>
+                    <div class="field-mapping">request.client_name → C5</div>
+                    <div class="field-mapping">request.branch → C6</div>
+                    <div class="field-mapping">request.vehicle_info → C7</div>
+                    <div class="field-mapping">request.insurance_type → C8</div>
+                    <div class="field-mapping">request.insurance_period → C9</div>
+                </div>
+                <div class="col-md-6">
+                    <h6>Данные предложений</h6>
+                    <div class="field-mapping">offer.company_name → B{row}</div>
+                    <div class="field-mapping">offer.insurance_sum → C{row}</div>
+                    <div class="field-mapping">offer.franchise_1 → D{row}</div>
+                    <div class="field-mapping">offer.premium_with_franchise_1 → E{row}</div>
+                    <div class="field-mapping">offer.franchise_2 → F{row}</div>
+                    <div class="field-mapping">offer.premium_with_franchise_2 → G{row}</div>
+                </div>
+            </div>
+            
+            <div class="highlight-success">
+                <i class="bi bi-check-circle"></i>
+                <strong>Автоматическое форматирование:</strong> Система автоматически форматирует числовые значения, применяет стили и группирует данные по компаниям.
+            </div>
+        </section>
+        
+        <!-- Раздел: Рабочий процесс -->
+        <section id="workflow" class="help-section">
+            <h3><i class="bi bi-arrow-repeat"></i> Рабочий процесс</h3>
+            
+            <h4>Жизненный цикл свода</h4>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card example-card workflow-example">
+                        <div class="card-header bg-warning text-dark">
+                            <h6 class="mb-0"><i class="bi bi-collection"></i> Статусы свода</h6>
+                        </div>
+                        <div class="card-body">
+                            <ol class="mb-0">
+                                <li><strong>Сбор предложений</strong> - добавление ответов страховщиков</li>
+                                <li><strong>Готов к отправке</strong> - все предложения собраны</li>
+                                <li><strong>Отправлен в Альянс</strong> - свод передан клиенту</li>
+                                <li><strong>Завершен: акцепт/распоряжение</strong> - клиент принял решение</li>
+                                <li><strong>Завершен: не будет</strong> - клиент отказался</li>
+                            </ol>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card example-card workflow-example">
+                        <div class="card-header bg-info text-white">
+                            <h6 class="mb-0"><i class="bi bi-gear"></i> Доступные действия</h6>
+                        </div>
+                        <div class="card-body">
+                            <ul class="mb-0">
+                                <li><strong>Добавить предложение</strong> - загрузка файла ответа</li>
+                                <li><strong>Редактировать предложение</strong> - корректировка данных</li>
+                                <li><strong>Копировать предложение</strong> - дублирование на другой год</li>
+                                <li><strong>Выгрузить свод</strong> - генерация Excel файла</li>
+                                <li><strong>Изменить статус</strong> - переход к следующему этапу</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <h4>Типичные сценарии использования</h4>
+            
+            <div class="card example-card workflow-example mb-3">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="bi bi-1-circle"></i> Сценарий 1: Однолетнее страхование</h6>
+                </div>
+                <div class="card-body">
+                    <ol>
+                        <li>Создается свод автоматически после отправки заявки</li>
+                        <li>Добавляются предложения от разных страховых компаний</li>
+                        <li>Каждое предложение содержит данные только для 1-го года</li>
+                        <li>Выгружается свод с простой структурой</li>
+                        <li>Статус изменяется на "Готов к отправке"</li>
+                    </ol>
+                </div>
+            </div>
+            
+            <div class="card example-card workflow-example mb-3">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="bi bi-2-circle"></i> Сценарий 2: Многолетнее страхование</h6>
+                </div>
+                <div class="card-body">
+                    <ol>
+                        <li>Создается свод для заявки на несколько лет</li>
+                        <li>Загружаются файлы с предложениями на разные годы</li>
+                        <li>Система автоматически группирует предложения по компаниям</li>
+                        <li>В своде отображаются итоговые суммы по всем годам</li>
+                        <li>Выгружается расширенный свод с разбивкой по годам</li>
+                    </ol>
+                </div>
+            </div>
+            
+            <div class="card example-card workflow-example">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="bi bi-3-circle"></i> Сценарий 3: Корректировка предложений</h6>
+                </div>
+                <div class="card-body">
+                    <ol>
+                        <li>Обнаружена ошибка в загруженном предложении</li>
+                        <li>Используется функция "Редактировать предложение"</li>
+                        <li>Корректируются суммы, франшизы или условия рассрочки</li>
+                        <li>Изменения автоматически отражаются в итоговых расчетах</li>
+                        <li>Перегенерируется свод с актуальными данными</li>
+                    </ol>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Раздел: Примеры и образцы -->
+        <section id="examples" class="help-section">
+            <h3><i class="bi bi-file-earmark-text"></i> Примеры и образцы</h3>
+            
+            <h4>Пример файла ответа страховщика</h4>
+            <div class="card example-card upload-example">
+                <div class="card-header bg-success text-white">
+                    <h6 class="mb-0"><i class="bi bi-file-excel"></i> Структура файла ответа</h6>
+                </div>
+                <div class="card-body">
+                    <div class="code-block">
+A    | B              | C    | D    | E         | F    | G      | H    | I      | J | K | L
+-----|----------------|------|------|-----------|------|--------|------|--------|---|---|---
+Год  | Компания       | ...  | ...  | Стр.сумма | Фр.1 | Прем.1 | Фр.2 | Прем.2 | Р1| Р2| Примечания
+1    | СОГАЗ          | ...  | ...  | 2500000   | 0    | 125000 | 50000| 100000 | 1 | 4 | Без доп.условий
+2    | СОГАЗ          | ...  | ...  | 2500000   | 0    | 120000 | 50000| 95000  | 1 | 4 | Скидка 2-й год
+3    | СОГАЗ          | ...  | ...  | 2500000   | 0    | 115000 | 50000| 90000  | 1 | 4 | Скидка 3-й год
+                    </div>
+                    <small class="text-muted">
+                        <strong>Пояснения:</strong> Фр.1/Фр.2 - размеры франшиз, Прем.1/Прем.2 - премии с соответствующими франшизами, 
+                        Р1/Р2 - количество платежей в год для каждого варианта
+                    </small>
+                </div>
+            </div>
+            
+            <h4>Пример выгруженного свода</h4>
+            <div class="card example-card export-example">
+                <div class="card-header bg-primary text-white">
+                    <h6 class="mb-0"><i class="bi bi-table"></i> Фрагмент свода предложений</h6>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Компания</th>
+                                    <th>1-й год</th>
+                                    <th>2-й год</th>
+                                    <th>3-й год</th>
+                                    <th>Итого</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>СОГАЗ</strong></td>
+                                    <td>125 000 ₽</td>
+                                    <td>120 000 ₽</td>
+                                    <td>115 000 ₽</td>
+                                    <td><strong>360 000 ₽</strong></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>РЕСО</strong></td>
+                                    <td>130 000 ₽</td>
+                                    <td>125 000 ₽</td>
+                                    <td>120 000 ₽</td>
+                                    <td><strong>375 000 ₽</strong></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>ВСК</strong></td>
+                                    <td>135 000 ₽</td>
+                                    <td>130 000 ₽</td>
+                                    <td>125 000 ₽</td>
+                                    <td><strong>390 000 ₽</strong></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <small class="text-muted">
+                        <strong>Примечание:</strong> В реальном своде также отображаются варианты с разными франшизами и условия рассрочки
+                    </small>
+                </div>
+            </div>
+            
+            <h4>Частые ошибки и их решения</h4>
+            <div class="accordion" id="errorsAccordion">
+                <div class="accordion-item">
+                    <h2 class="accordion-header" id="error1">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse1">
+                            <i class="bi bi-exclamation-triangle text-warning me-2"></i>
+                            Ошибка: "Не удалось извлечь данные из файла"
+                        </button>
+                    </h2>
+                    <div id="collapse1" class="accordion-collapse collapse" data-bs-parent="#errorsAccordion">
+                        <div class="accordion-body">
+                            <strong>Причины:</strong>
+                            <ul>
+                                <li>Неправильная структура файла</li>
+                                <li>Данные находятся не в тех ячейках</li>
+                                <li>Поврежденный файл Excel</li>
+                            </ul>
+                            <strong>Решение:</strong>
+                            <ul>
+                                <li>Проверьте соответствие структуры файла таблице выше</li>
+                                <li>Убедитесь, что данные находятся в правильных ячейках</li>
+                                <li>Пересохраните файл в формате .xlsx</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="accordion-item">
+                    <h2 class="accordion-header" id="error2">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse2">
+                            <i class="bi bi-exclamation-triangle text-warning me-2"></i>
+                            Ошибка: "Дублирование предложений"
+                        </button>
+                    </h2>
+                    <div id="collapse2" class="accordion-collapse collapse" data-bs-parent="#errorsAccordion">
+                        <div class="accordion-body">
+                            <strong>Причина:</strong> Попытка загрузить предложение от той же компании на тот же год.
+                            <br><br>
+                            <strong>Решение:</strong>
+                            <ul>
+                                <li>Удалите существующее предложение перед загрузкой нового</li>
+                                <li>Или используйте функцию "Редактировать предложение"</li>
+                                <li>Проверьте правильность выбора компании</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="accordion-item">
+                    <h2 class="accordion-header" id="error3">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse3">
+                            <i class="bi bi-exclamation-triangle text-warning me-2"></i>
+                            Ошибка: "Некорректные числовые значения"
+                        </button>
+                    </h2>
+                    <div id="collapse3" class="accordion-collapse collapse" data-bs-parent="#errorsAccordion">
+                        <div class="accordion-body">
+                            <strong>Причины:</strong>
+                            <ul>
+                                <li>В ячейках с суммами содержится текст</li>
+                                <li>Неправильный формат чисел (запятые вместо точек)</li>
+                                <li>Пустые обязательные поля</li>
+                            </ul>
+                            <strong>Решение:</strong>
+                            <ul>
+                                <li>Убедитесь, что суммы записаны как числа</li>
+                                <li>Используйте точку как разделитель десятичных знаков</li>
+                                <li>Заполните все обязательные поля</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <div class="mt-4 p-3 bg-light rounded">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h6 class="mb-1"><i class="bi bi-lightbulb"></i> Нужна дополнительная помощь?</h6>
+                    <small class="text-muted">
+                        Если у вас остались вопросы по работе со сводами, обратитесь к Григорию.
+                    </small>
+                </div>
+                <div class="col-md-4 text-md-end">
+                    <a href="{% url 'summaries:summary_list' %}" class="btn btn-primary">
+                        <i class="bi bi-arrow-left"></i> Вернуться к сводам
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Плавная прокрутка для навигационных ссылок
+    const navLinks = document.querySelectorAll('.help-navigation .nav-link, .quick-nav-floating .nav-link');
+    const sections = document.querySelectorAll('.help-section');
+    
+    // Создание плавающей навигации
+    function createFloatingNav() {
+        const floatingNav = document.createElement('div');
+        floatingNav.className = 'quick-nav-floating';
+        floatingNav.innerHTML = `
+            <a href="#upload-responses" class="nav-link" title="Загрузка ответов">
+                <i class="bi bi-upload"></i>
+            </a>
+            <a href="#export-summaries" class="nav-link" title="Выгрузка сводов">
+                <i class="bi bi-download"></i>
+            </a>
+            <a href="#workflow" class="nav-link" title="Рабочий процесс">
+                <i class="bi bi-arrow-repeat"></i>
+            </a>
+            <a href="#examples" class="nav-link" title="Примеры">
+                <i class="bi bi-file-earmark-text"></i>
+            </a>
+        `;
+        document.body.appendChild(floatingNav);
+        return floatingNav;
+    }
+    
+    // Создаем плавающую навигацию только для больших экранов
+    let floatingNav = null;
+    if (window.innerWidth >= 992) {
+        floatingNav = createFloatingNav();
+    }
+    
+    // Обработчик изменения размера окна
+    window.addEventListener('resize', function() {
+        if (window.innerWidth >= 992 && !floatingNav) {
+            floatingNav = createFloatingNav();
+            setupFloatingNavListeners();
+        } else if (window.innerWidth < 992 && floatingNav) {
+            floatingNav.remove();
+            floatingNav = null;
+        }
+    });
+    
+    // Настройка обработчиков для плавающей навигации
+    function setupFloatingNavListeners() {
+        if (floatingNav) {
+            const floatingLinks = floatingNav.querySelectorAll('.nav-link');
+            floatingLinks.forEach(link => {
+                link.addEventListener('click', handleNavClick);
+            });
+        }
+    }
+    
+    // Обработчик клика по навигационным ссылкам
+    function handleNavClick(e) {
+        e.preventDefault();
+        
+        const targetId = this.getAttribute('href').substring(1);
+        const targetElement = document.getElementById(targetId);
+        
+        if (targetElement) {
+            // Убираем активный класс со всех ссылок
+            document.querySelectorAll('.help-navigation .nav-link, .quick-nav-floating .nav-link')
+                .forEach(l => l.classList.remove('active'));
+            
+            // Добавляем активный класс к соответствующим ссылкам
+            document.querySelectorAll(`[href="#${targetId}"]`)
+                .forEach(l => l.classList.add('active'));
+            
+            // Плавная прокрутка
+            targetElement.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start'
+            });
+        }
+    }
+    
+    // Настройка обработчиков для основной навигации
+    navLinks.forEach(link => {
+        link.addEventListener('click', handleNavClick);
+    });
+    
+    // Настройка обработчиков для плавающей навигации
+    setupFloatingNavListeners();
+    
+    // Отслеживание активного раздела при прокрутке
+    function updateActiveSection() {
+        let currentSection = '';
+        const scrollPosition = window.scrollY + 150;
+        
+        sections.forEach(section => {
+            const sectionTop = section.offsetTop;
+            const sectionHeight = section.offsetHeight;
+            
+            if (scrollPosition >= sectionTop && scrollPosition < sectionTop + sectionHeight) {
+                currentSection = section.id;
+            }
+        });
+        
+        // Обновляем активные ссылки
+        document.querySelectorAll('.help-navigation .nav-link, .quick-nav-floating .nav-link')
+            .forEach(link => {
+                link.classList.remove('active');
+                if (link.getAttribute('href') === `#${currentSection}`) {
+                    link.classList.add('active');
+                }
+            });
+        
+        // Показываем/скрываем плавающую навигацию
+        if (floatingNav) {
+            const shouldShow = window.scrollY > 300;
+            floatingNav.classList.toggle('visible', shouldShow);
+        }
+    }
+    
+    // Обработчик прокрутки с throttling
+    let scrollTimeout;
+    window.addEventListener('scroll', function() {
+        if (scrollTimeout) {
+            clearTimeout(scrollTimeout);
+        }
+        scrollTimeout = setTimeout(updateActiveSection, 10);
+    });
+    
+    // Инициализация активного раздела
+    updateActiveSection();
+    
+    // Анимация появления разделов при прокрутке
+    const observerOptions = {
+        threshold: 0.1,
+        rootMargin: '0px 0px -50px 0px'
+    };
+    
+    const sectionObserver = new IntersectionObserver(function(entries) {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.style.animationDelay = '0s';
+                entry.target.classList.add('animate-in');
+            }
+        });
+    }, observerOptions);
+    
+    sections.forEach(section => {
+        sectionObserver.observe(section);
+    });
+    
+    // Улучшенная поддержка клавиатурной навигации
+    document.addEventListener('keydown', function(e) {
+        // Навигация по разделам с помощью стрелок
+        if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+            e.preventDefault();
+            
+            const currentActive = document.querySelector('.help-navigation .nav-link.active');
+            if (currentActive) {
+                const allNavLinks = Array.from(document.querySelectorAll('.help-navigation .nav-link'));
+                const currentIndex = allNavLinks.indexOf(currentActive);
+                
+                let nextIndex;
+                if (e.key === 'ArrowDown') {
+                    nextIndex = (currentIndex + 1) % allNavLinks.length;
+                } else {
+                    nextIndex = currentIndex === 0 ? allNavLinks.length - 1 : currentIndex - 1;
+                }
+                
+                allNavLinks[nextIndex].click();
+            }
+        }
+        
+        // Возврат к началу страницы
+        if (e.key === 'Home' && e.ctrlKey) {
+            e.preventDefault();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    });
+    
+    // Добавление подсказок для интерактивных элементов
+    const interactiveElements = document.querySelectorAll('.table-cell-example, .field-mapping');
+    interactiveElements.forEach(element => {
+        element.setAttribute('tabindex', '0');
+        element.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                // Копирование содержимого в буфер обмена
+                if (navigator.clipboard) {
+                    navigator.clipboard.writeText(this.textContent.trim()).then(() => {
+                        // Показываем временное уведомление
+                        const notification = document.createElement('div');
+                        notification.textContent = 'Скопировано!';
+                        notification.style.cssText = `
+                            position: fixed;
+                            top: 20px;
+                            right: 20px;
+                            background: #28a745;
+                            color: white;
+                            padding: 0.5rem 1rem;
+                            border-radius: 0.25rem;
+                            z-index: 9999;
+                            font-size: 0.875rem;
+                            animation: fadeInOut 2s ease-in-out;
+                        `;
+                        document.body.appendChild(notification);
+                        setTimeout(() => notification.remove(), 2000);
+                    });
+                }
+            }
+        });
+    });
+    
+    // CSS для анимации уведомлений
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes fadeInOut {
+            0% { opacity: 0; transform: translateY(-10px); }
+            20%, 80% { opacity: 1; transform: translateY(0); }
+            100% { opacity: 0; transform: translateY(-10px); }
+        }
+        
+        .animate-in {
+            animation: fadeInUp 0.6s ease-out forwards;
+        }
+        
+        .table-cell-example:focus,
+        .field-mapping:focus {
+            outline: 2px solid #0d6efd;
+            outline-offset: 2px;
+            cursor: pointer;
+        }
+        
+        .table-cell-example:hover::after,
+        .field-mapping:hover::after {
+            content: "Нажмите Enter для копирования";
+            position: absolute;
+            background: #333;
+            color: white;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            font-size: 0.75rem;
+            white-space: nowrap;
+            z-index: 1000;
+            margin-top: 0.5rem;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+    `;
+    document.head.appendChild(style);
+});
+</script>
+{% endblock %}

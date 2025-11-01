@@ -1307,3 +1307,48 @@ def summary_statistics(request):
         'year_stats': year_stats,
         'installment_stats': installment_stats
     })
+
+
+@user_required
+def help_page(request):
+    """
+    Справочная страница для модуля сводов
+    
+    Отображает справочную информацию о работе со сводами предложений,
+    включая процессы загрузки ответов страховщиков, выгрузки сводов,
+    рабочий процесс и примеры использования.
+    
+    Требования: 2.1, 2.2, 2.3, 2.4, 2.5, 3.1, 3.2, 3.3, 5.1, 5.2, 5.4, 5.5
+    
+    Args:
+        request: HTTP запрос от пользователя
+        
+    Returns:
+        HttpResponse: Отрендеренная страница справки или редирект при ошибке
+        
+    Raises:
+        Exception: Любые ошибки логируются и обрабатываются gracefully
+    """
+    try:
+        # Подготавливаем контекст для шаблона справки
+        context = {
+            'title': 'Справка по работе со сводами',
+            'sections': [
+                'upload_responses',    # Раздел о загрузке ответов страховщиков
+                'export_summaries',    # Раздел о выгрузке сводов
+                'examples'            # Раздел с примерами и образцами
+            ]
+        }
+        
+        # Отображаем шаблон справки с подготовленным контекстом
+        return render(request, 'summaries/help.html', context)
+        
+    except Exception as e:
+        # Логируем ошибку с полной трассировкой для отладки
+        logger.error(f"Error loading help page: {str(e)}", exc_info=True)
+        
+        # Показываем пользователю понятное сообщение об ошибке
+        messages.error(request, 'Произошла ошибка при загрузке справочной страницы. Обратитесь к администратору.')
+        
+        # Выполняем graceful fallback - перенаправляем к списку сводов
+        return redirect('summaries:summary_list')
