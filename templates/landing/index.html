@@ -1,0 +1,113 @@
+{% extends 'base_landing.html' %}
+{% load static %}
+
+{% block title %}InsFlow - Здесь есть флоу{% endblock %}
+
+{% block extra_head %}
+    <!-- Additional meta tags for landing page -->
+    <meta name="theme-color" content="#1a1a2e">
+    <meta name="msapplication-TileColor" content="#1a1a2e">
+    
+    <!-- Structured Data for SEO -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "name": "InsFlow",
+        "url": "https://insflow.tw1.su",
+        "description": "Корпоративные решения для страхования"
+    }
+    </script>
+{% endblock %}
+
+{% block content %}
+<div class="landing-container">
+    <!-- Main Content Section -->
+    <section class="content-center" aria-labelledby="main-heading">
+        <header>
+            <h1 id="main-heading" class="main-heading">
+                здесь есть флоу
+            </h1>
+            <div class="accent-line" role="presentation" aria-hidden="true"></div>
+        </header>
+        
+        <!-- Supporting Content -->
+        <div class="supporting-content">
+            <p class="supporting-text" role="text">
+                Профессиональные решения для страхования
+            </p>
+        </div>
+    </section>
+    
+    <!-- Background Decorative Elements -->
+    <div class="background-effects" role="presentation" aria-hidden="true"></div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // Progressive Enhancement - Add interaction effects if JS is enabled
+    document.addEventListener('DOMContentLoaded', function() {
+        // Add smooth scroll behavior
+        document.documentElement.style.scrollBehavior = 'smooth';
+        
+        // Add focus management for accessibility
+        const mainHeading = document.getElementById('main-heading');
+        if (mainHeading) {
+            // Ensure heading is focusable for screen readers
+            mainHeading.setAttribute('tabindex', '-1');
+        }
+        
+        // Preload critical resources
+        const criticalResources = [
+            '{% static "css/landing.css" %}'
+        ];
+        
+        criticalResources.forEach(function(resource) {
+            const link = document.createElement('link');
+            link.rel = 'preload';
+            link.as = 'style';
+            link.href = resource;
+            document.head.appendChild(link);
+        });
+        
+        // Add performance monitoring
+        if ('performance' in window) {
+            window.addEventListener('load', function() {
+                setTimeout(function() {
+                    const perfData = performance.getEntriesByType('navigation')[0];
+                    if (perfData && perfData.loadEventEnd > 0) {
+                        console.log('Landing page load time:', perfData.loadEventEnd - perfData.fetchStart, 'ms');
+                    }
+                }, 0);
+            });
+        }
+        
+        // Add error handling for missing resources
+        const cssLink = document.querySelector('link[href*="landing.css"]');
+        if (cssLink) {
+            cssLink.addEventListener('error', function() {
+                console.warn('Landing CSS failed to load, applying fallback styles');
+                // Apply minimal fallback styles
+                document.body.style.cssText = `
+                    margin: 0;
+                    padding: 2rem;
+                    font-family: Arial, sans-serif;
+                    background: #1a1a2e;
+                    color: white;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    min-height: 100vh;
+                    text-align: center;
+                `;
+            });
+        }
+    });
+    
+    // Handle reduced motion preferences
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        document.documentElement.style.setProperty('--animation-duration', '0s');
+    }
+</script>
+{% endblock %}

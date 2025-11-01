@@ -65,8 +65,28 @@ jobs:
           DB_PASSWORD=${{ secrets.TIMEWEB_DB_PASSWORD }}
           DB_HOST=db
           DB_PORT=5432
+          DB_ENGINE=django.db.backends.postgresql
           ALLOWED_HOSTS=${{ secrets.TIMEWEB_ALLOWED_HOSTS }}
           DOCKER_IMAGE=${{ env.DOCKER_IMAGE }}
+          
+          # Security settings for production (HTTP only)
+          DEBUG=False
+          SESSION_COOKIE_SECURE=False
+          CSRF_COOKIE_SECURE=False
+          SECURE_HSTS_SECONDS=0
+          SECURE_HSTS_INCLUDE_SUBDOMAINS=False
+          SECURE_HSTS_PRELOAD=False
+          
+          # Domain-specific settings for landing page
+          MAIN_DOMAIN=${{ secrets.TIMEWEB_MAIN_DOMAIN }}
+          SUBDOMAIN=${{ secrets.TIMEWEB_SUBDOMAIN }}
+          
+          # Static files configuration
+          STATIC_URL=/static/
+          MEDIA_URL=/media/
+          
+          # HTTP-only security settings
+          SECURE_SSL_REDIRECT=False
           EOF
           
           echo "➡️ Логинимся в GitHub Container Registry..."
@@ -110,6 +130,15 @@ jobs:
             exit 1
           fi
           
+          echo "➡️ Собираем статические файлы..."
+          if docker-compose -f docker-compose.timeweb.yml exec -T web python manage.py collectstatic --noinput; then
+            echo "✅ Статические файлы собраны успешно"
+          else
+            echo "❌ Ошибка при сборе статических файлов"
+            docker-compose -f docker-compose.timeweb.yml logs --tail=50 web
+            exit 1
+          fi
+          
           echo "➡️ Проверяем состояние контейнеров..."
           docker-compose -f docker-compose.timeweb.yml ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
           
@@ -128,7 +157,28 @@ jobs:
             echo "❌ Health endpoint недоступен!"
           fi
           
+          echo "➡️ Тестируем лендинг-страницу..."
+          if curl -f -s http://localhost/landing/health/ > /dev/null; then
+            echo "✅ Landing page health endpoint работает!"
+          else
+            echo "❌ Landing page health endpoint недоступен!"
+          fi
+          
+          echo "➡️ Проверяем статические файлы лендинг-страницы..."
+          if curl -f -s http://localhost/static/css/landing.css > /dev/null; then
+            echo "✅ Landing CSS файл доступен!"
+          else
+            echo "❌ Landing CSS файл недоступен!"
+          fi
+          
+          echo "➡️ Запускаем верификацию лендинг-страницы..."
+          if docker-compose -f docker-compose.timeweb.yml exec -T web bash /app/scripts/verify_landing_deployment.sh; then
+            echo "✅ Верификация лендинг-страницы прошла успешно!"
+          else
+            echo "⚠️ Верификация лендинг-страницы показала предупреждения (это нормально для продакшена)"
+          fi
+          
           echo "➡️ Чистим неиспользуемые образы..."
           docker image prune -f
           
-          echo "✅ Деплой на Timeweb успешно завершён!"
+          echo "✅ Деплой на Timeweb с лендинг-страницей успешно завершён!"

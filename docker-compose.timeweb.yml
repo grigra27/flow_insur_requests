@@ -24,10 +24,21 @@ services:
       - DB_HOST=db
       - DB_PORT=5432
       - ALLOWED_HOSTS=${ALLOWED_HOSTS}
+      - MAIN_DOMAIN=${MAIN_DOMAIN:-insflow.tw1.su}
+      - SUBDOMAIN=${SUBDOMAIN:-zs.insflow.tw1.su}
+      - STATIC_URL=${STATIC_URL:-/static/}
+      - MEDIA_URL=${MEDIA_URL:-/media/}
+      - SESSION_COOKIE_SECURE=${SESSION_COOKIE_SECURE:-True}
+      - CSRF_COOKIE_SECURE=${CSRF_COOKIE_SECURE:-True}
+      - SECURE_HSTS_SECONDS=${SECURE_HSTS_SECONDS:-31536000}
+      - SECURE_HSTS_INCLUDE_SUBDOMAINS=${SECURE_HSTS_INCLUDE_SUBDOMAINS:-True}
+      - SECURE_HSTS_PRELOAD=${SECURE_HSTS_PRELOAD:-True}
     volumes:
       - media_data_timeweb:/app/media
       - logs_data_timeweb:/app/logs
       - staticfiles_data_timeweb:/app/staticfiles
+      - ./scripts:/app/scripts:ro
+      - ./monitor_domains.py:/app/monitor_domains.py:ro
     depends_on:
       db:
         condition: service_started

@@ -1,0 +1,28 @@
+[Unit]
+Description=Domain Monitoring Service for insflow.tw1.su
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/app
+Environment=MAIN_DOMAIN=insflow.tw1.su
+Environment=SUBDOMAIN=zs.insflow.tw1.su
+Environment=MONITOR_INTERVAL=300
+ExecStart=/usr/bin/python3 /app/monitor_domains.py --continuous
+Restart=always
+RestartSec=30
+StandardOutput=journal
+StandardError=journal
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/app/logs
+
+[Install]
+WantedBy=multi-user.target

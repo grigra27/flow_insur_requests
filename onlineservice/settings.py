@@ -36,6 +36,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'onlineservice.middleware.DomainRoutingMiddleware',  # Domain routing middleware
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -151,6 +152,10 @@ LOGGING = {
             'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
             'style': '{',
         },
+        'domain_format': {
+            'format': '{levelname} {asctime} [{name}] {message}',
+            'style': '{',
+        },
     },
     'handlers': {
         'file': {
@@ -170,6 +175,24 @@ LOGGING = {
             'filename': BASE_DIR / 'logs' / 'multiple_upload.log',
             'formatter': 'verbose',
         },
+        'landing_file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': BASE_DIR / 'logs' / 'landing.log',
+            'formatter': 'domain_format',
+        },
+        'domain_routing_file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': BASE_DIR / 'logs' / 'domain_routing.log',
+            'formatter': 'domain_format',
+        },
+        'security_file': {
+            'level': 'WARNING',
+            'class': 'logging.FileHandler',
+            'filename': BASE_DIR / 'logs' / 'security.log',
+            'formatter': 'verbose',
+        },
     },
     'root': {
         'handlers': ['console', 'file'],
@@ -179,6 +202,11 @@ LOGGING = {
         'django': {
             'handlers': ['console', 'file'],
             'level': 'INFO',
+            'propagate': False,
+        },
+        'django.security': {
+            'handlers': ['console', 'security_file'],
+            'level': 'WARNING',
             'propagate': False,
         },
         'core': {
@@ -194,6 +222,16 @@ LOGGING = {
         'summaries.services.multiple_file_processor': {
             'handlers': ['console', 'file', 'multiple_upload_file'],
             'level': 'DEBUG',
+            'propagate': False,
+        },
+        'onlineservice.middleware': {
+            'handlers': ['console', 'domain_routing_file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'onlineservice.views': {
+            'handlers': ['console', 'landing_file'],
+            'level': 'INFO',
             'propagate': False,
         },
     },
