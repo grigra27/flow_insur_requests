@@ -1024,7 +1024,7 @@ class ExcelReader:
             usage_purposes = self._get_cell_with_adjustment_openpyxl(sheet, 'D', 37) or ''
             
             # DEF70 - Телематический комплекс (используем D70)
-            telematics_complex = self._get_cell_with_adjustment_openpyxl(sheet, 'D', 70) or ''
+            telematics_complex = self._get_cell_with_adjustment_openpyxl(sheet, 'D', 63) or ''
             
             # Очищаем значения от лишних пробелов
             parameters = {
@@ -1084,7 +1084,7 @@ class ExcelReader:
             usage_purposes = self._get_cell_with_adjustment_pandas(df, 37, 3) or ''
             
             # DEF70 - Телематический комплекс (столбец D, индекс 3)
-            telematics_complex = self._get_cell_with_adjustment_pandas(df, 70, 3) or ''
+            telematics_complex = self._get_cell_with_adjustment_pandas(df, 63, 3) or ''
             
             # Очищаем значения от лишних пробелов
             parameters = {
