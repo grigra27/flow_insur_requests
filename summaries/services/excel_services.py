@@ -2372,6 +2372,7 @@ class ExcelResponseProcessor:
     # Динамическая конфигурация маппинга ячеек
     CELL_MAPPING = {
         'company_name': 'B2',
+        'notes_first_year': 'F2',  # Объединенная ячейка FGHIJ2 для примечаний первого года
         'year_rows': {
             'start_row': MIN_YEAR_ROW,
             'end_row': MAX_YEAR_ROW,
@@ -2737,6 +2738,21 @@ class ExcelResponseProcessor:
             years_result = self._extract_all_years_data(worksheet)
             data['years'] = years_result['years']
             data['processing_info'] = years_result['processing_info']
+            
+            # Извлекаем примечания для первого года из объединенной ячейки FGHIJ2
+            self.logger.debug(f"Извлекаем примечания первого года из ячейки {self.CELL_MAPPING['notes_first_year']}")
+            notes_first_year = self._get_cell_value(worksheet, self.CELL_MAPPING['notes_first_year'])
+            if notes_first_year and str(notes_first_year).strip():
+                notes_text = str(notes_first_year).strip()
+                self.logger.info(f"Найдены примечания для первого года: {notes_text[:50]}...")
+                # Добавляем примечания к первому году (год = 1)
+                for year_data in data['years']:
+                    if year_data['year'] == 1:
+                        year_data['notes'] = notes_text
+                        self.logger.debug(f"Примечания добавлены к году {year_data['year']}")
+                        break
+            else:
+                self.logger.debug("Примечания для первого года не найдены или пусты")
             
             # Проверяем, что есть хотя бы один год с данными
             if not data['years']:
@@ -3224,6 +3240,10 @@ class ExcelResponseProcessor:
         if year_data.get('installment_2') is not None:
             offer_data['installment_variant_2'] = installment_2_available
             offer_data['payments_per_year_variant_2'] = payments_per_year_2
+        
+        # Добавляем примечания, если они есть
+        if year_data.get('notes'):
+            offer_data['notes'] = year_data['notes']
         
         offer = InsuranceOffer.objects.create(**offer_data)
         
