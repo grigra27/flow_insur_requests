@@ -283,16 +283,7 @@ jobs:
             echo "✅ Healthcheck прошел успешно!"
           elif docker-compose -f docker-compose.timeweb.yml exec -T web curl -f -s http://localhost:8000/healthz/ > /dev/null 2>&1; then
             echo "✅ Healthcheck прошел успешно (через curl)!"
-          elif docker-compose -f docker-compose.timeweb.yml exec -T web python -c "
-import urllib.request
-try:
-    response = urllib.request.urlopen('http://localhost:8000/healthz/', timeout=5)
-    print('✅ Healthcheck прошел успешно (через Python)!')
-    exit(0)
-except Exception as e:
-    print(f'❌ Healthcheck не прошел: {e}')
-    exit(1)
-"; then
+          elif docker-compose -f docker-compose.timeweb.yml exec -T web python -c "import urllib.request; response = urllib.request.urlopen('http://localhost:8000/healthz/', timeout=5); print('✅ Healthcheck прошел успешно (через Python)!')"; then
             echo "✅ Healthcheck прошел успешно!"
           else
             echo "⚠️ Healthcheck не прошел, но продолжаем deployment"
