@@ -42,7 +42,7 @@ warning() {
     log "WARNING: $1"
 }
 
-# Check if domains are accessible via HTTP
+# Check if domains are accessible via HTTP and ACME challenge works
 check_domain_accessibility() {
     local domains="$1"
     IFS=',' read -ra DOMAIN_ARRAY <<< "$domains"
@@ -50,19 +50,30 @@ check_domain_accessibility() {
     for domain in "${DOMAIN_ARRAY[@]}"; do
         log "Checking HTTP accessibility for $domain..."
         
-        # Create test file
-        local test_file="test-$(date +%s).txt"
-        echo "test" > "$PROJECT_PATH/certbot_webroot/$test_file"
-        
-        # Test accessibility
-        if curl -f -s "http://$domain/.well-known/acme-challenge/$test_file" > /dev/null 2>&1; then
+        # Test basic HTTP access
+        if curl -f -s -I "http://$domain/" > /dev/null 2>&1; then
             success "Domain $domain is accessible via HTTP"
         else
-            warning "Domain $domain is not accessible via HTTP - certificate generation may fail"
+            error_exit "Domain $domain is not accessible via HTTP"
+        fi
+        
+        # Test ACME challenge path specifically
+        log "Testing ACME challenge path for $domain..."
+        local test_file="test-$(date +%s).txt"
+        local test_content="acme-test-$(date +%s)"
+        
+        # Create test file in webroot
+        echo "$test_content" > "$PROJECT_PATH/certbot_webroot/.well-known/acme-challenge/$test_file"
+        
+        # Test ACME challenge accessibility via HTTP (not HTTPS!)
+        if curl -f -s "http://$domain/.well-known/acme-challenge/$test_file" | grep -q "$test_content"; then
+            success "ACME challenge path works for $domain"
+        else
+            error_exit "ACME challenge path failed for $domain - Let's Encrypt will not be able to verify domain"
         fi
         
         # Clean up test file
-        rm -f "$PROJECT_PATH/certbot_webroot/$test_file"
+        rm -f "$PROJECT_PATH/certbot_webroot/.well-known/acme-challenge/$test_file"
     done
 }
 
@@ -79,20 +90,23 @@ prepare_webroot() {
     success "Webroot directory prepared"
 }
 
-# Start nginx with HTTP-only config for certificate generation
+# Start nginx with ACME-specific config for certificate generation
 start_nginx_for_cert_generation() {
-    log "Starting nginx with HTTP-only configuration for certificate generation..."
+    log "Starting nginx with ACME-specific configuration for certificate generation..."
     
     cd "$PROJECT_PATH"
     
-    # Ensure we're using HTTP-only config
-    cp nginx-timeweb/default-http.conf nginx-timeweb/default.conf
+    # Use ACME-specific config that ensures no HTTPS redirects
+    cp nginx-timeweb/default-acme.conf nginx-timeweb/default.conf
+    
+    # Stop any existing containers
+    docker-compose -f docker-compose.timeweb.yml down
     
     # Start nginx without SSL profile
     docker-compose -f docker-compose.timeweb.yml up -d nginx
     
     # Wait for nginx to be ready
-    sleep 10
+    sleep 15
     
     success "Nginx started for certificate generation"
 }
@@ -106,7 +120,7 @@ obtain_certificate_docker() {
     
     cd "$PROJECT_PATH"
     
-    # Run certbot in Docker container
+    # Run certbot in Docker container with explicit HTTP-only verification
     if docker run --rm \
         -v "$(pwd)/letsencrypt:/etc/letsencrypt" \
         -v "$(pwd)/certbot_webroot:/var/www/certbot" \
@@ -120,7 +134,9 @@ obtain_certificate_docker() {
         --domains "$domains" \
         --cert-name "$cert_name" \
         --expand \
-        --verbose; then
+        --verbose \
+        --preferred-challenges http-01 \
+        --http-01-port 80; then
         success "Certificate obtained for $domains"
     else
         error_exit "Failed to obtain certificate for $domains"
