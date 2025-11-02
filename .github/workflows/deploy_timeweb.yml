@@ -174,16 +174,28 @@ jobs:
                 echo "🔍 Проверяем созданные сертификаты..."
                 sleep 3  # Wait for file system sync
                 
+                # Check with sudo if regular check fails (permission issue)
                 if [[ -f "letsencrypt/live/insflow.ru/fullchain.pem" ]] && [[ -f "letsencrypt/live/insflow.tw1.su/fullchain.pem" ]]; then
                   echo "✅ SSL сертификаты проверены и готовы к использованию"
                   
                   # Show certificate info
                   echo "📋 Информация о сертификатах:"
                   ls -la letsencrypt/live/*/fullchain.pem 2>/dev/null || echo "Не удалось показать информацию о файлах"
+                elif sudo test -f "letsencrypt/live/insflow.ru/fullchain.pem" && sudo test -f "letsencrypt/live/insflow.tw1.su/fullchain.pem"; then
+                  echo "✅ SSL сертификаты найдены (требуются права root для доступа)"
+                  echo "🔧 Активируем HTTPS вручную..."
+                  
+                  # Use manual activation script
+                  if sudo bash scripts/ssl/activate-https-manual.sh; then
+                    echo "✅ HTTPS успешно активирован вручную!"
+                  else
+                    echo "❌ Не удалось активировать HTTPS вручную"
+                    enable_fallback_mode
+                  fi
                 else
                   echo "❌ SSL сертификаты получены, но файлы не найдены в ожидаемом месте"
                   echo "🔍 Проверяем содержимое letsencrypt директории:"
-                  ls -la letsencrypt/live/ 2>/dev/null || echo "Директория letsencrypt/live не найдена"
+                  sudo ls -la letsencrypt/live/ 2>/dev/null || echo "Директория letsencrypt/live не найдена"
                   echo "📋 Логи генерации сертификатов:"
                   cat ssl-generation.log || echo "Логи недоступны"
                   enable_fallback_mode
