@@ -100,25 +100,17 @@ services:
     volumes:
       - ./letsencrypt:/etc/letsencrypt
       - ./certbot_webroot:/var/www/certbot
-    # Run certbot in standalone mode initially, then use webroot for renewals
+    # Run certbot in renewal mode (certificates already exist)
     command: >
       sh -c "
-        if [ ! -f /etc/letsencrypt/live/insflow.ru/fullchain.pem ]; then
-          echo 'Obtaining initial certificates...';
-          certbot certonly --webroot --webroot-path=/var/www/certbot 
-            --email admin@insflow.ru --agree-tos --no-eff-email 
-            -d insflow.ru -d zs.insflow.ru || exit 1;
-        fi;
-        if [ ! -f /etc/letsencrypt/live/insflow.tw1.su/fullchain.pem ]; then
-          echo 'Obtaining certificates for technical domain...';
-          certbot certonly --webroot --webroot-path=/var/www/certbot 
-            --email admin@insflow.ru --agree-tos --no-eff-email 
-            -d insflow.tw1.su -d zs.insflow.tw1.su || exit 1;
-        fi;
+        echo 'Checking existing certificates...';
+        certbot certificates;
         echo 'Starting certificate renewal daemon...';
         trap exit TERM;
         while :; do
-          certbot renew --webroot --webroot-path=/var/www/certbot;
+          echo 'Checking for certificate renewals...';
+          certbot renew --webroot --webroot-path=/var/www/certbot --quiet;
+          echo 'Next renewal check in 12 hours...';
           sleep 12h & wait $!;
         done;
       "

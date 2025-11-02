@@ -181,17 +181,24 @@ jobs:
                   # Show certificate info
                   echo "📋 Информация о сертификатах:"
                   ls -la letsencrypt/live/*/fullchain.pem 2>/dev/null || echo "Не удалось показать информацию о файлах"
-                elif sudo test -f "letsencrypt/live/insflow.ru/fullchain.pem" && sudo test -f "letsencrypt/live/insflow.tw1.su/fullchain.pem"; then
-                  echo "✅ SSL сертификаты найдены (требуются права root для доступа)"
-                  echo "🔧 Активируем HTTPS вручную..."
+                elif test -f "letsencrypt/live/insflow.ru/fullchain.pem" 2>/dev/null || test -f "letsencrypt/live/insflow.tw1.su/fullchain.pem" 2>/dev/null; then
+                  echo "✅ SSL сертификаты найдены"
+                  echo "🔧 Активируем HTTPS конфигурацию..."
                   
-                  # Use manual activation script
-                  if sudo bash scripts/ssl/activate-https-manual.sh; then
-                    echo "✅ HTTPS успешно активирован вручную!"
-                  else
-                    echo "❌ Не удалось активировать HTTPS вручную"
-                    enable_fallback_mode
-                  fi
+                  # Activate HTTPS configuration directly
+                  echo "Копируем HTTPS конфигурацию nginx..."
+                  cp nginx-timeweb/default-https.conf nginx-timeweb/default.conf
+                  
+                  echo "Обновляем .env для HTTPS..."
+                  sed -i 's/SSL_ENABLED=False/SSL_ENABLED=True/' .env
+                  sed -i 's/SESSION_COOKIE_SECURE=False/SESSION_COOKIE_SECURE=True/' .env
+                  sed -i 's/CSRF_COOKIE_SECURE=False/CSRF_COOKIE_SECURE=True/' .env
+                  sed -i 's/SECURE_SSL_REDIRECT=False/SECURE_SSL_REDIRECT=True/' .env
+                  sed -i 's/SECURE_HSTS_SECONDS=0/SECURE_HSTS_SECONDS=31536000/' .env
+                  sed -i 's/SECURE_HSTS_INCLUDE_SUBDOMAINS=False/SECURE_HSTS_INCLUDE_SUBDOMAINS=True/' .env
+                  sed -i 's/SECURE_HSTS_PRELOAD=False/SECURE_HSTS_PRELOAD=True/' .env
+                  
+                  echo "✅ HTTPS конфигурация активирована!"
                 else
                   echo "❌ SSL сертификаты получены, но файлы не найдены в ожидаемом месте"
                   echo "🔍 Проверяем содержимое letsencrypt директории:"
@@ -228,6 +235,10 @@ jobs:
             cp nginx-timeweb/default-http.conf nginx-timeweb/default.conf
             COMPOSE_PROFILES=""
           fi
+          
+          echo "📋 Финальная конфигурация:"
+          echo "SSL_ENABLED: $(grep SSL_ENABLED .env)"
+          echo "COMPOSE_PROFILES: $COMPOSE_PROFILES"
           
           echo "➡️ Перезапускаем docker-compose..."
           docker-compose -f docker-compose.timeweb.yml down --remove-orphans
