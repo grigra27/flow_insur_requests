@@ -6,6 +6,7 @@ RUN apt-get update && apt-get install -y \
     gcc \
     postgresql-client \
     wget \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Создаем пользователя для приложения

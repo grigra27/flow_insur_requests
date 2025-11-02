@@ -21,6 +21,8 @@ class AuthenticationMiddleware:
             '/logout/',
             '/static/',
             '/media/',
+            '/healthz/',
+            '/landing/',
         ]
     
     def __call__(self, request):

@@ -137,7 +137,7 @@ urlpatterns = [
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h1>Своды предложений</h1>
     <div>
-        <a href="{% url 'summaries:help' %}" class="btn btn-outline-info">
+        <a href="#help-section" class="btn btn-outline-info">
             <i class="bi bi-question-circle"></i> Справка
         </a>
         <!-- другие кнопки -->
@@ -150,7 +150,7 @@ urlpatterns = [
 ```html
 <div class="card-header d-flex justify-content-between align-items-center">
     <h5 class="mb-0">Действия</h5>
-    <a href="{% url 'summaries:help' %}" class="btn btn-sm btn-outline-info">
+    <a href="#help-section" class="btn btn-sm btn-outline-info">
         <i class="bi bi-question-circle"></i> Справка
     </a>
 </div>
@@ -161,7 +161,7 @@ urlpatterns = [
 ```html
 <div class="card-footer">
     <div class="d-flex justify-content-between">
-        <a href="{% url 'summaries:help' %}#upload-responses" class="btn btn-outline-info btn-sm">
+        <a href="#upload-responses" class="btn btn-outline-info btn-sm">
             <i class="bi bi-info-circle"></i> Справка по загрузке
         </a>
         <button type="submit" class="btn btn-primary">Добавить предложение</button>
@@ -395,8 +395,10 @@ context = {
 
 ```html
 <!-- В шаблонах -->
+{%- raw -%}
 {% load i18n %}
 <h1>{% trans "Справка по работе со сводами" %}</h1>
+{%- endraw -%}
 ```
 
 ### Создание переводов
