@@ -190,9 +190,22 @@ jobs:
             echo "⚠️ SSL отключен - развертывание будет использовать HTTP-only режим"
           fi
           
+          echo "➡️ Настраиваем nginx конфигурацию..."
+          if grep -q "SSL_ENABLED=True" .env; then
+            echo "🔒 Используем HTTPS конфигурацию nginx"
+            # Copy HTTPS config and start with SSL profile
+            cp nginx-timeweb/default-https.conf nginx-timeweb/default.conf
+            COMPOSE_PROFILES="ssl"
+          else
+            echo "🔓 Используем HTTP-only конфигурацию nginx"
+            # Copy HTTP config and start without SSL profile
+            cp nginx-timeweb/default-http.conf nginx-timeweb/default.conf
+            COMPOSE_PROFILES=""
+          fi
+          
           echo "➡️ Перезапускаем docker-compose..."
           docker-compose -f docker-compose.timeweb.yml down --remove-orphans
-          docker-compose -f docker-compose.timeweb.yml up -d --force-recreate
+          COMPOSE_PROFILES="$COMPOSE_PROFILES" docker-compose -f docker-compose.timeweb.yml up -d --force-recreate
           
           echo "➡️ Ожидаем запуска сервисов..."
           sleep 30
@@ -233,12 +246,25 @@ jobs:
             exit 1
           fi
           
+          echo "➡️ Ожидаем готовности nginx..."
+          # Wait for nginx to be ready
+          for i in {1..30}; do
+            if docker-compose -f docker-compose.timeweb.yml ps nginx | grep -q "Up"; then
+              echo "✅ Nginx готов!"
+              break
+            fi
+            echo "⏳ Ожидаем nginx... ($i/30)"
+            sleep 2
+          done
+          
           echo "➡️ Тестируем основные endpoints..."
           # Test HTTP endpoints (should redirect to HTTPS if SSL is enabled)
           if curl -f -s http://localhost/healthz/ > /dev/null; then
             echo "✅ Health endpoint работает!"
           else
             echo "❌ Health endpoint недоступен!"
+            echo "🔍 Проверяем логи nginx..."
+            docker-compose -f docker-compose.timeweb.yml logs --tail=20 nginx
           fi
           
           # Test HTTPS endpoints if SSL is enabled
@@ -284,6 +310,8 @@ jobs:
             echo "✅ Landing page health endpoint работает!"
           else
             echo "❌ Landing page health endpoint недоступен!"
+            echo "🔍 Проверяем доступность основной страницы..."
+            curl -I http://localhost/landing/ || echo "Лендинг страница недоступна"
           fi
           
           echo "➡️ Проверяем статические файлы лендинг-страницы..."
@@ -291,6 +319,8 @@ jobs:
             echo "✅ Landing CSS файл доступен!"
           else
             echo "❌ Landing CSS файл недоступен!"
+            echo "🔍 Проверяем статические файлы..."
+            ls -la staticfiles/css/ || echo "Статические файлы не найдены"
           fi
           
           echo "➡️ Запускаем верификацию лендинг-страницы..."
