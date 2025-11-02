@@ -48,63 +48,17 @@ jobs:
         key: ${{ secrets.DO_SSH_KEY }}
         passphrase: ${{ secrets.DO_PASSPHRASE }}
         port: ${{ secrets.DO_PORT }}
+        envs: SECRET_KEY,DB_NAME,DB_USER,DB_PASSWORD,ALLOWED_HOSTS,DOCKER_IMAGE,GITHUB_TOKEN,GITHUB_ACTOR
         script: |
-          set -e  # остановить выполнение при любой ошибке
+          export SECRET_KEY="${{ secrets.SECRET_KEY }}"
+          export DB_NAME="${{ secrets.DB_NAME }}"
+          export DB_USER="${{ secrets.DB_USER }}"
+          export DB_PASSWORD="${{ secrets.DB_PASSWORD }}"
+          export ALLOWED_HOSTS="${{ secrets.ALLOWED_HOSTS }}"
+          export DOCKER_IMAGE="${{ env.DOCKER_IMAGE }}"
+          export GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}"
+          export GITHUB_ACTOR="${{ github.actor }}"
           
-          echo "➡️ Переходим в проект..."
           cd ${{ env.PROJECT_PATH }}
-          
-          echo "➡️ Проверяем, есть ли обновления в репозитории..."
-          git fetch origin main
-          git reset --hard origin/main
-          
-          echo "➡️ Обновляем .env..."
-          cat > .env << EOF
-          SECRET_KEY=${{ secrets.SECRET_KEY }}
-          DB_NAME=${{ secrets.DB_NAME }}
-          DB_USER=${{ secrets.DB_USER }}
-          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-          DB_HOST=db
-          DB_PORT=5432
-          ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }}
-          DOCKER_IMAGE=${{ env.DOCKER_IMAGE }}
-          EOF
-          
-          echo "➡️ Логинимся в GitHub Container Registry..."
-          echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-          
-          echo "➡️ Загружаем новый Docker-образ..."
-          docker pull ${{ env.DOCKER_IMAGE }}
-          
-          echo "➡️ Перезапускаем docker-compose..."
-          docker-compose down --remove-orphans
-          docker-compose up -d --force-recreate
-          
-          echo "➡️ Ожидаем запуска сервисов..."
-          sleep 15
-          
-          echo "➡️ Применяем миграции БД..."
-          docker-compose exec -T web python manage.py migrate --noinput
-          
-          echo "➡️ Проверяем состояние контейнеров..."
-          docker-compose ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
-          
-          echo "➡️ Проверяем healthcheck..."
-          if docker-compose exec -T web python /app/healthcheck.py; then
-            echo "✅ Healthcheck прошел успешно!"
-          else
-            echo "❌ Healthcheck не прошел!"
-            exit 1
-          fi
-          
-          echo "➡️ Тестируем основные endpoints..."
-          if curl -f -s http://localhost/healthz/ > /dev/null; then
-            echo "✅ Health endpoint работает!"
-          else
-            echo "❌ Health endpoint недоступен!"
-          fi
-          
-          echo "➡️ Чистим неиспользуемые образы..."
-          docker image prune -f
-          
-          echo "✅ Деплой успешно завершён!"
+          chmod +x scripts/deploy_do_improved.sh
+          ./scripts/deploy_do_improved.sh
