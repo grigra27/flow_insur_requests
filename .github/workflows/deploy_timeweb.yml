@@ -181,7 +181,10 @@ jobs:
                   # Show certificate info
                   echo "📋 Информация о сертификатах:"
                   ls -la letsencrypt/live/*/fullchain.pem 2>/dev/null || echo "Не удалось показать информацию о файлах"
-                elif test -f "letsencrypt/live/insflow.ru/fullchain.pem" 2>/dev/null || test -f "letsencrypt/live/insflow.tw1.su/fullchain.pem" 2>/dev/null; then
+                # Try multiple ways to check for certificates
+                elif [[ -f "letsencrypt/live/insflow.ru/fullchain.pem" ]] || [[ -f "letsencrypt/live/insflow.tw1.su/fullchain.pem" ]] || \
+                     [[ -d "letsencrypt/live/insflow.ru" ]] || [[ -d "letsencrypt/live/insflow.tw1.su" ]] || \
+                     docker run --rm -v "$(pwd)/letsencrypt:/etc/letsencrypt" certbot/certbot:latest certificates 2>/dev/null | grep -q "insflow"; then
                   echo "✅ SSL сертификаты найдены"
                   echo "🔧 Активируем HTTPS конфигурацию..."
                   
