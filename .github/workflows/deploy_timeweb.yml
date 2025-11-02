@@ -389,8 +389,9 @@ jobs:
           else
             echo "  - http://insflow.tw1.su (лендинг-страница)"
             echo "  - http://zs.insflow.tw1.su (Django приложение)"
-          fi    # 
-6️⃣ Post-deployment notification and cleanup
+          fi
+
+    # 6️⃣ Post-deployment notification and cleanup
     - name: Post-deployment notification
       if: always()
       uses: appleboy/ssh-action@v1.0.0
