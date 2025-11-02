@@ -1,10 +1,10 @@
 # SSL Certificate Management Scripts
 
-This directory contains scripts for managing SSL certificates for the Timeweb deployment of the insurance system.
+This directory contains essential scripts for managing SSL certificates for the Timeweb deployment of the insurance system.
 
 ## Overview
 
-The SSL certificate management system provides automated certificate obtainment, renewal, monitoring, and status checking for all domains:
+The SSL certificate management system provides automated certificate obtainment, renewal, and monitoring for all domains:
 - `insflow.ru` (main domain)
 - `zs.insflow.ru` (Django application subdomain)
 - `insflow.tw1.su` (technical domain mirror)
@@ -33,7 +33,28 @@ sudo ./obtain-certificates.sh
 - DNS records must be properly configured
 - Docker compose file must be available
 
-### 2. `check-certificates.sh`
+### 2. `renew-certificates.sh`
+**Purpose**: Automatic renewal of Let's Encrypt certificates.
+
+**Usage**:
+```bash
+sudo ./renew-certificates.sh [options]
+```
+
+**Options**:
+- `--dry-run`: Test renewal without actually renewing
+- `--force-restart`: Force nginx restart even if no renewal occurred
+- `--help, -h`: Show help message
+
+**Features**:
+- Automatic certificate renewal using certbot
+- Stops/starts nginx container during renewal
+- Runs post-renewal hooks
+- Verifies certificates after renewal
+- Handles renewal status detection
+- Comprehensive error handling and logging
+
+### 3. `check-certificates.sh`
 **Purpose**: Check the validity and expiration status of SSL certificates.
 
 **Usage**:
@@ -59,27 +80,6 @@ sudo ./obtain-certificates.sh
 - `1`: Some certificates have warnings
 - `2`: Critical issues found
 
-### 3. `renew-certificates.sh`
-**Purpose**: Automatic renewal of Let's Encrypt certificates.
-
-**Usage**:
-```bash
-sudo ./renew-certificates.sh [options]
-```
-
-**Options**:
-- `--dry-run`: Test renewal without actually renewing
-- `--force-restart`: Force nginx restart even if no renewal occurred
-- `--help, -h`: Show help message
-
-**Features**:
-- Automatic certificate renewal using certbot
-- Stops/starts nginx container during renewal
-- Runs post-renewal hooks
-- Verifies certificates after renewal
-- Handles renewal status detection
-- Comprehensive error handling and logging
-
 ### 4. `post-renewal-hook.sh`
 **Purpose**: Post-renewal actions (runs automatically after successful renewal).
 
@@ -89,7 +89,32 @@ sudo ./renew-certificates.sh [options]
 - Tests SSL endpoints
 - Ensures proper certificate deployment
 
-### 5. `monitor-ssl-status.sh`
+### 5. `ssl-cron-setup.sh`
+**Purpose**: Setup automated cron jobs for SSL certificate management.
+
+**Usage**:
+```bash
+sudo ./ssl-cron-setup.sh [options]
+```
+
+**Options**:
+- `--no-systemd`: Skip systemd service creation
+- `--help, -h`: Show help message
+
+**Features**:
+- Makes all SSL scripts executable
+- Sets up cron jobs for automated operations
+- Configures log rotation
+- Optional systemd service creation
+- Verifies setup and tests scripts
+
+**Cron Schedule**:
+- **Certificate renewal**: Daily at 2:00 AM
+- **Certificate check**: Daily at 6:00 AM  
+- **SSL monitoring**: Every 4 hours
+- **Weekly comprehensive check**: Sundays at 3:00 AM
+
+### 6. `monitor-ssl-status.sh`
 **Purpose**: Comprehensive SSL status monitoring and alerting.
 
 **Usage**:
@@ -116,30 +141,7 @@ sudo ./renew-certificates.sh [options]
 - Detailed logs in `/var/log/ssl-monitoring.log`
 - Alert logs in `/var/log/ssl-alerts.log`
 
-### 6. `ssl-cron-setup.sh`
-**Purpose**: Setup automated cron jobs for SSL certificate management.
 
-**Usage**:
-```bash
-sudo ./ssl-cron-setup.sh [options]
-```
-
-**Options**:
-- `--no-systemd`: Skip systemd service creation
-- `--help, -h`: Show help message
-
-**Features**:
-- Makes all SSL scripts executable
-- Sets up cron jobs for automated operations
-- Configures log rotation
-- Optional systemd service creation
-- Verifies setup and tests scripts
-
-**Cron Schedule**:
-- **Certificate renewal**: Daily at 2:00 AM
-- **Certificate check**: Daily at 6:00 AM  
-- **SSL monitoring**: Every 4 hours
-- **Weekly comprehensive check**: Sundays at 3:00 AM
 
 ## Installation and Setup
 

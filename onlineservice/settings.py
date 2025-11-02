@@ -37,6 +37,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'onlineservice.middleware.DomainRoutingMiddleware',  # Domain routing middleware
+    'onlineservice.middleware.HTTPSSecurityMiddleware',  # HTTPS security headers middleware
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -124,24 +125,63 @@ LOGOUT_REDIRECT_URL = '/login/'
 SESSION_COOKIE_AGE = 3600  # 1 hour
 SESSION_SAVE_EVERY_REQUEST = True
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
-SESSION_COOKIE_SECURE = config('SESSION_COOKIE_SECURE', default=False, cast=bool)
 SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SAMESITE = 'Lax'
+SESSION_COOKIE_SAMESITE = config('SESSION_COOKIE_SAMESITE', default='Lax')
 
-# Security settings
-SECURE_BROWSER_XSS_FILTER = True
-SECURE_CONTENT_TYPE_NOSNIFF = True
-X_FRAME_OPTIONS = 'DENY'
+# HTTPS Security settings - Environment controlled
+ENABLE_HTTPS = config('ENABLE_HTTPS', default=False, cast=bool)
 
-# HTTPS Security settings
-SECURE_SSL_REDIRECT = config('SECURE_SSL_REDIRECT', default=False, cast=bool)
-SECURE_HSTS_SECONDS = config('SECURE_HSTS_SECONDS', default=0, cast=int)
-SECURE_HSTS_INCLUDE_SUBDOMAINS = config('SECURE_HSTS_INCLUDE_SUBDOMAINS', default=False, cast=bool)
-SECURE_HSTS_PRELOAD = config('SECURE_HSTS_PRELOAD', default=False, cast=bool)
+# SSL Redirect - only enable if HTTPS is enabled
+SECURE_SSL_REDIRECT = config('SECURE_SSL_REDIRECT', default=False, cast=bool) and ENABLE_HTTPS
+
+# HSTS (HTTP Strict Transport Security) settings
+SECURE_HSTS_SECONDS = config('SECURE_HSTS_SECONDS', default=0 if not ENABLE_HTTPS else 31536000, cast=int)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = config('SECURE_HSTS_INCLUDE_SUBDOMAINS', default=ENABLE_HTTPS, cast=bool)
+SECURE_HSTS_PRELOAD = config('SECURE_HSTS_PRELOAD', default=ENABLE_HTTPS, cast=bool)
 
 # Additional HTTPS security headers
 SECURE_REFERRER_POLICY = config('SECURE_REFERRER_POLICY', default='strict-origin-when-cross-origin')
 SECURE_CROSS_ORIGIN_OPENER_POLICY = config('SECURE_CROSS_ORIGIN_OPENER_POLICY', default='same-origin')
+
+# Proxy SSL header for reverse proxy setups (Nginx)
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https') if ENABLE_HTTPS else None
+
+# Basic security settings (always enabled)
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = 'DENY'
+
+# Additional security headers for HTTPS
+if ENABLE_HTTPS:
+    # Force HTTPS for admin and other sensitive areas
+    SECURE_REDIRECT_EXEMPT = config('SECURE_REDIRECT_EXEMPT', default='', cast=lambda v: [s.strip() for s in v.split(',') if s.strip()])
+    
+    # SSL certificate validation (for production)
+    USE_TLS = True
+    
+    # Logging for HTTPS-specific events
+    HTTPS_LOGGING_ENABLED = config('HTTPS_LOGGING_ENABLED', default=True, cast=bool)
+else:
+    HTTPS_LOGGING_ENABLED = False
+
+# Configure session and CSRF security based on HTTPS settings
+SESSION_COOKIE_SECURE = config('SESSION_COOKIE_SECURE', default=ENABLE_HTTPS, cast=bool)
+CSRF_COOKIE_SECURE = config('CSRF_COOKIE_SECURE', default=ENABLE_HTTPS, cast=bool)
+
+# Session and CSRF cookie names for HTTPS
+if ENABLE_HTTPS:
+    SESSION_COOKIE_NAME = config('SESSION_COOKIE_NAME', default='sessionid_secure')
+    CSRF_COOKIE_NAME = config('CSRF_COOKIE_NAME', default='csrftoken_secure')
+    
+    # CSRF trusted origins configuration
+    CSRF_TRUSTED_ORIGINS = config('CSRF_TRUSTED_ORIGINS', default='', cast=lambda v: [s.strip() for s in v.split(',') if s.strip()])
+    
+    # Auto-generate CSRF trusted origins from ALLOWED_HOSTS if not specified
+    if not CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS = [f'https://{host}' for host in ALLOWED_HOSTS if host not in ['localhost', '127.0.0.1', '*']]
+else:
+    SESSION_COOKIE_NAME = config('SESSION_COOKIE_NAME', default='sessionid')
+    CSRF_COOKIE_NAME = config('CSRF_COOKIE_NAME', default='csrftoken')
 
 # Content Security Policy (basic)
 CSP_DEFAULT_SRC = config('CSP_DEFAULT_SRC', default="'self'")
@@ -153,9 +193,8 @@ CSP_CONNECT_SRC = config('CSP_CONNECT_SRC', default="'self'")
 CSP_FRAME_ANCESTORS = config('CSP_FRAME_ANCESTORS', default="'none'")
 
 # CSRF settings
-CSRF_COOKIE_SECURE = config('CSRF_COOKIE_SECURE', default=False, cast=bool)
 CSRF_COOKIE_HTTPONLY = True
-CSRF_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SAMESITE = config('CSRF_COOKIE_SAMESITE', default='Lax')
 
 # Logging
 os.makedirs(BASE_DIR / 'logs', exist_ok=True)

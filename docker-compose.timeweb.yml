@@ -30,33 +30,15 @@ services:
       - DB_HOST=db
       - DB_PORT=5432
       - ALLOWED_HOSTS=${ALLOWED_HOSTS}
-      - MAIN_DOMAINS=${MAIN_DOMAINS:-insflow.tw1.su}
-      - SUBDOMAINS=${SUBDOMAINS:-zs.insflow.tw1.su}
-      - STATIC_URL=${STATIC_URL:-/static/}
-      - MEDIA_URL=${MEDIA_URL:-/media/}
-      # HTTPS Security Settings
-      - SESSION_COOKIE_SECURE=${SESSION_COOKIE_SECURE:-True}
-      - CSRF_COOKIE_SECURE=${CSRF_COOKIE_SECURE:-True}
-      - SECURE_SSL_REDIRECT=${SECURE_SSL_REDIRECT:-True}
-      - SECURE_HSTS_SECONDS=${SECURE_HSTS_SECONDS:-31536000}
-      - SECURE_HSTS_INCLUDE_SUBDOMAINS=${SECURE_HSTS_INCLUDE_SUBDOMAINS:-True}
-      - SECURE_HSTS_PRELOAD=${SECURE_HSTS_PRELOAD:-True}
-      - SECURE_REFERRER_POLICY=${SECURE_REFERRER_POLICY:-strict-origin-when-cross-origin}
-      - SECURE_CROSS_ORIGIN_OPENER_POLICY=${SECURE_CROSS_ORIGIN_OPENER_POLICY:-same-origin}
-      # Content Security Policy Settings
-      - CSP_DEFAULT_SRC=${CSP_DEFAULT_SRC:-'self'}
-      - CSP_SCRIPT_SRC=${CSP_SCRIPT_SRC:-'self' 'unsafe-inline'}
-      - CSP_STYLE_SRC=${CSP_STYLE_SRC:-'self' 'unsafe-inline'}
-      - CSP_IMG_SRC=${CSP_IMG_SRC:-'self' data:}
-      - CSP_FONT_SRC=${CSP_FONT_SRC:-'self'}
-      - CSP_CONNECT_SRC=${CSP_CONNECT_SRC:-'self'}
-      - CSP_FRAME_ANCESTORS=${CSP_FRAME_ANCESTORS:-'none'}
+      # HTTPS Security Settings (controlled by environment)
+      - ENABLE_HTTPS=${ENABLE_HTTPS:-True}
+      - SSL_REDIRECT=${SSL_REDIRECT:-True}
+      - SECURE_COOKIES=${SECURE_COOKIES:-True}
+      - HSTS_SECONDS=${HSTS_SECONDS:-31536000}
     volumes:
       - media_data_timeweb:/app/media
       - logs_data_timeweb:/app/logs
       - staticfiles_data_timeweb:/app/staticfiles
-      - ./scripts:/app/scripts:ro
-      - ./monitor_domains.py:/app/monitor_domains.py:ro
     depends_on:
       db:
         condition: service_healthy
@@ -76,11 +58,8 @@ services:
     volumes:
       - staticfiles_data_timeweb:/app/staticfiles:ro
       - media_data_timeweb:/app/media:ro
-      # Config file will be set by deployment script based on SSL status
       - ./nginx-timeweb/default.conf:/etc/nginx/conf.d/default.conf:ro
-      # SSL certificates volume (bind mount for easier access)
       - ./letsencrypt:/etc/letsencrypt:ro
-      # Certbot webroot for ACME challenges (bind mount)
       - ./certbot_webroot:/var/www/certbot:ro
     depends_on:
       web:
@@ -93,25 +72,19 @@ services:
       retries: 5
       start_period: 60s
 
-  # Certbot service for SSL certificate management (only runs when SSL is enabled)
   certbot:
     image: certbot/certbot:latest
-    profiles: ["ssl"]  # Only start when SSL profile is active
+    profiles: ["ssl"]
     volumes:
       - ./letsencrypt:/etc/letsencrypt
       - ./certbot_webroot:/var/www/certbot
-    # Run certbot in renewal mode (certificates already exist)
     command: >
       sh -c "
-        echo 'Checking existing certificates...';
-        certbot certificates;
-        echo 'Starting certificate renewal daemon...';
-        trap exit TERM;
-        while :; do
-          echo 'Checking for certificate renewals...';
+        trap 'exit 0' TERM;
+        while true; do
           certbot renew --webroot --webroot-path=/var/www/certbot --quiet;
-          echo 'Next renewal check in 12 hours...';
-          sleep 12h & wait $!;
+          sleep 43200 &
+          wait $$!;
         done;
       "
     restart: unless-stopped

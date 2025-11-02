@@ -1,5 +1,8 @@
 FROM nginx:1.25-alpine
 
+# Устанавливаем wget для health check
+RUN apk add --no-cache wget
+
 # Удалим default-конфигурацию nginx (опционально)
 RUN rm /etc/nginx/conf.d/default.conf || true
 
