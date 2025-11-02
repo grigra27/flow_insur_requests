@@ -4,17 +4,17 @@
 {% block title %}InsFlow - Здесь есть флоу{% endblock %}
 
 {% block extra_head %}
-    <!-- Additional meta tags for landing page -->
-    <meta name="theme-color" content="#1a1a2e">
-    <meta name="msapplication-TileColor" content="#1a1a2e">
-    
-    <!-- Structured Data for SEO -->
-    <script type="application/ld+json">
+<!-- Additional meta tags for landing page -->
+<meta name="theme-color" content="#1a1a2e">
+<meta name="msapplication-TileColor" content="#1a1a2e">
+
+<!-- Structured Data for SEO -->
+<script type="application/ld+json">
     {
         "@context": "https://schema.org",
         "@type": "Organization",
         "name": "InsFlow",
-        "url": "https://insflow.tw1.su",
+        "url": "https://insflow.ru",
         "description": "Корпоративные решения для страхования"
     }
     </script>
@@ -30,15 +30,15 @@
             </h1>
             <div class="accent-line" role="presentation" aria-hidden="true"></div>
         </header>
-        
+
         <!-- Supporting Content -->
         <div class="supporting-content">
             <p class="supporting-text" role="text">
-                <b>ins</b>urance <b>flow</b>
+                <b>он</b> лайн <b>брокер</b>
             </p>
         </div>
     </section>
-    
+
     <!-- Background Decorative Elements -->
     <div class="background-effects" role="presentation" aria-hidden="true"></div>
 </div>
@@ -47,34 +47,34 @@
 {% block extra_scripts %}
 <script>
     // Progressive Enhancement - Add interaction effects if JS is enabled
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function () {
         // Add smooth scroll behavior
         document.documentElement.style.scrollBehavior = 'smooth';
-        
+
         // Add focus management for accessibility
         const mainHeading = document.getElementById('main-heading');
         if (mainHeading) {
             // Ensure heading is focusable for screen readers
             mainHeading.setAttribute('tabindex', '-1');
         }
-        
+
         // Preload critical resources
         const criticalResources = [
             '{% static "css/landing.css" %}'
         ];
-        
-        criticalResources.forEach(function(resource) {
+
+        criticalResources.forEach(function (resource) {
             const link = document.createElement('link');
             link.rel = 'preload';
             link.as = 'style';
             link.href = resource;
             document.head.appendChild(link);
         });
-        
+
         // Add performance monitoring
         if ('performance' in window) {
-            window.addEventListener('load', function() {
-                setTimeout(function() {
+            window.addEventListener('load', function () {
+                setTimeout(function () {
                     const perfData = performance.getEntriesByType('navigation')[0];
                     if (perfData && perfData.loadEventEnd > 0) {
                         console.log('Landing page load time:', perfData.loadEventEnd - perfData.fetchStart, 'ms');
@@ -82,11 +82,11 @@
                 }, 0);
             });
         }
-        
+
         // Add error handling for missing resources
         const cssLink = document.querySelector('link[href*="landing.css"]');
         if (cssLink) {
-            cssLink.addEventListener('error', function() {
+            cssLink.addEventListener('error', function () {
                 console.warn('Landing CSS failed to load, applying fallback styles');
                 // Apply minimal fallback styles
                 document.body.style.cssText = `
@@ -104,7 +104,7 @@
             });
         }
     });
-    
+
     // Handle reduced motion preferences
     if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
         document.documentElement.style.setProperty('--animation-duration', '0s');

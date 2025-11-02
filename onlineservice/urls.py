@@ -14,7 +14,7 @@ from .views import landing_view, landing_health_check
 def domain_aware_redirect(request):
     """
     Redirect function that handles domain-aware routing.
-    For subdomain, redirect to main app. For main domain, serve landing page.
+    For subdomains, redirect to main app. For main domains, serve landing page.
     """
     import logging
     logger = logging.getLogger(__name__)
@@ -25,11 +25,15 @@ def domain_aware_redirect(request):
     
     logger.info(f"Domain aware redirect: {host} -> {request.path}")
     
-    # If this is the main domain, serve landing page
-    if host == 'insflow.tw1.su':
+    # Get domain configuration from settings
+    main_domains = getattr(settings, 'MAIN_DOMAINS', ['insflow.tw1.su'])
+    subdomains = getattr(settings, 'SUBDOMAINS', ['zs.insflow.tw1.su'])
+    
+    # If this is a main domain, serve landing page
+    if host in main_domains:
         return landing_view(request)
     else:
-        # For subdomain or development, redirect to main app
+        # For subdomains or development, redirect to main app
         try:
             return redirect('insurance_requests:request_list')
         except Exception as e:
@@ -64,16 +68,30 @@ def custom_404_handler(request, exception):
     
     logger.warning(f"404 error on {host}: {request.path}")
     
-    if host == 'insflow.tw1.su':
-        # For main domain, suggest they use the subdomain
+    # Get domain configuration from settings
+    main_domains = getattr(settings, 'MAIN_DOMAINS', ['insflow.tw1.su'])
+    subdomains = getattr(settings, 'SUBDOMAINS', ['zs.insflow.tw1.su'])
+    
+    if host in main_domains:
+        # For main domains, suggest they use the corresponding subdomain
+        # Determine the correct subdomain based on the main domain
+        if host == 'insflow.ru':
+            suggested_subdomain = 'zs.insflow.ru'
+        elif host == 'insflow.tw1.su':
+            suggested_subdomain = 'zs.insflow.tw1.su'
+        else:
+            # Fallback to first subdomain
+            suggested_subdomain = subdomains[0] if subdomains else 'zs.insflow.tw1.su'
+        
         from django.http import HttpResponseNotFound
+        protocol = 'https' if request.is_secure() else 'http'
         return HttpResponseNotFound(
-            "<h1>Page Not Found</h1>"
-            "<p>This page is not available on the main domain.</p>"
-            "<p>Please visit <a href='https://zs.insflow.tw1.su'>zs.insflow.tw1.su</a> for the application.</p>"
+            f"<h1>Page Not Found</h1>"
+            f"<p>This page is not available on the main domain.</p>"
+            f"<p>Please visit <a href='{protocol}://{suggested_subdomain}'>{suggested_subdomain}</a> for the application.</p>"
         )
     else:
-        # For subdomain, use default 404 handling
+        # For subdomains, use default 404 handling
         from django.views.defaults import page_not_found
         return page_not_found(request, exception)
 

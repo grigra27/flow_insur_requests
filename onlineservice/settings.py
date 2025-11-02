@@ -132,9 +132,25 @@ SESSION_COOKIE_SAMESITE = 'Lax'
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = 'DENY'
+
+# HTTPS Security settings
+SECURE_SSL_REDIRECT = config('SECURE_SSL_REDIRECT', default=False, cast=bool)
 SECURE_HSTS_SECONDS = config('SECURE_HSTS_SECONDS', default=0, cast=int)
 SECURE_HSTS_INCLUDE_SUBDOMAINS = config('SECURE_HSTS_INCLUDE_SUBDOMAINS', default=False, cast=bool)
 SECURE_HSTS_PRELOAD = config('SECURE_HSTS_PRELOAD', default=False, cast=bool)
+
+# Additional HTTPS security headers
+SECURE_REFERRER_POLICY = config('SECURE_REFERRER_POLICY', default='strict-origin-when-cross-origin')
+SECURE_CROSS_ORIGIN_OPENER_POLICY = config('SECURE_CROSS_ORIGIN_OPENER_POLICY', default='same-origin')
+
+# Content Security Policy (basic)
+CSP_DEFAULT_SRC = config('CSP_DEFAULT_SRC', default="'self'")
+CSP_SCRIPT_SRC = config('CSP_SCRIPT_SRC', default="'self' 'unsafe-inline'")
+CSP_STYLE_SRC = config('CSP_STYLE_SRC', default="'self' 'unsafe-inline'")
+CSP_IMG_SRC = config('CSP_IMG_SRC', default="'self' data:")
+CSP_FONT_SRC = config('CSP_FONT_SRC', default="'self'")
+CSP_CONNECT_SRC = config('CSP_CONNECT_SRC', default="'self'")
+CSP_FRAME_ANCESTORS = config('CSP_FRAME_ANCESTORS', default="'none'")
 
 # CSRF settings
 CSRF_COOKIE_SECURE = config('CSRF_COOKIE_SECURE', default=False, cast=bool)
@@ -193,6 +209,12 @@ LOGGING = {
             'filename': BASE_DIR / 'logs' / 'security.log',
             'formatter': 'verbose',
         },
+        'https_file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': BASE_DIR / 'logs' / 'https.log',
+            'formatter': 'domain_format',
+        },
     },
     'root': {
         'handlers': ['console', 'file'],
@@ -234,6 +256,16 @@ LOGGING = {
             'level': 'INFO',
             'propagate': False,
         },
+        'django.security.csrf': {
+            'handlers': ['console', 'security_file', 'https_file'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        'django.request': {
+            'handlers': ['console', 'security_file', 'https_file'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
     },
 }
 
@@ -243,4 +275,14 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB
 
 # Excel export settings
 SUMMARY_TEMPLATE_PATH = BASE_DIR / 'templates' / 'summary_template.xlsx'
+
+# Domain configuration for multi-domain support
+MAIN_DOMAINS = config('MAIN_DOMAINS', default='insflow.tw1.su', cast=lambda v: [s.strip() for s in v.split(',')])
+SUBDOMAINS = config('SUBDOMAINS', default='zs.insflow.tw1.su', cast=lambda v: [s.strip() for s in v.split(',')])
+
+# All supported domains (for validation and logging)
+ALL_SUPPORTED_DOMAINS = MAIN_DOMAINS + SUBDOMAINS
+
+# Development domains
+DEVELOPMENT_DOMAINS = ['localhost', '127.0.0.1', 'testserver']
 

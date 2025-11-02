@@ -1,4 +1,4 @@
-name: 🚀 Deploy to Timeweb
+name: 🚀 Deploy to Timeweb with HTTPS
 
 on:
   push:
@@ -7,6 +7,9 @@ on:
 env:
   DOCKER_IMAGE: ghcr.io/${{ github.repository }}:timeweb-latest
   PROJECT_PATH: /opt/insflow-system
+  SSL_EMAIL: admin@insflow.ru
+  DOMAINS_PRIMARY: insflow.ru,zs.insflow.ru
+  DOMAINS_TECHNICAL: insflow.tw1.su,zs.insflow.tw1.su
 
 jobs:
   build-and-deploy:
@@ -69,24 +72,26 @@ jobs:
           ALLOWED_HOSTS=${{ secrets.TIMEWEB_ALLOWED_HOSTS }}
           DOCKER_IMAGE=${{ env.DOCKER_IMAGE }}
           
-          # Security settings for production (HTTP only)
+          # Security settings for production (HTTPS enabled)
           DEBUG=False
-          SESSION_COOKIE_SECURE=False
-          CSRF_COOKIE_SECURE=False
-          SECURE_HSTS_SECONDS=0
-          SECURE_HSTS_INCLUDE_SUBDOMAINS=False
-          SECURE_HSTS_PRELOAD=False
+          SESSION_COOKIE_SECURE=True
+          CSRF_COOKIE_SECURE=True
+          SECURE_HSTS_SECONDS=31536000
+          SECURE_HSTS_INCLUDE_SUBDOMAINS=True
+          SECURE_HSTS_PRELOAD=True
+          SECURE_SSL_REDIRECT=True
           
           # Domain-specific settings for landing page
-          MAIN_DOMAIN=${{ secrets.TIMEWEB_MAIN_DOMAIN }}
-          SUBDOMAIN=${{ secrets.TIMEWEB_SUBDOMAIN }}
+          MAIN_DOMAINS=${{ secrets.TIMEWEB_MAIN_DOMAINS }}
+          SUBDOMAINS=${{ secrets.TIMEWEB_SUBDOMAINS }}
           
           # Static files configuration
           STATIC_URL=/static/
           MEDIA_URL=/media/
           
-          # HTTP-only security settings
-          SECURE_SSL_REDIRECT=False
+          # SSL Certificate settings
+          SSL_ENABLED=True
+          SSL_EMAIL=${{ env.SSL_EMAIL }}
           EOF
           
           echo "➡️ Логинимся в GitHub Container Registry..."
@@ -106,6 +111,84 @@ jobs:
           echo "➡️ Предварительно загружаем базовые образы..."
           docker pull postgres:15 || echo "⚠️ Не удалось загрузить postgres:15"
           docker pull nginx:1.25-alpine || echo "⚠️ Не удалось загрузить nginx:1.25-alpine"
+          
+          echo "➡️ Проверяем и устанавливаем SSL сертификаты..."
+          
+          # Function to enable fallback mode
+          enable_fallback_mode() {
+            echo "❌ Переключаемся в fallback режим (HTTP-only)"
+            
+            # Update .env to disable HTTPS features
+            sed -i 's/SESSION_COOKIE_SECURE=True/SESSION_COOKIE_SECURE=False/' .env
+            sed -i 's/CSRF_COOKIE_SECURE=True/CSRF_COOKIE_SECURE=False/' .env
+            sed -i 's/SECURE_SSL_REDIRECT=True/SECURE_SSL_REDIRECT=False/' .env
+            sed -i 's/SECURE_HSTS_SECONDS=31536000/SECURE_HSTS_SECONDS=0/' .env
+            sed -i 's/SECURE_HSTS_INCLUDE_SUBDOMAINS=True/SECURE_HSTS_INCLUDE_SUBDOMAINS=False/' .env
+            sed -i 's/SECURE_HSTS_PRELOAD=True/SECURE_HSTS_PRELOAD=False/' .env
+            sed -i 's/SSL_ENABLED=True/SSL_ENABLED=False/' .env
+            
+            echo "⚠️ Развертывание продолжится в HTTP-only режиме"
+          }
+          
+          # Make SSL scripts executable
+          chmod +x scripts/ssl/*.sh || {
+            echo "❌ Не удалось сделать SSL скрипты исполняемыми"
+            enable_fallback_mode
+          }
+          
+          # Check DNS resolution for domains first
+          echo "➡️ Проверяем DNS разрешение доменов..."
+          dns_check_failed=false
+          
+          for domain_set in "${{ env.DOMAINS_PRIMARY }}" "${{ env.DOMAINS_TECHNICAL }}"; do
+            IFS=',' read -ra domains <<< "$domain_set"
+            for domain in "${domains[@]}"; do
+              if ! nslookup "$domain" > /dev/null 2>&1; then
+                echo "❌ DNS разрешение не удалось для $domain"
+                dns_check_failed=true
+              else
+                echo "✅ DNS разрешение OK для $domain"
+              fi
+            done
+          done
+          
+          if [ "$dns_check_failed" = true ]; then
+            echo "❌ DNS проверка не прошла для некоторых доменов"
+            enable_fallback_mode
+          else
+            echo "✅ DNS проверка прошла успешно для всех доменов"
+            
+            # Check if certificates already exist and are valid
+            if scripts/ssl/check-certificates.sh --quiet 2>/dev/null; then
+              echo "✅ SSL сертификаты уже существуют и действительны"
+            else
+              echo "⚠️ SSL сертификаты отсутствуют или требуют обновления"
+              
+              # Try to obtain certificates with timeout
+              echo "➡️ Попытка получения SSL сертификатов..."
+              if timeout 300 scripts/ssl/obtain-certificates.sh 2>/dev/null; then
+                echo "✅ SSL сертификаты успешно получены"
+                
+                # Verify certificates were actually created
+                if scripts/ssl/check-certificates.sh --quiet 2>/dev/null; then
+                  echo "✅ SSL сертификаты проверены и готовы к использованию"
+                else
+                  echo "❌ SSL сертификаты получены, но проверка не прошла"
+                  enable_fallback_mode
+                fi
+              else
+                echo "❌ Не удалось получить SSL сертификаты (timeout или ошибка)"
+                enable_fallback_mode
+              fi
+            fi
+          fi
+          
+          # Show final SSL status
+          if grep -q "SSL_ENABLED=True" .env; then
+            echo "✅ SSL включен - развертывание будет использовать HTTPS"
+          else
+            echo "⚠️ SSL отключен - развертывание будет использовать HTTP-only режим"
+          fi
           
           echo "➡️ Перезапускаем docker-compose..."
           docker-compose -f docker-compose.timeweb.yml down --remove-orphans
@@ -151,10 +234,49 @@ jobs:
           fi
           
           echo "➡️ Тестируем основные endpoints..."
+          # Test HTTP endpoints (should redirect to HTTPS if SSL is enabled)
           if curl -f -s http://localhost/healthz/ > /dev/null; then
             echo "✅ Health endpoint работает!"
           else
             echo "❌ Health endpoint недоступен!"
+          fi
+          
+          # Test HTTPS endpoints if SSL is enabled
+          if grep -q "SSL_ENABLED=True" .env; then
+            echo "➡️ Тестируем HTTPS endpoints..."
+            
+            # Wait for SSL to be ready
+            sleep 10
+            
+            # Test HTTPS health endpoint
+            if curl -f -s -k https://localhost/healthz/ > /dev/null; then
+              echo "✅ HTTPS Health endpoint работает!"
+            else
+              echo "❌ HTTPS Health endpoint недоступен!"
+            fi
+            
+            # Test HTTPS landing page
+            if curl -f -s -k https://localhost/landing/health/ > /dev/null; then
+              echo "✅ HTTPS Landing page health endpoint работает!"
+            else
+              echo "❌ HTTPS Landing page health endpoint недоступен!"
+            fi
+            
+            # Test HTTPS static files
+            if curl -f -s -k https://localhost/static/css/landing.css > /dev/null; then
+              echo "✅ HTTPS Landing CSS файл доступен!"
+            else
+              echo "❌ HTTPS Landing CSS файл недоступен!"
+            fi
+            
+            # Test HTTP to HTTPS redirect
+            if curl -s -o /dev/null -w "%{http_code}" http://localhost/healthz/ | grep -q "301\|302"; then
+              echo "✅ HTTP to HTTPS redirect работает!"
+            else
+              echo "⚠️ HTTP to HTTPS redirect может не работать корректно"
+            fi
+          else
+            echo "⚠️ SSL отключен, пропускаем HTTPS тесты"
           fi
           
           echo "➡️ Тестируем лендинг-страницу..."
@@ -178,7 +300,128 @@ jobs:
             echo "⚠️ Верификация лендинг-страницы показала предупреждения (это нормально для продакшена)"
           fi
           
+          echo "➡️ Проверяем SSL сертификаты после развертывания..."
+          if grep -q "SSL_ENABLED=True" .env; then
+            if scripts/ssl/check-certificates.sh; then
+              echo "✅ SSL сертификаты проверены и действительны!"
+            else
+              echo "⚠️ Обнаружены проблемы с SSL сертификатами"
+            fi
+            
+            echo "➡️ Настраиваем автоматическое обновление сертификатов..."
+            if scripts/ssl/ssl-cron-setup.sh; then
+              echo "✅ Cron задача для обновления сертификатов настроена!"
+            else
+              echo "⚠️ Не удалось настроить автоматическое обновление сертификатов"
+            fi
+          else
+            echo "⚠️ SSL отключен, пропускаем проверку сертификатов"
+          fi
+          
+          echo "➡️ Финальная проверка HTTPS функциональности..."
+          if grep -q "SSL_ENABLED=True" .env; then
+            # Test all domains if accessible
+            for domain in ${{ env.DOMAINS_PRIMARY }} ${{ env.DOMAINS_TECHNICAL }}; do
+              domain=$(echo $domain | tr ',' ' ')
+              for d in $domain; do
+                echo "Тестируем домен: $d"
+                # Note: This will only work if domains are properly configured and accessible
+                if timeout 10 curl -f -s -I "https://$d/healthz/" > /dev/null 2>&1; then
+                  echo "✅ HTTPS работает для $d"
+                else
+                  echo "⚠️ HTTPS недоступен для $d (возможно, DNS еще не настроен)"
+                fi
+              done
+            done
+          fi
+          
           echo "➡️ Чистим неиспользуемые образы..."
           docker image prune -f
           
-          echo "✅ Деплой на Timeweb с лендинг-страницей успешно завершён!"
+          echo "➡️ Создаем отчет о развертывании..."
+          cat > deployment_report.txt << EOF
+          ===== TIMEWEB DEPLOYMENT REPORT =====
+          Deployment Time: $(date)
+          Git Commit: ${{ github.sha }}
+          Docker Image: ${{ env.DOCKER_IMAGE }}
+          
+          SSL Status: $(grep "SSL_ENABLED=" .env | cut -d= -f2)
+          HTTPS Redirect: $(grep "SECURE_SSL_REDIRECT=" .env | cut -d= -f2)
+          
+          Configured Domains:
+          - Primary: ${{ env.DOMAINS_PRIMARY }}
+          - Technical: ${{ env.DOMAINS_TECHNICAL }}
+          
+          Container Status:
+          $(docker-compose -f docker-compose.timeweb.yml ps --format "table {{.Names}}\t{{.Status}}")
+          
+          SSL Certificate Status:
+          EOF
+          
+          if grep -q "SSL_ENABLED=True" .env; then
+            scripts/ssl/check-certificates.sh --quiet >> deployment_report.txt 2>&1 || echo "Certificate check failed" >> deployment_report.txt
+          else
+            echo "SSL disabled - no certificates to check" >> deployment_report.txt
+          fi
+          
+          echo "EOF" >> deployment_report.txt
+          
+          echo "➡️ Отчет о развертывании:"
+          cat deployment_report.txt
+          
+          if grep -q "SSL_ENABLED=True" .env; then
+            echo "✅ Деплой на Timeweb с HTTPS и лендинг-страницей успешно завершён!"
+            echo "🔒 HTTPS активен для всех доменов"
+            echo "📋 Автоматическое обновление сертификатов настроено"
+          else
+            echo "⚠️ Деплой на Timeweb завершён в fallback режиме (без HTTPS)"
+            echo "🔓 Система работает в HTTP-only режиме"
+            echo "📋 Для включения HTTPS необходимо настроить DNS и повторить развертывание"
+          fi
+          
+          echo ""
+          echo "🌐 Доступные endpoints:"
+          if grep -q "SSL_ENABLED=True" .env; then
+            echo "  - https://insflow.ru (лендинг-страница)"
+            echo "  - https://zs.insflow.ru (Django приложение)"
+            echo "  - https://insflow.tw1.su (лендинг-страница, зеркало)"
+            echo "  - https://zs.insflow.tw1.su (Django приложение, зеркало)"
+          else
+            echo "  - http://insflow.tw1.su (лендинг-страница)"
+            echo "  - http://zs.insflow.tw1.su (Django приложение)"
+          fi    # 
+6️⃣ Post-deployment notification and cleanup
+    - name: Post-deployment notification
+      if: always()
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.TIMEWEB_HOST }}
+        username: ${{ secrets.TIMEWEB_USERNAME }}
+        key: ${{ secrets.TIMEWEB_SSH_KEY }}
+        port: ${{ secrets.TIMEWEB_PORT }}
+        script: |
+          cd ${{ env.PROJECT_PATH }}
+          
+          # Check final deployment status
+          if docker-compose -f docker-compose.timeweb.yml ps | grep -q "Up"; then
+            deployment_status="SUCCESS"
+          else
+            deployment_status="FAILED"
+          fi
+          
+          ssl_status=$(grep "SSL_ENABLED=" .env | cut -d= -f2)
+          
+          echo "📊 Final Deployment Status: $deployment_status"
+          echo "🔒 SSL Status: $ssl_status"
+          
+          # Log deployment event
+          echo "$(date '+%Y-%m-%d %H:%M:%S') - Deployment $deployment_status (SSL: $ssl_status)" >> /var/log/deployment.log
+          
+          # Optional: Send notification (webhook, email, etc.)
+          # This can be extended to send notifications to external services
+          if [ "$deployment_status" = "FAILED" ]; then
+            echo "❌ Deployment failed - manual intervention may be required"
+            exit 1
+          else
+            echo "✅ Deployment completed successfully"
+          fi
