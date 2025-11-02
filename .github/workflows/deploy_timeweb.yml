@@ -164,20 +164,25 @@ jobs:
             else
               echo "⚠️ SSL сертификаты отсутствуют или требуют обновления"
               
-              # Try to obtain certificates with timeout
-              echo "➡️ Попытка получения SSL сертификатов..."
-              if timeout 300 scripts/ssl/obtain-certificates.sh 2>/dev/null; then
+              # Try to obtain certificates with Docker-based approach
+              echo "➡️ Попытка получения SSL сертификатов через Docker..."
+              chmod +x scripts/ssl/obtain-certificates-docker.sh
+              if timeout 600 bash scripts/ssl/obtain-certificates-docker.sh 2>&1 | tee ssl-generation.log; then
                 echo "✅ SSL сертификаты успешно получены"
                 
                 # Verify certificates were actually created
-                if scripts/ssl/check-certificates.sh --quiet 2>/dev/null; then
+                if [[ -f "letsencrypt/live/insflow.ru/fullchain.pem" ]] && [[ -f "letsencrypt/live/insflow.tw1.su/fullchain.pem" ]]; then
                   echo "✅ SSL сертификаты проверены и готовы к использованию"
                 else
-                  echo "❌ SSL сертификаты получены, но проверка не прошла"
+                  echo "❌ SSL сертификаты получены, но файлы не найдены"
+                  echo "📋 Логи генерации сертификатов:"
+                  cat ssl-generation.log || echo "Логи недоступны"
                   enable_fallback_mode
                 fi
               else
                 echo "❌ Не удалось получить SSL сертификаты (timeout или ошибка)"
+                echo "📋 Логи генерации сертификатов:"
+                cat ssl-generation.log || echo "Логи недоступны"
                 enable_fallback_mode
               fi
             fi

@@ -78,10 +78,10 @@ services:
       - media_data_timeweb:/app/media:ro
       # Config file will be set by deployment script based on SSL status
       - ./nginx-timeweb/default.conf:/etc/nginx/conf.d/default.conf:ro
-      # SSL certificates volume (only used when SSL is enabled)
-      - letsencrypt_data_timeweb:/etc/letsencrypt:ro
-      # Certbot webroot for ACME challenges
-      - certbot_webroot_timeweb:/var/www/certbot:ro
+      # SSL certificates volume (bind mount for easier access)
+      - ./letsencrypt:/etc/letsencrypt:ro
+      # Certbot webroot for ACME challenges (bind mount)
+      - ./certbot_webroot:/var/www/certbot:ro
     depends_on:
       web:
         condition: service_healthy
@@ -98,8 +98,8 @@ services:
     image: certbot/certbot:latest
     profiles: ["ssl"]  # Only start when SSL profile is active
     volumes:
-      - letsencrypt_data_timeweb:/etc/letsencrypt
-      - certbot_webroot_timeweb:/var/www/certbot
+      - ./letsencrypt:/etc/letsencrypt
+      - ./certbot_webroot:/var/www/certbot
     # Run certbot in standalone mode initially, then use webroot for renewals
     command: >
       sh -c "
@@ -131,6 +131,3 @@ volumes:
   media_data_timeweb:
   logs_data_timeweb:
   staticfiles_data_timeweb:
-  # SSL certificates and certbot data
-  letsencrypt_data_timeweb:
-  certbot_webroot_timeweb:
