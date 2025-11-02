@@ -35,6 +35,9 @@ services:
       - SSL_REDIRECT=${SSL_REDIRECT:-True}
       - SECURE_COOKIES=${SECURE_COOKIES:-True}
       - HSTS_SECONDS=${HSTS_SECONDS:-31536000}
+      # Domain configuration
+      - MAIN_DOMAINS=${MAIN_DOMAINS:-insflow.tw1.su,insflow.ru}
+      - SUBDOMAINS=${SUBDOMAINS:-zs.insflow.tw1.su,zs.insflow.ru}
     volumes:
       - media_data_timeweb:/app/media
       - logs_data_timeweb:/app/logs
