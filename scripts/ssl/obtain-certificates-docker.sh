@@ -148,16 +148,47 @@ verify_certificate_exists() {
     local cert_name="$1"
     local cert_file="$PROJECT_PATH/letsencrypt/live/$cert_name/fullchain.pem"
     
+    log "Checking certificate for $cert_name..."
+    
+    # Wait a moment for file system sync
+    sleep 2
+    
     if [[ -f "$cert_file" ]]; then
         log "Certificate file exists: $cert_file"
         
-        # Check certificate details
-        local expiry=$(docker run --rm -v "$(pwd)/letsencrypt:/etc/letsencrypt" certbot/certbot:latest \
-            certificates --cert-name "$cert_name" | grep "Expiry Date" | head -1)
+        # Check certificate details using Docker
+        local cert_info=$(docker run --rm -v "$(pwd)/letsencrypt:/etc/letsencrypt" certbot/certbot:latest \
+            certificates --cert-name "$cert_name" 2>/dev/null | grep -E "(Certificate Name|Expiry Date)" || echo "Certificate info not available")
         
-        success "Certificate for $cert_name: $expiry"
+        success "Certificate for $cert_name verified: $cert_info"
         return 0
     else
+        # Try to list what's actually in the letsencrypt directory
+        log "Certificate file not found at expected location: $cert_file"
+        log "Checking letsencrypt directory contents..."
+        
+        if [[ -d "$PROJECT_PATH/letsencrypt/live" ]]; then
+            ls -la "$PROJECT_PATH/letsencrypt/live/" || true
+            
+            # Check if certificate exists with different path
+            if [[ -d "$PROJECT_PATH/letsencrypt/live/$cert_name" ]]; then
+                log "Certificate directory exists, checking files..."
+                ls -la "$PROJECT_PATH/letsencrypt/live/$cert_name/" || true
+                
+                # If directory exists but fullchain.pem is missing, it might be a permission issue
+                if [[ -f "$PROJECT_PATH/letsencrypt/live/$cert_name/cert.pem" ]]; then
+                    warning "Certificate files exist but fullchain.pem not found - this might be a timing issue"
+                    sleep 5
+                    if [[ -f "$cert_file" ]]; then
+                        success "Certificate file appeared after waiting: $cert_file"
+                        return 0
+                    fi
+                fi
+            fi
+        else
+            error_exit "Letsencrypt directory not found: $PROJECT_PATH/letsencrypt/live"
+        fi
+        
         error_exit "Certificate file not found: $cert_file"
     fi
 }
