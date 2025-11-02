@@ -30,9 +30,10 @@ RUN mkdir -p logs media staticfiles
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-# Копируем healthcheck скрипт
+# Копируем healthcheck скрипты
 COPY healthcheck.py /app/healthcheck.py
-RUN chmod +x /app/healthcheck.py
+COPY simple_healthcheck.py /app/simple_healthcheck.py
+RUN chmod +x /app/healthcheck.py /app/simple_healthcheck.py
 
 # Устанавливаем права на файлы
 RUN chown -R app:app /app

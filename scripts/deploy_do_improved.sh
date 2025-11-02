@@ -117,7 +117,7 @@ echo "➡️ Final service status check..."
 docker-compose ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 
 echo "➡️ Running comprehensive health check..."
-if docker-compose exec -T web python /app/healthcheck.py; then
+if docker-compose exec -T web python /app/simple_healthcheck.py; then
     echo "✅ Comprehensive health check passed!"
 else
     echo "⚠️  Comprehensive health check had issues, but basic functionality is working"

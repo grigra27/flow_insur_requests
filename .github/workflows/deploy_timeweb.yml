@@ -226,7 +226,7 @@ jobs:
           docker-compose -f docker-compose.timeweb.yml ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
           
           echo "➡️ Проверяем healthcheck..."
-          if docker-compose -f docker-compose.timeweb.yml exec -T web python /app/healthcheck.py; then
+          if docker-compose -f docker-compose.timeweb.yml exec -T web python /app/simple_healthcheck.py; then
             echo "✅ Healthcheck прошел успешно!"
           else
             echo "❌ Healthcheck не прошел!"
