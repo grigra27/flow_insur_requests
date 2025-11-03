@@ -75,16 +75,19 @@ services:
       retries: 5
       start_period: 60s
 
-  certbot:
-    image: certbot/certbot:latest
-    profiles: ["ssl"]
-    volumes:
-      - ./letsencrypt:/etc/letsencrypt
-      - ./certbot_webroot:/var/www/certbot
-    command: /bin/sh -c "trap 'exit 0' TERM; while true; do certbot renew --webroot --webroot-path=/var/www/certbot --quiet; sleep 43200 & wait $$!; done;"
-    restart: unless-stopped
-    depends_on:
-      - nginx
+certbot:
+  image: certbot/certbot:latest
+  command: >
+    /bin/sh -c "trap 'exit 0' TERM;
+    while true; do
+      certbot renew --webroot --webroot-path=/var/www/certbot --quiet;
+      sleep 43200 &
+      wait $!;
+    done"
+  volumes:
+    - ./letsencrypt:/etc/letsencrypt
+    - ./certbot:/var/www/certbot
+  restart: always
 
 volumes:
   postgres_data_timeweb:
