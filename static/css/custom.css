@@ -6,7 +6,7 @@
 
 .card:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
 .navbar-brand {
@@ -22,7 +22,8 @@
     border-radius: 6px;
 }
 
-.form-control, .form-select {
+.form-control,
+.form-select {
     border-radius: 6px;
 }
 
@@ -31,8 +32,7 @@
     font-weight: 600;
 }
 
-/* Стили для заголовка таблицы сводов */
-.table thead th,
+/* Стили для заголовка таблицы сводов - только для table-dark */
 .table-dark thead th {
     background-color: #000000 !important;
     color: #ffffff !important;
@@ -40,17 +40,65 @@
     font-weight: 600;
 }
 
-/* Обеспечиваем контрастность для ссылок в заголовках */
-.table thead th a,
+/* Обеспечиваем контрастность для ссылок в заголовках table-dark */
 .table-dark thead th a {
     color: #ffffff !important;
     text-decoration: none;
 }
 
-.table thead th a:hover,
 .table-dark thead th a:hover {
     color: #e9ecef !important;
     text-decoration: underline;
+}
+
+/* Специфичные стили для заголовков таблиц сводов */
+.custom-table-header th {
+    font-size: 0.95rem !important;
+    font-weight: 600 !important;
+    color: #4a4a4a !important;
+    border-top: none !important;
+    background-color: #f4f4f2 !important;
+    border-bottom: 1px solid #e0e0de !important;
+    position: relative;
+    letter-spacing: 0.3px;
+}
+
+.custom-table-header th:first-child {
+    border-top-left-radius: 6px;
+}
+
+.custom-table-header th:last-child {
+    border-top-right-radius: 6px;
+}
+
+/* Стили для таблицы списка сводов */
+.summary-list-table .table thead th {
+    font-weight: 600;
+    font-size: 0.9rem;
+    border-bottom: 2px solid #495057;
+}
+
+.summary-list-table .table tbody td {
+    vertical-align: middle;
+    padding: 0.9rem 0.75rem;
+}
+
+.summary-list-table .table-hover tbody tr:hover {
+    background-color: rgba(13, 110, 253, 0.08) !important;
+}
+
+/* Общие улучшения для всех таблиц */
+.table th {
+    border-top: none;
+    font-weight: 600;
+}
+
+/* Стили для таблиц справки */
+.table-light thead th {
+    background-color: #f8f9fa !important;
+    color: #495057 !important;
+    font-weight: 600;
+    border-bottom: 1px solid #dee2e6;
 }
 
 /* Стили для статусов заявок */
@@ -244,6 +292,7 @@
         opacity: 0;
         transform: translateY(10px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);
@@ -256,54 +305,54 @@
         padding-left: 15px;
         padding-right: 15px;
     }
-    
+
     .card-body {
         padding: 1rem;
     }
-    
+
     .create-summary-section {
         padding: 1.5rem 1rem;
     }
-    
+
     /* Адаптивные стили для вкладок филиалов */
     .branch-filter-tabs {
         padding: 0.25rem 0.5rem 0;
         margin-bottom: 1rem;
     }
-    
+
     .branch-filter-tabs .nav-link {
         padding: 0.5rem 0.75rem;
         margin-right: 0.25rem;
         font-size: 0.875rem;
     }
-    
+
     .branch-filter-tabs .nav-link .badge {
         font-size: 0.65rem;
         padding: 0.2rem 0.4rem;
         margin-left: 0.25rem;
     }
-    
+
     /* Адаптивные стили для бейджей компаний */
     .companies-count-badge {
         padding: 0.4rem 0.6rem;
         font-size: 0.8rem;
     }
-    
+
     .companies-count-large {
         font-size: 0.9rem;
         padding: 0.45rem 0.65rem;
     }
-    
+
     /* Скрытие текста филиалов на очень маленьких экранах */
     @media (max-width: 576px) {
         .branch-filter-tabs .nav-link {
             padding: 0.4rem 0.5rem;
         }
-        
+
         .branch-filter-tabs .nav-link .branch-text {
             display: none;
         }
-        
+
         .branch-filter-tabs .nav-link .badge {
             margin-left: 0;
         }
@@ -340,12 +389,13 @@
         background-color: #343a40;
         border-bottom-color: #495057;
     }
-    
+
     .branch-filter-tabs .nav-link.active {
         background-color: #495057;
         color: #ffffff;
     }
 }
+
 /*
  Стили для сообщений о выборе страховой компании */
 .company-selection-alert {
@@ -406,6 +456,7 @@
         opacity: 0;
         transform: translateY(-10px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);
@@ -435,14 +486,210 @@
     margin-right: 0.5rem;
 }
 
+/* Стили для блоков страховых компаний */
+.company-block {
+    border: 1px solid #e8e8e8;
+    border-radius: 12px;
+    padding: 1.5rem;
+    background: linear-gradient(145deg, #ffffff 0%, #f8f9fa 100%);
+    margin-bottom: 2rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.company-block::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #0d6efd 0%, #6610f2 50%, #0d6efd 100%);
+    background-size: 200% 100%;
+    animation: gradientShift 3s ease-in-out infinite;
+}
+
+@keyframes gradientShift {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+}
+
+.company-block:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+    border-color: #d0d0d0;
+}
+
+.company-block h5 {
+    color: #2c3e50;
+    font-weight: 700;
+    font-size: 1.25rem;
+    margin-bottom: 0;
+    padding-bottom: 0.75rem;
+    border-bottom: 2px solid #e9ecef;
+    position: relative;
+    letter-spacing: 0.5px;
+}
+
+.company-block h5 i {
+    color: #6c757d;
+    margin-right: 0.75rem;
+    font-size: 1.1rem;
+}
+
+.company-block h5::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    width: 60px;
+    height: 2px;
+    background: linear-gradient(90deg, #0d6efd, #6610f2);
+    border-radius: 1px;
+}
+
+.company-block .table {
+    background-color: #ffffff;
+    margin-bottom: 0;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid #f0f0f0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.company-block .table th {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #495057;
+    border-top: none;
+    padding: 0.875rem 0.75rem;
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.company-block .table td {
+    font-size: 0.95rem;
+    vertical-align: middle;
+    padding: 1rem 0.75rem;
+    border-bottom: 1px solid #f8f9fa;
+    transition: background-color 0.2s ease;
+}
+
+.company-block .table tbody tr {
+    background-color: #ffffff;
+    transition: all 0.2s ease;
+}
+
+.company-block .table tbody tr:nth-child(even) {
+    background-color: #fafbfc;
+}
+
+.company-block .table tbody tr:hover {
+    background-color: #f0f7ff !important;
+    transform: scale(1.01);
+    box-shadow: 0 2px 4px rgba(13, 110, 253, 0.1);
+}
+
+/* Стили для примечаний компании */
+.company-notes .alert {
+    border: none;
+    border-left: 4px solid #0dcaf0;
+    background: linear-gradient(135deg, #e7f3ff 0%, #f0f9ff 100%);
+    color: #055160;
+    font-size: 0.9rem;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(13, 202, 240, 0.1);
+}
+
+.company-notes .alert i {
+    color: #0dcaf0;
+    font-size: 1rem;
+}
+
+/* Стили для кнопок действий в таблице */
+.company-block .btn-group-sm .btn {
+    font-size: 0.8rem;
+    padding: 0.375rem 0.75rem;
+    border-radius: 6px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.company-block .btn-outline-danger:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(220, 53, 69, 0.3);
+}
+
+.company-block .btn-outline-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(13, 110, 253, 0.3);
+}
+
+/* Стили для бейджей в таблице */
+.company-block .badge {
+    font-size: 0.75rem;
+    padding: 0.4rem 0.6rem;
+    border-radius: 6px;
+    font-weight: 500;
+    letter-spacing: 0.3px;
+}
+
+.company-block .badge.bg-success {
+    background: linear-gradient(135deg, #198754 0%, #20c997 100%) !important;
+    box-shadow: 0 1px 3px rgba(25, 135, 84, 0.3);
+}
+
+.company-block .badge.bg-dark {
+    background: linear-gradient(135deg, #495057 0%, #6c757d 100%) !important;
+    box-shadow: 0 1px 3px rgba(73, 80, 87, 0.3);
+}
+
 /* Адаптивные стили для мобильных устройств */
 @media (max-width: 768px) {
     .company-selection-alert {
         font-size: 0.875rem;
         padding: 0.75rem;
     }
-    
+
     .form-text {
         font-size: 0.8rem;
+    }
+    
+    .company-block {
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .company-block h5 {
+        font-size: 1.1rem;
+    }
+    
+    .company-block .table th,
+    .company-block .table td {
+        padding: 0.6rem 0.4rem;
+        font-size: 0.85rem;
+    }
+    
+    .company-block .btn-group-sm .btn {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.75rem;
+    }
+}
+
+@media (max-width: 576px) {
+    .company-block {
+        padding: 0.75rem;
+        border-radius: 8px;
+    }
+    
+    .company-block h5 {
+        font-size: 1rem;
+        padding-bottom: 0.5rem;
+    }
+    
+    .company-block h5::after {
+        width: 40px;
     }
 }
