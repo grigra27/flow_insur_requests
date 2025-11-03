@@ -69,25 +69,23 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --timeout=10 --spider http://localhost/healthz/ || exit 1"]
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --timeout=10 --spider http://127.0.0.1/healthz/ || exit 1"]
       interval: 30s
       timeout: 15s
       retries: 5
       start_period: 60s
 
-certbot:
-  image: certbot/certbot:latest
-  command: >
-    /bin/sh -c "trap 'exit 0' TERM;
-    while true; do
-      certbot renew --webroot --webroot-path=/var/www/certbot --quiet;
-      sleep 43200 &
-      wait $!;
-    done"
-  volumes:
-    - ./letsencrypt:/etc/letsencrypt
-    - ./certbot:/var/www/certbot
-  restart: always
+  certbot:
+    image: certbot/certbot:latest
+    profiles: ["ssl"]
+    volumes:
+      - ./letsencrypt:/etc/letsencrypt
+      - ./certbot_webroot:/var/www/certbot
+    entrypoint: ["/bin/sh"]
+    command: ["-c", "trap 'exit 0' TERM; while true; do certbot renew --webroot --webroot-path=/var/www/certbot --quiet; sleep 43200 & wait $!; done;"]
+    restart: unless-stopped
+    depends_on:
+      - nginx
 
 volumes:
   postgres_data_timeweb:
