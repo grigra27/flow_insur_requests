@@ -185,10 +185,10 @@ else:
 
 # Content Security Policy (basic)
 CSP_DEFAULT_SRC = config('CSP_DEFAULT_SRC', default="'self'")
-CSP_SCRIPT_SRC = config('CSP_SCRIPT_SRC', default="'self' 'unsafe-inline' https://cdn.jsdelivr.net")
-CSP_STYLE_SRC = config('CSP_STYLE_SRC', default="'self' 'unsafe-inline' https://cdn.jsdelivr.net")
+CSP_SCRIPT_SRC = config('CSP_SCRIPT_SRC', default="'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com")
+CSP_STYLE_SRC = config('CSP_STYLE_SRC', default="'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com")
 CSP_IMG_SRC = config('CSP_IMG_SRC', default="'self' data:")
-CSP_FONT_SRC = config('CSP_FONT_SRC', default="'self' https://cdn.jsdelivr.net")
+CSP_FONT_SRC = config('CSP_FONT_SRC', default="'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com")
 CSP_CONNECT_SRC = config('CSP_CONNECT_SRC', default="'self'")
 CSP_FRAME_ANCESTORS = config('CSP_FRAME_ANCESTORS', default="'none'")
 
