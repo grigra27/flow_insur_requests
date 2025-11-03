@@ -383,18 +383,29 @@
     outline-offset: 2px;
 }
 
-/* Темная тема поддержка */
+/* Точечные исправления для темной темы браузера */
 @media (prefers-color-scheme: dark) {
-    .branch-filter-tabs {
-        background-color: #343a40;
-        border-bottom-color: #495057;
+    .summary-list-page.branch-filter-tabs {
+        background-color: #f8f9fa;
+        color: #212529;
     }
-
-    .branch-filter-tabs .nav-link.active {
-        background-color: #495057;
-        color: #ffffff;
+    
+    .summary-list-page.branch-filter-tabs .nav-link {
+        color: #6c757d;
+    }
+    
+    .summary-list-page.branch-filter-tabs .nav-link:hover {
+        color: #0d6efd;
+        background-color: rgba(13, 110, 253, 0.1);
+    }
+    
+    .summary-list-page.branch-filter-tabs .nav-link.active {
+        color: #0d6efd;
+        background-color: #ffffff;
     }
 }
+
+
 
 /*
  Стили для сообщений о выборе страховой компании */
