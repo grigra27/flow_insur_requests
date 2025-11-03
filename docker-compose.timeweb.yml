@@ -81,15 +81,7 @@ services:
     volumes:
       - ./letsencrypt:/etc/letsencrypt
       - ./certbot_webroot:/var/www/certbot
-    command: >
-      sh -c "
-        trap 'exit 0' TERM;
-        while true; do
-          certbot renew --webroot --webroot-path=/var/www/certbot --quiet;
-          sleep 43200 &
-          wait $$!;
-        done;
-      "
+    command: /bin/sh -c "trap 'exit 0' TERM; while true; do certbot renew --webroot --webroot-path=/var/www/certbot --quiet; sleep 43200 & wait $$!; done;"
     restart: unless-stopped
     depends_on:
       - nginx
