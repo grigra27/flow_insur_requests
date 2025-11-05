@@ -1264,8 +1264,11 @@ def offer_search(request):
 @admin_required
 def summary_statistics(request):
     """Статистика по сводам"""
-    from django.db.models import Count, Avg, Min, Max
+    from django.db.models import Count, Avg, Min, Max, Sum, Q
+    from django.utils import timezone
+    from datetime import timedelta
     
+    # Основная статистика
     stats = {
         'total_summaries': InsuranceSummary.objects.count(),
         'collecting': InsuranceSummary.objects.filter(status='collecting').count(),
@@ -1273,7 +1276,6 @@ def summary_statistics(request):
         'sent': InsuranceSummary.objects.filter(status='sent').count(),
         'completed_accepted': InsuranceSummary.objects.filter(status='completed_accepted').count(),
         'completed_rejected': InsuranceSummary.objects.filter(status='completed_rejected').count(),
-        # Keep old 'completed' for backward compatibility during transition
         'completed': InsuranceSummary.objects.filter(status__in=['completed', 'completed_accepted', 'completed_rejected']).count(),
         'avg_offers_per_summary': InsuranceSummary.objects.aggregate(
             avg=Avg('total_offers')
@@ -1281,19 +1283,26 @@ def summary_statistics(request):
         'total_offers': InsuranceOffer.objects.filter(is_valid=True).count(),
     }
     
-    # Топ компаний по количеству предложений с обновленной статистикой
+    # Статистика за последний месяц
+    last_month = timezone.now() - timedelta(days=30)
+    stats['summaries_last_month'] = InsuranceSummary.objects.filter(created_at__gte=last_month).count()
+    stats['offers_last_month'] = InsuranceOffer.objects.filter(is_valid=True, received_at__gte=last_month).count()
+    
+    # Топ компаний по количеству предложений
     top_companies = InsuranceOffer.objects.filter(is_valid=True).values('company_name').annotate(
         count=Count('id'),
         avg_premium_1=Avg('premium_with_franchise_1'),
         avg_premium_2=Avg('premium_with_franchise_2'),
         min_premium=Min('premium_with_franchise_1'),
-        max_premium=Max('premium_with_franchise_1')
+        max_premium=Max('premium_with_franchise_1'),
+        total_premium=Sum('premium_with_franchise_1')
     ).order_by('-count')[:10]
     
     # Статистика по годам страхования
     year_stats = InsuranceOffer.objects.filter(is_valid=True).values('insurance_year').annotate(
         count=Count('id'),
-        avg_premium=Avg('premium_with_franchise_1')
+        avg_premium=Avg('premium_with_franchise_1'),
+        total_premium=Sum('premium_with_franchise_1')
     ).order_by('insurance_year')
     
     # Статистика по рассрочке
@@ -1301,11 +1310,22 @@ def summary_statistics(request):
         count=Count('id')
     ).order_by('payments_per_year')
     
+    # Статистика по филиалам (если есть данные)
+    branch_stats = InsuranceSummary.objects.filter(
+        request__branch__isnull=False
+    ).exclude(
+        request__branch=''
+    ).values('request__branch').annotate(
+        count=Count('id'),
+        offers_count=Count('offers', filter=Q(offers__is_valid=True))
+    ).order_by('-count')[:10]
+    
     return render(request, 'summaries/statistics.html', {
         'stats': stats,
         'top_companies': top_companies,
         'year_stats': year_stats,
-        'installment_stats': installment_stats
+        'installment_stats': installment_stats,
+        'branch_stats': branch_stats,
     })
 
 

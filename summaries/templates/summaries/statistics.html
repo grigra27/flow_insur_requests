@@ -1,0 +1,246 @@
+{% extends 'base.html' %}
+
+{% block title %}Статистика по сводам - {{ block.super }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="bi bi-graph-up"></i> Статистика по сводам</h1>
+    <a href="{% url 'summaries:summary_list' %}" class="btn btn-outline-primary">
+        <i class="bi bi-arrow-left"></i> К сводам
+    </a>
+</div>
+
+<!-- Общая статистика -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-primary">
+                    <i class="bi bi-collection"></i>
+                </h5>
+                <h3 class="text-primary">{{ stats.total_summaries }}</h3>
+                <p class="card-text">Всего сводов</p>
+                <small class="text-muted">+{{ stats.summaries_last_month }} за месяц</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-success">
+                    <i class="bi bi-file-earmark-text"></i>
+                </h5>
+                <h3 class="text-success">{{ stats.total_offers }}</h3>
+                <p class="card-text">Всего предложений</p>
+                <small class="text-muted">+{{ stats.offers_last_month }} за месяц</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-info">
+                    <i class="bi bi-calculator"></i>
+                </h5>
+                <h3 class="text-info">{{ stats.avg_offers_per_summary|floatformat:1 }}</h3>
+                <p class="card-text">Среднее предложений на свод</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-warning">
+                    <i class="bi bi-hourglass-split"></i>
+                </h5>
+                <h3 class="text-warning">{{ stats.collecting }}</h3>
+                <p class="card-text">В процессе сбора</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Статистика по статусам -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-pie-chart"></i> Статусы сводов</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-6">
+                        <div class="d-flex justify-content-between">
+                            <span>Сбор предложений:</span>
+                            <span class="badge bg-warning">{{ stats.collecting }}</span>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span>Готов к отправке:</span>
+                            <span class="badge bg-info">{{ stats.ready }}</span>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span>Отправлен:</span>
+                            <span class="badge bg-primary">{{ stats.sent }}</span>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="d-flex justify-content-between">
+                            <span>Акцепт:</span>
+                            <span class="badge bg-success">{{ stats.completed_accepted }}</span>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span>Не будет:</span>
+                            <span class="badge bg-secondary">{{ stats.completed_rejected }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Статистика по годам страхования -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-calendar-range"></i> По годам страхования</h5>
+            </div>
+            <div class="card-body">
+                {% for year in year_stats %}
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span>{{ year.insurance_year }} год:</span>
+                    <div>
+                        <span class="badge bg-primary me-2">{{ year.count }} предл.</span>
+                        <small class="text-muted">
+                            ср. {{ year.avg_premium|floatformat:0|default:"—" }} ₽
+                        </small>
+                    </div>
+                </div>
+                {% empty %}
+                <p class="text-muted">Нет данных</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Топ страховых компаний -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-trophy"></i> Топ страховых компаний</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Компания</th>
+                                <th class="text-center">Предложений</th>
+                                <th class="text-end">Средняя премия</th>
+                                <th class="text-end">Мин. премия</th>
+                                <th class="text-end">Макс. премия</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for company in top_companies %}
+                            <tr>
+                                <td>
+                                    <strong>{{ company.company_name }}</strong>
+                                </td>
+                                <td class="text-center">
+                                    <span class="badge bg-primary">{{ company.count }}</span>
+                                </td>
+                                <td class="text-end">
+                                    {% if company.avg_premium_1 %}
+                                        {{ company.avg_premium_1|floatformat:0 }} ₽
+                                    {% else %}
+                                        —
+                                    {% endif %}
+                                </td>
+                                <td class="text-end">
+                                    {% if company.min_premium %}
+                                        {{ company.min_premium|floatformat:0 }} ₽
+                                    {% else %}
+                                        —
+                                    {% endif %}
+                                </td>
+                                <td class="text-end">
+                                    {% if company.max_premium %}
+                                        {{ company.max_premium|floatformat:0 }} ₽
+                                    {% else %}
+                                        —
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center text-muted">
+                                    Нет данных о предложениях
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Статистика по рассрочке и филиалам -->
+<div class="row mt-4">
+    {% if installment_stats %}
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-credit-card"></i> Условия оплаты</h5>
+            </div>
+            <div class="card-body">
+                {% for installment in installment_stats %}
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span>
+                        {% if installment.payments_per_year == 1 %}
+                            Единовременно
+                        {% else %}
+                            {{ installment.payments_per_year }} платежей в год
+                        {% endif %}
+                    </span>
+                    <span class="badge bg-info">{{ installment.count }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    {% if branch_stats %}
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-building"></i> По филиалам</h5>
+            </div>
+            <div class="card-body">
+                {% for branch in branch_stats %}
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span>{{ branch.request__branch }}</span>
+                    <div>
+                        <span class="badge bg-primary me-1">{{ branch.count }}</span>
+                        <small class="text-muted">{{ branch.offers_count }} предл.</small>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<div class="mt-4">
+    <small class="text-muted">
+        <i class="bi bi-info-circle"></i>
+        Статистика обновляется в реальном времени и включает только действительные предложения.
+    </small>
+</div>
+
+{% endblock %}
