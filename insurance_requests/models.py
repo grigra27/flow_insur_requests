@@ -115,6 +115,13 @@ class InsuranceRequest(models.Model):
         verbose_name='Территория страхования'
     )
     
+    # Год выпуска предмета лизинга (для КАСКО/спецтехника)
+    manufacturing_year = models.CharField(
+        max_length=255,
+        blank=True,
+        verbose_name='Год выпуска'
+    )
+    
     class Meta:
         verbose_name = 'Страховая заявка'
         verbose_name_plural = 'Страховые заявки'
@@ -193,6 +200,8 @@ class InsuranceRequest(models.Model):
             'telematics_complex': self.telematics_complex or 'не указано',
             # Дополнительные параметры для страхования имущества
             'insurance_territory': self.insurance_territory or 'не указано',
+            # Год выпуска предмета лизинга
+            'manufacturing_year': self.manufacturing_year or 'не указан',
         }
     
     def can_create_summary(self) -> bool:

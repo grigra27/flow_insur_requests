@@ -171,7 +171,7 @@
 
         <!-- Дополнительная информация о заявке -->
         {% if request.insurance_type == 'КАСКО' or request.insurance_type == 'страхование спецтехники' %}
-            {% if request.key_completeness or request.pts_psm or request.creditor_bank or request.usage_purposes or request.telematics_complex %}
+            {% if request.key_completeness or request.pts_psm or request.creditor_bank or request.usage_purposes or request.telematics_complex or request.manufacturing_year %}
             <div class="card mb-4">
                 <div class="card-header">
                     <h5 class="mb-0">Дополнительная информация о заявке</h5>
@@ -188,6 +188,9 @@
 
                                 <dt class="col-sm-6">Банк-кредитор:</dt>
                                 <dd class="col-sm-6">{{ request.creditor_bank|default:"Не указано" }}</dd>
+
+                                <dt class="col-sm-6">Год выпуска:</dt>
+                                <dd class="col-sm-6">{{ request.manufacturing_year|default:"Не указан" }}</dd>
                             </dl>
                         </div>
                         <div class="col-md-6">

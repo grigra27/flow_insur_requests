@@ -144,6 +144,21 @@
                     </div>
 
                     <div class="mb-3">
+                        <label for="{{ form.manufacturing_year.id_for_label }}" class="form-label">
+                            {{ form.manufacturing_year.label }}
+                        </label>
+                        {{ form.manufacturing_year }}
+                        <div class="form-text">Год выпуска предмета лизинга (для КАСКО/спецтехника)</div>
+                        {% if form.manufacturing_year.errors %}
+                        <div class="text-danger">
+                            {% for error in form.manufacturing_year.errors %}
+                            <small>{{ error }}</small>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
                         <label for="{{ form.response_deadline.id_for_label }}" class="form-label">
                             {{ form.response_deadline.label }}
                         </label>

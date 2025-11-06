@@ -375,7 +375,7 @@ class InsuranceRequestForm(forms.ModelForm):
             'client_name', 'inn', 'insurance_type', 'insurance_period',
             'vehicle_info', 'dfa_number', 'branch', 'has_franchise', 
             'has_installment', 'has_autostart', 'has_casco_ce', 'has_transportation',
-            'has_construction_work', 'response_deadline', 'notes'
+            'has_construction_work', 'manufacturing_year', 'response_deadline', 'notes'
         ]
         
         widgets = {
@@ -387,6 +387,11 @@ class InsuranceRequestForm(forms.ModelForm):
             ),
             'vehicle_info': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
             'dfa_number': forms.TextInput(attrs={'class': 'form-control', 'maxlength': '100'}),
+            'manufacturing_year': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Год выпуска предмета лизинга',
+                'maxlength': '255'
+            }),
             'notes': forms.Textarea(attrs={
                 'class': 'form-control',
                 'rows': 4,

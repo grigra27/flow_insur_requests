@@ -400,6 +400,7 @@ def upload_excel(request):
                         creditor_bank=excel_data.get('creditor_bank', ''),
                         usage_purposes=excel_data.get('usage_purposes', ''),
                         telematics_complex=excel_data.get('telematics_complex', ''),
+                        manufacturing_year=excel_data.get('manufacturing_year', ''),
                         # Дополнительные параметры для страхования имущества
                         insurance_territory=excel_data.get('insurance_territory', ''),
                         response_deadline=response_deadline,

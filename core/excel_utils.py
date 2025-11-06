@@ -358,6 +358,12 @@ class ExcelReader:
             has_construction_work = False
             logger.info(f"CASCO/equipment format ({detailed_context}): transportation and construction work parameters set to False (no automatic detection) | {format_context}")
         
+        # Извлекаем год выпуска для КАСКО/спецтехника
+        manufacturing_year = ''
+        if self.application_format == 'casco_equipment':
+            manufacturing_year = self._find_manufacturing_year_openpyxl(sheet)
+            logger.debug(f"Manufacturing year extracted (openpyxl): '{manufacturing_year}' | {format_context}")
+        
         # Извлекаем дополнительные параметры в зависимости от формата заявки
         if self.application_format == 'casco_equipment':
             additional_parameters = self._extract_casco_additional_parameters_openpyxl(sheet)
@@ -381,6 +387,7 @@ class ExcelReader:
             'has_casco_ce': has_casco_ce,
             'has_transportation': has_transportation,
             'has_construction_work': has_construction_work,
+            'manufacturing_year': manufacturing_year,
             'response_deadline': response_deadline,
             'additional_data': {
                 'franchise_details': franchise_details,
@@ -485,6 +492,12 @@ class ExcelReader:
             has_construction_work = False
             logger.info(f"CASCO/equipment format ({detailed_context}): transportation and construction work parameters set to False (no automatic detection) | {format_context}")
         
+        # Извлекаем год выпуска для КАСКО/спецтехника
+        manufacturing_year = ''
+        if self.application_format == 'casco_equipment':
+            manufacturing_year = self._find_manufacturing_year_pandas(df)
+            logger.debug(f"Manufacturing year extracted (pandas): '{manufacturing_year}' | {format_context}")
+        
         # Извлекаем дополнительные параметры в зависимости от формата заявки
         if self.application_format == 'casco_equipment':
             additional_parameters = self._extract_casco_additional_parameters_pandas(df)
@@ -508,6 +521,7 @@ class ExcelReader:
             'has_casco_ce': has_casco_ce,
             'has_transportation': has_transportation,
             'has_construction_work': has_construction_work,
+            'manufacturing_year': manufacturing_year,
             'response_deadline': response_deadline,
             'additional_data': {
                 'franchise_details': franchise_details,
@@ -958,6 +972,7 @@ class ExcelReader:
             'has_casco_ce': False,
             'has_transportation': False,
             'has_construction_work': False,
+            'manufacturing_year': '',
             'response_deadline': timezone.now() + timedelta(hours=3),
             'application_type': self.application_type,
             'application_format': self.application_format,
@@ -1235,6 +1250,37 @@ class ExcelReader:
         else:
             return 'Информация о предмете лизинга не указана'
 
+    def _find_manufacturing_year_pandas(self, df) -> str:
+        """Извлекает год выпуска предмета лизинга из столбца J (pandas)"""
+        format_context = self._get_format_context()
+        detailed_context = self._get_detailed_format_context()
+        
+        # Строки для поиска года выпуска: J43, J45, J47, J49 (столбец J = индекс 9)
+        rows_to_check = [43, 45, 47, 49]
+        
+        manufacturing_year_parts = []
+        
+        logger.info(f"Starting manufacturing year extraction ({detailed_context}) from column J (index 9), rows {rows_to_check} | {format_context}")
+        
+        for row in rows_to_check:
+            value = self._get_cell_with_adjustment_pandas(df, row, 9)  # J = индекс 9
+            adjusted_row = self._get_adjusted_row(row)
+            
+            logger.debug(f"Manufacturing year check: row {row} -> row {adjusted_row}, col J (9), value: '{value}' | {format_context}")
+            
+            if value and str(value).strip():
+                manufacturing_year_parts.append(str(value).strip())
+                logger.info(f"Found manufacturing year data in row {adjusted_row}, col J: '{value}' | {format_context}")
+        
+        # Объединяем найденную информацию
+        if manufacturing_year_parts:
+            result = ' '.join(manufacturing_year_parts)
+            logger.info(f"Manufacturing year extraction completed ({detailed_context}): '{result}' | {format_context}")
+            return result
+        else:
+            logger.info(f"No manufacturing year data found ({detailed_context}) in column J | {format_context}")
+            return ''
+
     def _find_leasing_object_info_property_pandas(self, df) -> str:
         """
         Извлекает информацию о предмете лизинга для формата имущества (pandas)
@@ -1332,6 +1378,37 @@ class ExcelReader:
             return ' '.join(vehicle_info_parts)
         else:
             return 'Информация о предмете лизинга не указана'
+
+    def _find_manufacturing_year_openpyxl(self, sheet) -> str:
+        """Извлекает год выпуска предмета лизинга из столбца J (openpyxl)"""
+        format_context = self._get_format_context()
+        detailed_context = self._get_detailed_format_context()
+        
+        # Строки для поиска года выпуска: J43, J45, J47, J49
+        rows_to_check = [43, 45, 47, 49]
+        
+        manufacturing_year_parts = []
+        
+        logger.info(f"Starting manufacturing year extraction ({detailed_context}) from column J, rows {rows_to_check} | {format_context}")
+        
+        for row in rows_to_check:
+            value = self._get_cell_with_adjustment_openpyxl(sheet, 'J', row)
+            adjusted_row = self._get_adjusted_row(row)
+            
+            logger.debug(f"Manufacturing year check: J{row} -> J{adjusted_row}, value: '{value}' | {format_context}")
+            
+            if value and str(value).strip():
+                manufacturing_year_parts.append(str(value).strip())
+                logger.info(f"Found manufacturing year data in J{adjusted_row}: '{value}' | {format_context}")
+        
+        # Объединяем найденную информацию
+        if manufacturing_year_parts:
+            result = ' '.join(manufacturing_year_parts)
+            logger.info(f"Manufacturing year extraction completed ({detailed_context}): '{result}' | {format_context}")
+            return result
+        else:
+            logger.info(f"No manufacturing year data found ({detailed_context}) in column J | {format_context}")
+            return ''
 
     def _find_leasing_object_info_property_openpyxl(self, sheet) -> str:
         """
