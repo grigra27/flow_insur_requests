@@ -143,19 +143,139 @@
                         {% endif %}
                     </div>
 
-                    <div class="mb-3">
-                        <label for="{{ form.manufacturing_year.id_for_label }}" class="form-label">
-                            {{ form.manufacturing_year.label }}
-                        </label>
-                        {{ form.manufacturing_year }}
-                        <div class="form-text">Год выпуска предмета лизинга (для КАСКО/спецтехника)</div>
-                        {% if form.manufacturing_year.errors %}
-                        <div class="text-danger">
-                            {% for error in form.manufacturing_year.errors %}
-                            <small>{{ error }}</small>
-                            {% endfor %}
+                    <!-- Общие дополнительные параметры -->
+                    <div class="mb-4 common-additional-fields">
+                        <h6 class="text-muted mb-3">Необязательные параметры</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="{{ form.creditor_bank.id_for_label }}" class="form-label">
+                                        {{ form.creditor_bank.label }}
+                                    </label>
+                                    {{ form.creditor_bank }}
+                                    {% if form.creditor_bank.errors %}
+                                    <div class="text-danger">
+                                        {% for error in form.creditor_bank.errors %}
+                                        <small>{{ error }}</small>
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="{{ form.usage_purposes.id_for_label }}" class="form-label">
+                                        {{ form.usage_purposes.label }}
+                                    </label>
+                                    {{ form.usage_purposes }}
+                                    {% if form.usage_purposes.errors %}
+                                    <div class="text-danger">
+                                        {% for error in form.usage_purposes.errors %}
+                                        <small>{{ error }}</small>
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
                         </div>
-                        {% endif %}
+                    </div>
+
+                    <!-- Дополнительные параметры КАСКО/спецтехника -->
+                    <div class="mb-4" id="casco-additional-fields">
+                        <h6 class="text-muted mb-3">Дополнительные параметры КАСКО/спецтехника</h6>
+                        
+                        <div class="row">
+                            <div class="col-md-6 casco-specific">
+                                <div class="mb-3">
+                                    <label for="{{ form.manufacturing_year.id_for_label }}" class="form-label">
+                                        {{ form.manufacturing_year.label }}
+                                    </label>
+                                    {{ form.manufacturing_year }}
+                                    <div class="form-text">Год выпуска предмета лизинга</div>
+                                    {% if form.manufacturing_year.errors %}
+                                    <div class="text-danger">
+                                        {% for error in form.manufacturing_year.errors %}
+                                        <small>{{ error }}</small>
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6 casco-specific">
+                                <div class="mb-3">
+                                    <label for="{{ form.key_completeness.id_for_label }}" class="form-label">
+                                        {{ form.key_completeness.label }}
+                                    </label>
+                                    {{ form.key_completeness }}
+                                    {% if form.key_completeness.errors %}
+                                    <div class="text-danger">
+                                        {% for error in form.key_completeness.errors %}
+                                        <small>{{ error }}</small>
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 casco-specific">
+                                <div class="mb-3">
+                                    <label for="{{ form.pts_psm.id_for_label }}" class="form-label">
+                                        {{ form.pts_psm.label }}
+                                    </label>
+                                    {{ form.pts_psm }}
+                                    {% if form.pts_psm.errors %}
+                                    <div class="text-danger">
+                                        {% for error in form.pts_psm.errors %}
+                                        <small>{{ error }}</small>
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6 casco-specific">
+                                <div class="mb-3">
+                                    <label for="{{ form.telematics_complex.id_for_label }}" class="form-label">
+                                        {{ form.telematics_complex.label }}
+                                    </label>
+                                    {{ form.telematics_complex }}
+                                    {% if form.telematics_complex.errors %}
+                                    <div class="text-danger">
+                                        {% for error in form.telematics_complex.errors %}
+                                        <small>{{ error }}</small>
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Дополнительные параметры для страхования имущества -->
+                    <div class="mb-4" id="property-additional-fields">
+                        <h6 class="text-muted mb-3">Дополнительные параметры страхования имущества</h6>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="{{ form.insurance_territory.id_for_label }}" class="form-label">
+                                        {{ form.insurance_territory.label }}
+                                    </label>
+                                    {{ form.insurance_territory }}
+                                    {% if form.insurance_territory.errors %}
+                                    <div class="text-danger">
+                                        {% for error in form.insurance_territory.errors %}
+                                        <small>{{ error }}</small>
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <!-- Пустая колонка для симметрии -->
+                            </div>
+                        </div>
                     </div>
 
                     <div class="mb-3">
@@ -192,7 +312,7 @@
 
                     <!-- Дополнительные параметры -->
                     <div class="mb-4">
-                        <h6 class="text-muted mb-3">Дополнительные параметры</h6>
+                        <h6 class="text-muted mb-3">Дополнительные параметры "с галочками" - <i>влияет на текст письма</i></h6>
                         
                         <!-- Общие параметры -->
                         <div class="card border-0 bg-light mb-3">
@@ -304,6 +424,36 @@
     document.addEventListener('DOMContentLoaded', function () {
         const notesInput = document.getElementById('{{ form.notes.id_for_label }}');
         const form = document.querySelector('form');
+        const insuranceTypeSelect = document.getElementById('{{ form.insurance_type.id_for_label }}');
+        const cascoFields = document.getElementById('casco-additional-fields');
+        const propertyFields = document.getElementById('property-additional-fields');
+
+        // Функция для показа/скрытия дополнительных полей в зависимости от типа страхования
+        function toggleAdditionalFields() {
+            if (!insuranceTypeSelect || !cascoFields || !propertyFields) return;
+            
+            const selectedType = insuranceTypeSelect.value;
+            
+            if (selectedType === 'КАСКО' || selectedType === 'страхование спецтехники') {
+                cascoFields.style.display = 'block';
+                propertyFields.style.display = 'none';
+            } else if (selectedType === 'страхование имущества') {
+                cascoFields.style.display = 'none';
+                propertyFields.style.display = 'block';
+            } else {
+                // Для типа "другое" показываем все поля
+                cascoFields.style.display = 'block';
+                propertyFields.style.display = 'block';
+            }
+        }
+
+        // Инициализация при загрузке страницы
+        toggleAdditionalFields();
+
+        // Обработчик изменения типа страхования
+        if (insuranceTypeSelect) {
+            insuranceTypeSelect.addEventListener('change', toggleAdditionalFields);
+        }
 
         // Функция для отображения ошибок валидации
         function showFieldError(field, message) {
@@ -554,6 +704,63 @@
     .card.border-0.bg-light:hover {
         background-color: #e9ecef !important;
         transition: background-color 0.2s ease;
+    }
+
+    /* Стили для дополнительных полей КАСКО/имущество */
+    #casco-additional-fields,
+    #property-additional-fields {
+        border: 1px solid #e9ecef;
+        border-radius: 0.5rem;
+        padding: 1rem;
+        background-color: #f8f9fa;
+        margin-bottom: 1rem;
+        transition: all 0.3s ease;
+    }
+
+    #casco-additional-fields h6,
+    #property-additional-fields h6 {
+        color: #495057;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid #dee2e6;
+    }
+
+    #casco-additional-fields .form-control,
+    #property-additional-fields .form-control {
+        border-color: #ced4da;
+    }
+
+    #casco-additional-fields .form-control:focus,
+    #property-additional-fields .form-control:focus {
+        border-color: #0d6efd;
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+    }
+
+    /* Стили для блока общих дополнительных параметров */
+    .common-additional-fields {
+        border: 1px solid #d1ecf1;
+        border-radius: 0.5rem;
+        padding: 1rem;
+        background-color: #f1f9fc;
+        margin-bottom: 1rem;
+    }
+
+    .common-additional-fields h6 {
+        color: #0c5460;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid #bee5eb;
+    }
+
+    .common-additional-fields .form-control {
+        border-color: #ced4da;
+    }
+
+    .common-additional-fields .form-control:focus {
+        border-color: #0d6efd;
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
     }
 </style>
 {% endblock %}

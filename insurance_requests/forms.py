@@ -375,7 +375,11 @@ class InsuranceRequestForm(forms.ModelForm):
             'client_name', 'inn', 'insurance_type', 'insurance_period',
             'vehicle_info', 'dfa_number', 'branch', 'has_franchise', 
             'has_installment', 'has_autostart', 'has_casco_ce', 'has_transportation',
-            'has_construction_work', 'manufacturing_year', 'response_deadline', 'notes'
+            'has_construction_work', 'manufacturing_year', 'response_deadline', 'notes',
+            # Дополнительные параметры КАСКО/спецтехника
+            'key_completeness', 'pts_psm', 'creditor_bank', 'usage_purposes', 'telematics_complex',
+            # Дополнительные параметры для страхования имущества
+            'insurance_territory'
         ]
         
         widgets = {
@@ -405,6 +409,38 @@ class InsuranceRequestForm(forms.ModelForm):
             'has_transportation': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'has_construction_work': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'response_deadline': DateTimeLocalWidget(),
+            # Дополнительные параметры КАСКО/спецтехника
+            'key_completeness': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Комплектность ключей',
+                'maxlength': '255'
+            }),
+            'pts_psm': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'ПТС/ПСМ',
+                'maxlength': '255'
+            }),
+            'creditor_bank': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Банк-кредитор',
+                'maxlength': '255'
+            }),
+            'usage_purposes': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 2,
+                'placeholder': 'Цели использования'
+            }),
+            'telematics_complex': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 2,
+                'placeholder': 'Телематический комплекс'
+            }),
+            # Дополнительные параметры для страхования имущества
+            'insurance_territory': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 2,
+                'placeholder': 'Территория страхования'
+            }),
         }
     
     def __init__(self, *args, **kwargs):
@@ -575,6 +611,54 @@ class InsuranceRequestForm(forms.ModelForm):
                 raise ValidationError('Примечание должно содержать минимум 3 символа')
         
         return notes
+    
+    def clean_key_completeness(self):
+        """Валидация комплектности ключей"""
+        value = self.cleaned_data.get('key_completeness', '')
+        if value and len(value) > 255:
+            raise ValidationError('Комплектность ключей не должна превышать 255 символов')
+        return value.strip() if value else value
+    
+    def clean_pts_psm(self):
+        """Валидация ПТС/ПСМ"""
+        value = self.cleaned_data.get('pts_psm', '')
+        if value and len(value) > 255:
+            raise ValidationError('ПТС/ПСМ не должно превышать 255 символов')
+        return value.strip() if value else value
+    
+    def clean_creditor_bank(self):
+        """Валидация банка-кредитора"""
+        value = self.cleaned_data.get('creditor_bank', '')
+        if value and len(value) > 255:
+            raise ValidationError('Банк-кредитор не должен превышать 255 символов')
+        return value.strip() if value else value
+    
+    def clean_usage_purposes(self):
+        """Валидация целей использования"""
+        value = self.cleaned_data.get('usage_purposes', '')
+        if value:
+            value = value.strip()
+            if len(value) > 1000:
+                raise ValidationError('Цели использования не должны превышать 1000 символов')
+        return value
+    
+    def clean_telematics_complex(self):
+        """Валидация телематического комплекса"""
+        value = self.cleaned_data.get('telematics_complex', '')
+        if value:
+            value = value.strip()
+            if len(value) > 1000:
+                raise ValidationError('Телематический комплекс не должен превышать 1000 символов')
+        return value
+    
+    def clean_insurance_territory(self):
+        """Валидация территории страхования"""
+        value = self.cleaned_data.get('insurance_territory', '')
+        if value:
+            value = value.strip()
+            if len(value) > 1000:
+                raise ValidationError('Территория страхования не должна превышать 1000 символов')
+        return value
     
     def clean(self):
         """Общая валидация формы"""
