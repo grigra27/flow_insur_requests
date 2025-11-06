@@ -99,7 +99,7 @@
                                         <div class="company-notes mb-3">
                                             <div class="alert alert-info py-2 px-3 mb-0">
                                                 <i class="bi bi-info-circle me-2"></i>
-                                                <strong>Примечания:</strong>
+                                                <strong>Комментарии:</strong>
                                                 {% for note in notes %}
                                                     <div class="mt-1">{{ note }}</div>
                                                 {% endfor %}
@@ -235,6 +235,54 @@
     </div>
 
     <div class="col-lg-4">
+        <!-- Примечание к своду -->
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0"><i class="bi bi-sticky"></i> Общее примечание</h6>
+                <button type="button" class="btn btn-outline-primary btn-sm" onclick="toggleNotesEdit()">
+                    <i class="bi bi-pencil"></i> Редактировать
+                </button>
+            </div>
+            <div class="card-body">
+                <!-- Отображение примечания -->
+                <div id="notes-display">
+                    {% if summary.notes %}
+                        <div class="alert alert-info mb-0">
+                            <i class="bi bi-info-circle me-2"></i>
+                            {{ summary.notes|linebreaks }}
+                        </div>
+                    {% else %}
+                        <p class="text-muted mb-0">
+                            <i class="bi bi-plus-circle me-2"></i>
+                            Примечание не добавлено. Нажмите "Редактировать" для добавления.
+                        </p>
+                    {% endif %}
+                </div>
+                
+                <!-- Форма редактирования примечания -->
+                <div id="notes-edit" style="display: none;">
+                    <form id="notes-form">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <textarea class="form-control" id="notes-textarea" name="notes" rows="4" 
+                                      placeholder="Введите примечание к своду...">{{ summary.notes }}</textarea>
+                            <div class="form-text">
+                                Это общее примечание ко всему своду. Сюда можно внести данные об ОСАГО и отказах СК от страхования
+                            </div>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-success btn-sm">
+                                <i class="bi bi-check-lg"></i> Сохранить
+                            </button>
+                            <button type="button" class="btn btn-secondary btn-sm" onclick="cancelNotesEdit()">
+                                <i class="bi bi-x-lg"></i> Отмена
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
         <!-- Сводная информация -->
         <div class="card mb-4">
             <div class="card-header">
@@ -662,6 +710,63 @@
     to {
         transform: translateX(0);
         opacity: 1;
+    }
+}
+
+/* Notes section styles */
+#notes-display .alert {
+    border-left: 4px solid #0dcaf0;
+    background-color: #e7f3ff;
+    border-color: #b8daff;
+    font-size: 0.95rem;
+    line-height: 1.5;
+}
+
+#notes-display .alert .bi-info-circle {
+    color: #0dcaf0;
+    font-size: 1rem;
+}
+
+#notes-display .text-muted {
+    font-style: italic;
+}
+
+#notes-edit textarea {
+    border: 2px solid #dee2e6;
+    border-radius: 6px;
+    transition: border-color 0.3s ease;
+    resize: vertical;
+    min-height: 100px;
+}
+
+#notes-edit textarea:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+#notes-edit .form-text {
+    font-size: 0.85rem;
+    color: #6c757d;
+}
+
+#notes-edit .btn-group {
+    gap: 0.5rem;
+}
+
+/* Responsive styles for notes section */
+@media (max-width: 768px) {
+    #notes-display .alert {
+        font-size: 0.9rem;
+        padding: 0.75rem;
+    }
+    
+    #notes-edit textarea {
+        font-size: 0.9rem;
+    }
+    
+    #notes-edit .btn {
+        font-size: 0.85rem;
+        padding: 0.375rem 0.75rem;
     }
 }
 
@@ -2267,6 +2372,227 @@ function showErrorMessage(message, duration = 3000) {
 function showSuccessMessage(message, duration = 3000) {
     showMessage(message, 'success', duration);
 }
+
+// Функции для работы с примечанием
+function toggleNotesEdit() {
+    const displayDiv = document.getElementById('notes-display');
+    const editDiv = document.getElementById('notes-edit');
+    const editButton = document.querySelector('button[onclick="toggleNotesEdit()"]');
+    
+    if (displayDiv && editDiv) {
+        displayDiv.style.display = 'none';
+        editDiv.style.display = 'block';
+        
+        // Фокусируемся на текстовом поле
+        const textarea = document.getElementById('notes-textarea');
+        if (textarea) {
+            textarea.focus();
+            // Устанавливаем курсор в конец текста
+            textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+        }
+        
+        // Изменяем кнопку
+        editButton.innerHTML = '<i class="bi bi-eye"></i> Закрыть';
+        editButton.setAttribute('onclick', 'cancelNotesEdit()');
+    }
+}
+
+function cancelNotesEdit() {
+    const displayDiv = document.getElementById('notes-display');
+    const editDiv = document.getElementById('notes-edit');
+    const editButton = document.querySelector('button[onclick="cancelNotesEdit()"]');
+    
+    if (displayDiv && editDiv) {
+        displayDiv.style.display = 'block';
+        editDiv.style.display = 'none';
+        
+        // Восстанавливаем исходное значение в textarea
+        const textarea = document.getElementById('notes-textarea');
+        const originalNotes = textarea.dataset.originalValue || '';
+        textarea.value = originalNotes;
+        
+        // Восстанавливаем кнопку
+        editButton.innerHTML = '<i class="bi bi-pencil"></i> Редактировать';
+        editButton.setAttribute('onclick', 'toggleNotesEdit()');
+    }
+}
+
+function saveNotes() {
+    const form = document.getElementById('notes-form');
+    const textarea = document.getElementById('notes-textarea');
+    const submitButton = form.querySelector('button[type="submit"]');
+    
+    if (!textarea || !submitButton) return;
+    
+    const notes = textarea.value.trim();
+    const summaryId = getSummaryId();
+    
+    // Показываем индикатор загрузки
+    const originalButtonContent = submitButton.innerHTML;
+    submitButton.innerHTML = '<i class="bi bi-hourglass-split"></i> Сохранение...';
+    submitButton.disabled = true;
+    
+    // Подготавливаем данные для отправки
+    const formData = new FormData();
+    formData.append('notes', notes);
+    formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+    
+    // Отправляем запрос
+    fetch(`/summaries/${summaryId}/update-notes/`, {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            // Обновляем отображение примечания
+            updateNotesDisplay(data.notes);
+            
+            // Сохраняем новое значение как исходное
+            textarea.dataset.originalValue = data.notes;
+            
+            // Возвращаемся к режиму просмотра
+            cancelNotesEdit();
+            
+            // Показываем уведомление об успехе
+            showSuccessMessage(data.message, 3000);
+        } else {
+            showErrorMessage('Ошибка при сохранении примечания: ' + (data.error || 'Неизвестная ошибка'));
+        }
+    })
+    .catch(error => {
+        console.error('Error saving notes:', error);
+        showErrorMessage('Произошла ошибка при сохранении примечания. Попробуйте еще раз.');
+    })
+    .finally(() => {
+        // Восстанавливаем кнопку
+        submitButton.innerHTML = originalButtonContent;
+        submitButton.disabled = false;
+    });
+}
+
+function updateNotesDisplay(notes) {
+    const displayDiv = document.getElementById('notes-display');
+    if (!displayDiv) return;
+    
+    if (notes && notes.trim()) {
+        // Заменяем переносы строк на <br> для отображения
+        const formattedNotes = notes.replace(/\n/g, '<br>');
+        displayDiv.innerHTML = `
+            <div class="alert alert-info mb-0">
+                <i class="bi bi-info-circle me-2"></i>
+                ${formattedNotes}
+            </div>
+        `;
+    } else {
+        displayDiv.innerHTML = `
+            <p class="text-muted mb-0">
+                <i class="bi bi-plus-circle me-2"></i>
+                Примечание не добавлено. Нажмите "Редактировать" для добавления.
+            </p>
+        `;
+    }
+}
+
+// Инициализация формы примечания
+function initializeNotesForm() {
+    const form = document.getElementById('notes-form');
+    const textarea = document.getElementById('notes-textarea');
+    
+    if (form && textarea) {
+        // Сохраняем исходное значение
+        textarea.dataset.originalValue = textarea.value;
+        
+        // Обработчик отправки формы
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            saveNotes();
+        });
+        
+        // Обработчик клавиш для быстрого сохранения (Ctrl+Enter)
+        textarea.addEventListener('keydown', function(e) {
+            if (e.ctrlKey && e.key === 'Enter') {
+                e.preventDefault();
+                saveNotes();
+            }
+            
+            // Escape для отмены
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                cancelNotesEdit();
+            }
+        });
+    }
+}
+
+// Обновляем инициализацию при загрузке страницы
+document.addEventListener('DOMContentLoaded', function() {
+    // Сохраняем время загрузки страницы
+    window.pageLoadTime = Date.now();
+    
+    checkBrowserCompatibility();
+    updateOfferDisplay();
+    enhanceTableInteractivity();
+    initializeCompanyResponseUpload();
+    initializeNotesForm(); // Добавляем инициализацию формы примечания
+    
+    // Устанавливаем текущий статус в селекте
+    const statusSelect = document.getElementById('status-select');
+    if (statusSelect) {
+        const currentBadge = document.getElementById('current-status-badge');
+        if (currentBadge) {
+            // Извлекаем текущий статус из класса бейджа
+            const badgeClasses = currentBadge.className;
+            let currentStatus = 'collecting'; // по умолчанию
+            
+            if (badgeClasses.includes('bg-success')) {
+                // Only 'completed_accepted' uses success color now
+                currentStatus = 'completed_accepted';
+            } else if (badgeClasses.includes('bg-danger')) {
+                currentStatus = 'completed_rejected';
+            } else if (badgeClasses.includes('bg-secondary')) {
+                // Could be 'sent' or 'completed' - check text content
+                const statusText = badge.textContent.trim();
+                if (statusText.includes('Отправлен') || statusText.includes('Альянс')) {
+                    currentStatus = 'sent';
+                } else {
+                    currentStatus = 'completed'; // fallback for old completed status
+                }
+            } else if (badgeClasses.includes('bg-info')) {
+                currentStatus = 'ready';
+            } else if (badgeClasses.includes('bg-warning')) {
+                currentStatus = 'collecting';
+            }
+            
+            statusSelect.dataset.currentStatus = currentStatus;
+        }
+    }
+    
+    // Обновляем отображение каждые 30 секунд (если страница активна)
+    setInterval(() => {
+        if (!document.hidden) {
+            updateOfferDisplay();
+            checkPageState();
+        }
+    }, 30000);
+    
+    // Обработчик для отслеживания изменений в сети
+    window.addEventListener('online', () => {
+        showSuccessMessage('Подключение к интернету восстановлено');
+    });
+    
+    window.addEventListener('offline', () => {
+        showWarningMessage('Отсутствует подключение к интернету');
+    });
+});
 
 // Инициализация при загрузке страницы
 // Дублирующийся вызов удален - функция уже вызывается выше в строке 1827

@@ -135,6 +135,9 @@ class InsuranceSummary(models.Model):
     # Отправка клиенту
     sent_to_client_at = models.DateTimeField(null=True, blank=True, verbose_name='Отправлен клиенту')
     
+    # Примечание к своду
+    notes = models.TextField(blank=True, verbose_name='Примечание', help_text='Дополнительное примечание к своду')
+    
     class Meta:
         verbose_name = 'Свод предложений'
         verbose_name_plural = 'Своды предложений'
@@ -279,7 +282,7 @@ class InsuranceSummary(models.Model):
         return get_status_display_data(self.status, self.get_status_display())
     
     def get_company_notes(self):
-        """Возвращает примечания, сгруппированные по компаниям"""
+        """Возвращает комментарии, сгруппированные по компаниям"""
         company_notes = {}
         for offer in self.offers.filter(is_valid=True, notes__isnull=False).exclude(notes=''):
             company_name = offer.company_name
@@ -288,7 +291,7 @@ class InsuranceSummary(models.Model):
             if offer.notes.strip():
                 company_notes[company_name].append(offer.notes.strip())
         
-        # Объединяем примечания от разных лет для каждой компании
+        # Объединяем комментарии от разных лет для каждой компании
         for company_name in company_notes:
             # Удаляем дубликаты, сохраняя порядок
             unique_notes = []
@@ -417,7 +420,7 @@ class InsuranceOffer(models.Model):
     is_valid = models.BooleanField(default=True, verbose_name='Действительное предложение')
     
     # Дополнительная информация
-    notes = models.TextField(blank=True, verbose_name='Примечания')
+    notes = models.TextField(blank=True, verbose_name='Комментарии')
     original_email_subject = models.CharField(max_length=255, blank=True, verbose_name='Тема письма')
     
     # Вложения

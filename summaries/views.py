@@ -161,7 +161,7 @@ def summary_detail(request, pk):
     # Получаем данные об итоговых суммах по компаниям для многолетних предложений
     company_totals = summary.get_company_totals()
     
-    # Получаем примечания, сгруппированные по компаниям
+    # Получаем комментарии, сгруппированные по компаниям
     company_notes = summary.get_company_notes()
     
     return render(request, 'summaries/summary_detail.html', {
@@ -639,6 +639,26 @@ def change_summary_status(request, summary_id):
     return JsonResponse({
         'success': False, 
         'error': 'Недопустимый статус'
+    })
+
+
+@require_http_methods(["POST"])
+@user_required
+def update_summary_notes(request, summary_id):
+    """Обновление примечания к своду"""
+    summary = get_object_or_404(InsuranceSummary, pk=summary_id)
+    notes = request.POST.get('notes', '').strip()
+    
+    # Обновляем примечание
+    summary.notes = notes
+    summary.save(update_fields=['notes'])
+    
+    logger.info(f"Summary {summary_id} notes updated by user {request.user.username}")
+    
+    return JsonResponse({
+        'success': True,
+        'message': 'Примечание успешно обновлено' if notes else 'Примечание удалено',
+        'notes': notes
     })
 
 
