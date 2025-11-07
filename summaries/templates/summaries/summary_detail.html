@@ -1008,11 +1008,30 @@ function enhanceTableInteractivity() {
 
 // Функция для проверки совместимости браузера
 function checkBrowserCompatibility() {
+    // Проверяем поддержку современных функций без использования eval()
     const features = {
         fetch: typeof fetch !== 'undefined',
         intl: typeof Intl !== 'undefined',
-        arrow: (() => { try { eval('() => {}'); return true; } catch(e) { return false; } })(),
-        const: (() => { try { eval('const x = 1'); return true; } catch(e) { return false; } })()
+        // Проверяем стрелочные функции через Function constructor (безопаснее для CSP)
+        arrow: (() => { 
+            try { 
+                new Function('return () => {}')(); 
+                return true; 
+            } catch(e) { 
+                return false; 
+            } 
+        })(),
+        // Проверяем const через Function constructor
+        const: (() => { 
+            try { 
+                new Function('const x = 1')(); 
+                return true; 
+            } catch(e) { 
+                return false; 
+            } 
+        })(),
+        // Дополнительная проверка: Promise
+        promise: typeof Promise !== 'undefined'
     };
     
     const unsupported = Object.keys(features).filter(key => !features[key]);
@@ -1020,8 +1039,9 @@ function checkBrowserCompatibility() {
     if (unsupported.length > 0) {
         console.warn('Некоторые функции могут не работать в вашем браузере:', unsupported);
         
-        // Показываем предупреждение для старых браузеров
-        if (unsupported.includes('fetch') || unsupported.includes('arrow')) {
+        // Показываем предупреждение только для действительно старых браузеров
+        // (отсутствие fetch или Promise - явный признак устаревшего браузера)
+        if (unsupported.includes('fetch') || unsupported.includes('promise')) {
             const warning = document.createElement('div');
             warning.className = 'alert alert-warning alert-dismissible fade show';
             warning.innerHTML = `
