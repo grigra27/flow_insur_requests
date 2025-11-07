@@ -302,13 +302,26 @@ class ExcelExportService:
             self._set_merged_cell_value(worksheet, 'C1', request.dfa_number)
             logger.debug(f"Записан номер заявки в C1: {request.dfa_number}")
             
-            # CDE2 - информация о предмете лизинга
-            self._set_merged_cell_value(worksheet, 'C2', request.vehicle_info)
-            logger.debug(f"Записана информация о предмете лизинга в C2: {request.vehicle_info[:50]}...")
+            # CDE2 - информация о предмете лизинга с годом выпуска
+            vehicle_info_with_year = request.vehicle_info
+            if request.manufacturing_year and request.manufacturing_year.strip():
+                vehicle_info_with_year = f"{request.vehicle_info}, {request.manufacturing_year}"
+            self._set_merged_cell_value(worksheet, 'C2', vehicle_info_with_year)
+            logger.debug(f"Записана информация о предмете лизинга в C2: {vehicle_info_with_year[:50]}...")
             
             # CDE3 - название клиента
             self._set_merged_cell_value(worksheet, 'C3', request.client_name)
             logger.debug(f"Записано название клиента в C3: {request.client_name}")
+            
+            # CDE4 - цели использования
+            usage_purposes = request.usage_purposes if request.usage_purposes else ''
+            self._set_merged_cell_value(worksheet, 'C4', usage_purposes)
+            logger.debug(f"Записаны цели использования в C4: {usage_purposes[:50] if usage_purposes else '(пусто)'}...")
+            
+            # CDE5 - общее примечание к своду
+            summary_notes = summary.notes if summary.notes else ''
+            self._set_merged_cell_value(worksheet, 'C5', summary_notes)
+            logger.debug(f"Записано общее примечание к своду в C5: {summary_notes[:50] if summary_notes else '(пусто)'}...")
             
             # Заполнение данных компаний с учетом типа шаблона
             self._fill_company_data(workbook, summary, template_type)
