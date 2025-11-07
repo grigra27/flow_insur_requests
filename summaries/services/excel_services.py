@@ -173,12 +173,13 @@ class ExcelExportService:
             logger.error(error_msg)
             raise TemplateNotFoundError(error_msg)
     
-    def generate_summary_excel(self, summary: InsuranceSummary) -> BytesIO:
+    def generate_summary_excel(self, summary: InsuranceSummary, is_client_version: bool = False) -> BytesIO:
         """
         Генерирует Excel-файл для свода предложений
         
         Args:
             summary: Объект свода предложений
+            is_client_version: Если True, генерируется клиентская версия (без технического листа)
             
         Returns:
             BytesIO: Сгенерированный Excel-файл в памяти
@@ -187,7 +188,8 @@ class ExcelExportService:
             InvalidSummaryDataError: Если данные свода некорректны
             ExcelExportServiceError: При ошибках работы с Excel
         """
-        logger.info(f"Начинаем генерацию Excel-файла для свода ID: {summary.id}")
+        version_type = "клиентского" if is_client_version else "полного"
+        logger.info(f"Начинаем генерацию {version_type} Excel-файла для свода ID: {summary.id}")
         
         try:
             # Валидация данных свода
@@ -196,25 +198,25 @@ class ExcelExportService:
             # Определение типа шаблона на основе данных свода
             template_type = self._determine_template_type_safe(summary)
             
-            # Загрузка соответствующего шаблона
-            workbook = self._load_template(template_type)
+            # Загрузка соответствующего шаблона (клиентского или обычного)
+            workbook = self._load_template(template_type, is_client_version)
             
             # Заполнение данными с учетом типа шаблона
-            self._fill_template_data(workbook, summary, template_type)
+            self._fill_template_data(workbook, summary, template_type, is_client_version)
             
             # Сохранение в память
             excel_buffer = BytesIO()
             workbook.save(excel_buffer)
             excel_buffer.seek(0)
             
-            logger.info(f"Excel-файл успешно сгенерирован для свода ID: {summary.id}")
+            logger.info(f"{version_type.capitalize()} Excel-файл успешно сгенерирован для свода ID: {summary.id}")
             return excel_buffer
             
         except (InvalidSummaryDataError, TemplateNotFoundError):
             # Переброс известных исключений
             raise
         except Exception as e:
-            error_msg = f"Ошибка при генерации Excel-файла для свода ID {summary.id}: {str(e)}"
+            error_msg = f"Ошибка при генерации {version_type} Excel-файла для свода ID {summary.id}: {str(e)}"
             logger.error(error_msg, exc_info=True)
             raise ExcelExportServiceError(error_msg) from e
     
@@ -253,12 +255,13 @@ class ExcelExportService:
         
         logger.debug(f"Валидация данных свода ID {summary.id} успешно пройдена")
     
-    def _load_template(self, template_type: str = 'full') -> Workbook:
+    def _load_template(self, template_type: str = 'full', is_client_version: bool = False) -> Workbook:
         """
         Загружает соответствующий шаблон Excel из файла
         
         Args:
             template_type: Тип шаблона ('full' или 'simplified')
+            is_client_version: Если True, загружается клиентский шаблон
         
         Returns:
             Workbook: Загруженная книга Excel
@@ -267,17 +270,19 @@ class ExcelExportService:
             ExcelExportServiceError: При ошибках загрузки шаблона
         """
         try:
-            template_path = self._get_template_path(template_type)
-            logger.debug(f"Загружаем шаблон из файла: {template_path}")
+            template_path = self._get_template_path(template_type, is_client_version)
+            version_label = "клиентский" if is_client_version else "обычный"
+            logger.debug(f"Загружаем {version_label} шаблон из файла: {template_path}")
             workbook = load_workbook(template_path)
-            logger.debug(f"Шаблон типа '{template_type}' успешно загружен")
+            logger.debug(f"{version_label.capitalize()} шаблон типа '{template_type}' успешно загружен")
             return workbook
         except Exception as e:
-            error_msg = f"Ошибка при загрузке шаблона Excel типа '{template_type}': {str(e)}"
+            version_label = "клиентского" if is_client_version else "обычного"
+            error_msg = f"Ошибка при загрузке {version_label} шаблона Excel типа '{template_type}': {str(e)}"
             logger.error(error_msg, exc_info=True)
             raise ExcelExportServiceError(error_msg) from e
     
-    def _fill_template_data(self, workbook: Workbook, summary: InsuranceSummary, template_type: str = 'full') -> None:
+    def _fill_template_data(self, workbook: Workbook, summary: InsuranceSummary, template_type: str = 'full', is_client_version: bool = False) -> None:
         """
         Заполняет шаблон данными из свода
         
@@ -285,12 +290,14 @@ class ExcelExportService:
             workbook: Книга Excel для заполнения
             summary: Объект свода предложений
             template_type: Тип шаблона ('full' или 'simplified')
+            is_client_version: Если True, технический лист не заполняется
             
         Raises:
             ExcelExportServiceError: При ошибках заполнения данных
         """
         try:
-            logger.debug(f"Начинаем заполнение данных для свода ID: {summary.id} с шаблоном типа '{template_type}'")
+            version_label = "клиентской версии" if is_client_version else "полной версии"
+            logger.debug(f"Начинаем заполнение данных для свода ID: {summary.id} с шаблоном типа '{template_type}' ({version_label})")
             
             # Получаем рабочий лист (используем первый лист или ищем по имени)
             worksheet = self._get_target_worksheet(workbook)
@@ -326,10 +333,14 @@ class ExcelExportService:
             # Заполнение данных компаний с учетом типа шаблона
             self._fill_company_data(workbook, summary, template_type)
             
-            # Заполнение технического листа (tech_info)
-            self._fill_tech_info_sheet(workbook, summary)
+            # Заполнение технического листа (tech_info) - только для полной версии
+            if not is_client_version:
+                self._fill_tech_info_sheet(workbook, summary)
+                logger.debug("Технический лист заполнен (полная версия)")
+            else:
+                logger.debug("Технический лист пропущен (клиентская версия)")
             
-            logger.info(f"Данные успешно заполнены для свода ID: {summary.id} с шаблоном типа '{template_type}'")
+            logger.info(f"Данные успешно заполнены для свода ID: {summary.id} с шаблоном типа '{template_type}' ({version_label})")
             
         except Exception as e:
             error_msg = f"Ошибка при заполнении данных в Excel: {str(e)}"
@@ -444,20 +455,29 @@ class ExcelExportService:
             logger.info("Используем полный шаблон по умолчанию")
             return 'full'  # Fallback к полному шаблону
     
-    def _get_template_path(self, template_type: str) -> str:
+    def _get_template_path(self, template_type: str, is_client_version: bool = False) -> str:
         """
         Возвращает путь к соответствующему шаблону
         
         Args:
             template_type: Тип шаблона ('full' или 'simplified')
+            is_client_version: Если True, используется клиентский шаблон
         
         Returns:
             str: Путь к файлу шаблона
         """
-        if template_type == 'simplified':
-            return str(settings.BASE_DIR / 'templates' / 'summary_template_simplified.xlsx')
+        if is_client_version:
+            # Клиентские шаблоны (без технического листа)
+            if template_type == 'simplified':
+                return str(settings.BASE_DIR / 'templates' / 'client_summary_template_simplified.xlsx')
+            else:
+                return str(settings.BASE_DIR / 'templates' / 'client_summary_template.xlsx')
         else:
-            return str(settings.BASE_DIR / 'templates' / 'summary_template.xlsx')
+            # Обычные шаблоны (с техническим листом)
+            if template_type == 'simplified':
+                return str(settings.BASE_DIR / 'templates' / 'summary_template_simplified.xlsx')
+            else:
+                return str(settings.BASE_DIR / 'templates' / 'summary_template.xlsx')
     
     def _get_columns_mapping(self, template_type: str) -> dict:
         """

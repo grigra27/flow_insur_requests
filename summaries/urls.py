@@ -16,6 +16,7 @@ urlpatterns = [
     # Создание и управление сводами
     path('create/<int:request_id>/', views.create_summary, name='create_summary'),
     path('<int:summary_id>/generate-file/', views.generate_summary_file, name='generate_summary_file'),
+    path('<int:summary_id>/generate-client-file/', views.generate_client_summary_file, name='generate_client_summary_file'),
     path('<int:summary_id>/send-to-client/', views.send_summary_to_client, name='send_summary_to_client'),
     path('<int:summary_id>/change-status/', views.change_summary_status, name='change_summary_status'),
     path('<int:summary_id>/update-notes/', views.update_summary_notes, name='update_summary_notes'),

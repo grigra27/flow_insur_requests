@@ -356,7 +356,7 @@ def add_offer(request, summary_id):
 
 @user_required
 def generate_summary_file(request, summary_id):
-    """Генерация Excel файла свода"""
+    """Генерация Excel файла свода (полная версия с техническим листом)"""
     from datetime import datetime
     from urllib.parse import quote
     import re
@@ -375,15 +375,15 @@ def generate_summary_file(request, summary_id):
         # Создание сервиса для генерации Excel - требование 1.2
         service = get_excel_export_service()
         
-        # Генерация Excel файла - требование 1.2, 1.3
-        excel_file = service.generate_summary_excel(summary)
+        # Генерация Excel файла (полная версия) - требование 1.2, 1.3
+        excel_file = service.generate_summary_excel(summary, is_client_version=False)
         
         # Формирование имени файла - требование 3.2, 15.1-15.8
         # Обработка номера ДФА: извлечение только цифр
         dfa_number_digits_only = re.sub(r'[^\d]', '', summary.request.dfa_number)
         # Изменение формата даты на день_месяц_год
         date_formatted = datetime.now().strftime('%d_%m_%Y')
-        filename = f"svod_{dfa_number_digits_only}_{date_formatted}.xlsx"
+        filename = f"full_svod_{dfa_number_digits_only}_{date_formatted}.xlsx"
         
         # Создание HTTP response с Excel файлом - требование 3.1
         response = HttpResponse(
@@ -421,6 +421,70 @@ def generate_summary_file(request, summary_id):
         logger.error(f"Unexpected error generating summary file for {summary_id}: {str(e)}", exc_info=True)
         return JsonResponse({
             'error': 'Произошла неожиданная ошибка при генерации файла. Обратитесь к администратору.'
+        }, status=500)
+
+
+@user_required
+def generate_client_summary_file(request, summary_id):
+    """Генерация клиентского Excel файла свода (сокращенная версия без технического листа)"""
+    from datetime import datetime
+    from urllib.parse import quote
+    import re
+    from .services import get_excel_export_service, ExcelExportServiceError, InvalidSummaryDataError, TemplateNotFoundError
+    
+    summary = get_object_or_404(InsuranceSummary.objects.select_related('request'), pk=summary_id)
+    
+    # Проверка статуса свода
+    if summary.status != 'ready':
+        logger.warning(f"Attempt to generate client Excel for summary {summary_id} with status '{summary.status}'")
+        return JsonResponse({
+            'error': 'Файл можно генерировать только для сводов в статусе "Готов к отправке"'
+        }, status=400)
+    
+    try:
+        # Создание сервиса для генерации Excel
+        service = get_excel_export_service()
+        
+        # Генерация клиентского Excel файла (без технического листа)
+        excel_file = service.generate_summary_excel(summary, is_client_version=True)
+        
+        # Формирование имени файла с префиксом "client_"
+        dfa_number_digits_only = re.sub(r'[^\d]', '', summary.request.dfa_number)
+        date_formatted = datetime.now().strftime('%d_%m_%Y')
+        filename = f"client_svod_{dfa_number_digits_only}_{date_formatted}.xlsx"
+        
+        # Создание HTTP response с Excel файлом
+        response = HttpResponse(
+            excel_file.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        
+        logger.info(f"Client Excel file successfully generated for summary {summary_id}: {filename}")
+        return response
+        
+    except InvalidSummaryDataError as e:
+        logger.error(f"Invalid summary data for client file {summary_id}: {str(e)}")
+        return JsonResponse({
+            'error': f'Ошибка в данных свода: {str(e)}'
+        }, status=400)
+        
+    except TemplateNotFoundError as e:
+        logger.error(f"Client template not found for summary {summary_id}: {str(e)}")
+        return JsonResponse({
+            'error': 'Клиентский шаблон Excel-файла недоступен. Обратитесь к администратору.'
+        }, status=500)
+        
+    except ExcelExportServiceError as e:
+        logger.error(f"Excel export service error for client file {summary_id}: {str(e)}")
+        return JsonResponse({
+            'error': f'Ошибка при генерации клиентского файла: {str(e)}'
+        }, status=500)
+        
+    except Exception as e:
+        logger.error(f"Unexpected error generating client summary file for {summary_id}: {str(e)}", exc_info=True)
+        return JsonResponse({
+            'error': 'Произошла неожиданная ошибка при генерации клиентского файла. Обратитесь к администратору.'
         }, status=500)
 
 

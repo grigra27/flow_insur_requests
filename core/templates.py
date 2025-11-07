@@ -50,7 +50,7 @@ class EmailTemplateGenerator:
     'другое': 'страхованию предмета лизинга.'
 }
     
-    DEFAULT_TEMPLATE = """Добрый день, уважаемые коллеги!
+    DEFAULT_TEMPLATE = """Коллеги, добрый день!
 
 Высылаем заявку на расчет тарифов ${ins_type}${casco_type_ce}
 ${franshiza_text}${installment_text}${avtozapusk_text}${transportation_text}${construction_work_text}
