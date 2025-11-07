@@ -319,8 +319,14 @@ class ExcelReader:
         franchise_details = self._get_franchise_details_openpyxl(sheet)
         logger.debug(f"Franchise details extracted (openpyxl) ({detailed_context}): {franchise_details} | {format_context}")
         
-        # Определяем рассрочку (если F34 не пустая, то рассрочки НЕТ) (одинаково для всех форматов)
-        has_installment = not bool(self._get_cell_with_adjustment_openpyxl(sheet, 'F', 34))
+        # Определяем рассрочку
+        # Логика: если F34 (F35 для ИП) пустая И D32/33/34/35 (D33/34/35/36 для ИП) пустая → есть рассрочка
+        # если F34 (F35 для ИП) не пустая ИЛИ D32/33/34/35 (D33/34/35/36 для ИП) не пустая → НЕТ рассрочки
+        f_cell_value = self._get_cell_with_adjustment_openpyxl(sheet, 'F', 34)
+        # Проверяем объединенную ячейку D32/33/34/35 (для ИП будет D33/34/35/36 из-за смещения)
+        d_merged_cell_value = self._get_cell_with_adjustment_openpyxl(sheet, 'D', 32)
+        has_installment = not bool(f_cell_value) and not bool(d_merged_cell_value)
+        logger.debug(f"Installment determination (openpyxl) ({detailed_context}): F34={'empty' if not f_cell_value else 'filled'}, D32/33/34/35={'empty' if not d_merged_cell_value else 'filled'}, has_installment={has_installment} | {format_context}")
         
         # Извлекаем название клиента из D7 (одинаково для всех форматов)
         client_name = self._get_cell_with_adjustment_openpyxl(sheet, 'D', 7) or 'Клиент не указан'
@@ -452,9 +458,14 @@ class ExcelReader:
         franchise_details = self._get_franchise_details_pandas(df)
         logger.debug(f"Franchise details extracted (pandas) ({detailed_context}): {franchise_details} | {format_context}")
         
-        # Определяем рассрочку (если F34 не пустая, то рассрочки НЕТ) (одинаково для всех форматов)
-        installment_value = self._get_cell_with_adjustment_pandas(df, 34, 5)  # F34
-        has_installment = not bool(installment_value)
+        # Определяем рассрочку
+        # Логика: если F34 (F35 для ИП) пустая И D32/33/34/35 (D33/34/35/36 для ИП) пустая → есть рассрочка
+        # если F34 (F35 для ИП) не пустая ИЛИ D32/33/34/35 (D33/34/35/36 для ИП) не пустая → НЕТ рассрочки
+        f_cell_value = self._get_cell_with_adjustment_pandas(df, 34, 5)  # F34
+        # Проверяем объединенную ячейку D32/33/34/35 (для ИП будет D33/34/35/36 из-за смещения)
+        d_merged_cell_value = self._get_cell_with_adjustment_pandas(df, 32, 3)  # D32
+        has_installment = not bool(f_cell_value) and not bool(d_merged_cell_value)
+        logger.debug(f"Installment determination (pandas) ({detailed_context}): F34={'empty' if not f_cell_value else 'filled'}, D32/33/34/35={'empty' if not d_merged_cell_value else 'filled'}, has_installment={has_installment} | {format_context}")
         
         # Извлекаем название клиента из D7 (одинаково для всех форматов)
         client_name = self._get_cell_with_adjustment_pandas(df, 7, 3) or 'Клиент не указан'
