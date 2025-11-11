@@ -3041,6 +3041,11 @@ class ExcelResponseProcessor:
             return decimal_value
             
         except (InvalidOperation, ValueError, TypeError):
+            # Специальная обработка для франшизы: текстовые значения интерпретируются как 0
+            if 'франшиз' in field_name.lower():
+                self.logger.info(f"Строка {row_number}: текстовое значение '{value}' в поле '{field_name}' интерпретировано как 0")
+                return Decimal('0')
+            
             raise RowProcessingError(row_number, field_name, f'некорректное значение "{value}", ожидается числовое значение', cell_address)
     
     def _parse_installment(self, value, cell_address: str) -> int:
