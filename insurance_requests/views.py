@@ -387,6 +387,7 @@ def upload_excel(request):
                         vehicle_info=excel_data.get('vehicle_info', ''),
                         dfa_number=excel_data.get('dfa_number', ''),
                         branch=excel_data.get('branch', ''),
+                        manager_name=excel_data.get('manager_name', ''),
                         franchise_type=franchise_type,
                         has_franchise=bool(excel_data.get('has_franchise')),
                         has_installment=bool(excel_data.get('has_installment')),

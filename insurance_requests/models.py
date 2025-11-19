@@ -122,6 +122,13 @@ class InsuranceRequest(models.Model):
         verbose_name='Год выпуска'
     )
     
+    # ФИО Менеджера
+    manager_name = models.CharField(
+        max_length=255,
+        blank=True,
+        verbose_name='ФИО Менеджера'
+    )
+    
     class Meta:
         verbose_name = 'Страховая заявка'
         verbose_name_plural = 'Страховые заявки'
@@ -202,6 +209,8 @@ class InsuranceRequest(models.Model):
             'insurance_territory': self.insurance_territory or 'не указано',
             # Год выпуска предмета лизинга
             'manufacturing_year': self.manufacturing_year or 'не указан',
+            # ФИО Менеджера
+            'manager_name': self.manager_name or 'не указано',
         }
     
     def can_create_summary(self) -> bool:

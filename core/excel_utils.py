@@ -331,6 +331,9 @@ class ExcelReader:
         # Извлекаем название клиента из D7 (одинаково для всех форматов)
         client_name = self._get_cell_with_adjustment_openpyxl(sheet, 'D', 7) or 'Клиент не указан'
         
+        # Извлекаем ФИО Менеджера из C5 (одинаково для всех форматов)
+        manager_name = self._get_cell_with_adjustment_openpyxl(sheet, 'C', 5) or ''
+        
         # Извлекаем номер ДФА (одинаково для всех форматов)
         dfa_number = self._find_dfa_number_openpyxl(sheet)
         
@@ -386,6 +389,7 @@ class ExcelReader:
             'vehicle_info': vehicle_info,
             'dfa_number': dfa_number,
             'branch': branch,
+            'manager_name': manager_name,
             'franchise_type': franchise_type,
             'has_franchise': has_franchise,
             'has_installment': has_installment,
@@ -470,6 +474,9 @@ class ExcelReader:
         # Извлекаем название клиента из D7 (одинаково для всех форматов)
         client_name = self._get_cell_with_adjustment_pandas(df, 7, 3) or 'Клиент не указан'
         
+        # Извлекаем ФИО Менеджера из C5 (одинаково для всех форматов)
+        manager_name = self._get_cell_with_adjustment_pandas(df, 5, 2) or ''  # C5
+        
         # Извлекаем номер ДФА (одинаково для всех форматов)
         dfa_number = self._find_dfa_number_pandas(df)
         
@@ -525,6 +532,7 @@ class ExcelReader:
             'vehicle_info': vehicle_info,
             'dfa_number': dfa_number,
             'branch': branch,
+            'manager_name': manager_name,
             'franchise_type': franchise_type,
             'has_franchise': has_franchise,
             'has_installment': has_installment,

@@ -171,7 +171,7 @@
 
         <!-- Дополнительная информация о заявке -->
         {% if request.insurance_type == 'КАСКО' or request.insurance_type == 'страхование спецтехники' %}
-            {% if request.key_completeness or request.pts_psm or request.creditor_bank or request.usage_purposes or request.telematics_complex or request.manufacturing_year %}
+            {% if request.manager_name or request.key_completeness or request.pts_psm or request.creditor_bank or request.usage_purposes or request.telematics_complex or request.manufacturing_year %}
             <div class="card mb-4">
                 <div class="card-header">
                     <h5 class="mb-0">Дополнительная информация о заявке</h5>
@@ -180,6 +180,9 @@
                     <div class="row">
                         <div class="col-md-6">
                             <dl class="row">
+                                <dt class="col-sm-6">ФИО Менеджера:</dt>
+                                <dd class="col-sm-6">{{ request.manager_name|default:"Не указано" }}</dd>
+
                                 <dt class="col-sm-6">Комплектность ключей:</dt>
                                 <dd class="col-sm-6">{{ request.key_completeness|default:"Не указано" }}</dd>
 
@@ -207,7 +210,7 @@
             </div>
             {% endif %}
         {% elif request.insurance_type == 'страхование имущества' %}
-            {% if request.creditor_bank or request.usage_purposes or request.insurance_territory %}
+            {% if request.manager_name or request.creditor_bank or request.usage_purposes or request.insurance_territory %}
             <div class="card mb-4">
                 <div class="card-header">
                     <h5 class="mb-0">Дополнительная информация о заявке</h5>
@@ -216,6 +219,9 @@
                     <div class="row">
                         <div class="col-md-6">
                             <dl class="row">
+                                <dt class="col-sm-6">ФИО Менеджера:</dt>
+                                <dd class="col-sm-6">{{ request.manager_name|default:"Не указано" }}</dd>
+
                                 <dt class="col-sm-6">Банк-кредитор:</dt>
                                 <dd class="col-sm-6">{{ request.creditor_bank|default:"Не указано" }}</dd>
 

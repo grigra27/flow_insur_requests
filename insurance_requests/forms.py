@@ -373,7 +373,7 @@ class InsuranceRequestForm(forms.ModelForm):
         model = InsuranceRequest
         fields = [
             'client_name', 'inn', 'insurance_type', 'insurance_period',
-            'vehicle_info', 'dfa_number', 'branch', 'has_franchise', 
+            'vehicle_info', 'dfa_number', 'branch', 'manager_name', 'has_franchise', 
             'has_installment', 'has_autostart', 'has_casco_ce', 'has_transportation',
             'has_construction_work', 'manufacturing_year', 'response_deadline', 'notes',
             # Дополнительные параметры КАСКО/спецтехника
@@ -391,6 +391,11 @@ class InsuranceRequestForm(forms.ModelForm):
             ),
             'vehicle_info': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
             'dfa_number': forms.TextInput(attrs={'class': 'form-control', 'maxlength': '100'}),
+            'manager_name': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'ФИО Менеджера',
+                'maxlength': '255'
+            }),
             'manufacturing_year': forms.TextInput(attrs={
                 'class': 'form-control',
                 'placeholder': 'Год выпуска предмета лизинга',
