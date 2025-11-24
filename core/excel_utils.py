@@ -333,6 +333,7 @@ class ExcelReader:
         
         # Извлекаем ФИО Менеджера из C5 (одинаково для всех форматов)
         manager_name = self._get_cell_with_adjustment_openpyxl(sheet, 'C', 5) or ''
+        logger.info(f"Manager name extracted from C5 (openpyxl): '{manager_name}' (empty: {not bool(manager_name)}) | {format_context}")
         
         # Извлекаем номер ДФА (одинаково для всех форматов)
         dfa_number = self._find_dfa_number_openpyxl(sheet)
@@ -412,7 +413,7 @@ class ExcelReader:
         
         # Логируем успешное извлечение данных с информацией о формате и новых параметрах
         additional_params_summary = f"additional_params: {len([v for v in additional_parameters.values() if v])} non-empty"
-        logger.info(f"Successfully extracted data with openpyxl ({detailed_context}): client='{client_name}', insurance_type='{insurance_type}', dfa_number='{dfa_number}', branch='{branch}', franchise_type='{franchise_type}', has_franchise={has_franchise}, has_autostart={has_autostart}, has_casco_ce={has_casco_ce}, has_transportation={has_transportation}, has_construction_work={has_construction_work}, {additional_params_summary} | {format_context}")
+        logger.info(f"Successfully extracted data with openpyxl ({detailed_context}): client='{client_name}', manager_name='{manager_name}', insurance_type='{insurance_type}', dfa_number='{dfa_number}', branch='{branch}', franchise_type='{franchise_type}', has_franchise={has_franchise}, has_autostart={has_autostart}, has_casco_ce={has_casco_ce}, has_transportation={has_transportation}, has_construction_work={has_construction_work}, {additional_params_summary} | {format_context}")
         
         return extracted_data
     
@@ -476,6 +477,7 @@ class ExcelReader:
         
         # Извлекаем ФИО Менеджера из C5 (одинаково для всех форматов)
         manager_name = self._get_cell_with_adjustment_pandas(df, 5, 2) or ''  # C5
+        logger.info(f"Manager name extracted from C5 (pandas): '{manager_name}' (empty: {not bool(manager_name)}) | {format_context}")
         
         # Извлекаем номер ДФА (одинаково для всех форматов)
         dfa_number = self._find_dfa_number_pandas(df)
@@ -555,7 +557,7 @@ class ExcelReader:
         
         # Логируем успешное извлечение данных с информацией о формате и новых параметрах
         additional_params_summary = f"additional_params: {len([v for v in additional_parameters.values() if v])} non-empty"
-        logger.info(f"Successfully extracted data with pandas ({detailed_context}): client='{client_name}', insurance_type='{insurance_type}', dfa_number='{dfa_number}', branch='{branch}', franchise_type='{franchise_type}', has_franchise={has_franchise}, has_autostart={has_autostart}, has_casco_ce={has_casco_ce}, has_transportation={has_transportation}, has_construction_work={has_construction_work}, {additional_params_summary} | {format_context}")
+        logger.info(f"Successfully extracted data with pandas ({detailed_context}): client='{client_name}', manager_name='{manager_name}', insurance_type='{insurance_type}', dfa_number='{dfa_number}', branch='{branch}', franchise_type='{franchise_type}', has_franchise={has_franchise}, has_autostart={has_autostart}, has_casco_ce={has_casco_ce}, has_transportation={has_transportation}, has_construction_work={has_construction_work}, {additional_params_summary} | {format_context}")
         
         return extracted_data
     
