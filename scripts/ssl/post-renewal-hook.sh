@@ -7,7 +7,7 @@ set -e
 
 # Configuration
 LOG_FILE="/var/log/ssl-certificates.log"
-DOCKER_COMPOSE_FILE="/opt/insflow-system/docker-compose.timeweb.yml"
+DOCKER_COMPOSE_FILE="/opt/insflow-system/docker-compose.yml"
 
 # Colors for output
 GREEN='\033[0;32m'

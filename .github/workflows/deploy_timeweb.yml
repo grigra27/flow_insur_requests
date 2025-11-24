@@ -243,58 +243,58 @@ jobs:
           echo "COMPOSE_PROFILES: $COMPOSE_PROFILES"
           
           echo "➡️ Перезапускаем docker-compose..."
-          docker-compose -f docker-compose.timeweb.yml down --remove-orphans
-          COMPOSE_PROFILES="$COMPOSE_PROFILES" docker-compose -f docker-compose.timeweb.yml up -d --force-recreate
+          docker-compose -f docker-compose.yml down --remove-orphans
+          COMPOSE_PROFILES="$COMPOSE_PROFILES" docker-compose -f docker-compose.yml up -d --force-recreate
           
           echo "➡️ Ожидаем запуска сервисов..."
           sleep 30
           
           echo "➡️ Проверяем статус контейнеров..."
-          docker-compose -f docker-compose.timeweb.yml ps
+          docker-compose -f docker-compose.yml ps
           
           echo "➡️ Проверяем логи web контейнера..."
-          docker-compose -f docker-compose.timeweb.yml logs --tail=50 web
+          docker-compose -f docker-compose.yml logs --tail=50 web
           
           echo "➡️ Применяем миграции БД..."
-          if docker-compose -f docker-compose.timeweb.yml exec -T web python manage.py migrate --noinput; then
+          if docker-compose -f docker-compose.yml exec -T web python manage.py migrate --noinput; then
             echo "✅ Миграции применены успешно"
           else
             echo "❌ Ошибка при применении миграций, показываем логи:"
-            docker-compose -f docker-compose.timeweb.yml logs --tail=100 web
-            docker-compose -f docker-compose.timeweb.yml logs --tail=50 db
+            docker-compose -f docker-compose.yml logs --tail=100 web
+            docker-compose -f docker-compose.yml logs --tail=50 db
             exit 1
           fi
           
           echo "➡️ Собираем статические файлы..."
-          if docker-compose -f docker-compose.timeweb.yml exec -T web python manage.py collectstatic --noinput; then
+          if docker-compose -f docker-compose.yml exec -T web python manage.py collectstatic --noinput; then
             echo "✅ Статические файлы собраны успешно"
           else
             echo "❌ Ошибка при сборе статических файлов"
-            docker-compose -f docker-compose.timeweb.yml logs --tail=50 web
+            docker-compose -f docker-compose.yml logs --tail=50 web
             exit 1
           fi
           
           echo "➡️ Проверяем состояние контейнеров..."
-          docker-compose -f docker-compose.timeweb.yml ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+          docker-compose -f docker-compose.yml ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
           
           echo "➡️ Проверяем healthcheck..."
           # Try multiple health check approaches for HTTPS deployments
-          if docker-compose -f docker-compose.timeweb.yml exec -T web python /app/simple_healthcheck.py; then
+          if docker-compose -f docker-compose.yml exec -T web python /app/simple_healthcheck.py; then
             echo "✅ Healthcheck прошел успешно!"
-          elif docker-compose -f docker-compose.timeweb.yml exec -T web curl -f -s http://localhost:8000/healthz/ > /dev/null 2>&1; then
+          elif docker-compose -f docker-compose.yml exec -T web curl -f -s http://localhost:8000/healthz/ > /dev/null 2>&1; then
             echo "✅ Healthcheck прошел успешно (через curl)!"
-          elif docker-compose -f docker-compose.timeweb.yml exec -T web python -c "import urllib.request; response = urllib.request.urlopen('http://localhost:8000/healthz/', timeout=5); print('✅ Healthcheck прошел успешно (через Python)!')"; then
+          elif docker-compose -f docker-compose.yml exec -T web python -c "import urllib.request; response = urllib.request.urlopen('http://localhost:8000/healthz/', timeout=5); print('✅ Healthcheck прошел успешно (через Python)!')"; then
             echo "✅ Healthcheck прошел успешно!"
           else
             echo "⚠️ Healthcheck не прошел, но продолжаем deployment"
             echo "🔍 Проверяем логи web контейнера для диагностики..."
-            docker-compose -f docker-compose.timeweb.yml logs --tail=10 web
+            docker-compose -f docker-compose.yml logs --tail=10 web
           fi
           
           echo "➡️ Ожидаем готовности nginx..."
           # Wait for nginx to be ready
           for i in {1..30}; do
-            if docker-compose -f docker-compose.timeweb.yml ps nginx | grep -q "Up"; then
+            if docker-compose -f docker-compose.yml ps nginx | grep -q "Up"; then
               echo "✅ Nginx готов!"
               break
             fi
@@ -309,7 +309,7 @@ jobs:
           else
             echo "❌ Health endpoint недоступен!"
             echo "🔍 Проверяем логи nginx..."
-            docker-compose -f docker-compose.timeweb.yml logs --tail=20 nginx
+            docker-compose -f docker-compose.yml logs --tail=20 nginx
           fi
           
           # Test HTTPS endpoints if SSL is enabled
@@ -369,7 +369,7 @@ jobs:
           fi
           
           echo "➡️ Запускаем верификацию лендинг-страницы..."
-          if docker-compose -f docker-compose.timeweb.yml exec -T web bash /app/scripts/verify_landing_deployment.sh; then
+          if docker-compose -f docker-compose.yml exec -T web bash /app/scripts/verify_landing_deployment.sh; then
             echo "✅ Верификация лендинг-страницы прошла успешно!"
           else
             echo "⚠️ Верификация лендинг-страницы показала предупреждения (это нормально для продакшена)"
@@ -428,7 +428,7 @@ jobs:
           - Technical: ${{ env.DOMAINS_TECHNICAL }}
           
           Container Status:
-          $(docker-compose -f docker-compose.timeweb.yml ps --format "table {{.Names}}\t{{.Status}}")
+          $(docker-compose -f docker-compose.yml ps --format "table {{.Names}}\t{{.Status}}")
           
           SSL Certificate Status:
           EOF
@@ -479,7 +479,7 @@ jobs:
           cd ${{ env.PROJECT_PATH }}
           
           # Check final deployment status
-          if docker-compose -f docker-compose.timeweb.yml ps | grep -q "Up"; then
+          if docker-compose -f docker-compose.yml ps | grep -q "Up"; then
             deployment_status="SUCCESS"
           else
             deployment_status="FAILED"

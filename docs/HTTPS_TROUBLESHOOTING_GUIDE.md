@@ -143,7 +143,7 @@ sudo certbot renew --dry-run
 # Перезапуск Nginx
 sudo systemctl reload nginx
 # или для Docker
-docker-compose -f docker-compose.timeweb.yml restart nginx
+docker-compose -f docker-compose.yml restart nginx
 ```
 
 **Неправильный сертификат:**
@@ -186,7 +186,7 @@ sudo tail -f /var/log/nginx/error.log
 sudo tail -f /var/log/nginx/access.log
 
 # Для Docker
-docker-compose -f docker-compose.timeweb.yml logs nginx
+docker-compose -f docker-compose.yml logs nginx
 ```
 
 #### Решения:
@@ -231,7 +231,7 @@ server {
 sudo systemctl reload nginx
 
 # Docker
-docker-compose -f docker-compose.timeweb.yml restart nginx
+docker-compose -f docker-compose.yml restart nginx
 ```
 
 ### 4. Django HTTPS настройки
@@ -275,7 +275,7 @@ if os.getenv('HTTPS_ENABLED', 'False').lower() == 'true':
 
 **Переменные окружения:**
 ```bash
-# .env или docker-compose.timeweb.yml
+# .env или docker-compose.yml
 HTTPS_ENABLED=True
 SECURE_SSL_REDIRECT=True
 SESSION_COOKIE_SECURE=True
@@ -334,11 +334,11 @@ sudo iptables-save > /etc/iptables/rules.v4
 #### Диагностика:
 ```bash
 # Проверка статуса контейнеров
-docker-compose -f docker-compose.timeweb.yml ps
+docker-compose -f docker-compose.yml ps
 
 # Проверка логов
-docker-compose -f docker-compose.timeweb.yml logs nginx
-docker-compose -f docker-compose.timeweb.yml logs web
+docker-compose -f docker-compose.yml logs nginx
+docker-compose -f docker-compose.yml logs web
 
 # Проверка сетей
 docker network ls
@@ -354,18 +354,18 @@ docker volume inspect <volume_name>
 **Перезапуск сервисов:**
 ```bash
 # Полный перезапуск
-docker-compose -f docker-compose.timeweb.yml down
-docker-compose -f docker-compose.timeweb.yml up -d
+docker-compose -f docker-compose.yml down
+docker-compose -f docker-compose.yml up -d
 
 # Пересборка образов
-docker-compose -f docker-compose.timeweb.yml build --no-cache
-docker-compose -f docker-compose.timeweb.yml up -d
+docker-compose -f docker-compose.yml build --no-cache
+docker-compose -f docker-compose.yml up -d
 ```
 
 **Проверка volumes:**
 ```bash
 # Проверка монтирования SSL сертификатов
-docker-compose -f docker-compose.timeweb.yml exec nginx ls -la /etc/letsencrypt/live/
+docker-compose -f docker-compose.yml exec nginx ls -la /etc/letsencrypt/live/
 
 # Исправление прав доступа
 sudo chown -R root:root /etc/letsencrypt/
@@ -523,7 +523,7 @@ cp nginx-timeweb/default.conf nginx-timeweb/default-https.conf.backup
 cp nginx-timeweb/default-http-only.conf nginx-timeweb/default.conf
 
 # 3. Перезапуск сервисов
-docker-compose -f docker-compose.timeweb.yml restart nginx web
+docker-compose -f docker-compose.yml restart nginx web
 ```
 
 ### Контакты для поддержки

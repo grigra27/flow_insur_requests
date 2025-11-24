@@ -12,13 +12,11 @@
 onlineservice/                          # Корневая директория проекта
 ├── manage.py                           # Django management script
 ├── requirements.txt                    # Python зависимости
-├── docker-compose.yml                  # Docker конфигурация (Digital Ocean)
-├── docker-compose.timeweb.yml          # Docker конфигурация (Timeweb)
+├── docker-compose.yml                  # Docker конфигурация для продакшн
 ├── Dockerfile                          # Docker образ приложения
 ├── entrypoint.sh                       # Docker entrypoint script
 ├── healthcheck.py                      # Health check для Docker
 ├── .env.example                        # Пример переменных окружения
-├── .env.timeweb.example                # Пример переменных для Timeweb
 ├── .gitignore                          # Git ignore правила
 ├── README.md                           # Основная документация
 ├── DEPLOYMENT_GUIDE.md                 # Руководство по развертыванию
@@ -180,13 +178,10 @@ onlineservice/                          # Корневая директория 
 │   ├── assets/                         # Ресурсы документации
 │   └── images/                         # Изображения документации
 │
-├── nginx/                              # Nginx конфигурация (Digital Ocean)
-│   ├── Dockerfile                      # Docker образ nginx
-│   └── default.conf                    # Конфигурация nginx
-│
-├── nginx-timeweb/                      # Nginx конфигурация (Timeweb)
-│   ├── Dockerfile                      # Docker образ nginx для Timeweb
-│   └── default.conf                    # Конфигурация nginx для Timeweb
+├── nginx-timeweb/                      # Nginx конфигурация для продакшн
+│   ├── default.conf                    # Основная конфигурация nginx
+│   ├── default-https.conf              # HTTPS конфигурация
+│   └── default-acme.conf               # Конфигурация для ACME challenge
 │
 ├── scripts/                            # Скрипты развертывания и мониторинга
 │   ├── domain-monitor.service          # Systemd сервис мониторинга
@@ -195,8 +190,7 @@ onlineservice/                          # Корневая директория 
 │
 ├── .github/                            # GitHub Actions workflows
 │   └── workflows/
-│       ├── deploy_do.yml               # Деплой на Digital Ocean
-│       └── deploy_timeweb.yml          # Деплой на Timeweb
+│       └── deploy_timeweb.yml          # Автоматический деплой на продакшн
 │
 ├── avtozayavka/                        # Тестовые данные и примеры
 │   ├── real_requests/                  # Реальные заявки для тестирования
@@ -314,15 +308,21 @@ onlineservice/                          # Корневая директория 
 ### 8. Развертывание
 
 #### Docker конфигурации:
-- **docker-compose.yml**: Для Digital Ocean (onbr.site)
-- **docker-compose.timeweb.yml**: Для Timeweb (zs.insflow.tw1.su)
+- **docker-compose.yml**: Конфигурация для продакшн развертывания
 - **Dockerfile**: Основной образ приложения
-- **nginx/**: Конфигурация веб-сервера
+- **nginx-timeweb/**: Конфигурация веб-сервера с поддержкой HTTPS
+
+#### Продакшн домены:
+- **insflow.ru**: Основной домен
+- **insflow.tw1.su**: Альтернативный домен
+- **zs.insflow.ru**: Поддомен основного домена
+- **zs.insflow.tw1.su**: Поддомен альтернативного домена
 
 #### CI/CD:
-- **GitHub Actions**: Автоматический деплой на два хостинга
+- **GitHub Actions**: Автоматический деплой на продакшн сервер
 - **Health checks**: Проверка состояния сервисов
 - **Мониторинг**: Отслеживание доступности доменов
+- **SSL сертификаты**: Автоматическое обновление через Let's Encrypt
 
 ## Потоки данных
 

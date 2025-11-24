@@ -80,7 +80,7 @@ check_dns() {
 stop_nginx() {
     if docker ps | grep -q nginx; then
         log "Stopping nginx container for certificate generation..."
-        docker-compose -f /opt/insflow-system/docker-compose.timeweb.yml stop nginx
+        docker-compose -f /opt/insflow-system/docker-compose.yml stop nginx
         success "Nginx stopped"
     fi
 }
@@ -88,7 +88,7 @@ stop_nginx() {
 # Start nginx after certificate generation
 start_nginx() {
     log "Starting nginx container..."
-    docker-compose -f /opt/insflow-system/docker-compose.timeweb.yml start nginx
+    docker-compose -f /opt/insflow-system/docker-compose.yml start nginx
     success "Nginx started"
 }
 

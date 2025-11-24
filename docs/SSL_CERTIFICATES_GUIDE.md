@@ -210,7 +210,7 @@ sudo certbot renew --force-renewal
 
 ## 🐳 Интеграция с Docker
 
-### Обновление docker-compose.timeweb.yml
+### Обновление docker-compose.yml
 
 ```yaml
 version: '3.8'

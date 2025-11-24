@@ -67,9 +67,9 @@ setup_directories() {
 
 # Stop nginx temporarily for certificate generation
 stop_nginx() {
-    if docker-compose -f docker-compose.timeweb.yml ps nginx | grep -q "Up"; then
+    if docker-compose -f docker-compose.yml ps nginx | grep -q "Up"; then
         log "Stopping nginx container for certificate generation..."
-        docker-compose -f docker-compose.timeweb.yml stop nginx
+        docker-compose -f docker-compose.yml stop nginx
         success "Nginx stopped"
         return 0
     else
@@ -81,7 +81,7 @@ stop_nginx() {
 # Start nginx after certificate generation
 start_nginx() {
     log "Starting nginx container..."
-    docker-compose -f docker-compose.timeweb.yml start nginx
+    docker-compose -f docker-compose.yml start nginx
     success "Nginx started"
 }
 

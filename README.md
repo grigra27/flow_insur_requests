@@ -136,17 +136,13 @@ onlineservice/
 │   ├── forms.py            # Формы
 │   └── templates/          # HTML шаблоны
 ├── summaries/              # Django-приложение "Сводки"
-├── deployments/            # Конфигурации развертывания
-│   ├── digital-ocean/      # Digital Ocean HTTP развертывание
-│   │   ├── docker-compose.yml
-│   │   ├── nginx/
-│   │   └── README.md
-│   └── timeweb/           # Timeweb HTTPS развертывание
-│       ├── docker-compose.yml
-│       ├── nginx/
-│       ├── scripts/       # Скрипты управления SSL
-│       ├── tests/         # Тесты развертывания
-│       └── README.md      # Подробное руководство
+├── nginx-timeweb/          # Конфигурация Nginx для HTTPS
+│   ├── default.conf        # Основная конфигурация
+│   ├── default-https.conf  # HTTPS конфигурация
+│   └── default-acme.conf   # ACME challenge конфигурация
+├── scripts/                # Скрипты управления
+│   ├── ssl/               # Скрипты управления SSL
+│   └── monitoring/        # Скрипты мониторинга
 ├── templates/              # Общие шаблоны
 ├── static/                 # Статические файлы
 └── media/                  # Загруженные файлы
@@ -822,18 +818,15 @@ python manage.py shell
 
 ### Руководства по развертыванию
 
-- **[deployments/timeweb/README.md](deployments/timeweb/README.md)** - Полное руководство по развертыванию Timeweb с HTTPS
-- **[deployments/digital-ocean/README.md](deployments/digital-ocean/README.md)** - Руководство по развертыванию Digital Ocean
-- **[DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)** - Краткое руководство по развертыванию
-- **[docs/DEPLOYMENT_GUIDE_COMPLETE.md](docs/DEPLOYMENT_GUIDE_COMPLETE.md)** - Полное руководство по развертыванию (устаревшее)
-- **[docs/FAVICON_DEPLOYMENT_GUIDE.md](docs/FAVICON_DEPLOYMENT_GUIDE.md)** - Руководство по настройке favicon
+- **[docs/SSL_CERTIFICATES_GUIDE.md](docs/SSL_CERTIFICATES_GUIDE.md)** - Руководство по управлению SSL сертификатами
+- **[docs/HTTPS_TROUBLESHOOTING_GUIDE.md](docs/HTTPS_TROUBLESHOOTING_GUIDE.md)** - Устранение проблем с HTTPS
+- **[docs/MONITORING_SYSTEM.md](docs/MONITORING_SYSTEM.md)** - Система мониторинга
+- **[docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md)** - Структура проекта
 
 ### Дополнительная документация
 
 - **[docs/USER_MANUAL.md](docs/USER_MANUAL.md)** - Руководство пользователя ([HTML](docs/USER_MANUAL.html) | [PDF](docs/USER_MANUAL.pdf))
 - **[docs/HELP_SYSTEM_DEVELOPER_GUIDE.md](docs/HELP_SYSTEM_DEVELOPER_GUIDE.md)** - Руководство разработчика: Система справочной документации
-- **[docs/AUTHENTICATION_SYSTEM.md](docs/AUTHENTICATION_SYSTEM.md)** - Система аутентификации
-- **[docs/DEPLOYMENT_CHECKLIST.md](docs/DEPLOYMENT_CHECKLIST.md)** - Чек-лист развертывания
 - **[EXCEL_PROCESSING.md](EXCEL_PROCESSING.md)** - Обработка Excel файлов
 
 ### Структура документации
@@ -844,98 +837,38 @@ docs/
 ├── USER_MANUAL.html                   # Руководство пользователя (HTML)
 ├── USER_MANUAL.pdf                    # Руководство пользователя (PDF)
 ├── HELP_SYSTEM_DEVELOPER_GUIDE.md     # Руководство разработчика: Система справки
-├── DEPLOYMENT_GUIDE_COMPLETE.md       # Полное руководство по развертыванию
-├── FAVICON_DEPLOYMENT_GUIDE.md        # Настройка favicon
-├── AUTHENTICATION_SYSTEM.md           # Система аутентификации
-├── DEPLOYMENT_CHECKLIST.md            # Чек-лист развертывания
-├── DEPLOYMENT_INSTRUCTIONS.md         # Инструкции по развертыванию
-└── README_DEPLOYMENT.md               # README для развертывания
+├── SSL_CERTIFICATES_GUIDE.md          # Управление SSL сертификатами
+├── HTTPS_TROUBLESHOOTING_GUIDE.md     # Устранение проблем с HTTPS
+├── MONITORING_SYSTEM.md               # Система мониторинга
+└── PROJECT_STRUCTURE.md               # Структура проекта
 ```
 
-## 🚀 Развертывание на двух хостингах
+## 🚀 Развертывание в продакшене (Timeweb HTTPS)
 
-Проект поддерживает развертывание на **двух различных хостингах** с отдельными конфигурациями:
+Проект развертывается на хостинге **Timeweb** с поддержкой HTTPS и автоматическими SSL сертификатами.
 
-- **Digital Ocean** → HTTP развертывание (onbr.site)
-- **Timeweb** → HTTPS развертывание с SSL (insflow.ru, insflow.tw1.su)
+### Характеристики развертывания
 
-### Структура развертывания
-
-```
-deployments/
-├── digital-ocean/          # Digital Ocean HTTP конфигурация
-│   ├── docker-compose.yml
-│   └── nginx/
-└── timeweb/               # Timeweb HTTPS конфигурация
-    ├── docker-compose.yml
-    ├── nginx/
-    ├── scripts/
-    └── README.md          # Подробное руководство
-```
-
-### Различия между развертываниями
-
-| Характеристика | Digital Ocean | Timeweb |
-|----------------|---------------|---------|
-| **Протокол** | HTTP | HTTPS с SSL |
-| **Домены** | onbr.site | insflow.ru, insflow.tw1.su, zs.insflow.ru, zs.insflow.tw1.su |
-| **SSL сертификаты** | Не используются | Let's Encrypt автоматические |
-| **Конфигурация** | Простая HTTP | Автоматическое определение SSL |
-| **Мониторинг** | Базовый | Расширенный с SSL мониторингом |
-| **Резервное копирование** | HTTP fallback | HTTP/HTTPS автопереключение |
-| **Сложность настройки** | Низкая | Средняя |
-| **Время развертывания** | 2-5 минут | 5-15 минут |
-| **Подходит для** | Разработка, тестирование | Продакшн, безопасные среды |
-
-### Выбор конфигурации развертывания
-
-#### Используйте Digital Ocean (HTTP), если:
-- Развертываете для разработки или тестирования
-- Не требуется SSL шифрование
-- Нужно быстрое и простое развертывание
-- Ограниченные ресурсы сервера
-- Внутренняя корпоративная сеть
-
-#### Используйте Timeweb (HTTPS), если:
-- Развертываете в продакшн
-- Требуется SSL шифрование
-- Обрабатываете конфиденциальные данные
-- Нужно соответствие стандартам безопасности
-- Публичный доступ через интернет
+- **Протокол**: HTTPS с SSL
+- **Домены**: insflow.ru, insflow.tw1.su, zs.insflow.ru, zs.insflow.tw1.su
+- **SSL сертификаты**: Let's Encrypt (автоматическое обновление)
+- **Конфигурация**: Автоматическое определение SSL
+- **Мониторинг**: Расширенный с SSL мониторингом
+- **Резервное копирование**: HTTP/HTTPS автопереключение
 
 ### Быстрое развертывание
 
-#### Digital Ocean (HTTP)
-
 ```bash
 # Клонирование и настройка
 git clone https://github.com/your-repo/insurance-system.git
-cd insurance-system/deployments/digital-ocean
-
-# Настройка окружения
-cp .env.example .env
-nano .env  # Настройте переменные
-
-# Развертывание
-docker compose up -d
-
-# Проверка
-curl -f http://onbr.site/healthz/
-```
-
-#### Timeweb (HTTPS)
-
-```bash
-# Клонирование и настройка
-git clone https://github.com/your-repo/insurance-system.git
-cd insurance-system/deployments/timeweb
+cd insurance-system
 
 # Настройка окружения
 cp .env.example .env
 nano .env  # Настройте домены и SSL
 
-# Автоматическое развертывание с SSL
-./scripts/deploy-timeweb.sh
+# Развертывание
+docker compose up -d
 
 # Проверка HTTPS
 curl -f https://insflow.ru/healthz/
@@ -943,53 +876,46 @@ curl -f https://insflow.ru/healthz/
 
 ### Конфигурационные файлы
 
-#### Digital Ocean
-- `deployments/digital-ocean/docker-compose.yml` - HTTP конфигурация
-- `deployments/digital-ocean/nginx/default.conf` - Nginx для HTTP
-- `deployments/digital-ocean/.env.example` - Пример переменных окружения
+- `docker-compose.yml` - HTTPS конфигурация с SSL
+- `nginx-timeweb/default.conf` - Nginx с автоопределением SSL
+- `nginx-timeweb/default-https.conf` - HTTPS конфигурация
+- `nginx-timeweb/default-acme.conf` - ACME challenge конфигурация
+- `.env.example` - Пример переменных окружения с SSL настройками
+- `scripts/ssl/` - Скрипты управления SSL сертификатами
 
-#### Timeweb
-- `deployments/timeweb/docker-compose.yml` - HTTPS конфигурация с SSL
-- `deployments/timeweb/nginx/default.conf` - Nginx с автоопределением SSL
-- `deployments/timeweb/.env.example` - Пример с SSL настройками
-- `deployments/timeweb/scripts/` - Скрипты управления SSL и развертывания
-
-### Управление SSL сертификатами (Timeweb)
+### Управление SSL сертификатами
 
 ```bash
 # Получение сертификатов
-./scripts/obtain-certificates.sh
+./scripts/ssl/obtain-certificates.sh
 
 # Мониторинг сертификатов
-./scripts/monitor-certificates.sh
+./scripts/ssl/monitor-ssl-status.sh
 
 # Настройка автообновления
-./scripts/setup-certificate-renewal.sh
+./scripts/ssl/ssl-cron-setup.sh
 
-# Проверка здоровья системы
-./scripts/health-check.sh
+# Проверка сертификатов
+./scripts/ssl/check-certificates.sh
 ```
 
 ### Локальная разработка
 
 ```bash
-# Digital Ocean конфигурация (HTTP)
-cd deployments/digital-ocean
-docker compose up --build
-
-# Timeweb конфигурация (HTTPS)
-cd deployments/timeweb
+# Запуск в режиме разработки
 docker compose up --build
 
 # В фоновом режиме
 docker compose up -d
+
+# Просмотр логов
+docker compose logs -f
 ```
 
 ### Мониторинг и обслуживание
 
-#### Digital Ocean (HTTP)
 ```bash
-# Просмотр логов
+# Просмотр логов всех сервисов
 docker compose logs -f
 
 # Проверка статуса
@@ -998,26 +924,14 @@ docker compose ps
 # Обновление
 docker compose pull && docker compose up -d
 
-# Проверка доступности
-curl -f http://your-domain.com/healthz/
-```
-
-#### Timeweb (HTTPS)
-```bash
-# Комплексная проверка здоровья
-./scripts/health-check.sh --verbose
-
-# Мониторинг SSL сертификатов
-./scripts/monitor-certificates.sh --alert
-
-# Системный мониторинг
-./scripts/system-monitor.sh
-
-# Просмотр логов всех сервисов
-docker compose logs -f
-
 # Проверка HTTPS доступности
 curl -f https://insflow.ru/healthz/
+
+# Мониторинг SSL сертификатов
+./scripts/ssl/monitor-ssl-status.sh --alert
+
+# Системный мониторинг
+python scripts/monitoring-dashboard.py
 ```
 
 ### Общие проблемы и решения
@@ -1052,16 +966,16 @@ docker compose exec web python manage.py collectstatic --noinput
 docker compose restart nginx
 ```
 
-#### Проблема: SSL сертификаты (только Timeweb)
+#### Проблема: SSL сертификаты
 ```bash
 # Проверка сертификатов
-./scripts/monitor-certificates.sh --verbose
+./scripts/ssl/check-certificates.sh
 
 # Принудительное обновление
-./scripts/obtain-certificates.sh --force-renewal
+./scripts/ssl/obtain-certificates.sh --force-renewal
 
-# Переключение на HTTP режим
-./scripts/deploy-timeweb.sh --http-only
+# Просмотр логов SSL
+docker compose logs certbot
 ```
 
 ## Автор

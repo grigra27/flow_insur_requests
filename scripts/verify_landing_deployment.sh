@@ -78,14 +78,14 @@ check_docker_services() {
     echo -e "${BLUE}=== Docker Services Status ===${NC}"
     
     if command -v docker-compose >/dev/null 2>&1; then
-        if [ -f "docker-compose.timeweb.yml" ]; then
+        if [ -f "docker-compose.yml" ]; then
             echo "Docker Compose services:"
-            docker-compose -f docker-compose.timeweb.yml ps
+            docker-compose -f docker-compose.yml ps
             echo ""
             
             # Check if all services are running
-            running_services=$(docker-compose -f docker-compose.timeweb.yml ps --services --filter "status=running" | wc -l)
-            total_services=$(docker-compose -f docker-compose.timeweb.yml ps --services | wc -l)
+            running_services=$(docker-compose -f docker-compose.yml ps --services --filter "status=running" | wc -l)
+            total_services=$(docker-compose -f docker-compose.yml ps --services | wc -l)
             
             if [ "$running_services" -eq "$total_services" ]; then
                 echo -e "${GREEN}All Docker services are running${NC}"
@@ -94,7 +94,7 @@ check_docker_services() {
                 return 1
             fi
         else
-            echo -e "${YELLOW}docker-compose.timeweb.yml not found${NC}"
+            echo -e "${YELLOW}docker-compose.yml not found${NC}"
         fi
     else
         echo -e "${YELLOW}docker-compose not available${NC}"
@@ -156,13 +156,13 @@ check_domain_routing() {
 check_logs() {
     echo -e "${BLUE}=== Recent Logs Check ===${NC}"
     
-    if command -v docker-compose >/dev/null 2>&1 && [ -f "docker-compose.timeweb.yml" ]; then
+    if command -v docker-compose >/dev/null 2>&1 && [ -f "docker-compose.yml" ]; then
         echo "Recent web service logs:"
-        docker-compose -f docker-compose.timeweb.yml logs --tail=10 web 2>/dev/null || echo "Could not retrieve logs"
+        docker-compose -f docker-compose.yml logs --tail=10 web 2>/dev/null || echo "Could not retrieve logs"
         echo ""
         
         echo "Recent nginx service logs:"
-        docker-compose -f docker-compose.timeweb.yml logs --tail=10 nginx 2>/dev/null || echo "Could not retrieve logs"
+        docker-compose -f docker-compose.yml logs --tail=10 nginx 2>/dev/null || echo "Could not retrieve logs"
         echo ""
     else
         echo -e "${YELLOW}Cannot check Docker logs${NC}"

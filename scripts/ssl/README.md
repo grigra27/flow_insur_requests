@@ -192,7 +192,7 @@ WARNING_DAYS=30     # Warning threshold
 # Paths
 CERT_PATH="/etc/letsencrypt/live"
 LOG_FILE="/var/log/ssl-certificates.log"
-DOCKER_COMPOSE_FILE="/opt/insflow-system/docker-compose.timeweb.yml"
+DOCKER_COMPOSE_FILE="/opt/insflow-system/docker-compose.yml"
 ```
 
 ### Log Files

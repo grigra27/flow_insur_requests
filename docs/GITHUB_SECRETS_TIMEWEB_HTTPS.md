@@ -115,7 +115,7 @@ sudo scripts/ssl/obtain-certificates.sh
 sudo scripts/ssl/check-certificates.sh
 
 # Restart deployment
-docker-compose -f docker-compose.timeweb.yml restart nginx
+docker-compose -f docker-compose.yml restart nginx
 ```
 
 ## Security Considerations

@@ -44,12 +44,12 @@ test_ssl_scripts() {
 test_docker_compose() {
     echo -e "${BLUE}Testing Docker Compose configuration...${NC}"
     
-    if [[ -f "docker-compose.timeweb.yml" ]]; then
-        echo -e "${GREEN}✅ docker-compose.timeweb.yml exists${NC}"
+    if [[ -f "docker-compose.yml" ]]; then
+        echo -e "${GREEN}✅ docker-compose.yml exists${NC}"
         
         # Test syntax if docker-compose is available
         if command -v docker-compose > /dev/null 2>&1; then
-            if docker-compose -f docker-compose.timeweb.yml config > /dev/null 2>&1; then
+            if docker-compose -f docker-compose.yml config > /dev/null 2>&1; then
                 echo -e "${GREEN}✅ Docker Compose syntax is valid${NC}"
             else
                 echo -e "${RED}❌ Docker Compose syntax error${NC}"
@@ -59,7 +59,7 @@ test_docker_compose() {
             echo -e "${YELLOW}⚠️ docker-compose not available, skipping syntax check${NC}"
         fi
     else
-        echo -e "${RED}❌ docker-compose.timeweb.yml not found${NC}"
+        echo -e "${RED}❌ docker-compose.yml not found${NC}"
         return 1
     fi
 }

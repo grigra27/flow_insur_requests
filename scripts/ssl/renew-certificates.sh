@@ -7,7 +7,7 @@ set -e
 
 # Configuration
 LOG_FILE="/var/log/ssl-certificates.log"
-DOCKER_COMPOSE_FILE="/opt/insflow-system/docker-compose.timeweb.yml"
+DOCKER_COMPOSE_FILE="/opt/insflow-system/docker-compose.yml"
 NGINX_CONTAINER_NAME="nginx"
 RENEWAL_HOOK_SCRIPT="/opt/insflow-system/scripts/ssl/post-renewal-hook.sh"
 
