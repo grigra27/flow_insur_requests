@@ -129,6 +129,27 @@
                         </div>
                     </div>
 
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ form.manager_name.id_for_label }}" class="form-label">
+                                    {{ form.manager_name.label }}
+                                </label>
+                                {{ form.manager_name }}
+                                {% if form.manager_name.errors %}
+                                <div class="text-danger">
+                                    {% for error in form.manager_name.errors %}
+                                    <small>{{ error }}</small>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <!-- Пустая колонка для симметрии -->
+                        </div>
+                    </div>
+
                     <div class="mb-3">
                         <label for="{{ form.vehicle_info.id_for_label }}" class="form-label">
                             {{ form.vehicle_info.label }}
