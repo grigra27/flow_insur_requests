@@ -397,7 +397,19 @@
     <div class="col-12">
         <div class="card">
             <div class="card-header">
-                <h5 class="mb-0"><i class="bi bi-people"></i> По менеджерам</h5>
+                <h5 class="mb-0">
+                    <i class="bi bi-people"></i> По менеджерам Онлайна
+                    <i class="bi bi-info-circle text-muted ms-2" 
+                       style="cursor: help; font-size: 0.9rem;"
+                       data-bs-toggle="tooltip" 
+                       data-bs-placement="right"
+                       data-bs-html="true"
+                       title="<strong>Логика распределения:</strong><br>
+                              <strong>Сергеева:</strong> все сделки из Санкт-Петербурга<br>
+                              <strong>Дроздова:</strong> пролонгации (кроме СПб) + новые сделки из Пскова, Москвы, Краснодара<br>
+                              <strong>Лазарева:</strong> все остальные новые сделки">
+                    </i>
+                </h5>
             </div>
             <div class="card-body">
                 <!-- Общая статистика по менеджерам -->
@@ -475,5 +487,15 @@
         Статистика обновляется в реальном времени и включает только действительные предложения.
     </small>
 </div>
+
+<script>
+// Инициализация tooltips
+document.addEventListener('DOMContentLoaded', function() {
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+});
+</script>
 
 {% endblock %}

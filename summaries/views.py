@@ -1345,22 +1345,34 @@ def offer_search(request):
 
 
 
-def get_manager_by_branch(branch):
-    """Определяет менеджера по филиалу"""
+def get_manager_by_branch(branch, deal_status='new'):
+    """
+    Определяет менеджера по филиалу и статусу сделки
+    
+    Логика:
+    - Санкт-Петербург всегда -> Сергеева
+    - Пролонгация (любой филиал кроме СПб) -> Дроздова
+    - Новая сделка в Пскове, Москве, Краснодаре -> Дроздова
+    - Остальные новые сделки -> Лазарева
+    """
     if not branch:
-        return 'Лазарева'
+        branch = ''
     
     branch_lower = branch.lower()
     
-    # Сергеева - Санкт-Петербург
+    # Сергеева - Санкт-Петербург (всегда, независимо от статуса сделки)
     if 'санкт-петербург' in branch_lower or 'спб' in branch_lower or 'петербург' in branch_lower:
         return 'Сергеева'
     
-    # Дроздова - Псков, Москва, Краснодар
+    # Дроздова - все пролонгации (кроме СПб)
+    if deal_status == 'prolongation':
+        return 'Дроздова'
+    
+    # Дроздова - новые сделки в Пскове, Москве, Краснодаре
     if any(city in branch_lower for city in ['псков', 'москва', 'краснодар']):
         return 'Дроздова'
     
-    # Остальные - Лазарева
+    # Остальные новые сделки - Лазарева
     return 'Лазарева'
 
 
@@ -1551,7 +1563,14 @@ def summary_statistics(request):
     all_summaries = InsuranceSummary.objects.select_related('request').all()
     
     for summary in all_summaries:
-        manager = get_manager_by_branch(summary.request.branch)
+        deal_status = summary.request.deal_status
+        branch = summary.request.branch
+        
+        # Временный логгинг для отладки
+        if 'архангельск' in (branch or '').lower():
+            logger.info(f"Архангельск - deal_status: {deal_status}, branch: {branch}")
+        
+        manager = get_manager_by_branch(branch, deal_status)
         
         # Общая статистика по менеджерам
         if manager not in manager_stats:
@@ -1593,6 +1612,14 @@ def summary_statistics(request):
         manager_monthly_stats[manager] = dict(
             sorted(manager_monthly_stats[manager].items(), key=lambda x: x[0], reverse=True)
         )
+    
+    # Сортируем менеджеров в нужном порядке: Лазарева, Дроздова, Сергеева
+    manager_order = ['Лазарева', 'Дроздова', 'Сергеева']
+    manager_monthly_stats = {
+        manager: manager_monthly_stats[manager] 
+        for manager in manager_order 
+        if manager in manager_monthly_stats
+    }
     
     return render(request, 'summaries/statistics.html', {
         'stats': stats,

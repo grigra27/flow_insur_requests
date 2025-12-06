@@ -34,6 +34,11 @@ class InsuranceRequest(models.Model):
         ('both_variants', 'Оба варианта'),
     ]
     
+    DEAL_STATUS_CHOICES = [
+        ('new', 'Новая сделка'),
+        ('prolongation', 'Пролонгация'),
+    ]
+    
     # Основные поля
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Дата создания')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='Дата обновления')
@@ -129,6 +134,14 @@ class InsuranceRequest(models.Model):
         verbose_name='ФИО Менеджера'
     )
     
+    # Статус сделки
+    deal_status = models.CharField(
+        max_length=20,
+        choices=DEAL_STATUS_CHOICES,
+        default='new',
+        verbose_name='Статус сделки'
+    )
+    
     class Meta:
         verbose_name = 'Страховая заявка'
         verbose_name_plural = 'Страховые заявки'
@@ -211,6 +224,8 @@ class InsuranceRequest(models.Model):
             'manufacturing_year': self.manufacturing_year or 'не указан',
             # ФИО Менеджера
             'manager_name': self.manager_name or 'не указано',
+            # Статус сделки
+            'deal_status': self.get_deal_status_display(),
         }
     
     def can_create_summary(self) -> bool:

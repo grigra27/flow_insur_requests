@@ -42,7 +42,7 @@ class InsuranceRequestAdmin(admin.ModelAdmin):
     fieldsets = (
         ('Основная информация', {
             'fields': (
-                'created_by', 'status', 'created_at', 'updated_at', 'manager_name'
+                'created_by', 'status', 'created_at', 'updated_at', 'manager_name', 'deal_status'
             )
         }),
         ('Данные клиента', {

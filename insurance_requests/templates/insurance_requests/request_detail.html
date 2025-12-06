@@ -183,6 +183,9 @@
                                 <dt class="col-sm-6">ФИО Менеджера:</dt>
                                 <dd class="col-sm-6">{{ request.manager_name|default:"Не указано" }}</dd>
 
+                                <dt class="col-sm-6">Статус сделки:</dt>
+                                <dd class="col-sm-6">{{ request.get_deal_status_display }}</dd>
+
                                 <dt class="col-sm-6">Комплектность ключей:</dt>
                                 <dd class="col-sm-6">{{ request.key_completeness|default:"Не указано" }}</dd>
 
@@ -221,6 +224,9 @@
                             <dl class="row">
                                 <dt class="col-sm-6">ФИО Менеджера:</dt>
                                 <dd class="col-sm-6">{{ request.manager_name|default:"Не указано" }}</dd>
+
+                                <dt class="col-sm-6">Статус сделки:</dt>
+                                <dd class="col-sm-6">{{ request.get_deal_status_display }}</dd>
 
                                 <dt class="col-sm-6">Банк-кредитор:</dt>
                                 <dd class="col-sm-6">{{ request.creditor_bank|default:"Не указано" }}</dd>
