@@ -259,12 +259,31 @@ class SummaryStatusForm(forms.Form):
         label='Статус свода'
     )
     
+    selected_company = forms.ChoiceField(
+        choices=[],
+        required=False,
+        widget=forms.Select(attrs={
+            'class': 'form-select',
+            'id': 'selected-company-select'
+        }),
+        label='Выбранная страховая компания',
+        help_text='Обязательно для статуса "Завершен: акцепт/распоряжение"'
+    )
+    
     def __init__(self, *args, **kwargs):
         current_status = kwargs.pop('current_status', None)
+        summary = kwargs.pop('summary', None)
         super().__init__(*args, **kwargs)
         
         if current_status:
             self.fields['status'].initial = current_status
+        
+        # Заполняем список компаний из предложений свода
+        if summary:
+            self.fields['selected_company'].choices = summary.get_companies_choices()
+            # Устанавливаем текущее значение, если оно есть
+            if summary.selected_company:
+                self.fields['selected_company'].initial = summary.selected_company
     
     def clean_status(self):
         """Валидация статуса"""
@@ -275,6 +294,21 @@ class SummaryStatusForm(forms.Form):
             raise ValidationError('Недопустимый статус')
         
         return status
+    
+    def clean(self):
+        """Дополнительная валидация формы"""
+        cleaned_data = super().clean()
+        status = cleaned_data.get('status')
+        selected_company = cleaned_data.get('selected_company')
+        
+        # Если статус "Завершен: акцепт/распоряжение", требуем выбор компании
+        if status == 'completed_accepted':
+            if not selected_company:
+                raise ValidationError({
+                    'selected_company': 'Необходимо выбрать страховую компанию для статуса "Завершен: акцепт/распоряжение"'
+                })
+        
+        return cleaned_data
 
 
 class AddOfferToSummaryForm(forms.ModelForm):

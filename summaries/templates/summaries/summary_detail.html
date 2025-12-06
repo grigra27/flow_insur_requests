@@ -355,6 +355,35 @@
                     <div class="form-text">Выберите новый статус и нажмите "Применить"</div>
                 </div>
                 
+                <!-- Поле выбора страховой компании (для статуса "Завершен: акцепт/распоряжение") -->
+                <div class="mb-3" id="selected-company-container" style="display: none;">
+                    <label for="selected-company-select" class="form-label">
+                        Выбранная страховая компания: <span class="text-danger">*</span>
+                    </label>
+                    <select id="selected-company-select" class="form-select">
+                        <option value="">Выберите страховую компанию</option>
+                        {% for company in summary.get_unique_companies_list %}
+                            <option value="{{ company }}" {% if summary.selected_company == company %}selected{% endif %}>{{ company }}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="form-text text-danger">
+                        <i class="bi bi-exclamation-triangle"></i> 
+                        Обязательно для статуса "Завершен: акцепт/распоряжение"
+                    </div>
+                </div>
+                
+                {% if summary.selected_company %}
+                <div class="alert alert-success d-flex justify-content-between align-items-center">
+                    <div>
+                        <i class="bi bi-check-circle"></i>
+                        <strong>Выбранная СК:</strong> {{ summary.selected_company }}
+                    </div>
+                    <a href="{% url 'summaries:deal_summary' summary.id %}" class="btn btn-sm btn-outline-success">
+                        <i class="bi bi-file-text"></i> Резюме по сделке
+                    </a>
+                </div>
+                {% endif %}
+                
 
                 
                 {% if summary.status == 'sent' %}
@@ -2319,10 +2348,26 @@ function changeStatus(summaryId) {
     const statusSelect = document.getElementById('status-select');
     const newStatus = statusSelect.value;
     const currentBadge = document.getElementById('current-status-badge');
+    const selectedCompanySelect = document.getElementById('selected-company-select');
     
     if (!newStatus) {
         showErrorMessage('Выберите статус');
         return;
+    }
+    
+    // Проверяем, требуется ли выбор компании для статуса "Завершен: акцепт/распоряжение"
+    if (newStatus === 'completed_accepted') {
+        const selectedCompany = selectedCompanySelect.value;
+        if (!selectedCompany) {
+            showErrorMessage('Необходимо выбрать страховую компанию для статуса "Завершен: акцепт/распоряжение"');
+            // Показываем поле выбора компании, если оно скрыто
+            const companyContainer = document.getElementById('selected-company-container');
+            if (companyContainer) {
+                companyContainer.style.display = 'block';
+                selectedCompanySelect.focus();
+            }
+            return;
+        }
     }
     
     // Получаем текущий статус для сравнения
@@ -2339,10 +2384,16 @@ function changeStatus(summaryId) {
     applyButton.innerHTML = '<i class="bi bi-hourglass-split"></i> Применяется...';
     applyButton.disabled = true;
     statusSelect.disabled = true;
+    if (selectedCompanySelect) {
+        selectedCompanySelect.disabled = true;
+    }
     
     // Создаем FormData для отправки
     const formData = new FormData();
     formData.append('status', newStatus);
+    if (newStatus === 'completed_accepted' && selectedCompanySelect) {
+        formData.append('selected_company', selectedCompanySelect.value);
+    }
     formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
     
     fetch(`/summaries/${summaryId}/change-status/`, {
@@ -2681,6 +2732,21 @@ function initializeNotesForm() {
     }
 }
 
+// Функция для управления видимостью поля выбора компании
+function toggleCompanySelectVisibility() {
+    const statusSelect = document.getElementById('status-select');
+    const companyContainer = document.getElementById('selected-company-container');
+    
+    if (statusSelect && companyContainer) {
+        const selectedStatus = statusSelect.value;
+        if (selectedStatus === 'completed_accepted') {
+            companyContainer.style.display = 'block';
+        } else {
+            companyContainer.style.display = 'none';
+        }
+    }
+}
+
 // Обновляем инициализацию при загрузке страницы
 document.addEventListener('DOMContentLoaded', function() {
     // Сохраняем время загрузки страницы
@@ -2722,6 +2788,12 @@ document.addEventListener('DOMContentLoaded', function() {
             
             statusSelect.dataset.currentStatus = currentStatus;
         }
+        
+        // Добавляем обработчик изменения статуса для показа/скрытия поля выбора компании
+        statusSelect.addEventListener('change', toggleCompanySelectVisibility);
+        
+        // Инициализируем видимость поля выбора компании
+        toggleCompanySelectVisibility();
     }
     
     // Обновляем отображение каждые 30 секунд (если страница активна)

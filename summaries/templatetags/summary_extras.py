@@ -149,3 +149,41 @@ def format_currency_with_spaces(value):
         if value is None or value == '':
             return '—'
         return str(value)
+
+
+@register.filter
+def sum_premiums_variant1(offers):
+    """Суммирует премии с франшизой-1 для списка предложений"""
+    try:
+        total = Decimal('0')
+        for offer in offers:
+            if offer.premium_with_franchise_1:
+                total += Decimal(str(offer.premium_with_franchise_1))
+        return total
+    except (ValueError, TypeError, AttributeError):
+        return Decimal('0')
+
+
+@register.filter
+def sum_premiums_variant2(offers):
+    """Суммирует премии с франшизой-2 для списка предложений"""
+    try:
+        total = Decimal('0')
+        for offer in offers:
+            if offer.premium_with_franchise_2:
+                total += Decimal(str(offer.premium_with_franchise_2))
+        return total
+    except (ValueError, TypeError, AttributeError):
+        return Decimal('0')
+
+
+@register.filter
+def has_variant2(offers):
+    """Проверяет, есть ли хотя бы у одного предложения вариант с франшизой-2"""
+    try:
+        for offer in offers:
+            if offer.premium_with_franchise_2:
+                return True
+        return False
+    except (ValueError, TypeError, AttributeError):
+        return False

@@ -120,6 +120,14 @@
                         <span class="badge {{ summary.status|status_badge_class }}">
                             {{ summary.get_status_display }}
                         </span>
+                        {% if summary.status == 'completed_accepted' and summary.selected_company %}
+                        <br><small class="text-muted">
+                            <i class="bi bi-building"></i> {{ summary.selected_company }} // 
+                            <a href="{% url 'summaries:deal_summary' summary.id %}" class="text-primary" onclick="event.stopPropagation();">
+                                <i class="bi bi-file-text"></i> резюме
+                            </a>
+                        </small>
+                        {% endif %}
                     </td>
                     <td>
                         <small>

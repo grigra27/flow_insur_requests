@@ -138,6 +138,15 @@ class InsuranceSummary(models.Model):
     # Примечание к своду
     notes = models.TextField(blank=True, verbose_name='Примечание', help_text='Дополнительное примечание к своду')
     
+    # Выбранная страховая компания (для завершенных сводов)
+    selected_company = models.CharField(
+        max_length=255, 
+        blank=True, 
+        null=True,
+        verbose_name='Выбранная СК',
+        help_text='Страховая компания, выбранная при акцепте/распоряжении'
+    )
+    
     class Meta:
         verbose_name = 'Свод предложений'
         verbose_name_plural = 'Своды предложений'
@@ -241,8 +250,17 @@ class InsuranceSummary(models.Model):
         return companies
     
     def get_unique_companies_list(self):
-        """Возвращает список уникальных названий компаний"""
-        return list(self.offers.filter(is_valid=True).values_list('company_name', flat=True).distinct())
+        """Возвращает список уникальных названий компаний (без дублирования для многолетних предложений)"""
+        # Используем set() для гарантированной уникальности названий компаний
+        # Это важно для многолетних предложений - одна компания должна быть в списке только один раз
+        companies = set(self.offers.filter(is_valid=True).values_list('company_name', flat=True))
+        return sorted(list(companies))
+    
+    def get_companies_choices(self):
+        """Возвращает список выборов компаний для формы (только компании из предложений свода)"""
+        companies = self.get_unique_companies_list()
+        # companies уже отсортирован в get_unique_companies_list()
+        return [('', 'Выберите страховую компанию')] + [(company, company) for company in companies]
     
     def update_total_offers_count(self):
         """Обновляет счетчик общего количества предложений"""

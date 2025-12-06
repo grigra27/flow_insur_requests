@@ -178,6 +178,64 @@ def summary_detail(request, pk):
 
 
 @user_required
+def deal_summary(request, summary_id):
+    """Страница резюме по страховой сделке (технический лист)"""
+    summary = get_object_or_404(
+        InsuranceSummary.objects.select_related('request').prefetch_related('offers'), 
+        pk=summary_id
+    )
+    
+    # Проверяем, что свод завершен с акцептом и выбрана компания
+    if summary.status != 'completed_accepted' or not summary.selected_company:
+        messages.warning(request, 'Резюме по сделке доступно только для завершенных сводов с выбранной страховой компанией')
+        return redirect('summaries:summary_detail', pk=summary_id)
+    
+    # Получаем заявку
+    insurance_request = summary.request
+    
+    # Получаем предложения выбранной компании
+    selected_offers = summary.offers.filter(
+        company_name=summary.selected_company,
+        is_valid=True
+    ).order_by('insurance_year')
+    
+    # Подготавливаем данные для отображения (аналогично техническому листу)
+    context = {
+        'summary': summary,
+        'request': insurance_request,
+        'selected_company': summary.selected_company,
+        'selected_offers': selected_offers,
+        
+        # Основные данные заявки
+        'request_number': insurance_request.dfa_number,
+        'client_name': insurance_request.client_name,
+        'client_inn': insurance_request.inn,
+        'branch': insurance_request.get_branch_display() if hasattr(insurance_request, 'get_branch_display') else insurance_request.branch,
+        'insurance_type': insurance_request.get_insurance_type_display(),
+        'vehicle_info': insurance_request.vehicle_info,
+        
+        # Дополнительные параметры
+        'creditor_bank': insurance_request.creditor_bank,
+        'usage_purposes': insurance_request.usage_purposes,
+        'franchise_type': insurance_request.get_franchise_type_display() if insurance_request.franchise_type else 'Не указано',
+        'has_installment': insurance_request.has_installment,
+        
+        # Параметры для КАСКО/спецтехники
+        'has_autostart': insurance_request.has_autostart if insurance_request.insurance_type in ['КАСКО', 'страхование спецтехники'] else None,
+        'key_completeness': insurance_request.key_completeness if insurance_request.insurance_type in ['КАСКО', 'страхование спецтехники'] else None,
+        'pts_psm': insurance_request.pts_psm if insurance_request.insurance_type in ['КАСКО', 'страхование спецтехники'] else None,
+        'telematics_complex': insurance_request.telematics_complex if insurance_request.insurance_type in ['КАСКО', 'страхование спецтехники'] else None,
+        
+        # Параметры для страхования имущества
+        'insurance_territory': insurance_request.insurance_territory if insurance_request.insurance_type == 'страхование имущества' else None,
+        'has_transportation': insurance_request.has_transportation if insurance_request.insurance_type == 'страхование имущества' else None,
+        'has_construction_work': insurance_request.has_construction_work if insurance_request.insurance_type == 'страхование имущества' else None,
+    }
+    
+    return render(request, 'summaries/deal_summary.html', context)
+
+
+@user_required
 def create_summary(request, request_id):
     """
     Создание свода для заявки с улучшенной обработкой ошибок и проверками доступа.
@@ -679,10 +737,31 @@ def change_summary_status(request, summary_id):
     """Изменение статуса свода"""
     summary = get_object_or_404(InsuranceSummary, pk=summary_id)
     new_status = request.POST.get('status')
+    selected_company = request.POST.get('selected_company', '').strip()
+    
+    # Валидация статуса "Завершен: акцепт/распоряжение"
+    if new_status == 'completed_accepted':
+        if not selected_company:
+            return JsonResponse({
+                'success': False, 
+                'error': 'Необходимо выбрать страховую компанию для статуса "Завершен: акцепт/распоряжение"'
+            })
+        
+        # Проверяем, что выбранная компания есть в предложениях свода
+        available_companies = summary.get_unique_companies_list()
+        if selected_company not in available_companies:
+            return JsonResponse({
+                'success': False, 
+                'error': 'Выбранная компания не найдена в предложениях свода'
+            })
     
     if new_status in dict(InsuranceSummary.STATUS_CHOICES):
         old_status = summary.status
         summary.status = new_status
+        
+        # Сохраняем выбранную компанию для статуса "Завершен: акцепт/распоряжение"
+        if new_status == 'completed_accepted':
+            summary.selected_company = selected_company
         
         # Если статус изменен на "Отправлен в Альянс", устанавливаем время отправки
         if new_status == 'sent':
@@ -691,13 +770,19 @@ def change_summary_status(request, summary_id):
         
         summary.save()
         
-        logger.info(f"Summary {summary_id} status changed from '{old_status}' to '{new_status}'")
+        logger.info(f"Summary {summary_id} status changed from '{old_status}' to '{new_status}'" + 
+                   (f" with selected company '{selected_company}'" if new_status == 'completed_accepted' else ""))
+        
+        message = f'Статус изменен на "{summary.get_status_display()}"'
+        if new_status == 'completed_accepted' and selected_company:
+            message += f' (СК: {selected_company})'
         
         return JsonResponse({
             'success': True, 
-            'message': f'Статус изменен на "{summary.get_status_display()}"',
+            'message': message,
             'new_status': new_status,
-            'new_status_display': summary.get_status_display()
+            'new_status_display': summary.get_status_display(),
+            'selected_company': selected_company if new_status == 'completed_accepted' else None
         })
     
     return JsonResponse({

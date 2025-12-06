@@ -10,6 +10,7 @@ urlpatterns = [
     # Основные страницы
     path('', views.summary_list, name='summary_list'),
     path('<int:pk>/', views.summary_detail, name='summary_detail'),
+    path('<int:summary_id>/deal-summary/', views.deal_summary, name='deal_summary'),
     path('statistics/', views.summary_statistics, name='statistics'),
     path('help/', views.help_page, name='help'),
     
