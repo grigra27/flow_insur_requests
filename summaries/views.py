@@ -1345,6 +1345,35 @@ def offer_search(request):
 
 
 
+def get_manager_by_branch(branch):
+    """Определяет менеджера по филиалу"""
+    if not branch:
+        return 'Лазарева'
+    
+    branch_lower = branch.lower()
+    
+    # Сергеева - Санкт-Петербург
+    if 'санкт-петербург' in branch_lower or 'спб' in branch_lower or 'петербург' in branch_lower:
+        return 'Сергеева'
+    
+    # Дроздова - Псков, Москва, Краснодар
+    if any(city in branch_lower for city in ['псков', 'москва', 'краснодар']):
+        return 'Дроздова'
+    
+    # Остальные - Лазарева
+    return 'Лазарева'
+
+
+def get_russian_month_name(date):
+    """Возвращает название месяца на русском языке"""
+    months = {
+        1: 'Январь', 2: 'Февраль', 3: 'Март', 4: 'Апрель',
+        5: 'Май', 6: 'Июнь', 7: 'Июль', 8: 'Август',
+        9: 'Сентябрь', 10: 'Октябрь', 11: 'Ноябрь', 12: 'Декабрь'
+    }
+    return f"{months[date.month]} {date.year}"
+
+
 @admin_required
 def summary_statistics(request):
     """Статистика по сводам"""
@@ -1372,15 +1401,67 @@ def summary_statistics(request):
     stats['summaries_last_month'] = InsuranceSummary.objects.filter(created_at__gte=last_month).count()
     stats['offers_last_month'] = InsuranceOffer.objects.filter(is_valid=True, received_at__gte=last_month).count()
     
-    # Топ компаний по количеству предложений
-    top_companies = InsuranceOffer.objects.filter(is_valid=True).values('company_name').annotate(
-        count=Count('id'),
-        avg_premium_1=Avg('premium_with_franchise_1'),
-        avg_premium_2=Avg('premium_with_franchise_2'),
-        min_premium=Min('premium_with_franchise_1'),
-        max_premium=Max('premium_with_franchise_1'),
-        total_premium=Sum('premium_with_franchise_1')
-    ).order_by('-count')[:10]
+    # Статистика по страховым компаниям с разбивкой по типам страхования
+    # Считаем количество уникальных сводов, в которых компания представлена
+    company_stats_detailed = {}
+    all_offers = InsuranceOffer.objects.filter(is_valid=True).select_related('summary__request')
+    
+    for offer in all_offers:
+        company = offer.company_name
+        summary_id = offer.summary.id
+        insurance_type = offer.summary.request.insurance_type or 'Не указан'
+        
+        if company not in company_stats_detailed:
+            company_stats_detailed[company] = {
+                'summaries': set(),  # Используем set для уникальных сводов
+                'types': {}
+            }
+        
+        # Добавляем свод в set (автоматически обеспечивает уникальность)
+        company_stats_detailed[company]['summaries'].add(summary_id)
+        
+        # Для типов страхования также используем set для уникальных сводов
+        if insurance_type not in company_stats_detailed[company]['types']:
+            company_stats_detailed[company]['types'][insurance_type] = set()
+        
+        company_stats_detailed[company]['types'][insurance_type].add(summary_id)
+    
+    # Преобразуем sets в количество для удобства использования в шаблоне
+    for company in company_stats_detailed:
+        company_stats_detailed[company]['total'] = len(company_stats_detailed[company]['summaries'])
+        for insurance_type in company_stats_detailed[company]['types']:
+            company_stats_detailed[company]['types'][insurance_type] = len(
+                company_stats_detailed[company]['types'][insurance_type]
+            )
+    
+    # Сортируем компании по общему количеству сводов
+    company_stats_detailed = dict(
+        sorted(company_stats_detailed.items(), key=lambda x: x[1]['total'], reverse=True)
+    )
+    
+    for company in company_stats_detailed:
+        company_stats_detailed[company]['types'] = dict(
+            sorted(company_stats_detailed[company]['types'].items(), key=lambda x: x[1], reverse=True)
+        )
+    
+    # Подсчитываем общее количество сводов (для расчета процента представленности)
+    total_summaries_count = InsuranceSummary.objects.count()
+    
+    # Подсчитываем количество сводов по типам страхования
+    summaries_by_type = {}
+    for summary in InsuranceSummary.objects.select_related('request'):
+        insurance_type = summary.request.insurance_type or 'Не указан'
+        if insurance_type not in summaries_by_type:
+            summaries_by_type[insurance_type] = 0
+        summaries_by_type[insurance_type] += 1
+    
+    company_totals = {
+        'total': total_summaries_count,
+        'kasko': summaries_by_type.get('КАСКО', 0),
+        'spec': summaries_by_type.get('страхование спецтехники', 0),
+        'property': summaries_by_type.get('страхование имущества', 0),
+        'other': summaries_by_type.get('другое', 0)
+    }
     
     # Статистика по годам страхования
     year_stats = InsuranceOffer.objects.filter(is_valid=True).values('insurance_year').annotate(
@@ -1389,27 +1470,140 @@ def summary_statistics(request):
         total_premium=Sum('premium_with_franchise_1')
     ).order_by('insurance_year')
     
-    # Статистика по рассрочке
-    installment_stats = InsuranceOffer.objects.filter(is_valid=True).values('payments_per_year').annotate(
-        count=Count('id')
-    ).order_by('payments_per_year')
+    # Статистика по месяцам создания сводов
+    monthly_summaries_stats = {}
+    all_summaries_for_months = InsuranceSummary.objects.all()
     
-    # Статистика по филиалам (если есть данные)
-    branch_stats = InsuranceSummary.objects.filter(
+    for summary in all_summaries_for_months:
+        month_key = summary.created_at.strftime('%Y-%m')
+        month_display = get_russian_month_name(summary.created_at)
+        
+        if month_key not in monthly_summaries_stats:
+            monthly_summaries_stats[month_key] = {
+                'display': month_display,
+                'count': 0
+            }
+        
+        monthly_summaries_stats[month_key]['count'] += 1
+    
+    # Сортируем месяцы от новых к старым
+    monthly_summaries_stats = dict(
+        sorted(monthly_summaries_stats.items(), key=lambda x: x[0], reverse=True)
+    )
+    
+    # Статистика по филиалам с детализацией по видам страхования
+    branch_stats_detailed = {}
+    all_summaries_with_branch = InsuranceSummary.objects.filter(
         request__branch__isnull=False
     ).exclude(
         request__branch=''
-    ).values('request__branch').annotate(
-        count=Count('id'),
-        offers_count=Count('offers', filter=Q(offers__is_valid=True))
-    ).order_by('-count')[:10]
+    ).select_related('request')
+    
+    for summary in all_summaries_with_branch:
+        branch = summary.request.branch
+        insurance_type = summary.request.insurance_type or 'Не указан'
+        
+        if branch not in branch_stats_detailed:
+            branch_stats_detailed[branch] = {
+                'total': 0,
+                'types': {}
+            }
+        
+        branch_stats_detailed[branch]['total'] += 1
+        
+        if insurance_type not in branch_stats_detailed[branch]['types']:
+            branch_stats_detailed[branch]['types'][insurance_type] = 0
+        
+        branch_stats_detailed[branch]['types'][insurance_type] += 1
+    
+    # Сортируем филиалы по общему количеству сводов и типы страхования внутри каждого филиала
+    branch_stats_detailed = dict(
+        sorted(branch_stats_detailed.items(), key=lambda x: x[1]['total'], reverse=True)
+    )
+    
+    for branch in branch_stats_detailed:
+        branch_stats_detailed[branch]['types'] = dict(
+            sorted(branch_stats_detailed[branch]['types'].items(), key=lambda x: x[1], reverse=True)
+        )
+    
+    # Берем топ-10 филиалов
+    branch_stats_detailed = dict(list(branch_stats_detailed.items())[:10])
+    
+    # Подсчитываем итоги по всем филиалам
+    branch_totals = {
+        'total': 0,
+        'kasko': 0,
+        'spec': 0,
+        'property': 0,
+        'other': 0
+    }
+    
+    for branch_data in branch_stats_detailed.values():
+        branch_totals['total'] += branch_data['total']
+        branch_totals['kasko'] += branch_data['types'].get('КАСКО', 0)
+        branch_totals['spec'] += branch_data['types'].get('страхование спецтехники', 0)
+        branch_totals['property'] += branch_data['types'].get('страхование имущества', 0)
+        branch_totals['other'] += branch_data['types'].get('другое', 0)
+    
+    # Статистика по менеджерам
+    manager_stats = {}
+    manager_monthly_stats = {}
+    all_summaries = InsuranceSummary.objects.select_related('request').all()
+    
+    for summary in all_summaries:
+        manager = get_manager_by_branch(summary.request.branch)
+        
+        # Общая статистика по менеджерам
+        if manager not in manager_stats:
+            manager_stats[manager] = {
+                'count': 0,
+                'offers_count': 0,
+                'accepted': 0,
+                'rejected': 0,
+            }
+        manager_stats[manager]['count'] += 1
+        manager_stats[manager]['offers_count'] += summary.offers.filter(is_valid=True).count()
+        
+        # Подсчет акцептов и отказов
+        if summary.status == 'completed_accepted':
+            manager_stats[manager]['accepted'] += 1
+        elif summary.status == 'completed_rejected':
+            manager_stats[manager]['rejected'] += 1
+        
+        # Статистика по месяцам для каждого менеджера
+        month_key = summary.created_at.strftime('%Y-%m')
+        month_display = get_russian_month_name(summary.created_at)
+        
+        if manager not in manager_monthly_stats:
+            manager_monthly_stats[manager] = {}
+        
+        if month_key not in manager_monthly_stats[manager]:
+            manager_monthly_stats[manager][month_key] = {
+                'display': month_display,
+                'count': 0,
+            }
+        
+        manager_monthly_stats[manager][month_key]['count'] += 1
+    
+    # Сортируем менеджеров по количеству сводов
+    manager_stats = dict(sorted(manager_stats.items(), key=lambda x: x[1]['count'], reverse=True))
+    
+    # Сортируем месяцы для каждого менеджера (от новых к старым)
+    for manager in manager_monthly_stats:
+        manager_monthly_stats[manager] = dict(
+            sorted(manager_monthly_stats[manager].items(), key=lambda x: x[0], reverse=True)
+        )
     
     return render(request, 'summaries/statistics.html', {
         'stats': stats,
-        'top_companies': top_companies,
+        'company_stats_detailed': company_stats_detailed,
+        'company_totals': company_totals,
         'year_stats': year_stats,
-        'installment_stats': installment_stats,
-        'branch_stats': branch_stats,
+        'monthly_summaries_stats': monthly_summaries_stats,
+        'branch_stats_detailed': branch_stats_detailed,
+        'branch_totals': branch_totals,
+        'manager_stats': manager_stats,
+        'manager_monthly_stats': manager_monthly_stats,
     })
 
 

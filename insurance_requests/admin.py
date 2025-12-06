@@ -19,7 +19,8 @@ class InsuranceRequestAdmin(admin.ModelAdmin):
     # Улучшенные фильтры по ключевым полям
     list_filter = [
         'status', 'insurance_type', 'branch', 'franchise_type', 'has_franchise', 
-        'has_installment', 'has_autostart', 'created_at'
+        'has_installment', 'has_autostart', 'has_casco_ce', 'has_transportation',
+        'has_construction_work', 'created_at'
     ]
     
     # Расширенный поиск по ключевым полям
@@ -41,7 +42,7 @@ class InsuranceRequestAdmin(admin.ModelAdmin):
     fieldsets = (
         ('Основная информация', {
             'fields': (
-                'created_by', 'status', 'created_at', 'updated_at'
+                'created_by', 'status', 'created_at', 'updated_at', 'manager_name'
             )
         }),
         ('Данные клиента', {
@@ -51,13 +52,32 @@ class InsuranceRequestAdmin(admin.ModelAdmin):
         }),
         ('Страхование', {
             'fields': (
-                'insurance_type', 'insurance_period', 'vehicle_info'
+                'insurance_type', 'insurance_period', 'vehicle_info', 'manufacturing_year'
             )
         }),
         ('Параметры', {
             'fields': (
-                'franchise_type', 'has_franchise', 'has_installment', 'has_autostart', 
+                'franchise_type', 'has_franchise', 'has_installment', 'has_autostart',
+                'has_casco_ce', 'has_transportation', 'has_construction_work',
                 'response_deadline'
+            )
+        }),
+        ('Параметры КАСКО/Спецтехника', {
+            'fields': (
+                'key_completeness', 'pts_psm', 'creditor_bank', 
+                'usage_purposes', 'telematics_complex'
+            ),
+            'classes': ('collapse',)
+        }),
+        ('Параметры страхования имущества', {
+            'fields': (
+                'insurance_territory',
+            ),
+            'classes': ('collapse',)
+        }),
+        ('Примечание', {
+            'fields': (
+                'notes',
             )
         }),
         ('Письмо', {
