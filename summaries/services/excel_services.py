@@ -2911,7 +2911,8 @@ class ExcelResponseProcessor:
         """
         try:
             cell = worksheet[cell_address]
-            return cell.value
+            value = cell.value
+            return value
         except Exception as e:
             self.logger.warning(f"Ошибка при чтении ячейки {cell_address}: {str(e)}")
             return None
@@ -3031,12 +3032,21 @@ class ExcelResponseProcessor:
                     return None
                 raise RowProcessingError(row_number, field_name, 'значение не указано', cell_address)
             
-            # Преобразуем в Decimal
+            # Преобразуем в Decimal с ограничением точности
             decimal_value = Decimal(str(value))
+            
+            # Ограничиваем точность до 15 цифр (13 до запятой + 2 после)
+            # Это соответствует ограничению модели max_digits=15, decimal_places=2
+            decimal_value = decimal_value.quantize(Decimal('0.01'))
             
             # Проверяем, что значение положительное (кроме франшизы, которая может быть 0)
             if decimal_value < 0:
                 raise RowProcessingError(row_number, field_name, f'отрицательное значение {value}, ожидается положительное число', cell_address)
+            
+            # Проверяем, что значение не превышает максимально допустимое для модели
+            max_value = Decimal('9999999999999.99')  # 13 цифр до запятой + 2 после = 15 цифр всего
+            if decimal_value > max_value:
+                raise RowProcessingError(row_number, field_name, f'значение {decimal_value} слишком большое, максимум {max_value}', cell_address)
             
             return decimal_value
             
@@ -3253,13 +3263,18 @@ class ExcelResponseProcessor:
             payments_per_year_2 = year_data['installment_2']
         
         # Подготавливаем данные для создания предложения
+        # Округляем Decimal значения до 2 знаков после запятой для соответствия модели
+        insurance_sum = year_data['insurance_sum'].quantize(Decimal('0.01')) if year_data['insurance_sum'] else None
+        franchise = year_data['franchise'].quantize(Decimal('0.01')) if year_data['franchise'] else Decimal('0.00')
+        premium = year_data['premium'].quantize(Decimal('0.01')) if year_data['premium'] else None
+        
         offer_data = {
             'summary': summary,
             'company_name': company_data['company_name'],
             'insurance_year': year_data['year'],
-            'insurance_sum': year_data['insurance_sum'],
-            'franchise_1': year_data['franchise'],
-            'premium_with_franchise_1': year_data['premium'],
+            'insurance_sum': insurance_sum,
+            'franchise_1': franchise,
+            'premium_with_franchise_1': premium,
             'installment_variant_1': installment_available,
             'payments_per_year_variant_1': payments_per_year,
             # Для обратной совместимости
@@ -3270,10 +3285,12 @@ class ExcelResponseProcessor:
         
         # Добавляем дополнительные поля, если они присутствуют
         if year_data.get('premium_2') is not None:
-            offer_data['premium_with_franchise_2'] = year_data['premium_2']
+            premium_2 = year_data['premium_2'].quantize(Decimal('0.01')) if year_data['premium_2'] else None
+            offer_data['premium_with_franchise_2'] = premium_2
         
         if year_data.get('franchise_2') is not None:
-            offer_data['franchise_2'] = year_data['franchise_2']
+            franchise_2 = year_data['franchise_2'].quantize(Decimal('0.01')) if year_data['franchise_2'] else None
+            offer_data['franchise_2'] = franchise_2
         
         if year_data.get('installment_2') is not None:
             offer_data['installment_variant_2'] = installment_2_available
@@ -3282,6 +3299,7 @@ class ExcelResponseProcessor:
         # Добавляем примечания, если они есть
         if year_data.get('notes'):
             offer_data['notes'] = year_data['notes']
+        
         
         offer = InsuranceOffer.objects.create(**offer_data)
         
