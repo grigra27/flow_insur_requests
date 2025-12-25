@@ -1382,13 +1382,17 @@ class ExcelExportService:
                     logger.debug(f"Поле '{field_name}': пустая строка, возвращаем None")
                     return None
                 
-                # Убираем пробелы и запятые для парсинга
-                value = value.replace(' ', '').replace(',', '')
+                # Нормализуем числовое значение с учетом разных форматов разделителей
+                original_value = value
+                value = self._normalize_decimal_separator(value)
+                
+                if original_value != value:
+                    logger.debug(f"Поле '{field_name}': нормализовано '{original_value}' → '{value}'")
                 
                 try:
                     value = Decimal(value)
                 except (ValueError, InvalidOperation) as e:
-                    logger.warning(f"Поле '{field_name}': не удалось преобразовать строку '{value}' в число: {e}")
+                    logger.warning(f"Поле '{field_name}': не удалось преобразовать строку '{original_value}' в число: {e}")
                     return None
             
             # Преобразуем в Decimal для точности
@@ -1423,6 +1427,127 @@ class ExcelExportService:
             error_msg = f"Ошибка при форматировании числового значения для поля '{field_name}': {str(e)}"
             logger.error(error_msg, exc_info=True)
             return None
+    
+    def _normalize_decimal_separator(self, value_str: str) -> str:
+        """
+        Нормализует десятичные разделители в числовой строке
+        
+        Обрабатывает различные форматы чисел:
+        - "43000" → "43000" (без изменений)
+        - "43030,78" → "43030.78" (запятая как десятичный разделитель)
+        - "43030.78" → "43030.78" (без изменений)
+        - "1,234.56" → "1234.56" (запятая как разделитель тысяч)
+        - "1 234,56" → "1234.56" (европейский формат)
+        - "1.234,56" → "1234.56" (немецкий формат)
+        
+        Args:
+            value_str: Строковое представление числа
+            
+        Returns:
+            str: Нормализованная строка, готовая для преобразования в Decimal
+        """
+        try:
+            # Убираем все пробелы
+            normalized = value_str.replace(' ', '')
+            
+            # Если нет ни запятых, ни точек - возвращаем как есть
+            if ',' not in normalized and '.' not in normalized:
+                return normalized
+            
+            # Если есть и запятая, и точка
+            if ',' in normalized and '.' in normalized:
+                comma_pos = normalized.rfind(',')
+                dot_pos = normalized.rfind('.')
+                
+                # Если точка после запятой - точка десятичный разделитель, запятая - разделитель тысяч
+                if dot_pos > comma_pos:
+                    # Формат: "1,234.56" → "1234.56"
+                    return normalized.replace(',', '')
+                else:
+                    # Если запятая после точки - запятая десятичный разделитель, точка - разделитель тысяч
+                    # Формат: "1.234,56" → "1234.56"
+                    return normalized.replace('.', '').replace(',', '.')
+            
+            # Если только запятая
+            if ',' in normalized and '.' not in normalized:
+                # Определяем, является ли запятая десятичным разделителем
+                comma_pos = normalized.rfind(',')
+                
+                # Если после запятой 1-3 цифры и это последняя запятая - скорее всего десятичный разделитель
+                after_comma = normalized[comma_pos + 1:]
+                if len(after_comma) <= 3 and after_comma.isdigit():
+                    # Проверяем, нет ли других запятых (разделителей тысяч)
+                    comma_count = normalized.count(',')
+                    if comma_count == 1:
+                        # Одна запятая - проверяем длину части после запятой
+                        if len(after_comma) <= 2:
+                            # 1-2 цифры после запятой - скорее всего десятичный разделитель
+                            return normalized.replace(',', '.')
+                        elif len(after_comma) == 3:
+                            # 3 цифры после запятой - может быть разделитель тысяч
+                            # Проверяем, есть ли цифры до запятой
+                            before_comma = normalized[:comma_pos]
+                            if len(before_comma) <= 3:
+                                # Короткая часть до запятой - скорее всего разделитель тысяч
+                                return normalized.replace(',', '')
+                            else:
+                                # Длинная часть до запятой - скорее всего десятичный разделитель
+                                return normalized.replace(',', '.')
+                    else:
+                        # Несколько запятых - последняя может быть десятичным разделителем
+                        if len(after_comma) <= 2:  # Обычно десятичная часть 1-2 цифры
+                            # Заменяем все запятые кроме последней на пустоту, последнюю на точку
+                            parts = normalized.split(',')
+                            if len(parts) >= 2:
+                                integer_part = ''.join(parts[:-1])
+                                decimal_part = parts[-1]
+                                return f"{integer_part}.{decimal_part}"
+                
+                # Если не подходит под десятичный разделитель - убираем все запятые (разделители тысяч)
+                return normalized.replace(',', '')
+            
+            # Если только точка
+            if '.' in normalized and ',' not in normalized:
+                # Аналогичная логика для точки
+                dot_pos = normalized.rfind('.')
+                after_dot = normalized[dot_pos + 1:]
+                
+                if len(after_dot) <= 3 and after_dot.isdigit():
+                    dot_count = normalized.count('.')
+                    if dot_count == 1:
+                        # Одна точка - проверяем длину части после точки
+                        if len(after_dot) <= 2:
+                            # 1-2 цифры после точки - скорее всего десятичный разделитель
+                            return normalized
+                        elif len(after_dot) == 3:
+                            # 3 цифры после точки - может быть разделитель тысяч
+                            before_dot = normalized[:dot_pos]
+                            if len(before_dot) <= 3:
+                                # Короткая часть до точки - скорее всего разделитель тысяч
+                                return normalized.replace('.', '')
+                            else:
+                                # Длинная часть до точки - скорее всего десятичный разделитель
+                                return normalized
+                    else:
+                        # Несколько точек - все разделители тысяч кроме возможно последней
+                        if len(after_dot) <= 2:
+                            # Последняя точка с 1-2 цифрами - десятичный разделитель
+                            parts = normalized.split('.')
+                            if len(parts) >= 2:
+                                integer_part = ''.join(parts[:-1])
+                                decimal_part = parts[-1]
+                                return f"{integer_part}.{decimal_part}"
+                
+                # Если не подходит под десятичный разделитель - убираем все точки (разделители тысяч)
+                return normalized.replace('.', '')
+            
+            # Если нет разделителей - возвращаем как есть
+            return normalized
+            
+        except Exception as e:
+            logger.warning(f"Ошибка при нормализации числового значения '{value_str}': {e}")
+            # В случае ошибки возвращаем исходное значение без пробелов
+            return value_str.replace(' ', '')
     
     def _format_insurance_sum(self, offer) -> Optional[Decimal]:
         """
