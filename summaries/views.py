@@ -1706,6 +1706,87 @@ def summary_statistics(request):
         if manager in manager_monthly_stats
     }
     
+    # Статистика по пользователям Django
+    user_stats = {}
+    user_monthly_stats = {}
+    
+    for summary in all_summaries:
+        # Получаем пользователя, который создал заявку
+        user = summary.request.created_by
+        if not user:
+            continue  # Пропускаем заявки без указанного пользователя
+            
+        user_display = f"{user.first_name} {user.last_name}".strip() or user.username
+        
+        # Общая статистика по пользователям
+        if user_display not in user_stats:
+            user_stats[user_display] = {
+                'count': 0,
+                'offers_count': 0,
+                'accepted': 0,
+                'rejected': 0,
+            }
+        user_stats[user_display]['count'] += 1
+        user_stats[user_display]['offers_count'] += summary.offers.filter(is_valid=True).count()
+        
+        # Подсчет акцептов и отказов
+        if summary.status == 'completed_accepted':
+            user_stats[user_display]['accepted'] += 1
+        elif summary.status == 'completed_rejected':
+            user_stats[user_display]['rejected'] += 1
+        
+        # Статистика по месяцам для каждого пользователя
+        month_key = summary.created_at.strftime('%Y-%m')
+        month_display = get_russian_month_name(summary.created_at)
+        
+        if user_display not in user_monthly_stats:
+            user_monthly_stats[user_display] = {}
+        
+        if month_key not in user_monthly_stats[user_display]:
+            user_monthly_stats[user_display][month_key] = {
+                'display': month_display,
+                'count': 0,
+            }
+        
+        user_monthly_stats[user_display][month_key]['count'] += 1
+    
+    # Фиксированный порядок пользователей (приоритетные пользователи)
+    # Можно добавлять новых пользователей в этот список по мере необходимости
+    user_priority_order = [
+        'grigoriigrachev',  # Основной пользователь
+        'test_user',        # Тестовый пользователь
+        'testuser',         # Другой тестовый пользователь
+    ]
+    
+    # Сортируем пользователей: сначала приоритетные, потом остальные по алфавиту
+    priority_users = []
+    other_users = []
+    
+    for user_display in user_stats.keys():
+        if user_display in user_priority_order:
+            priority_users.append(user_display)
+        else:
+            other_users.append(user_display)
+    
+    # Сортируем приоритетных пользователей согласно заданному порядку
+    priority_users.sort(key=lambda x: user_priority_order.index(x) if x in user_priority_order else 999)
+    
+    # Сортируем остальных пользователей по алфавиту
+    other_users.sort()
+    
+    # Объединяем списки
+    ordered_users = priority_users + other_users
+    
+    # Пересоздаем словари в нужном порядке
+    user_stats = {user: user_stats[user] for user in ordered_users if user in user_stats}
+    user_monthly_stats = {user: user_monthly_stats[user] for user in ordered_users if user in user_monthly_stats}
+    
+    # Сортируем месяцы для каждого пользователя (от новых к старым)
+    for user_display in user_monthly_stats:
+        user_monthly_stats[user_display] = dict(
+            sorted(user_monthly_stats[user_display].items(), key=lambda x: x[0], reverse=True)
+        )
+    
     return render(request, 'summaries/statistics.html', {
         'stats': stats,
         'company_stats_detailed': company_stats_detailed,
@@ -1716,6 +1797,8 @@ def summary_statistics(request):
         'branch_totals': branch_totals,
         'manager_stats': manager_stats,
         'manager_monthly_stats': manager_monthly_stats,
+        'user_stats': user_stats,
+        'user_monthly_stats': user_monthly_stats,
     })
 
 
