@@ -1430,37 +1430,6 @@ def offer_search(request):
 
 
 
-def get_manager_by_branch(branch, deal_status='new'):
-    """
-    Определяет менеджера по филиалу и статусу сделки
-    
-    Логика:
-    - Санкт-Петербург всегда -> Сергеева
-    - Пролонгация (любой филиал кроме СПб) -> Дроздова
-    - Новая сделка в Пскове, Москве, Краснодаре -> Дроздова
-    - Остальные новые сделки -> Лазарева
-    """
-    if not branch:
-        branch = ''
-    
-    branch_lower = branch.lower()
-    
-    # Сергеева - Санкт-Петербург (всегда, независимо от статуса сделки)
-    if 'санкт-петербург' in branch_lower or 'спб' in branch_lower or 'петербург' in branch_lower:
-        return 'Сергеева'
-    
-    # Дроздова - все пролонгации (кроме СПб)
-    if deal_status == 'prolongation':
-        return 'Дроздова'
-    
-    # Дроздова - новые сделки в Пскове, Москве, Краснодаре
-    if any(city in branch_lower for city in ['псков', 'москва', 'краснодар']):
-        return 'Дроздова'
-    
-    # Остальные новые сделки - Лазарева
-    return 'Лазарева'
-
-
 def get_russian_month_name(date):
     """Возвращает название месяца на русском языке"""
     months = {
@@ -1642,73 +1611,10 @@ def summary_statistics(request):
         branch_totals['property'] += branch_data['types'].get('страхование имущества', 0)
         branch_totals['other'] += branch_data['types'].get('другое', 0)
     
-    # Статистика по менеджерам
-    manager_stats = {}
-    manager_monthly_stats = {}
-    all_summaries = InsuranceSummary.objects.select_related('request').all()
-    
-    for summary in all_summaries:
-        deal_status = summary.request.deal_status
-        branch = summary.request.branch
-        
-        # Временный логгинг для отладки
-        if 'архангельск' in (branch or '').lower():
-            logger.info(f"Архангельск - deal_status: {deal_status}, branch: {branch}")
-        
-        manager = get_manager_by_branch(branch, deal_status)
-        
-        # Общая статистика по менеджерам
-        if manager not in manager_stats:
-            manager_stats[manager] = {
-                'count': 0,
-                'offers_count': 0,
-                'accepted': 0,
-                'rejected': 0,
-            }
-        manager_stats[manager]['count'] += 1
-        manager_stats[manager]['offers_count'] += summary.offers.filter(is_valid=True).count()
-        
-        # Подсчет акцептов и отказов
-        if summary.status == 'completed_accepted':
-            manager_stats[manager]['accepted'] += 1
-        elif summary.status == 'completed_rejected':
-            manager_stats[manager]['rejected'] += 1
-        
-        # Статистика по месяцам для каждого менеджера
-        month_key = summary.created_at.strftime('%Y-%m')
-        month_display = get_russian_month_name(summary.created_at)
-        
-        if manager not in manager_monthly_stats:
-            manager_monthly_stats[manager] = {}
-        
-        if month_key not in manager_monthly_stats[manager]:
-            manager_monthly_stats[manager][month_key] = {
-                'display': month_display,
-                'count': 0,
-            }
-        
-        manager_monthly_stats[manager][month_key]['count'] += 1
-    
-    # Сортируем менеджеров по количеству сводов
-    manager_stats = dict(sorted(manager_stats.items(), key=lambda x: x[1]['count'], reverse=True))
-    
-    # Сортируем месяцы для каждого менеджера (от новых к старым)
-    for manager in manager_monthly_stats:
-        manager_monthly_stats[manager] = dict(
-            sorted(manager_monthly_stats[manager].items(), key=lambda x: x[0], reverse=True)
-        )
-    
-    # Сортируем менеджеров в нужном порядке: Лазарева, Дроздова, Сергеева
-    manager_order = ['Лазарева', 'Дроздова', 'Сергеева']
-    manager_monthly_stats = {
-        manager: manager_monthly_stats[manager] 
-        for manager in manager_order 
-        if manager in manager_monthly_stats
-    }
-    
     # Статистика по пользователям Django
     user_stats = {}
     user_monthly_stats = {}
+    all_summaries = InsuranceSummary.objects.select_related('request').all()
     
     for summary in all_summaries:
         # Получаем пользователя, который создал заявку
@@ -1795,8 +1701,6 @@ def summary_statistics(request):
         'monthly_summaries_stats': monthly_summaries_stats,
         'branch_stats_detailed': branch_stats_detailed,
         'branch_totals': branch_totals,
-        'manager_stats': manager_stats,
-        'manager_monthly_stats': manager_monthly_stats,
         'user_stats': user_stats,
         'user_monthly_stats': user_monthly_stats,
     })

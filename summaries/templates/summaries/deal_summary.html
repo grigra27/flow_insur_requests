@@ -13,9 +13,9 @@
             <a href="{% url 'summaries:summary_detail' summary.id %}" class="btn btn-outline-secondary">
                 <i class="bi bi-arrow-left"></i> К своду
             </a>
-            <button onclick="window.print()" class="btn btn-outline-primary">
-                <i class="bi bi-printer"></i> Печать
-            </button>
+            <a href="{% url 'summaries:summary_list' %}" class="btn btn-outline-primary">
+                <i class="bi bi-list"></i> К списку сводов
+            </a>
         </div>
     </div>
 
@@ -288,36 +288,6 @@
 
 {% block extra_css %}
 <style>
-    /* Стили для печати */
-    @media print {
-        .btn, .card-header .btn {
-            display: none !important;
-        }
-        
-        .card {
-            page-break-inside: avoid;
-            border: 1px solid #dee2e6 !important;
-            box-shadow: none !important;
-        }
-        
-        .card-header {
-            background-color: #f8f9fa !important;
-            color: #000 !important;
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-        }
-        
-        .badge {
-            border: 1px solid #000;
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-        }
-        
-        .table {
-            font-size: 0.9rem;
-        }
-    }
-    
     /* Улучшенные стили для карточек */
     .card-header {
         font-weight: 600;
@@ -362,17 +332,4 @@
 {% endblock %}
 
 {% block extra_js %}
-<script>
-// Функция для печати страницы
-document.addEventListener('DOMContentLoaded', function() {
-    // Добавляем обработчик для кнопки печати
-    const printButtons = document.querySelectorAll('[onclick*="print"]');
-    printButtons.forEach(button => {
-        button.addEventListener('click', function(e) {
-            e.preventDefault();
-            window.print();
-        });
-    });
-});
-</script>
 {% endblock %}
