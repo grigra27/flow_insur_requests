@@ -81,8 +81,20 @@ services:
     volumes:
       - ./letsencrypt:/etc/letsencrypt
       - ./certbot_webroot:/var/www/certbot
+      - ./scripts/ssl/certbot-renew-hook.sh:/usr/local/bin/renew-hook.sh:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     entrypoint: ["/bin/sh"]
-    command: ["-c", "trap 'exit 0' TERM; while true; do certbot renew --webroot --webroot-path=/var/www/certbot --quiet; sleep 43200 & wait $!; done;"]
+    command: 
+      - -c
+      - |
+        # Install docker CLI for nginx restart capability
+        apk add --no-cache docker-cli
+        # Run certbot renewal loop with deploy hook
+        trap 'exit 0' TERM
+        while true; do
+          certbot renew --webroot --webroot-path=/var/www/certbot --deploy-hook /usr/local/bin/renew-hook.sh --quiet
+          sleep 43200 & wait $$!
+        done
     restart: unless-stopped
     depends_on:
       - nginx
