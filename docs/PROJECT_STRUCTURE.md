@@ -179,9 +179,8 @@ onlineservice/                          # Корневая директория 
 │   └── images/                         # Изображения документации
 │
 ├── nginx-timeweb/                      # Nginx конфигурация для продакшн
-│   ├── default.conf                    # Основная конфигурация nginx
-│   ├── default-https.conf              # HTTPS конфигурация
-│   └── default-acme.conf               # Конфигурация для ACME challenge
+│   ├── default.conf                    # HTTPS конфигурация (активная)
+│   └── default-acme.conf               # Конфигурация для ACME challenge / fallback
 │
 ├── scripts/                            # Скрипты развертывания и мониторинга
 │   ├── domain-monitor.service          # Systemd сервис мониторинга

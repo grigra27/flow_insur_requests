@@ -67,17 +67,25 @@ test_docker_compose() {
 test_nginx_config() {
     echo -e "${BLUE}Testing Nginx configuration...${NC}"
     
-    if [[ -f "nginx-timeweb/default-https.conf" ]]; then
-        echo -e "${GREEN}✅ nginx-timeweb/default-https.conf exists${NC}"
+    if [[ -f "nginx-timeweb/default.conf" ]]; then
+        echo -e "${GREEN}✅ nginx-timeweb/default.conf exists (HTTPS config)${NC}"
+        
+        # Check if it contains HTTPS configuration
+        if grep -q "listen 443 ssl http2" "nginx-timeweb/default.conf"; then
+            echo -e "${GREEN}✅ default.conf contains HTTPS configuration${NC}"
+        else
+            echo -e "${RED}❌ default.conf does not contain HTTPS configuration${NC}"
+            return 1
+        fi
     else
-        echo -e "${RED}❌ nginx-timeweb/default-https.conf not found${NC}"
+        echo -e "${RED}❌ nginx-timeweb/default.conf not found${NC}"
         return 1
     fi
     
-    if [[ -f "nginx-timeweb/default.conf" ]]; then
-        echo -e "${GREEN}✅ nginx-timeweb/default.conf exists (fallback)${NC}"
+    if [[ -f "nginx-timeweb/default-acme.conf" ]]; then
+        echo -e "${GREEN}✅ nginx-timeweb/default-acme.conf exists (fallback)${NC}"
     else
-        echo -e "${YELLOW}⚠️ nginx-timeweb/default.conf not found (fallback config)${NC}"
+        echo -e "${YELLOW}⚠️ nginx-timeweb/default-acme.conf not found (fallback config)${NC}"
     fi
 }
 

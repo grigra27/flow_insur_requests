@@ -137,9 +137,8 @@ onlineservice/
 │   └── templates/          # HTML шаблоны
 ├── summaries/              # Django-приложение "Сводки"
 ├── nginx-timeweb/          # Конфигурация Nginx для HTTPS
-│   ├── default.conf        # Основная конфигурация
-│   ├── default-https.conf  # HTTPS конфигурация
-│   └── default-acme.conf   # ACME challenge конфигурация
+│   ├── default.conf        # HTTPS конфигурация (активная)
+│   └── default-acme.conf   # ACME challenge / fallback конфигурация
 ├── scripts/                # Скрипты управления
 │   ├── ssl/               # Скрипты управления SSL
 │   └── monitoring/        # Скрипты мониторинга
@@ -877,9 +876,8 @@ curl -f https://insflow.ru/healthz/
 ### Конфигурационные файлы
 
 - `docker-compose.yml` - HTTPS конфигурация с SSL
-- `nginx-timeweb/default.conf` - Nginx с автоопределением SSL
-- `nginx-timeweb/default-https.conf` - HTTPS конфигурация
-- `nginx-timeweb/default-acme.conf` - ACME challenge конфигурация
+- `nginx-timeweb/default.conf` - HTTPS конфигурация Nginx (активная)
+- `nginx-timeweb/default-acme.conf` - ACME challenge / fallback конфигурация
 - `.env.example` - Пример переменных окружения с SSL настройками
 - `scripts/ssl/` - Скрипты управления SSL сертификатами
 

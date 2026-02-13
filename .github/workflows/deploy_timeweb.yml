@@ -188,10 +188,6 @@ jobs:
                   echo "✅ SSL сертификаты найдены"
                   echo "🔧 Активируем HTTPS конфигурацию..."
                   
-                  # Activate HTTPS configuration directly
-                  echo "Копируем HTTPS конфигурацию nginx..."
-                  cp nginx-timeweb/default-https.conf nginx-timeweb/default.conf
-                  
                   echo "Обновляем .env для HTTPS..."
                   sed -i 's/SSL_ENABLED=False/SSL_ENABLED=True/' .env
                   sed -i 's/SESSION_COOKIE_SECURE=False/SESSION_COOKIE_SECURE=True/' .env
@@ -228,13 +224,13 @@ jobs:
           
           echo "➡️ Настраиваем nginx конфигурацию..."
           if grep -q "SSL_ENABLED=True" .env; then
-            echo "🔒 Используем HTTPS конфигурацию nginx"
-            # Copy HTTPS config and start with SSL profile
-            cp nginx-timeweb/default-https.conf nginx-timeweb/default.conf
+            echo "🔒 Используем HTTPS конфигурацию nginx (default.conf уже содержит HTTPS)"
+            # default.conf already contains HTTPS configuration
             COMPOSE_PROFILES="ssl"
           else
             echo "🔓 Используем HTTP-only конфигурацию nginx"
-            # Use existing HTTP config (default.conf is already HTTP-only)
+            # Fallback: copy HTTP-only config if SSL is disabled
+            cp nginx-timeweb/default-acme.conf nginx-timeweb/default.conf
             COMPOSE_PROFILES=""
           fi
           

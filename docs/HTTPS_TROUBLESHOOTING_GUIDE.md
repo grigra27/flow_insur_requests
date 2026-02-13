@@ -193,7 +193,7 @@ docker-compose -f docker-compose.yml logs nginx
 
 **Исправление конфигурации:**
 ```nginx
-# nginx-timeweb/default-https.conf
+# nginx-timeweb/default.conf
 server {
     listen 80;
     server_name insflow.ru zs.insflow.ru insflow.tw1.su zs.insflow.tw1.su;
@@ -519,8 +519,8 @@ echo "HTTPS issue detected on insflow.ru" | mail -s "HTTPS Alert" admin@insflow.
 export HTTPS_ENABLED=False
 
 # 2. Временная HTTP конфигурация Nginx
-cp nginx-timeweb/default.conf nginx-timeweb/default-https.conf.backup
-cp nginx-timeweb/default-http-only.conf nginx-timeweb/default.conf
+cp nginx-timeweb/default.conf nginx-timeweb/default.conf.backup
+cp nginx-timeweb/default-acme.conf nginx-timeweb/default.conf
 
 # 3. Перезапуск сервисов
 docker-compose -f docker-compose.yml restart nginx web

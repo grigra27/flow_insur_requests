@@ -222,7 +222,7 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./nginx-timeweb/default-https.conf:/etc/nginx/conf.d/default.conf
+      - ./nginx-timeweb/default.conf:/etc/nginx/conf.d/default.conf:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro  # SSL сертификаты
       - /var/www/certbot:/var/www/certbot:ro  # Webroot для обновления
     depends_on:
