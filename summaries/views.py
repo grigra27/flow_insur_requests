@@ -217,7 +217,7 @@ def deal_summary(request, summary_id):
         # Дополнительные параметры
         'creditor_bank': insurance_request.creditor_bank,
         'usage_purposes': insurance_request.usage_purposes,
-        'franchise_type': insurance_request.get_franchise_type_display() if insurance_request.franchise_type else 'Не указано',
+        'franchise_type': 'Да' if insurance_request.has_franchise else 'Нет',
         'has_installment': insurance_request.has_installment,
         
         # Параметры для КАСКО/спецтехники

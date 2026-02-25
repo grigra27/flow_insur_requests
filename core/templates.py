@@ -161,9 +161,16 @@ ${franshiza_text}${installment_text}${avtozapusk_text}${transportation_text}${co
             'response_time': response_time,
         }
         
-        # Условные блоки текста - используем новую логику для франшизы
+        # Условные блоки текста - используем has_franchise как основной источник правды
+        has_franchise = data.get('has_franchise', False)
         franchise_type = data.get('franchise_type', 'none')
-        template_data['franshiza_text'] = self._get_franchise_text(franchise_type)
+        if has_franchise:
+            if franchise_type == 'both_variants':
+                template_data['franshiza_text'] = self._get_franchise_text('both_variants')
+            else:
+                template_data['franshiza_text'] = self._get_franchise_text('with_franchise')
+        else:
+            template_data['franshiza_text'] = self._get_franchise_text('none')
         
         template_data['installment_text'] = (
             'Обратите внимание, требуется рассрочка платежа.\n'

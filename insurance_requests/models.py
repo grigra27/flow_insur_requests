@@ -166,9 +166,6 @@ class InsuranceRequest(models.Model):
             moscow_now = timezone.now().astimezone(moscow_tz)
             self.response_deadline = moscow_now + timedelta(hours=3)
         
-        # Автоматическое обновление has_franchise на основе franchise_type
-        self.has_franchise = self.franchise_type in ['with_franchise', 'both_variants']
-        
         super().save(*args, **kwargs)
     
     def get_moscow_time(self, field_name):
