@@ -16,7 +16,14 @@ from django.db import transaction
 from django.core.exceptions import ValidationError
 
 from ..models import InsuranceSummary, InsuranceOffer
-from ..exceptions import DuplicateOfferError
+from ..exceptions import (
+    DuplicateOfferError,
+    ExcelProcessingError,
+    InvalidFileFormatError,
+    MissingDataError,
+    InvalidDataError,
+    RowProcessingError,
+)
 from insurance_requests.models import InsuranceRequest
 
 
@@ -36,49 +43,6 @@ class TemplateNotFoundError(ExcelExportServiceError):
 class InvalidSummaryDataError(ExcelExportServiceError):
     """Исключение для случаев, когда данные свода некорректны"""
     pass
-
-
-# Исключения для обработки Excel файлов с ответами компаний
-class ExcelProcessingError(Exception):
-    """Базовое исключение для ошибок обработки Excel файлов"""
-    pass
-
-
-class InvalidFileFormatError(ExcelProcessingError):
-    """Ошибка неверного формата файла"""
-    pass
-
-
-class MissingDataError(ExcelProcessingError):
-    """Ошибка отсутствующих данных"""
-    def __init__(self, missing_cells):
-        self.missing_cells = missing_cells
-        super().__init__(f"Отсутствуют данные в ячейках: {', '.join(missing_cells)}")
-
-
-class InvalidDataError(ExcelProcessingError):
-    """Ошибка некорректных данных"""
-    def __init__(self, field_name, value, expected_format):
-        self.field_name = field_name
-        self.value = value
-        self.expected_format = expected_format
-        super().__init__(f"Некорректное значение в поле '{field_name}': '{value}'. Ожидается: {expected_format}")
-
-
-class RowProcessingError(ExcelProcessingError):
-    """Ошибка обработки конкретной строки"""
-    def __init__(self, row_number, field_name, error_message, cell_address=None):
-        self.row_number = row_number
-        self.field_name = field_name
-        self.cell_address = cell_address
-        self.error_message = error_message
-        
-        # Формируем детальное сообщение об ошибке
-        if cell_address:
-            super().__init__(f"Ошибка в строке {row_number}, ячейка {cell_address}, поле '{field_name}': {error_message}")
-        else:
-            super().__init__(f"Ошибка в строке {row_number}, поле '{field_name}': {error_message}")
-
 
 class ExcelExportService:
     """Сервис для генерации Excel-файлов сводов предложений"""

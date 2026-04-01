@@ -26,9 +26,6 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     
-    # Third party apps
-    'rest_framework',
-    
     # Local apps
     'insurance_requests',
     'summaries',
@@ -324,4 +321,3 @@ ALL_SUPPORTED_DOMAINS = MAIN_DOMAINS + SUBDOMAINS
 
 # Development domains
 DEVELOPMENT_DOMAINS = ['localhost', '127.0.0.1', 'testserver']
-

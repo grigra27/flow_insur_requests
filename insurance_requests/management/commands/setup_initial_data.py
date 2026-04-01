@@ -31,6 +31,11 @@ class Command(BaseCommand):
             help='Пропустить создание тестового пользователя'
         )
         parser.add_argument(
+            '--create-default-users',
+            action='store_true',
+            help='Явно создать пользователей (admin/user или кастомные из параметров)'
+        )
+        parser.add_argument(
             '--use-fixtures',
             action='store_true',
             help='Использовать фикстуры для создания пользователей'
@@ -65,30 +70,29 @@ class Command(BaseCommand):
             # Настраиваем группы пользователей стандартным способом
             self.stdout.write('Настройка групп пользователей...')
             call_command('setup_user_groups', verbosity=1)
-        
-        # Создаем кастомного администратора если не используем фикстуры
-        if not options['use_fixtures']:
-            if admin_username != 'admin' or admin_password != 'admin123':
-                self.stdout.write(f'Создание кастомного администратора: {admin_username}')
-                
-                if User.objects.filter(username=admin_username).exists():
-                    self.stdout.write(f'Пользователь {admin_username} уже существует')
-                else:
-                    from django.contrib.auth.models import Group
-                    
-                    admin_user = User.objects.create_user(
-                        username=admin_username,
-                        email=admin_email,
-                        password=admin_password,
-                        is_staff=True,
-                        is_superuser=True
+
+            custom_admin_requested = (
+                admin_username != 'admin'
+                or admin_password != 'admin123'
+                or admin_email != 'admin@example.com'
+            )
+
+            if options['create_default_users'] or custom_admin_requested:
+                self.stdout.write('Создание пользователей через create_default_users...')
+                create_users_kwargs = {
+                    'admin_username': admin_username,
+                    'admin_password': admin_password,
+                    'admin_email': admin_email,
+                    'create_test_user': not options['skip_test_user'],
+                }
+                call_command('create_default_users', **create_users_kwargs)
+            else:
+                self.stdout.write(
+                    self.style.WARNING(
+                        'Пользователи не создавались автоматически. '
+                        'Используйте --create-default-users или команду create_default_users.'
                     )
-                    
-                    # Добавляем в группу администраторов
-                    admin_group = Group.objects.get(name='Администраторы')
-                    admin_user.groups.add(admin_group)
-                    
-                    self.stdout.write(self.style.SUCCESS(f'Создан администратор: {admin_username}'))
+                )
         
         # Собираем статические файлы
         self.stdout.write('Сбор статических файлов...')
@@ -100,21 +104,17 @@ class Command(BaseCommand):
         self.stdout.write('')
         self.stdout.write('Система готова к использованию!')
         self.stdout.write('')
-        self.stdout.write('Доступные учетные записи:')
-        
-        # Показываем всех администраторов
+        self.stdout.write('Администраторы в системе:')
+
         from django.contrib.auth.models import Group
         admin_group = Group.objects.get(name='Администраторы')
-        admin_users = User.objects.filter(groups=admin_group)
-        
-        for user in admin_users:
-            if user.username == 'admin':
-                self.stdout.write(f'  Администратор: {user.username} / admin123')
-            else:
-                self.stdout.write(f'  Администратор: {user.username} / [установленный пароль]')
-        
-        if not options['skip_test_user']:
-            self.stdout.write('  Тестовый пользователь: user / user123')
+        admin_users = User.objects.filter(groups=admin_group).order_by('username')
+
+        if admin_users.exists():
+            for user in admin_users:
+                self.stdout.write(f'  - {user.username}')
+        else:
+            self.stdout.write('  - не найдены')
         
         self.stdout.write('')
         self.stdout.write('Для входа в систему перейдите по адресу: http://localhost:8000/login/')

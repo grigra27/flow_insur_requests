@@ -18,7 +18,16 @@ class ExcelProcessingError(Exception):
 class InvalidFileFormatError(ExcelProcessingError):
     """Исключение для ошибок неверного формата файла"""
     
-    def __init__(self, filename=None, expected_format=".xlsx"):
+    def __init__(self, message=None, filename=None, expected_format=".xlsx"):
+        # Поддержка двух режимов:
+        # 1) InvalidFileFormatError("custom message")
+        # 2) InvalidFileFormatError(filename="file.xlsx")
+        if message and filename is None:
+            super().__init__(message)
+            self.filename = None
+            self.expected_format = expected_format
+            return
+
         self.filename = filename
         self.expected_format = expected_format
         super().__init__(self.get_user_message())
@@ -39,7 +48,13 @@ class InvalidFileFormatError(ExcelProcessingError):
 class MissingDataError(ExcelProcessingError):
     """Исключение для отсутствующих данных в Excel файле"""
     
-    def __init__(self, missing_cells=None, missing_fields=None):
+    def __init__(self, missing_cells=None, missing_fields=None, message=None):
+        if message:
+            super().__init__(message)
+            self.missing_cells = []
+            self.missing_fields = []
+            return
+
         self.missing_cells = missing_cells or []
         self.missing_fields = missing_fields or []
         super().__init__(self.get_user_message())
@@ -88,3 +103,32 @@ class DuplicateOfferError(Exception):
             f"уже существует в данном своде. Пожалуйста, отредактируйте существующее "
             f"предложение или выберите другой год страхования."
         )
+
+
+class InvalidDataError(ExcelProcessingError):
+    """Ошибка некорректных данных"""
+
+    def __init__(self, field_name, value, expected_format):
+        self.field_name = field_name
+        self.value = value
+        self.expected_format = expected_format
+        super().__init__(
+            f"Некорректное значение в поле '{field_name}': '{value}'. Ожидается: {expected_format}"
+        )
+
+
+class RowProcessingError(ExcelProcessingError):
+    """Ошибка обработки конкретной строки"""
+
+    def __init__(self, row_number, field_name, error_message, cell_address=None):
+        self.row_number = row_number
+        self.field_name = field_name
+        self.cell_address = cell_address
+        self.error_message = error_message
+
+        if cell_address:
+            super().__init__(
+                f"Ошибка в строке {row_number}, ячейка {cell_address}, поле '{field_name}': {error_message}"
+            )
+        else:
+            super().__init__(f"Ошибка в строке {row_number}, поле '{field_name}': {error_message}")

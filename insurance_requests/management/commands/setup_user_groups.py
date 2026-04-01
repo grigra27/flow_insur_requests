@@ -7,6 +7,13 @@ from insurance_requests.models import InsuranceRequest, RequestAttachment
 class Command(BaseCommand):
     help = 'Создает группы пользователей и настраивает разрешения'
 
+    def add_arguments(self, parser):
+        parser.add_argument(
+            '--create-default-users',
+            action='store_true',
+            help='Создать дефолтных пользователей admin/user'
+        )
+
     def handle(self, *args, **options):
         self.stdout.write('Создание групп пользователей...')
         
@@ -59,9 +66,24 @@ class Command(BaseCommand):
         user_group.permissions.set(user_permissions)
         self.stdout.write(self.style.SUCCESS(f'Пользователям назначено {user_permissions.count()} разрешений'))
         
-        # Создание администратора по умолчанию (если не существует)
+        create_default_users = options.get('create_default_users', False)
+        if create_default_users:
+            self.stdout.write('Создание дефолтных пользователей по явному флагу...')
+            self._create_default_users(admin_group, user_group)
+        else:
+            self.stdout.write(
+                self.style.WARNING(
+                    'Создание дефолтных пользователей пропущено. '
+                    'Используйте --create-default-users или отдельную команду create_default_users.'
+                )
+            )
+
+        self.stdout.write(self.style.SUCCESS('Настройка групп и разрешений завершена!'))
+
+    def _create_default_users(self, admin_group, user_group):
+        """Создает/актуализирует дефолтных пользователей admin/user."""
         self.stdout.write('Проверка администратора по умолчанию...')
-        
+
         if not User.objects.filter(username='admin').exists():
             admin_user = User.objects.create_user(
                 username='admin',
@@ -73,12 +95,10 @@ class Command(BaseCommand):
             admin_user.groups.add(admin_group)
             self.stdout.write(self.style.SUCCESS('Создан администратор по умолчанию (admin/admin123)'))
         else:
-            # Убеждаемся, что существующий admin в группе администраторов
             admin_user = User.objects.get(username='admin')
             admin_user.groups.add(admin_group)
             self.stdout.write('Администратор по умолчанию уже существует')
-        
-        # Создание тестового пользователя (если не существует)
+
         if not User.objects.filter(username='user').exists():
             test_user = User.objects.create_user(
                 username='user',
@@ -88,13 +108,6 @@ class Command(BaseCommand):
             test_user.groups.add(user_group)
             self.stdout.write(self.style.SUCCESS('Создан тестовый пользователь (user/user123)'))
         else:
-            # Убеждаемся, что существующий user в группе пользователей
             test_user = User.objects.get(username='user')
             test_user.groups.add(user_group)
             self.stdout.write('Тестовый пользователь уже существует')
-        
-        self.stdout.write(self.style.SUCCESS('Настройка групп и разрешений завершена!'))
-        self.stdout.write('')
-        self.stdout.write('Созданные учетные записи:')
-        self.stdout.write('  Администратор: admin / admin123')
-        self.stdout.write('  Пользователь: user / user123')

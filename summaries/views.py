@@ -261,7 +261,8 @@ def create_summary(request, request_id):
         return redirect('summaries:summary_detail', pk=insurance_request.summary.pk)
     
     # Проверяем статус заявки - можно создавать свод только для определенных статусов
-    allowed_statuses = ['uploaded', 'email_generated', 'emails_sent', 'response_received']
+    # Важно: список синхронизирован с InsuranceRequest.STATUS_CHOICES
+    allowed_statuses = ['uploaded', 'email_generated', 'emails_sent']
     if insurance_request.status not in allowed_statuses:
         messages.error(request, 
                       f'Нельзя создать свод для заявки со статусом "{insurance_request.get_status_display()}". '
@@ -1188,100 +1189,30 @@ def upload_multiple_company_responses(request, summary_id):
             'error': 'Метод не поддерживается. Используйте POST для загрузки файлов.'
         }, status=405)
     
-    # Получаем загруженные файлы напрямую
-    excel_files = request.FILES.getlist('excel_files')
-    
-    # Базовая валидация файлов
-    if not excel_files:
-        error_message = 'Ни одного файла не было отправлено. Проверьте тип кодировки формы.'
+    # Валидация входящих файлов через единую форму
+    form = MultipleCompanyResponseUploadForm(request.POST, request.FILES)
+    if not form.is_valid():
+        error_messages = []
+        for field, errors in form.errors.items():
+            if field == '__all__':
+                error_messages.extend(errors)
+            else:
+                for error in errors:
+                    error_messages.append(f"{field}: {error}")
+
+        error_message = '; '.join(error_messages) if error_messages else 'Ошибка валидации загруженных файлов'
         logger.warning(
             f"UPLOAD_MULTIPLE_FORM_VALIDATION_ERROR - Ошибка валидации формы | "
             f"user={request.user.username} | summary_id={summary_id} | "
-            f"error_message={error_message} | form_errors=<ul class=\"errorlist\"><li>excel_files<ul class=\"errorlist\"><li>{error_message}</li></ul></li></ul>"
+            f"error_message={error_message} | form_errors={form.errors}"
         )
         return JsonResponse({
             'success': False,
-            'error': error_message
+            'error': error_message,
+            'field_errors': form.errors,
         }, status=400)
-    
-    # Валидация файлов
-    MAX_FILES = 10
-    MAX_FILE_SIZE_MB = 1
-    MAX_TOTAL_SIZE_MB = 10
-    
-    if len(excel_files) > MAX_FILES:
-        error_message = f'Слишком много файлов ({len(excel_files)}). Максимальное количество файлов: {MAX_FILES}'
-        logger.warning(
-            f"UPLOAD_MULTIPLE_FORM_VALIDATION_ERROR - Ошибка валидации формы | "
-            f"user={request.user.username} | summary_id={summary_id} | "
-            f"error_message={error_message}"
-        )
-        return JsonResponse({
-            'success': False,
-            'error': error_message
-        }, status=400)
-    
-    # Проверка каждого файла
-    total_size = 0
-    for file in excel_files:
-        # Проверка расширения
-        ext = os.path.splitext(file.name)[1].lower()
-        if ext != '.xlsx':
-            error_message = f'Файл "{file.name}" имеет неподдерживаемый формат. Разрешены только файлы .xlsx'
-            logger.warning(
-                f"UPLOAD_MULTIPLE_FORM_VALIDATION_ERROR - Ошибка валидации формы | "
-                f"user={request.user.username} | summary_id={summary_id} | "
-                f"error_message={error_message}"
-            )
-            return JsonResponse({
-                'success': False,
-                'error': error_message
-            }, status=400)
-        
-        # Проверка размера файла
-        max_size_bytes = MAX_FILE_SIZE_MB * 1024 * 1024
-        if file.size > max_size_bytes:
-            error_message = f'Файл "{file.name}" слишком большой ({file.size / (1024*1024):.1f}MB). Максимальный размер: {MAX_FILE_SIZE_MB}MB'
-            logger.warning(
-                f"UPLOAD_MULTIPLE_FORM_VALIDATION_ERROR - Ошибка валидации формы | "
-                f"user={request.user.username} | summary_id={summary_id} | "
-                f"error_message={error_message}"
-            )
-            return JsonResponse({
-                'success': False,
-                'error': error_message
-            }, status=400)
-        
-        # Проверка на пустой файл
-        if file.size == 0:
-            error_message = f'Файл "{file.name}" пустой. Загрузите файл с данными'
-            logger.warning(
-                f"UPLOAD_MULTIPLE_FORM_VALIDATION_ERROR - Ошибка валидации формы | "
-                f"user={request.user.username} | summary_id={summary_id} | "
-                f"error_message={error_message}"
-            )
-            return JsonResponse({
-                'success': False,
-                'error': error_message
-            }, status=400)
-        
-        total_size += file.size
-    
-    # Проверка общего размера
-    max_total_size_bytes = MAX_TOTAL_SIZE_MB * 1024 * 1024
-    if total_size > max_total_size_bytes:
-        error_message = f'Общий размер файлов слишком большой ({total_size / (1024*1024):.1f}MB). Максимальный общий размер: {MAX_TOTAL_SIZE_MB}MB'
-        logger.warning(
-            f"UPLOAD_MULTIPLE_FORM_VALIDATION_ERROR - Ошибка валидации формы | "
-            f"user={request.user.username} | summary_id={summary_id} | "
-            f"error_message={error_message}"
-        )
-        return JsonResponse({
-            'success': False,
-            'error': error_message
-        }, status=400)
-    
-# Файлы уже получены выше в блоке валидации
+
+    excel_files = form.cleaned_data['excel_files']
     
     try:
         # Засекаем время начала обработки
@@ -1398,7 +1329,12 @@ def offer_search(request):
         
         # Фильтр только предложения с рассрочкой
         if search_form.cleaned_data.get('installment_only'):
-            offers = offers.filter(installment_available=True, payments_per_year__gt=1)
+            offers = offers.filter(
+                Q(installment_variant_1=True, payments_per_year_variant_1__gt=1) |
+                Q(installment_variant_2=True, payments_per_year_variant_2__gt=1) |
+                # Legacy fallback для старых записей
+                Q(installment_available=True, payments_per_year__gt=1)
+            )
     
     # Сортировка
     sort_by = request.GET.get('sort', 'premium_with_franchise_1')
@@ -1407,7 +1343,9 @@ def offer_search(request):
         'premium_with_franchise_2', '-premium_with_franchise_2',
         'company_name', '-company_name',
         'insurance_year', '-insurance_year',
-        'payments_per_year', '-payments_per_year'
+        'payments_per_year', '-payments_per_year',
+        'payments_per_year_variant_1', '-payments_per_year_variant_1',
+        'payments_per_year_variant_2', '-payments_per_year_variant_2',
     ]
     if sort_by in valid_sorts:
         offers = offers.order_by(sort_by)
@@ -1455,7 +1393,8 @@ def summary_statistics(request):
         'sent': InsuranceSummary.objects.filter(status='sent').count(),
         'completed_accepted': InsuranceSummary.objects.filter(status='completed_accepted').count(),
         'completed_rejected': InsuranceSummary.objects.filter(status='completed_rejected').count(),
-        'completed': InsuranceSummary.objects.filter(status__in=['completed', 'completed_accepted', 'completed_rejected']).count(),
+        # Итог завершенных сводов без использования legacy-статуса "completed"
+        'completed': InsuranceSummary.objects.filter(status__in=['completed_accepted', 'completed_rejected']).count(),
         'avg_offers_per_summary': InsuranceSummary.objects.aggregate(
             avg=Avg('total_offers')
         )['avg'] or 0,

@@ -138,8 +138,7 @@ onlineservice/                          # Корневая директория 
 ├── staticfiles/                        # Собранные статические файлы (продакшен)
 │   ├── admin/                          # Django admin статика
 │   ├── css/                            # CSS файлы
-│   ├── js/                             # JavaScript файлы
-│   └── rest_framework/                 # DRF статика
+│   └── js/                             # JavaScript файлы
 │
 ├── media/                              # Загруженные пользователями файлы
 │   └── attachments/                    # Вложения к заявкам

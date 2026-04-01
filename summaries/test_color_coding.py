@@ -42,7 +42,7 @@ class ColorCodingTest(TestCase):
         # Create test offers with different franchise variants
         self.offer1 = InsuranceOffer.objects.create(
             summary=self.summary,
-            company_name='Test Company 1',
+            company_name='Абсолют',
             insurance_year=1,
             insurance_sum=1000000.00,
             franchise_1=50000.00,
@@ -53,7 +53,7 @@ class ColorCodingTest(TestCase):
         
         self.offer2 = InsuranceOffer.objects.create(
             summary=self.summary,
-            company_name='Test Company 1',
+            company_name='Абсолют',
             insurance_year=2,
             insurance_sum=800000.00,
             franchise_1=40000.00,

@@ -359,16 +359,6 @@ class InsuranceRequestForm(forms.ModelForm):
         widget=forms.Select(attrs={'class': 'form-control'})
     )
     
-    def clean_branch(self):
-        """Валидация филиала - только разрешенные значения"""
-        branch = self.cleaned_data.get('branch')
-        if branch:
-            valid_branches = [choice[0] for choice in self.BRANCH_CHOICES if choice[0]]
-            if branch not in valid_branches:
-                # If invalid branch, return empty string
-                return ''
-        return branch
-    
     class Meta:
         model = InsuranceRequest
         fields = [

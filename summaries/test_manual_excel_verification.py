@@ -53,7 +53,7 @@ class ManualExcelVerificationTest(TestCase):
         # Создаем несколько предложений
         self.offer1 = InsuranceOffer.objects.create(
             summary=self.summary,
-            company_name='РЕСО-Гарантия',
+            company_name='РЕСО',
             insurance_year=1,
             insurance_sum=Decimal('1000000.00'),
             franchise_1=Decimal('0.00'),
@@ -66,7 +66,7 @@ class ManualExcelVerificationTest(TestCase):
         
         self.offer2 = InsuranceOffer.objects.create(
             summary=self.summary,
-            company_name='Альфа Страхование',
+            company_name='Альфа',
             insurance_year=2,
             insurance_sum=Decimal('1200000.00'),
             franchise_1=Decimal('0.00'),

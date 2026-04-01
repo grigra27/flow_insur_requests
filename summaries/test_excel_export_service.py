@@ -269,26 +269,28 @@ class ExcelExportServiceExcelOperationsTests(TestCase):
             os.remove(self.template_path)
         os.rmdir(self.temp_dir)
     
-    @patch('summaries.services.load_workbook')
+    @patch('summaries.services.excel_services.load_workbook')
     def test_load_template_success(self, mock_load_workbook):
         """Тест успешной загрузки шаблона"""
         mock_workbook = Mock()
         mock_load_workbook.return_value = mock_workbook
         
-        result = self.service._load_template()
+        with patch.object(self.service, '_get_template_path', return_value=Path(self.template_path)):
+            result = self.service._load_template()
         
         mock_load_workbook.assert_called_once_with(Path(self.template_path))
         self.assertEqual(result, mock_workbook)
     
-    @patch('summaries.services.load_workbook')
+    @patch('summaries.services.excel_services.load_workbook')
     def test_load_template_error(self, mock_load_workbook):
         """Тест ошибки при загрузке шаблона"""
         mock_load_workbook.side_effect = Exception("Ошибка загрузки файла")
         
-        with self.assertRaises(ExcelExportServiceError) as context:
-            self.service._load_template()
+        with patch.object(self.service, '_get_template_path', return_value=Path(self.template_path)):
+            with self.assertRaises(ExcelExportServiceError) as context:
+                self.service._load_template()
         
-        self.assertIn('Ошибка при загрузке шаблона Excel', str(context.exception))
+        self.assertIn('Ошибка при загрузке обычного шаблона Excel', str(context.exception))
     
     def test_get_target_worksheet_named_sheet(self):
         """Тест получения целевого листа по имени"""
@@ -444,7 +446,7 @@ class ExcelExportServiceIntegrationTests(TestCase):
         with self.assertRaises(ExcelExportServiceError) as context:
             self.service.generate_summary_excel(self.insurance_summary)
         
-        self.assertIn('Ошибка при генерации Excel-файла', str(context.exception))
+        self.assertIn('Ошибка при генерации полного Excel-файла', str(context.exception))
     
     @patch.object(ExcelExportService, '_fill_template_data')
     def test_generate_summary_excel_fill_error(self, mock_fill_data):
@@ -454,13 +456,13 @@ class ExcelExportServiceIntegrationTests(TestCase):
         with self.assertRaises(ExcelExportServiceError) as context:
             self.service.generate_summary_excel(self.insurance_summary)
         
-        self.assertIn('Ошибка при генерации Excel-файла', str(context.exception))
+        self.assertIn('Ошибка при генерации полного Excel-файла', str(context.exception))
 
 
 class ExcelExportServiceFactoryTests(TestCase):
     """Тесты фабричной функции get_excel_export_service"""
     
-    @patch('summaries.services.settings')
+    @patch('summaries.services.excel_services.settings')
     def test_get_excel_export_service_with_custom_path(self, mock_settings):
         """Тест создания сервиса с пользовательским путем к шаблону"""
         # Создаем временный файл
@@ -486,7 +488,7 @@ class ExcelExportServiceFactoryTests(TestCase):
                 os.remove(template_path)
             os.rmdir(temp_dir)
     
-    @patch('summaries.services.settings')
+    @patch('summaries.services.excel_services.settings')
     def test_get_excel_export_service_with_default_path(self, mock_settings):
         """Тест создания сервиса с путем по умолчанию"""
         # Создаем временный файл для пути по умолчанию
@@ -499,10 +501,9 @@ class ExcelExportServiceFactoryTests(TestCase):
         try:
             # Настраиваем мок settings без SUMMARY_TEMPLATE_PATH
             mock_settings.BASE_DIR = Path(temp_dir)
-            del mock_settings.SUMMARY_TEMPLATE_PATH  # Удаляем атрибут, если он есть
             
             # Мокаем getattr для возврата пути по умолчанию
-            with patch('summaries.services.getattr') as mock_getattr:
+            with patch('summaries.services.excel_services.getattr') as mock_getattr:
                 mock_getattr.return_value = default_template_path
                 
                 from summaries.services import get_excel_export_service
@@ -516,7 +517,7 @@ class ExcelExportServiceFactoryTests(TestCase):
                 os.remove(default_template_path)
             os.rmdir(temp_dir)
     
-    @patch('summaries.services.ExcelExportService')
+    @patch('summaries.services.excel_services.ExcelExportService')
     def test_get_excel_export_service_creation_error(self, mock_service_class):
         """Тест обработки ошибки создания сервиса"""
         mock_service_class.side_effect = Exception("Ошибка создания сервиса")

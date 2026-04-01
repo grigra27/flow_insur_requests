@@ -7,6 +7,7 @@ from django.contrib.auth.models import User, Group
 from django.core.files.uploadedfile import SimpleUploadedFile
 
 from .models import InsuranceSummary, InsuranceRequest
+from .exceptions import ExcelProcessingError
 from .services.multiple_file_processor import MultipleFileProcessor
 
 
@@ -166,8 +167,8 @@ class FinalSystemVerificationTest(TestCase):
         processor = MultipleFileProcessor(self.summary)
         
         # Тест с пустым списком файлов
-        results = processor.process_files([])
-        self.assertEqual(len(results), 0)
+        with self.assertRaises(ExcelProcessingError):
+            processor.process_files([])
         
         # Тест с одним файлом
         single_file = [SimpleUploadedFile(

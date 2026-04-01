@@ -93,7 +93,7 @@ class ExcelExportIntegrationTestCase(TestCase):
         # Создаем предложения для полного свода
         cls.offer1 = InsuranceOffer.objects.create(
             summary=cls.ready_summary,
-            company_name='РЕСО-Гарантия',
+            company_name='РЕСО',
             insurance_year=1,
             insurance_sum=1000000.00,
             franchise_1=0.00,
@@ -104,7 +104,7 @@ class ExcelExportIntegrationTestCase(TestCase):
         
         cls.offer2 = InsuranceOffer.objects.create(
             summary=cls.ready_summary,
-            company_name='Альфа Страхование',
+            company_name='Альфа',
             insurance_year=1,
             insurance_sum=1200000.00,
             franchise_1=0.00,
@@ -130,9 +130,18 @@ class ExcelExportIntegrationTestCase(TestCase):
         workbook.save(self.template_path)
         
         self.client = Client()
+        
+        # Стабилизируем путь к шаблону для всех вариантов (full/simplified/client)
+        self.template_path_patcher = patch.object(
+            ExcelExportService,
+            '_get_template_path',
+            return_value=self.template_path
+        )
+        self.template_path_patcher.start()
     
     def tearDown(self):
         """Очистка после каждого теста"""
+        self.template_path_patcher.stop()
         # Удаляем временные файлы
         if os.path.exists(self.template_path):
             os.remove(self.template_path)
@@ -145,7 +154,7 @@ class FullCycleExcelGenerationTests(ExcelExportIntegrationTestCase):
     Требования: 1.1, 2.1, 2.2, 2.3
     """
     
-    @patch('summaries.services.settings')
+    @patch('summaries.services.excel_services.settings')
     def test_complete_excel_generation_workflow(self, mock_settings):
         """Тест полного цикла генерации Excel файла через веб-интерфейс"""
         # Настраиваем мок settings
@@ -192,7 +201,7 @@ class FullCycleExcelGenerationTests(ExcelExportIntegrationTestCase):
         except Exception as e:
             self.fail(f"Generated file is not a valid Excel file: {e}")
     
-    @patch('summaries.services.settings')
+    @patch('summaries.services.excel_services.settings')
     def test_excel_generation_with_service_layer(self, mock_settings):
         """Тест генерации Excel через сервисный слой"""
         # Настраиваем мок settings
@@ -220,7 +229,7 @@ class FullCycleExcelGenerationTests(ExcelExportIntegrationTestCase):
         except Exception as e:
             self.fail(f"Generated file is not a valid Excel file: {e}")
     
-    @patch('summaries.services.settings')
+    @patch('summaries.services.excel_services.settings')
     def test_excel_generation_with_multiple_offers(self, mock_settings):
         """Тест генерации Excel для свода с несколькими предложениями"""
         # Настраиваем мок settings
@@ -314,7 +323,7 @@ class FullCycleExcelGenerationTests(ExcelExportIntegrationTestCase):
         self.assertEqual(new_summary.status, 'ready')
         
         # Генерируем Excel файл
-        with patch('summaries.services.settings') as mock_settings:
+        with patch('summaries.services.excel_services.settings') as mock_settings:
             mock_settings.SUMMARY_TEMPLATE_PATH = self.template_path
             
             generate_url = reverse('summaries:generate_summary_file', args=[new_summary.pk])
@@ -333,7 +342,7 @@ class ExcelFileContentVerificationTests(ExcelExportIntegrationTestCase):
     Требования: 2.1, 2.2, 2.3
     """
     
-    @patch('summaries.services.settings')
+    @patch('summaries.services.excel_services.settings')
     def test_excel_file_contains_correct_data(self, mock_settings):
         """Тест проверки корректности данных в сгенерированном Excel файле"""
         # Настраиваем мок settings
@@ -365,7 +374,7 @@ class ExcelFileContentVerificationTests(ExcelExportIntegrationTestCase):
         # CDE3 - название клиента (требование 2.3)
         self.assertEqual(worksheet['C3'].value, 'ООО "АВТОПРОЕКТ"')
     
-    @patch('summaries.services.settings')
+    @patch('summaries.services.excel_services.settings')
     def test_excel_file_structure_integrity(self, mock_settings):
         """Тест проверки целостности структуры Excel файла"""
         # Настраиваем мок settings
@@ -399,7 +408,7 @@ class ExcelFileContentVerificationTests(ExcelExportIntegrationTestCase):
         self.assertNotEqual(worksheet['C2'].value.strip(), '')
         self.assertNotEqual(worksheet['C3'].value.strip(), '')
     
-    @patch('summaries.services.settings')
+    @patch('summaries.services.excel_services.settings')
     def test_excel_file_with_special_characters(self, mock_settings):
         """Тест обработки специальных символов в данных"""
         # Создаем заявку со специальными символами
@@ -436,7 +445,7 @@ class ExcelFileContentVerificationTests(ExcelExportIntegrationTestCase):
         self.assertEqual(worksheet['C2'].value, 'автомобиль с "кавычками" & амперсандом')
         self.assertEqual(worksheet['C3'].value, 'ООО "ТЕСТ & КОМПАНИЯ" (с символами)')
     
-    @patch('summaries.services.settings')
+    @patch('summaries.services.excel_services.settings')
     def test_excel_file_with_long_text(self, mock_settings):
         """Тест обработки длинных текстовых данных"""
         # Создаем заявку с длинными данными
@@ -519,7 +528,7 @@ class SummaryStatusVerificationTests(ExcelExportIntegrationTestCase):
         # Авторизуемся
         self.client.login(username='admin_test', password='test_password')
         
-        with patch('summaries.services.settings') as mock_settings:
+        with patch('summaries.services.excel_services.settings') as mock_settings:
             mock_settings.SUMMARY_TEMPLATE_PATH = self.template_path
             
             # Генерируем Excel для свода со статусом 'ready'
@@ -535,7 +544,7 @@ class SummaryStatusVerificationTests(ExcelExportIntegrationTestCase):
     
     def test_status_verification_in_service_layer(self):
         """Тест проверки статуса на уровне сервиса"""
-        with patch('summaries.services.settings') as mock_settings:
+        with patch('summaries.services.excel_services.settings') as mock_settings:
             mock_settings.SUMMARY_TEMPLATE_PATH = self.template_path
             
             service = get_excel_export_service()
@@ -587,7 +596,7 @@ class SummaryStatusVerificationTests(ExcelExportIntegrationTestCase):
             test_summary.status = status
             test_summary.save()
             
-            with patch('summaries.services.settings') as mock_settings:
+            with patch('summaries.services.excel_services.settings') as mock_settings:
                 mock_settings.SUMMARY_TEMPLATE_PATH = self.template_path
                 
                 url = reverse('summaries:generate_summary_file', args=[test_summary.pk])
@@ -617,7 +626,7 @@ class ExcelExportErrorHandlingIntegrationTests(ExcelExportIntegrationTestCase):
         # Авторизуемся
         self.client.login(username='admin_test', password='test_password')
         
-        with patch('summaries.services.settings') as mock_settings:
+        with patch('summaries.services.excel_services.settings') as mock_settings:
             mock_settings.SUMMARY_TEMPLATE_PATH = self.template_path
             
             # Пытаемся сгенерировать Excel для свода с невалидными данными
@@ -646,7 +655,7 @@ class ExcelExportErrorHandlingIntegrationTests(ExcelExportIntegrationTestCase):
         # Авторизуемся
         self.client.login(username='admin_test', password='test_password')
         
-        with patch('summaries.services.settings') as mock_settings:
+        with patch('summaries.services.excel_services.settings') as mock_settings:
             # Указываем несуществующий путь к шаблону
             mock_settings.SUMMARY_TEMPLATE_PATH = '/nonexistent/path/template.xlsx'
             
@@ -743,7 +752,7 @@ class ExcelExportSecurityIntegrationTests(ExcelExportIntegrationTestCase):
         # Авторизуемся как пользователь без прав
         self.client.login(username='unauthorized', password='test_password')
         
-        with patch('summaries.services.settings') as mock_settings:
+        with patch('summaries.services.excel_services.settings') as mock_settings:
             mock_settings.SUMMARY_TEMPLATE_PATH = self.template_path
             
             url = reverse('summaries:generate_summary_file', args=[self.ready_summary.pk])
@@ -765,7 +774,7 @@ class ExcelExportPerformanceIntegrationTests(ExcelExportIntegrationTestCase):
         # Авторизуемся
         self.client.login(username='admin_test', password='test_password')
         
-        with patch('summaries.services.settings') as mock_settings:
+        with patch('summaries.services.excel_services.settings') as mock_settings:
             mock_settings.SUMMARY_TEMPLATE_PATH = self.template_path
             
             # Измеряем время генерации
@@ -791,7 +800,7 @@ class ExcelExportPerformanceIntegrationTests(ExcelExportIntegrationTestCase):
         # Авторизуемся
         self.client.login(username='admin_test', password='test_password')
         
-        with patch('summaries.services.settings') as mock_settings:
+        with patch('summaries.services.excel_services.settings') as mock_settings:
             mock_settings.SUMMARY_TEMPLATE_PATH = self.template_path
             
             # Генерируем несколько файлов последовательно

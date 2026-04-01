@@ -827,10 +827,26 @@ class MultipleFileInput(forms.FileInput):
             return files.get(name)
 
 
+class MultipleFileField(forms.FileField):
+    """FileField variant that accepts a list of uploaded files."""
+
+    def clean(self, data, initial=None):
+        if data in self.empty_values:
+            if self.required:
+                raise ValidationError(self.error_messages['required'], code='required')
+            return []
+
+        files = data if isinstance(data, (list, tuple)) else [data]
+        cleaned_files = []
+        for file_obj in files:
+            cleaned_files.append(super().clean(file_obj, initial))
+        return cleaned_files
+
+
 class MultipleCompanyResponseUploadForm(forms.Form):
     """Форма для множественной загрузки ответов страховых компаний"""
     
-    excel_files = forms.FileField(
+    excel_files = MultipleFileField(
         widget=MultipleFileInput(attrs={
             'accept': '.xlsx',
             'class': 'form-control',

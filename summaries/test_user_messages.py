@@ -88,7 +88,7 @@ class UserMessagesTestCase(TestCase):
         result = matcher.match_company_name('абсолют')
         self.assertEqual(result, 'Абсолют')
     
-    @patch('summaries.services.excel_services.openpyxl.load_workbook')
+    @patch('summaries.services.excel_services.load_workbook')
     def test_excel_processor_company_matching_info(self, mock_load_workbook):
         """Тест информации о сопоставлении компаний в Excel процессоре"""
         # Создаем мок worksheet

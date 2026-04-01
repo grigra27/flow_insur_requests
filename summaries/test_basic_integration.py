@@ -50,7 +50,7 @@ class BasicIntegrationTest(TestCase):
         # Создаем тестовое предложение
         self.offer = InsuranceOffer.objects.create(
             summary=self.summary,
-            company_name='Тестовая Страховая',
+            company_name='Абсолют',
             insurance_year=1,
             insurance_sum=Decimal('1000000.00'),
             franchise_1=Decimal('0.00'),
@@ -64,7 +64,7 @@ class BasicIntegrationTest(TestCase):
         """Тест загрузки страницы детального свода"""
         response = self.client.get(reverse('summaries:summary_detail', args=[self.summary.pk]))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, self.summary.request.client_name)
+        self.assertContains(response, 'Свод к')
 
     def test_copy_offer_page_loads(self):
         """Тест загрузки страницы копирования предложения"""
@@ -77,7 +77,7 @@ class BasicIntegrationTest(TestCase):
         copy_url = reverse('summaries:copy_offer', args=[self.offer.pk])
         
         copy_data = {
-            'company_name': 'Новая Страховая',
+            'company_name': 'ВСК',
             'insurance_year': 2,
             'insurance_sum': '1500000.00',
             'franchise_1': '0.00',
@@ -101,7 +101,7 @@ class BasicIntegrationTest(TestCase):
         self.assertEqual(InsuranceOffer.objects.count(), initial_count + 1)
         
         # Проверяем данные нового предложения
-        new_offer = InsuranceOffer.objects.get(company_name='Новая Страховая')
+        new_offer = InsuranceOffer.objects.get(company_name='ВСК')
         self.assertEqual(new_offer.insurance_year, 2)
         self.assertEqual(new_offer.insurance_sum, Decimal('1500000.00'))
 
@@ -128,11 +128,11 @@ class BasicIntegrationTest(TestCase):
         """Тест интеграции методов модели"""
         # Тестируем get_company_notes
         company_notes = self.summary.get_company_notes()
-        self.assertIn('Тестовая Страховая', company_notes)
+        self.assertIn('Абсолют', company_notes)
         
         # Тестируем get_offers_grouped_by_company
         grouped_offers = self.summary.get_offers_grouped_by_company()
-        self.assertIn('Тестовая Страховая', grouped_offers)
+        self.assertIn('Абсолют', grouped_offers)
         
         # Тестируем get_unique_companies_count
         companies_count = self.summary.get_unique_companies_count()

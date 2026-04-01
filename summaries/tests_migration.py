@@ -16,6 +16,7 @@ from django.db.migrations.state import ProjectState
 from django.db import transaction
 from io import StringIO
 import sys
+from django.contrib.auth.models import User
 
 from insurance_requests.models import InsuranceRequest
 from summaries.models import InsuranceSummary, InsuranceOffer
@@ -397,6 +398,11 @@ class TestMigrationPerformance(TestCase):
         from insurance_requests.models import InsuranceRequest
         from summaries.models import InsuranceSummary, InsuranceOffer
         
+        test_user = User.objects.create_user(
+            username='migration_perf_user',
+            password='testpass123'
+        )
+        
         # Create multiple requests and summaries
         requests = []
         summaries = []
@@ -406,7 +412,7 @@ class TestMigrationPerformance(TestCase):
                 client_name=f"Performance Test Client {i}",
                 inn=f"123456789{i}",
                 insurance_type="КАСКО",
-                created_by_id=1
+                created_by=test_user
             )
             requests.append(request)
             
@@ -418,12 +424,13 @@ class TestMigrationPerformance(TestCase):
         
         # Create multiple offers per summary
         offers_created = 0
+        valid_companies = ['Абсолют', 'Альфа', 'ВСК', 'Согаз', 'РЕСО']
         for summary in summaries:
             for year in range(1, 4):  # 3 years
                 for company_num in range(1, 6):  # 5 companies
                     InsuranceOffer.objects.create(
                         summary=summary,
-                        company_name=f"Performance Company {company_num}",
+                        company_name=valid_companies[company_num - 1],
                         insurance_year=year,
                         insurance_sum=Decimal("1000000.00"),
                         franchise_1=Decimal("0.00"),

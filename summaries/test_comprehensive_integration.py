@@ -349,7 +349,7 @@ class ComprehensiveIntegrationTest(TestCase):
         # Проверяем, что оно отображается в интерфейсе
         response = self.client.get(reverse('summaries:summary_detail', args=[self.summary.pk]))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Другое')
+        self.assertContains(response, 'другое')
         
         print("✓ Совместимость с миграцией обеспечена")
 

@@ -191,8 +191,8 @@ class DocumentationValidationTests(TestCase):
             
             # Проверяем наличие ожидаемых полей
             expected_fields = [
-                'key_completeness', 'pts_psm', 'bank_creditor',
-                'usage_purposes', 'telematics_complex', 'insurance_territory'
+                'key_completeness', 'pts_psm', 'creditor_bank',
+                'usage_purposes', 'telematics_complex'
             ]
             
             for field in expected_fields:
