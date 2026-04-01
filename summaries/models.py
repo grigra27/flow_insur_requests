@@ -107,6 +107,10 @@ class InsuranceSummary(models.Model):
         ('completed_accepted', 'Завершен: акцепт/распоряжение'),
         ('completed_rejected', 'Завершен: не будет'),
     ]
+    FRANCHISE_VARIANT_CHOICES = [
+        (1, 'Вариант 1 (Фр.-1 / СП-1)'),
+        (2, 'Вариант 2 (Фр.-2 / СП-2)'),
+    ]
     
     # Связь с заявкой
     request = models.OneToOneField(
@@ -145,6 +149,13 @@ class InsuranceSummary(models.Model):
         null=True,
         verbose_name='Выбранная СК',
         help_text='Страховая компания, выбранная при акцепте/распоряжении'
+    )
+    selected_franchise_variant = models.PositiveSmallIntegerField(
+        choices=FRANCHISE_VARIANT_CHOICES,
+        blank=True,
+        null=True,
+        verbose_name='Выбранный вариант франшизы',
+        help_text='Выбранный вариант предложения (1 или 2) при акцепте/распоряжении'
     )
     
     class Meta:
@@ -261,6 +272,47 @@ class InsuranceSummary(models.Model):
         companies = self.get_unique_companies_list()
         # companies уже отсортирован в get_unique_companies_list()
         return [('', 'Выберите страховую компанию')] + [(company, company) for company in companies]
+
+    def get_company_available_variants(self, company_name):
+        """Возвращает список доступных вариантов франшизы для выбранной компании"""
+        if not company_name:
+            return []
+        
+        company_offers = self.offers.filter(is_valid=True, company_name=company_name)
+        offers_count = company_offers.count()
+        if offers_count == 0:
+            return []
+        
+        # Вариант доступен, если для всех лет выбранной компании есть валидная премия по этому варианту
+        variant_1_count = company_offers.exclude(
+            premium_with_franchise_1__isnull=True
+        ).exclude(
+            premium_with_franchise_1__lte=0
+        ).count()
+        variant_2_count = company_offers.exclude(
+            premium_with_franchise_2__isnull=True
+        ).exclude(
+            premium_with_franchise_2__lte=0
+        ).count()
+        
+        available_variants = []
+        if variant_1_count == offers_count:
+            available_variants.append(1)
+        if variant_2_count == offers_count:
+            available_variants.append(2)
+        
+        return available_variants
+
+    def requires_variant_choice(self, company_name):
+        """Определяет, требуется ли ручной выбор варианта (когда доступны оба варианта)"""
+        return len(self.get_company_available_variants(company_name)) > 1
+
+    def get_default_variant(self, company_name):
+        """Возвращает вариант по умолчанию, если доступен только один вариант"""
+        available_variants = self.get_company_available_variants(company_name)
+        if len(available_variants) == 1:
+            return available_variants[0]
+        return None
     
     def update_total_offers_count(self):
         """Обновляет счетчик общего количества предложений"""

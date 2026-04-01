@@ -163,6 +163,15 @@ def summary_detail(request, pk):
     
     # Получаем комментарии, сгруппированные по компаниям
     company_notes = summary.get_company_notes()
+
+    # Данные о доступных франшизных вариантах по компаниям для UI статусов
+    company_variant_requirements = {}
+    for company_name in sorted_companies:
+        company_variant_requirements[company_name] = {
+            'available_variants': summary.get_company_available_variants(company_name),
+            'requires_choice': summary.requires_variant_choice(company_name),
+            'default_variant': summary.get_default_variant(company_name),
+        }
     
     return render(request, 'summaries/summary_detail.html', {
         'summary': summary,
@@ -174,6 +183,7 @@ def summary_detail(request, pk):
         'companies_with_year_counts': companies_with_year_counts,
         'company_totals': company_totals,
         'company_notes': company_notes,
+        'company_variant_requirements': company_variant_requirements,
     })
 
 
@@ -204,6 +214,8 @@ def deal_summary(request, summary_id):
         'summary': summary,
         'request': insurance_request,
         'selected_company': summary.selected_company,
+        'selected_franchise_variant': summary.selected_franchise_variant,
+        'selected_franchise_variant_display': summary.get_selected_franchise_variant_display() if summary.selected_franchise_variant else None,
         'selected_offers': selected_offers,
         
         # Основные данные заявки
@@ -739,6 +751,8 @@ def change_summary_status(request, summary_id):
     summary = get_object_or_404(InsuranceSummary, pk=summary_id)
     new_status = request.POST.get('status')
     selected_company = request.POST.get('selected_company', '').strip()
+    selected_franchise_variant_raw = request.POST.get('selected_franchise_variant', '').strip()
+    selected_franchise_variant = None
     
     # Валидация статуса "Завершен: акцепт/распоряжение"
     if new_status == 'completed_accepted':
@@ -755,6 +769,38 @@ def change_summary_status(request, summary_id):
                 'success': False, 
                 'error': 'Выбранная компания не найдена в предложениях свода'
             })
+
+        available_variants = summary.get_company_available_variants(selected_company)
+        if not available_variants:
+            return JsonResponse({
+                'success': False,
+                'error': 'Для выбранной компании не найдено валидных вариантов премии'
+            })
+
+        if selected_franchise_variant_raw:
+            try:
+                selected_franchise_variant = int(selected_franchise_variant_raw)
+            except ValueError:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Передан некорректный вариант франшизы'
+                })
+
+            if selected_franchise_variant not in available_variants:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Выбранный вариант франшизы недоступен для выбранной компании'
+                })
+
+        # Если вариантов два, выбор обязателен. Если один - выбираем автоматически.
+        if len(available_variants) > 1:
+            if not selected_franchise_variant_raw:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Необходимо выбрать вариант франшизы (1 или 2)'
+                })
+        elif not selected_franchise_variant:
+            selected_franchise_variant = available_variants[0]
     
     if new_status in dict(InsuranceSummary.STATUS_CHOICES):
         old_status = summary.status
@@ -763,6 +809,10 @@ def change_summary_status(request, summary_id):
         # Сохраняем выбранную компанию для статуса "Завершен: акцепт/распоряжение"
         if new_status == 'completed_accepted':
             summary.selected_company = selected_company
+            summary.selected_franchise_variant = selected_franchise_variant
+        else:
+            summary.selected_company = None
+            summary.selected_franchise_variant = None
         
         # Если статус изменен на "Отправлен в Альянс", устанавливаем время отправки
         if new_status == 'sent':
@@ -772,18 +822,22 @@ def change_summary_status(request, summary_id):
         summary.save()
         
         logger.info(f"Summary {summary_id} status changed from '{old_status}' to '{new_status}'" + 
-                   (f" with selected company '{selected_company}'" if new_status == 'completed_accepted' else ""))
+                   (
+                       f" with selected company '{selected_company}' and franchise variant '{selected_franchise_variant}'"
+                       if new_status == 'completed_accepted' else ""
+                   ))
         
         message = f'Статус изменен на "{summary.get_status_display()}"'
         if new_status == 'completed_accepted' and selected_company:
-            message += f' (СК: {selected_company})'
+            message += f' (СК: {selected_company}, вариант: {summary.get_selected_franchise_variant_display()})'
         
         return JsonResponse({
             'success': True, 
             'message': message,
             'new_status': new_status,
             'new_status_display': summary.get_status_display(),
-            'selected_company': selected_company if new_status == 'completed_accepted' else None
+            'selected_company': selected_company if new_status == 'completed_accepted' else None,
+            'selected_franchise_variant': selected_franchise_variant if new_status == 'completed_accepted' else None
         })
     
     return JsonResponse({

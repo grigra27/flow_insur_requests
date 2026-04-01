@@ -47,6 +47,12 @@
                         <dd class="col-sm-7">
                             <span class="badge bg-success fs-6">{{ selected_company }}</span>
                         </dd>
+                        {% if selected_franchise_variant_display %}
+                        <dt class="col-sm-5">Вариант:</dt>
+                        <dd class="col-sm-7">
+                            <span class="badge bg-primary">{{ selected_franchise_variant_display }}</span>
+                        </dd>
+                        {% endif %}
 
                         <dt class="col-sm-5">Статус свода:</dt>
                         <dd class="col-sm-7">

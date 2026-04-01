@@ -269,11 +269,26 @@ class SummaryStatusForm(forms.Form):
         label='Выбранная страховая компания',
         help_text='Обязательно для статуса "Завершен: акцепт/распоряжение"'
     )
+    selected_franchise_variant = forms.ChoiceField(
+        choices=[
+            ('', 'Выберите вариант'),
+            ('1', 'Вариант 1 (Фр.-1 / СП-1)'),
+            ('2', 'Вариант 2 (Фр.-2 / СП-2)'),
+        ],
+        required=False,
+        widget=forms.Select(attrs={
+            'class': 'form-select',
+            'id': 'selected-franchise-variant-select'
+        }),
+        label='Выбранный вариант франшизы',
+        help_text='Обязательно только если для выбранной компании доступны оба варианта'
+    )
     
     def __init__(self, *args, **kwargs):
         current_status = kwargs.pop('current_status', None)
         summary = kwargs.pop('summary', None)
         super().__init__(*args, **kwargs)
+        self.summary = summary
         
         if current_status:
             self.fields['status'].initial = current_status
@@ -284,6 +299,8 @@ class SummaryStatusForm(forms.Form):
             # Устанавливаем текущее значение, если оно есть
             if summary.selected_company:
                 self.fields['selected_company'].initial = summary.selected_company
+            if summary.selected_franchise_variant:
+                self.fields['selected_franchise_variant'].initial = str(summary.selected_franchise_variant)
     
     def clean_status(self):
         """Валидация статуса"""
@@ -300,6 +317,7 @@ class SummaryStatusForm(forms.Form):
         cleaned_data = super().clean()
         status = cleaned_data.get('status')
         selected_company = cleaned_data.get('selected_company')
+        selected_franchise_variant = cleaned_data.get('selected_franchise_variant')
         
         # Если статус "Завершен: акцепт/распоряжение", требуем выбор компании
         if status == 'completed_accepted':
@@ -307,6 +325,27 @@ class SummaryStatusForm(forms.Form):
                 raise ValidationError({
                     'selected_company': 'Необходимо выбрать страховую компанию для статуса "Завершен: акцепт/распоряжение"'
                 })
+            
+            if self.summary:
+                available_variants = self.summary.get_company_available_variants(selected_company)
+                if not available_variants:
+                    raise ValidationError({
+                        'selected_company': 'Для выбранной компании не найдено валидных вариантов премии'
+                    })
+                
+                if selected_franchise_variant and int(selected_franchise_variant) not in available_variants:
+                    raise ValidationError({
+                        'selected_franchise_variant': 'Выбранный вариант франшизы недоступен для выбранной компании'
+                    })
+
+                if len(available_variants) > 1:
+                    if not selected_franchise_variant:
+                        raise ValidationError({
+                            'selected_franchise_variant': 'Необходимо выбрать вариант франшизы (1 или 2)'
+                        })
+                    cleaned_data['selected_franchise_variant'] = selected_franchise_variant
+                else:
+                    cleaned_data['selected_franchise_variant'] = selected_franchise_variant or str(available_variants[0])
         
         return cleaned_data
 

@@ -1,160 +1,193 @@
 """
-Тесты для функциональности выбора страховой компании при завершении свода
+Тесты выбора страховой компании и варианта франшизы при завершении свода
 """
-from django.test import TestCase
-from django.contrib.auth.models import User
-from insurance_requests.models import InsuranceRequest
-from summaries.models import InsuranceSummary, InsuranceOffer
 from decimal import Decimal
 
+from django.contrib.auth.models import Group, User
+from django.test import Client, TestCase
+from django.urls import reverse
 
-class SelectedCompanyTestCase(TestCase):
-    """Тесты для поля selected_company"""
-    
+from insurance_requests.models import InsuranceRequest
+from summaries.models import InsuranceOffer, InsuranceSummary
+
+
+class SelectedCompanyAndVariantTestCase(TestCase):
+    """Тесты для selected_company и selected_franchise_variant"""
+
     def setUp(self):
         """Подготовка тестовых данных"""
-        # Создаем пользователя
+        self.users_group, _ = Group.objects.get_or_create(name='Пользователи')
+
         self.user = User.objects.create_user(
             username='testuser',
             password='testpass123'
         )
-        
-        # Создаем заявку
+        self.user.groups.add(self.users_group)
+
+        self.client = Client()
+        self.client.login(username='testuser', password='testpass123')
+
         self.request = InsuranceRequest.objects.create(
             dfa_number='TEST-001',
             client_name='Тестовый клиент',
+            inn='1234567890',
+            insurance_type='КАСКО',
+            insurance_period='1 год',
             branch='msk',
-            status='processing'
+            status='uploaded',
+            created_by=self.user,
         )
-        
-        # Создаем свод
+
         self.summary = InsuranceSummary.objects.create(
             request=self.request,
             status='collecting'
         )
-        
-        # Создаем предложения от разных компаний
-        self.offer1 = InsuranceOffer.objects.create(
+
+        # Компания с двумя вариантами франшизы
+        self.offer_with_two_variants = InsuranceOffer.objects.create(
             summary=self.summary,
             company_name='Абсолют',
             insurance_year=1,
             insurance_sum=Decimal('1000000.00'),
             franchise_1=Decimal('0'),
-            premium_with_franchise_1=Decimal('50000.00')
+            premium_with_franchise_1=Decimal('50000.00'),
+            franchise_2=Decimal('30000.00'),
+            premium_with_franchise_2=Decimal('45000.00'),
         )
-        
-        self.offer2 = InsuranceOffer.objects.create(
+
+        # Компания только с первым вариантом
+        self.offer_with_single_variant = InsuranceOffer.objects.create(
             summary=self.summary,
             company_name='Альфа',
             insurance_year=1,
             insurance_sum=Decimal('1000000.00'),
             franchise_1=Decimal('0'),
-            premium_with_franchise_1=Decimal('45000.00')
+            premium_with_franchise_1=Decimal('47000.00'),
         )
-    
+
     def test_get_companies_choices(self):
-        """Тест получения списка компаний для выбора"""
+        """Проверка списка компаний для выбора"""
         choices = self.summary.get_companies_choices()
-        
-        # Проверяем, что есть пустой выбор
+
         self.assertEqual(choices[0], ('', 'Выберите страховую компанию'))
-        
-        # Проверяем, что есть обе компании
         company_names = [choice[0] for choice in choices[1:]]
         self.assertIn('Абсолют', company_names)
         self.assertIn('Альфа', company_names)
-    
+
     def test_multiyear_company_appears_once(self):
-        """Тест: многолетнее предложение от одной компании отображается как одна компания в списке"""
-        # Добавляем второй год для компании Абсолют
+        """Многолетнее предложение от одной СК отображается один раз"""
         InsuranceOffer.objects.create(
             summary=self.summary,
             company_name='Абсолют',
             insurance_year=2,
             insurance_sum=Decimal('1000000.00'),
             franchise_1=Decimal('0'),
-            premium_with_franchise_1=Decimal('48000.00')
+            premium_with_franchise_1=Decimal('51000.00'),
+            franchise_2=Decimal('30000.00'),
+            premium_with_franchise_2=Decimal('46000.00'),
         )
-        
-        # Получаем список уникальных компаний
+
         companies = self.summary.get_unique_companies_list()
-        
-        # Проверяем, что Абсолют встречается только один раз, несмотря на 2 года
         self.assertEqual(companies.count('Абсолют'), 1)
-        
-        # Проверяем общее количество уникальных компаний
-        self.assertEqual(len(companies), 2)  # Абсолют и Альфа
-        
-        # Проверяем список выборов для формы
-        choices = self.summary.get_companies_choices()
-        company_names = [choice[0] for choice in choices[1:]]  # Пропускаем пустой выбор
-        
-        # Абсолют должен быть только один раз
-        self.assertEqual(company_names.count('Абсолют'), 1)
-        self.assertEqual(len(company_names), 2)  # Всего 2 компании
-    
-    def test_change_status_to_completed_accepted_without_company(self):
-        """Тест валидации: нельзя установить статус 'completed_accepted' без выбора компании"""
-        # Проверяем логику валидации напрямую
-        available_companies = self.summary.get_unique_companies_list()
-        
-        # Проверяем, что список компаний не пустой
-        self.assertTrue(len(available_companies) > 0)
-        
-        # Проверяем, что пустая строка не является валидной компанией
-        self.assertNotIn('', available_companies)
-    
-    def test_change_status_to_completed_accepted_with_company(self):
-        """Тест изменения статуса на 'completed_accepted' с выбором компании"""
-        # Устанавливаем статус и компанию напрямую
-        self.summary.status = 'completed_accepted'
-        self.summary.selected_company = 'Абсолют'
-        self.summary.save()
-        
-        # Проверяем, что данные сохранены в базе
+        self.assertEqual(len(companies), 2)
+
+    def test_company_variants_helpers(self):
+        """Проверка helper-методов доступности вариантов"""
+        self.assertEqual(self.summary.get_company_available_variants('Абсолют'), [1, 2])
+        self.assertTrue(self.summary.requires_variant_choice('Абсолют'))
+        self.assertIsNone(self.summary.get_default_variant('Абсолют'))
+
+        self.assertEqual(self.summary.get_company_available_variants('Альфа'), [1])
+        self.assertFalse(self.summary.requires_variant_choice('Альфа'))
+        self.assertEqual(self.summary.get_default_variant('Альфа'), 1)
+
+    def test_change_status_requires_variant_when_two_variants_available(self):
+        """Если у СК два варианта, выбор варианта обязателен"""
+        response = self.client.post(
+            reverse('summaries:change_summary_status', args=[self.summary.pk]),
+            {
+                'status': 'completed_accepted',
+                'selected_company': 'Абсолют',
+            }
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertFalse(payload['success'])
+        self.assertIn('вариант франшизы', payload['error'])
+
+    def test_change_status_saves_explicit_variant_when_two_variants_available(self):
+        """При двух вариантах сохраняется явно выбранный вариант"""
+        response = self.client.post(
+            reverse('summaries:change_summary_status', args=[self.summary.pk]),
+            {
+                'status': 'completed_accepted',
+                'selected_company': 'Абсолют',
+                'selected_franchise_variant': '2',
+            }
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload['success'])
+
         self.summary.refresh_from_db()
         self.assertEqual(self.summary.status, 'completed_accepted')
         self.assertEqual(self.summary.selected_company, 'Абсолют')
-        
-        # Проверяем, что выбранная компания есть в списке доступных
-        available_companies = self.summary.get_unique_companies_list()
-        self.assertIn('Абсолют', available_companies)
-    
-    def test_change_status_to_completed_accepted_with_invalid_company(self):
-        """Тест валидации: несуществующая компания не должна быть в списке"""
-        available_companies = self.summary.get_unique_companies_list()
-        
-        # Проверяем, что несуществующая компания не в списке
-        self.assertNotIn('Несуществующая СК', available_companies)
-        
-        # Проверяем, что в списке только компании из предложений
-        self.assertEqual(set(available_companies), {'Абсолют', 'Альфа'})
-    
-    def test_change_status_to_other_status_without_company(self):
-        """Тест изменения статуса на другой (не требующий выбора компании)"""
-        # Устанавливаем статус без выбора компании
-        self.summary.status = 'ready'
+        self.assertEqual(self.summary.selected_franchise_variant, 2)
+
+    def test_change_status_autoselects_single_available_variant(self):
+        """Если доступен только один вариант, он выбирается автоматически"""
+        response = self.client.post(
+            reverse('summaries:change_summary_status', args=[self.summary.pk]),
+            {
+                'status': 'completed_accepted',
+                'selected_company': 'Альфа',
+            }
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload['success'])
+
+        self.summary.refresh_from_db()
+        self.assertEqual(self.summary.status, 'completed_accepted')
+        self.assertEqual(self.summary.selected_company, 'Альфа')
+        self.assertEqual(self.summary.selected_franchise_variant, 1)
+
+    def test_change_status_rejects_invalid_variant(self):
+        """Нельзя сохранить недоступный для СК вариант"""
+        response = self.client.post(
+            reverse('summaries:change_summary_status', args=[self.summary.pk]),
+            {
+                'status': 'completed_accepted',
+                'selected_company': 'Альфа',
+                'selected_franchise_variant': '2',
+            }
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertFalse(payload['success'])
+        self.assertIn('недоступен', payload['error'])
+
+    def test_change_status_to_other_status_clears_selected_fields(self):
+        """При выходе из completed_accepted выбранные СК/вариант очищаются"""
+        self.summary.status = 'completed_accepted'
+        self.summary.selected_company = 'Абсолют'
+        self.summary.selected_franchise_variant = 1
         self.summary.save()
-        
-        # Проверяем, что статус изменен
+
+        response = self.client.post(
+            reverse('summaries:change_summary_status', args=[self.summary.pk]),
+            {'status': 'ready'}
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload['success'])
+
         self.summary.refresh_from_db()
         self.assertEqual(self.summary.status, 'ready')
-        # Для других статусов selected_company может быть None
         self.assertIsNone(self.summary.selected_company)
-    
-    def test_selected_company_field_in_model(self):
-        """Тест наличия и работы поля selected_company в модели"""
-        # Устанавливаем значение
-        self.summary.selected_company = 'Альфа'
-        self.summary.save()
-        
-        # Проверяем, что значение сохранено
-        self.summary.refresh_from_db()
-        self.assertEqual(self.summary.selected_company, 'Альфа')
-        
-        # Проверяем, что можно очистить значение
-        self.summary.selected_company = None
-        self.summary.save()
-        
-        self.summary.refresh_from_db()
-        self.assertIsNone(self.summary.selected_company)
+        self.assertIsNone(self.summary.selected_franchise_variant)

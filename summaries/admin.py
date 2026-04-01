@@ -120,14 +120,14 @@ class InsuranceCompanyAdmin(admin.ModelAdmin):
 
 @admin.register(InsuranceSummary)
 class InsuranceSummaryAdmin(admin.ModelAdmin):
-    list_display = ['id', 'request', 'status', 'total_offers', 'created_at']
+    list_display = ['id', 'request', 'status', 'selected_company', 'selected_franchise_variant', 'total_offers', 'created_at']
     list_filter = ['status', 'created_at']
     search_fields = ['request__client_name', 'request__inn']
     readonly_fields = ['created_at', 'updated_at', 'total_offers']
     
     fieldsets = (
         ('Основная информация', {
-            'fields': ('request', 'status')
+            'fields': ('request', 'status', 'selected_company', 'selected_franchise_variant')
         }),
         ('Сводные данные', {
             'fields': ('total_offers',)
