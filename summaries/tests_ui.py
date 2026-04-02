@@ -170,6 +170,7 @@ class TestUIElements(TestCase):
         self.assertContains(response, 'Информация о заявке')
         self.assertContains(response, 'UI Test Client')
         self.assertContains(response, 'КАСКО')
+        self.assertContains(response, 'Год выпуска:')
         
         # Check offers section
         self.assertContains(response, 'Предложения страховщиков')

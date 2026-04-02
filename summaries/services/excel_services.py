@@ -3,6 +3,7 @@
 """
 
 import logging
+import re
 from io import BytesIO
 from pathlib import Path
 from typing import Optional, Dict, Any, List
@@ -114,6 +115,7 @@ class ExcelExportService:
     MAX_NOTES_LENGTH = 1000  # Максимальная длина примечаний
     MIN_INSURANCE_SUM = Decimal('1')  # Минимальная страховая сумма
     MAX_INSURANCE_SUM = Decimal('1000000000')  # Максимальная страховая сумма (1 млрд)
+    MANUFACTURING_YEAR_ADDITIONAL_NOTE = 'Обязателен осмотр предмета лизинга.'
     
     def __init__(self, template_path: str):
         """
@@ -815,6 +817,102 @@ class ExcelExportService:
             error_msg = f"Ошибка при получении данных компаний для свода ID {summary.id}: {str(e)}"
             logger.error(error_msg, exc_info=True)
             raise ExcelExportServiceError(error_msg) from e
+
+    def _extract_manufacturing_year(self, manufacturing_year_value: str) -> Optional[int]:
+        """
+        Извлекает год выпуска предмета лизинга из произвольной строки.
+
+        Args:
+            manufacturing_year_value: Исходное значение года выпуска
+
+        Returns:
+            Optional[int]: Год выпуска или None, если извлечь корректный год не удалось
+        """
+        if manufacturing_year_value is None:
+            return None
+
+        year_text = str(manufacturing_year_value).strip()
+        if not year_text:
+            return None
+
+        match = re.search(r'(19|20)\d{2}', year_text)
+        if not match:
+            return None
+
+        try:
+            extracted_year = int(match.group(0))
+        except (ValueError, TypeError):
+            return None
+
+        current_year = datetime.now().year
+        if extracted_year < 1900 or extracted_year > current_year + 1:
+            return None
+
+        return extracted_year
+
+    def _get_additional_note_for_manufacturing_year(self, summary: InsuranceSummary) -> Optional[str]:
+        """
+        Формирует дополнительное примечание по году выпуска для Excel-выгрузки.
+
+        Правила:
+        - Если год выпуска корректный и равен текущему году, примечание не добавляется.
+        - Если год выпуска не равен текущему, примечание добавляется.
+        - Если год выпуска пустой или невалидный, примечание также добавляется.
+
+        Args:
+            summary: Объект свода
+
+        Returns:
+            Optional[str]: Текст дополнительного примечания или None
+        """
+        request = getattr(summary, 'request', None)
+        if request is None:
+            return None
+
+        current_year = datetime.now().year
+        raw_manufacturing_year = getattr(request, 'manufacturing_year', '')
+        parsed_year = self._extract_manufacturing_year(raw_manufacturing_year)
+
+        if parsed_year is None:
+            logger.info(
+                f"Свод ID {summary.id}: добавляем примечание о годе выпуска "
+                f"(пустое/невалидное значение: '{raw_manufacturing_year}')"
+            )
+            return self.MANUFACTURING_YEAR_ADDITIONAL_NOTE
+
+        if parsed_year != current_year:
+            logger.info(
+                f"Свод ID {summary.id}: добавляем примечание о несоответствии года выпуска "
+                f"({parsed_year} != {current_year})"
+            )
+            return self.MANUFACTURING_YEAR_ADDITIONAL_NOTE
+
+        logger.debug(
+            f"Свод ID {summary.id}: год выпуска соответствует текущему году ({current_year}), "
+            "дополнительное примечание не требуется"
+        )
+        return None
+
+    def _build_export_notes(self, offer_notes: Optional[str], additional_note: Optional[str] = None) -> Optional[str]:
+        """
+        Формирует итоговый текст примечаний для записи в Excel.
+
+        Args:
+            offer_notes: Примечание из предложения страховщика
+            additional_note: Дополнительное системное примечание
+
+        Returns:
+            Optional[str]: Итоговый текст примечаний
+        """
+        base_notes = str(offer_notes).strip() if offer_notes else ''
+        extra_notes = str(additional_note).strip() if additional_note else ''
+
+        if base_notes and extra_notes:
+            if extra_notes.lower() in base_notes.lower():
+                return base_notes
+            return f"{base_notes} {extra_notes}"
+
+        return base_notes or extra_notes or None
     
     def _fill_company_data(self, workbook: Workbook, summary: InsuranceSummary, template_type: str = 'full') -> None:
         """
@@ -834,6 +932,13 @@ class ExcelExportService:
             # Получаем маппинг колонок для текущего типа шаблона
             columns = self._get_columns_mapping(template_type)
             logger.debug(f"Используем маппинг колонок для шаблона '{template_type}': {columns}")
+
+            additional_note = self._get_additional_note_for_manufacturing_year(summary)
+            if additional_note:
+                logger.info(
+                    f"Для свода ID {summary.id} будет добавлено дополнительное примечание в Excel: "
+                    f"{additional_note}"
+                )
             
             # Получаем отсортированные данные компаний
             raw_companies_data = self._get_companies_sorted_data(summary)
@@ -882,7 +987,15 @@ class ExcelExportService:
                     company_name_for_row = company_name if year_index == 0 else None
                     
                     # Заполняем строку с данными года
-                    self._fill_company_year_row(worksheet, current_row, company_name_for_row, offer, year_display, columns)
+                    self._fill_company_year_row(
+                        worksheet,
+                        current_row,
+                        company_name_for_row,
+                        offer,
+                        year_display,
+                        columns_mapping=columns,
+                        additional_note=additional_note,
+                    )
                     current_row += 1
                 
                 # Объединяем ячейки с названием компании если у неё несколько лет
@@ -891,7 +1004,15 @@ class ExcelExportService:
                     # Объединяем ячейки с суммами премий
                     self._merge_premium_summary_cells(worksheet, company_start_row, current_row - 1, company_name, offers, columns)
                     # Объединяем ячейки с примечаниями
-                    self._merge_notes_cells(worksheet, company_start_row, current_row - 1, company_name, offers, columns)
+                    self._merge_notes_cells(
+                        worksheet,
+                        company_start_row,
+                        current_row - 1,
+                        company_name,
+                        offers,
+                        columns_mapping=columns,
+                        additional_note=additional_note,
+                    )
                 else:
                     # Для компаний с одним годом заполняем столбцы I и O значениями из F и L
                     self._fill_single_year_premium_summary(worksheet, company_start_row, company_name, offers[0], columns)
@@ -1131,8 +1252,16 @@ class ExcelExportService:
             logger.error(f"Ошибка валидации числовых данных для поля '{field_name}': {str(e)}")
             return False
     
-    def _fill_company_year_row(self, worksheet, row_num: int, company_name: str, 
-                              offer, year_display: str, columns_mapping: dict = None) -> None:
+    def _fill_company_year_row(
+        self,
+        worksheet,
+        row_num: int,
+        company_name: str,
+        offer,
+        year_display: str,
+        columns_mapping: dict = None,
+        additional_note: Optional[str] = None,
+    ) -> None:
         """
         Заполняет строку с данными года страхования с корректным форматированием
         
@@ -1146,6 +1275,7 @@ class ExcelExportService:
             offer: Объект предложения InsuranceOffer
             year_display: Отображаемое значение года (например, "1 год")
             columns_mapping: Маппинг колонок (если None, используется COMPANY_DATA_COLUMNS)
+            additional_note: Дополнительное примечание для экспорта
             
         Raises:
             ExcelExportServiceError: При ошибках заполнения строки
@@ -1241,18 +1371,19 @@ class ExcelExportService:
                 logger.debug("Второй вариант франшизы отсутствует, пропускаем заполнение")
             
             # Примечания (если есть) с обрезкой и валидацией
-            if hasattr(offer, 'notes') and offer.notes:
-                notes = str(offer.notes).strip()
+            notes_to_export = self._build_export_notes(getattr(offer, 'notes', None), additional_note)
+            if notes_to_export:
+                notes = str(notes_to_export).strip()
                 if notes:
                     # Ограничиваем длину примечаний для Excel
                     if len(notes) > self.MAX_NOTES_LENGTH:
                         notes = notes[:self.MAX_NOTES_LENGTH] + "..."
                         logger.warning(f"Примечания обрезаны до {self.MAX_NOTES_LENGTH} символов для компании '{company_name}'")
-                    
+
                     # Дополнительная валидация примечаний
                     # Удаляем потенциально проблемные символы для Excel
                     notes = notes.replace('\x00', '').replace('\x01', '').replace('\x02', '')
-                    
+
                     if notes:  # Проверяем, что после очистки что-то осталось
                         worksheet[f"{columns['notes']}{row_num}"].value = notes
                         logger.debug(f"Записаны примечания: {notes[:50]}...")
@@ -2245,8 +2376,16 @@ class ExcelExportService:
             logger.warning(f"Ошибка при заполнении столбцов премий для компании '{company_name}' в строке {row_num}: {e}")
             # Не прерываем выполнение, продолжаем работу
     
-    def _merge_notes_cells(self, worksheet, start_row: int, end_row: int, 
-                          company_name: str, offers: List, columns_mapping: dict = None) -> None:
+    def _merge_notes_cells(
+        self,
+        worksheet,
+        start_row: int,
+        end_row: int,
+        company_name: str,
+        offers: List,
+        columns_mapping: dict = None,
+        additional_note: Optional[str] = None,
+    ) -> None:
         """
         Объединяет ячейки в столбце примечаний с консолидацией примечаний по всем годам страхования
         
@@ -2257,6 +2396,7 @@ class ExcelExportService:
             company_name: Название страховой компании
             offers: Список предложений компании
             columns_mapping: Маппинг колонок (если None, используется COMPANY_DATA_COLUMNS)
+            additional_note: Дополнительное примечание для экспорта
             
         Raises:
             ExcelExportServiceError: При критических ошибках объединения
@@ -2269,7 +2409,7 @@ class ExcelExportService:
             logger.debug(f"Объединяем ячейки примечаний для компании '{company_name}' в диапазоне {notes_column}{start_row}:{notes_column}{end_row}")
             
             # Консолидируем примечания из всех предложений
-            consolidated_notes = self._consolidate_notes(offers)
+            consolidated_notes = self._consolidate_notes(offers, additional_note=additional_note)
             
             # Определяем диапазон для объединения в столбце примечаний
             merge_range_q = f'{notes_column}{start_row}:{notes_column}{end_row}'
@@ -2294,9 +2434,9 @@ class ExcelExportService:
         except Exception as e:
             logger.warning(f"Не удалось объединить ячейки примечаний для компании '{company_name}': {e}")
             # Fallback: заполняем примечания в отдельные ячейки
-            self._fill_notes_fallback(worksheet, start_row, end_row, offers)
+            self._fill_notes_fallback(worksheet, start_row, end_row, offers, additional_note=additional_note)
     
-    def _consolidate_notes(self, offers: List) -> Optional[str]:
+    def _consolidate_notes(self, offers: List, additional_note: Optional[str] = None) -> Optional[str]:
         """
         Объединяет все примечания по годам в единый текст с разделением пробелом
         
@@ -2308,6 +2448,7 @@ class ExcelExportService:
         
         Args:
             offers: Список предложений компании
+            additional_note: Дополнительное примечание для экспорта
             
         Returns:
             Optional[str]: Объединенный текст примечаний или None если нет примечаний
@@ -2350,6 +2491,19 @@ class ExcelExportService:
                 except Exception as offer_error:
                     logger.warning(f"Ошибка при обработке примечаний для года {getattr(offer, 'insurance_year', 'неизвестно')}: {offer_error}")
                     continue
+
+            if additional_note:
+                additional_note_str = str(additional_note).strip()
+                if additional_note_str:
+                    additional_note_str = additional_note_str.replace('\x00', '').replace('\x01', '').replace('\x02', '')
+                    additional_note_str = additional_note_str.replace('\n', ' ').replace('\r', ' ')
+                    additional_note_str = ' '.join(additional_note_str.split())
+
+                    if additional_note_str:
+                        has_duplicate = any(part.lower() == additional_note_str.lower() for part in consolidated_parts)
+                        if not has_duplicate:
+                            consolidated_parts.append(additional_note_str)
+                            logger.debug("Добавлено дополнительное примечание по году выпуска в консолидированный текст")
             
             # Объединяем все части с разделением пробелом
             if consolidated_parts:
@@ -2421,7 +2575,14 @@ class ExcelExportService:
         except Exception as e:
             logger.warning(f"Не удалось применить форматирование к ячейке примечаний {cell_address}: {e}")
     
-    def _fill_notes_fallback(self, worksheet, start_row: int, end_row: int, offers: List) -> None:
+    def _fill_notes_fallback(
+        self,
+        worksheet,
+        start_row: int,
+        end_row: int,
+        offers: List,
+        additional_note: Optional[str] = None,
+    ) -> None:
         """
         Fallback метод: заполняет примечания в отдельные ячейки при ошибке объединения
         
@@ -2430,6 +2591,7 @@ class ExcelExportService:
             start_row: Первая строка компании
             end_row: Последняя строка компании
             offers: Список предложений компании
+            additional_note: Дополнительное примечание для экспорта
         """
         try:
             logger.info(f"Используем fallback для заполнения примечаний в строках {start_row}-{end_row}")
@@ -2452,7 +2614,8 @@ class ExcelExportService:
                 
                 try:
                     # Получаем примечания для текущего предложения
-                    notes = getattr(offer, 'notes', None)
+                    row_additional_note = additional_note if i == 0 else None
+                    notes = self._build_export_notes(getattr(offer, 'notes', None), row_additional_note)
                     
                     if notes:
                         notes_str = str(notes).strip()

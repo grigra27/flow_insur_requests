@@ -49,6 +49,9 @@
                             
                             <dt class="col-sm-5">Информация о предмете лизинга:</dt>
                             <dd class="col-sm-7">{{ summary.request.vehicle_info|default:"Не указано" }}</dd>
+
+                            <dt class="col-sm-5">Год выпуска:</dt>
+                            <dd class="col-sm-7">{{ summary.request.manufacturing_year|default:"Не указано" }}</dd>
                         </dl>
                     </div>
                     <div class="col-md-4">

@@ -109,6 +109,7 @@ class TestCoreUIFunctionality(TestCase):
         self.assertContains(response, 'Свод к')
         self.assertContains(response, 'UI Test Client')
         self.assertContains(response, 'КАСКО')
+        self.assertContains(response, 'Год выпуска:')
     
     def test_summary_detail_displays_offers_correctly(self):
         """Test that summary detail page displays offers with new structure"""
