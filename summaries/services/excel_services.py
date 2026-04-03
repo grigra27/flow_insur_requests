@@ -116,6 +116,7 @@ class ExcelExportService:
     MIN_INSURANCE_SUM = Decimal('1')  # Минимальная страховая сумма
     MAX_INSURANCE_SUM = Decimal('1000000000')  # Максимальная страховая сумма (1 млрд)
     MANUFACTURING_YEAR_ADDITIONAL_NOTE = 'Обязателен осмотр предмета лизинга.'
+    FRANCHISE_APPROVAL_ADDITIONAL_NOTE = 'Требуется согласование франшизы с ГО.'
     
     def __init__(self, template_path: str):
         """
@@ -913,6 +914,74 @@ class ExcelExportService:
             return f"{base_notes} {extra_notes}"
 
         return base_notes or extra_notes or None
+
+    def _combine_additional_notes(self, *notes: Optional[str]) -> Optional[str]:
+        """
+        Объединяет системные примечания в одну строку без дублей.
+
+        Args:
+            notes: Последовательность системных примечаний
+
+        Returns:
+            Optional[str]: Объединенный текст или None
+        """
+        unique_notes = []
+
+        for note in notes:
+            if not note:
+                continue
+
+            normalized_note = ' '.join(str(note).split())
+            if not normalized_note:
+                continue
+
+            if not any(existing.lower() == normalized_note.lower() for existing in unique_notes):
+                unique_notes.append(normalized_note)
+
+        return ' '.join(unique_notes) if unique_notes else None
+
+    def _is_non_zero_franchise_value(self, value) -> bool:
+        """
+        Проверяет, что значение франшизы задано и не равно нулю.
+
+        Args:
+            value: Проверяемое значение франшизы
+
+        Returns:
+            bool: True если значение ненулевое
+        """
+        if value is None:
+            return False
+
+        try:
+            return Decimal(str(value)) != Decimal('0')
+        except (InvalidOperation, TypeError, ValueError):
+            logger.debug(f"Некорректное значение франшизы '{value}', считаем как 0")
+            return False
+
+    def _get_franchise_approval_note_for_company(self, offers: List, company_name: str) -> Optional[str]:
+        """
+        Определяет необходимость системного комментария о согласовании франшизы для компании.
+
+        Args:
+            offers: Список предложений компании
+            company_name: Название компании (для логирования)
+
+        Returns:
+            Optional[str]: Системный комментарий или None
+        """
+        for offer in offers:
+            franchise_1 = getattr(offer, 'franchise_1', None)
+            franchise_2 = getattr(offer, 'franchise_2', None)
+
+            if self._is_non_zero_franchise_value(franchise_1) or self._is_non_zero_franchise_value(franchise_2):
+                logger.info(
+                    f"Компания '{company_name}': найдена ненулевая франшиза, "
+                    "добавляем системный комментарий о согласовании"
+                )
+                return self.FRANCHISE_APPROVAL_ADDITIONAL_NOTE
+
+        return None
     
     def _fill_company_data(self, workbook: Workbook, summary: InsuranceSummary, template_type: str = 'full') -> None:
         """
@@ -933,11 +1002,11 @@ class ExcelExportService:
             columns = self._get_columns_mapping(template_type)
             logger.debug(f"Используем маппинг колонок для шаблона '{template_type}': {columns}")
 
-            additional_note = self._get_additional_note_for_manufacturing_year(summary)
-            if additional_note:
+            manufacturing_year_note = self._get_additional_note_for_manufacturing_year(summary)
+            if manufacturing_year_note:
                 logger.info(
                     f"Для свода ID {summary.id} будет добавлено дополнительное примечание в Excel: "
-                    f"{additional_note}"
+                    f"{manufacturing_year_note}"
                 )
             
             # Получаем отсортированные данные компаний
@@ -962,6 +1031,12 @@ class ExcelExportService:
             # Обрабатываем каждую компанию
             for company_index, (company_name, offers) in enumerate(companies_data.items()):
                 logger.debug(f"Обрабатываем компанию {company_index + 1}/{total_companies}: '{company_name}'")
+
+                franchise_approval_note = self._get_franchise_approval_note_for_company(offers, company_name)
+                company_additional_note = self._combine_additional_notes(
+                    manufacturing_year_note,
+                    franchise_approval_note
+                )
                 
                 # Проверяем ограничение на количество строк перед обработкой компании
                 estimated_rows_needed = len(offers) + (1 if company_index < total_companies - 1 else 0)  # +1 для разделителя
@@ -994,7 +1069,7 @@ class ExcelExportService:
                         offer,
                         year_display,
                         columns_mapping=columns,
-                        additional_note=additional_note,
+                        additional_note=company_additional_note,
                     )
                     current_row += 1
                 
@@ -1011,7 +1086,7 @@ class ExcelExportService:
                         company_name,
                         offers,
                         columns_mapping=columns,
-                        additional_note=additional_note,
+                        additional_note=company_additional_note,
                     )
                 else:
                     # Для компаний с одним годом заполняем столбцы I и O значениями из F и L
@@ -2434,7 +2509,14 @@ class ExcelExportService:
         except Exception as e:
             logger.warning(f"Не удалось объединить ячейки примечаний для компании '{company_name}': {e}")
             # Fallback: заполняем примечания в отдельные ячейки
-            self._fill_notes_fallback(worksheet, start_row, end_row, offers, additional_note=additional_note)
+            self._fill_notes_fallback(
+                worksheet,
+                start_row,
+                end_row,
+                offers,
+                columns_mapping=columns,
+                additional_note=additional_note
+            )
     
     def _consolidate_notes(self, offers: List, additional_note: Optional[str] = None) -> Optional[str]:
         """
@@ -2581,6 +2663,7 @@ class ExcelExportService:
         start_row: int,
         end_row: int,
         offers: List,
+        columns_mapping: dict = None,
         additional_note: Optional[str] = None,
     ) -> None:
         """
@@ -2591,14 +2674,17 @@ class ExcelExportService:
             start_row: Первая строка компании
             end_row: Последняя строка компании
             offers: Список предложений компании
+            columns_mapping: Маппинг колонок (если None, используется COMPANY_DATA_COLUMNS)
             additional_note: Дополнительное примечание для экспорта
         """
         try:
+            columns = columns_mapping if columns_mapping is not None else self.COMPANY_DATA_COLUMNS
+            notes_column = columns['notes']
             logger.info(f"Используем fallback для заполнения примечаний в строках {start_row}-{end_row}")
             
             # Сначала пытаемся разъединить ячейки если они были объединены
             try:
-                merge_range = f'Q{start_row}:Q{end_row}'
+                merge_range = f'{notes_column}{start_row}:{notes_column}{end_row}'
                 if merge_range in [str(r) for r in worksheet.merged_cells.ranges]:
                     worksheet.unmerge_cells(merge_range)
                     logger.debug(f"Разъединены ячейки {merge_range} для fallback")
@@ -2629,7 +2715,7 @@ class ExcelExportService:
                             notes_str = notes_str.replace('\x00', '').replace('\x01', '').replace('\x02', '')
                             
                             if notes_str:  # Проверяем, что после очистки что-то осталось
-                                worksheet[f'Q{current_row}'].value = notes_str
+                                worksheet[f'{notes_column}{current_row}'].value = notes_str
                                 logger.debug(f"Записаны примечания в строку {current_row}: {notes_str[:30]}...")
                     
                 except Exception as row_error:

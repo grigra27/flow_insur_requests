@@ -304,6 +304,29 @@ class FormatInstallmentPaymentsTests(ExcelExportServiceCompanyDataTests):
         self.assertEqual(result, 1)
 
 
+class NotesFallbackTests(ExcelExportServiceCompanyDataTests):
+    """Тесты fallback-заполнения примечаний"""
+
+    def test_fill_notes_fallback_uses_simplified_notes_column(self):
+        """Для упрощенного шаблона fallback должен писать примечания в колонку K"""
+        workbook = Workbook()
+        worksheet = workbook.active
+
+        offer = Mock()
+        offer.notes = 'Комментарий страховщика'
+
+        self.service._fill_notes_fallback(
+            worksheet,
+            start_row=10,
+            end_row=10,
+            offers=[offer],
+            columns_mapping=self.service.SIMPLIFIED_TEMPLATE_COLUMNS
+        )
+
+        self.assertEqual(worksheet['K10'].value, 'Комментарий страховщика')
+        self.assertIsNone(worksheet['Q10'].value)
+
+
 class CopySeparatorRowTests(ExcelExportServiceCompanyDataTests):
     """Тесты для метода _copy_separator_row"""
     
@@ -824,6 +847,20 @@ class ManufacturingYearNotesTests(ExcelExportServiceCompanyDataTests):
         result = self.service._build_export_notes(None, 'Доп. условие')
         self.assertEqual(result, 'Доп. условие')
 
+    def test_get_franchise_approval_note_for_company_with_non_zero_franchise(self):
+        """Для компании с ненулевой франшизой добавляется системный комментарий"""
+        result = self.service._get_franchise_approval_note_for_company([self.offer3], 'ВСК')
+        self.assertEqual(result, self.service.FRANCHISE_APPROVAL_ADDITIONAL_NOTE)
+
+    def test_get_franchise_approval_note_for_company_with_zero_franchise_only(self):
+        """Для компании с нулевой франшизой системный комментарий не добавляется"""
+        offer = Mock()
+        offer.franchise_1 = Decimal('0')
+        offer.franchise_2 = None
+
+        result = self.service._get_franchise_approval_note_for_company([offer], 'Тест')
+        self.assertIsNone(result)
+
 
 class IntegrationTests(ExcelExportServiceCompanyDataTests):
     """Интеграционные тесты для полного цикла заполнения данных компаний"""
@@ -907,8 +944,8 @@ class IntegrationTests(ExcelExportServiceCompanyDataTests):
         
         self.assertIn('Ошибка при заполнении данных компаний', str(context.exception))
 
-    def test_fill_company_data_passes_additional_note_for_invalid_or_empty_year(self):
-        """В строки компании должно передаваться доп. примечание при пустом/невалидном годе"""
+    def test_fill_company_data_passes_combined_additional_note_for_invalid_or_empty_year(self):
+        """В строки компании передаются оба системных комментария: по году и по франшизе"""
         workbook = Workbook()
         companies_data = {'ВСК': [self.offer3]}
         self.insurance_request.manufacturing_year = ''
@@ -921,11 +958,14 @@ class IntegrationTests(ExcelExportServiceCompanyDataTests):
         self.assertEqual(mock_fill_row.call_count, 1)
         self.assertEqual(
             mock_fill_row.call_args.kwargs.get('additional_note'),
-            self.service.MANUFACTURING_YEAR_ADDITIONAL_NOTE
+            (
+                f"{self.service.MANUFACTURING_YEAR_ADDITIONAL_NOTE} "
+                f"{self.service.FRANCHISE_APPROVAL_ADDITIONAL_NOTE}"
+            )
         )
 
-    def test_fill_company_data_does_not_pass_additional_note_for_current_year(self):
-        """В строки компании не должно передаваться доп. примечание при текущем годе"""
+    def test_fill_company_data_passes_only_franchise_note_for_current_year(self):
+        """При текущем годе передается только комментарий о согласовании франшизы"""
         workbook = Workbook()
         companies_data = {'ВСК': [self.offer3]}
         self.insurance_request.manufacturing_year = str(datetime.now().year)
@@ -936,4 +976,47 @@ class IntegrationTests(ExcelExportServiceCompanyDataTests):
             self.service._fill_company_data(workbook, self.insurance_summary)
 
         self.assertEqual(mock_fill_row.call_count, 1)
-        self.assertIsNone(mock_fill_row.call_args.kwargs.get('additional_note'))
+        self.assertEqual(
+            mock_fill_row.call_args.kwargs.get('additional_note'),
+            self.service.FRANCHISE_APPROVAL_ADDITIONAL_NOTE
+        )
+
+    def test_fill_company_data_adds_franchise_note_only_for_target_company(self):
+        """Комментарий о франшизе добавляется только компаниям с ненулевой франшизой"""
+        workbook = Workbook()
+        self.insurance_request.manufacturing_year = str(datetime.now().year)
+
+        offer_without_franchise = Mock()
+        offer_without_franchise.insurance_year = 1
+        offer_without_franchise.franchise_1 = Decimal('0')
+        offer_without_franchise.franchise_2 = None
+
+        offer_with_franchise = Mock()
+        offer_with_franchise.insurance_year = 1
+        offer_with_franchise.franchise_1 = Decimal('15000')
+        offer_with_franchise.franchise_2 = None
+
+        companies_data = {
+            'Альфа': [offer_without_franchise],
+            'ВСК': [offer_with_franchise]
+        }
+
+        with patch.object(self.service, '_get_companies_sorted_data', return_value=companies_data), \
+             patch.object(self.service, '_validate_companies_data', return_value=companies_data), \
+             patch.object(self.service, '_fill_company_year_row') as mock_fill_row, \
+             patch.object(self.service, '_fill_single_year_premium_summary'), \
+             patch.object(self.service, '_copy_separator_row'):
+            self.service._fill_company_data(workbook, self.insurance_summary)
+
+        self.assertEqual(mock_fill_row.call_count, 2)
+
+        notes_by_company = {
+            call.args[2]: call.kwargs.get('additional_note')
+            for call in mock_fill_row.call_args_list
+        }
+
+        self.assertIsNone(notes_by_company['Альфа'])
+        self.assertEqual(
+            notes_by_company['ВСК'],
+            self.service.FRANCHISE_APPROVAL_ADDITIONAL_NOTE
+        )
