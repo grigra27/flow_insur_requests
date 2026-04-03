@@ -67,6 +67,24 @@
 - `completed_accepted` — завершен: акцепт/распоряжение;
 - `completed_rejected` — завершен: не будет.
 
+Автозакрытие просроченных сводов (30 дней от `summary.created_at`):
+
+- Команда: `python manage.py auto_close_stale_summaries`
+- Dry-run: `python manage.py auto_close_stale_summaries --dry-run`
+- Порог в днях: `python manage.py auto_close_stale_summaries --days=30`
+
+Пример cron (ежедневно в 00:10 МСК):
+
+```cron
+10 0 * * * /path/to/project/scripts/cron-auto-close-summaries.sh
+```
+
+Если проект запущен в Docker Compose, используйте:
+
+```cron
+10 0 * * * USE_DOCKER=1 /path/to/project/scripts/cron-auto-close-summaries.sh
+```
+
 ## Структура проекта
 
 ```text
