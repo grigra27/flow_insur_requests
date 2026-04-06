@@ -5,7 +5,7 @@ from django.test import TestCase
 from unittest.mock import Mock, patch
 import tempfile
 import os
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 from core.excel_utils import ExcelReader
 
 
@@ -103,6 +103,62 @@ class DocumentationValidationTests(TestCase):
             # Проверяем, что метод вызывался с правильными параметрами
             mock_get_cell.assert_called_with(mock_sheet, 'C', 48)
             self.assertTrue(result, "Должен вернуть True при наличии данных в C48")
+
+    def test_asset_status_column_k_validation(self):
+        """Тест извлечения статуса имущества из столбца K (юр.лицо)"""
+        temp_file = tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False)
+        temp_file.close()
+
+        try:
+            workbook = Workbook()
+            sheet = workbook.active
+            sheet['K43'] = 'новое'
+            sheet['K45'] = 'в эксплуатации'
+            workbook.save(temp_file.name)
+            workbook.close()
+
+            reader = ExcelReader(
+                temp_file.name,
+                application_type='legal_entity',
+                application_format='casco_equipment'
+            )
+
+            workbook = load_workbook(temp_file.name, data_only=True)
+            sheet = workbook.active
+            result = reader._find_asset_status_openpyxl(sheet)
+
+            self.assertEqual(result, 'новое в эксплуатации')
+        finally:
+            if os.path.exists(temp_file.name):
+                os.unlink(temp_file.name)
+
+    def test_asset_status_ip_row_offset_validation(self):
+        """Тест извлечения статуса имущества из K44/K46/K48/K50 для ИП"""
+        temp_file = tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False)
+        temp_file.close()
+
+        try:
+            workbook = Workbook()
+            sheet = workbook.active
+            sheet['K44'] = 'новое'
+            sheet['K46'] = 'в эксплуатации'
+            workbook.save(temp_file.name)
+            workbook.close()
+
+            reader = ExcelReader(
+                temp_file.name,
+                application_type='individual_entrepreneur',
+                application_format='casco_equipment'
+            )
+
+            workbook = load_workbook(temp_file.name, data_only=True)
+            sheet = workbook.active
+            result = reader._find_asset_status_openpyxl(sheet)
+
+            self.assertEqual(result, 'новое в эксплуатации')
+        finally:
+            if os.path.exists(temp_file.name):
+                os.unlink(temp_file.name)
     
     def test_ip_row_offset_logic_validation(self):
         """Тест валидации логики смещения строк для ИП"""

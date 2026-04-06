@@ -365,7 +365,7 @@ class InsuranceRequestForm(forms.ModelForm):
             'client_name', 'inn', 'insurance_type', 'insurance_period',
             'vehicle_info', 'dfa_number', 'branch', 'manager_name', 'deal_status', 'has_franchise', 
             'has_installment', 'has_autostart', 'has_casco_ce', 'has_transportation',
-            'has_construction_work', 'manufacturing_year', 'response_deadline', 'notes',
+            'has_construction_work', 'manufacturing_year', 'asset_status', 'response_deadline', 'notes',
             # Дополнительные параметры КАСКО/спецтехника
             'key_completeness', 'pts_psm', 'creditor_bank', 'usage_purposes', 'telematics_complex',
             # Дополнительные параметры для страхования имущества
@@ -393,6 +393,11 @@ class InsuranceRequestForm(forms.ModelForm):
             'manufacturing_year': forms.TextInput(attrs={
                 'class': 'form-control',
                 'placeholder': 'Год выпуска предмета лизинга',
+                'maxlength': '255'
+            }),
+            'asset_status': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Статус имущества предмета лизинга',
                 'maxlength': '255'
             }),
             'notes': forms.Textarea(attrs={

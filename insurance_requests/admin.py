@@ -52,7 +52,7 @@ class InsuranceRequestAdmin(admin.ModelAdmin):
         }),
         ('Страхование', {
             'fields': (
-                'insurance_type', 'insurance_period', 'vehicle_info', 'manufacturing_year'
+                'insurance_type', 'insurance_period', 'vehicle_info', 'manufacturing_year', 'asset_status'
             )
         }),
         ('Параметры', {
@@ -158,6 +158,5 @@ class RequestAttachmentAdmin(admin.ModelAdmin):
         return moscow_time.strftime('%d.%m.%Y %H:%M')
     uploaded_at_moscow.short_description = 'Загружено (МСК)'
     uploaded_at_moscow.admin_order_field = 'uploaded_at'
-
 
 

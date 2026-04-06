@@ -126,6 +126,13 @@ class InsuranceRequest(models.Model):
         blank=True,
         verbose_name='Год выпуска'
     )
+
+    # Статус имущества предмета лизинга (для КАСКО/спецтехника)
+    asset_status = models.CharField(
+        max_length=255,
+        blank=True,
+        verbose_name='Статус имущества'
+    )
     
     # ФИО Менеджера
     manager_name = models.CharField(
@@ -219,6 +226,8 @@ class InsuranceRequest(models.Model):
             'insurance_territory': self.insurance_territory or 'не указано',
             # Год выпуска предмета лизинга
             'manufacturing_year': self.manufacturing_year or 'не указан',
+            # Статус имущества предмета лизинга
+            'asset_status': self.asset_status or 'не указан',
             # ФИО Менеджера
             'manager_name': self.manager_name or 'не указано',
             # Статус сделки
@@ -257,6 +266,5 @@ class RequestAttachment(models.Model):
     
     def __str__(self):
         return f"{self.original_filename} (Заявка {self.request.get_display_name()})"
-
 
 

@@ -368,11 +368,14 @@ class ExcelReader:
             has_construction_work = False
             logger.info(f"CASCO/equipment format ({detailed_context}): transportation and construction work parameters set to False (no automatic detection) | {format_context}")
         
-        # Извлекаем год выпуска для КАСКО/спецтехника
+        # Извлекаем год выпуска и статус имущества для КАСКО/спецтехника
         manufacturing_year = ''
+        asset_status = ''
         if self.application_format == 'casco_equipment':
             manufacturing_year = self._find_manufacturing_year_openpyxl(sheet)
+            asset_status = self._find_asset_status_openpyxl(sheet)
             logger.debug(f"Manufacturing year extracted (openpyxl): '{manufacturing_year}' | {format_context}")
+            logger.debug(f"Asset status extracted (openpyxl): '{asset_status}' | {format_context}")
         
         # Извлекаем дополнительные параметры в зависимости от формата заявки
         if self.application_format == 'casco_equipment':
@@ -399,6 +402,7 @@ class ExcelReader:
             'has_transportation': has_transportation,
             'has_construction_work': has_construction_work,
             'manufacturing_year': manufacturing_year,
+            'asset_status': asset_status,
             'response_deadline': response_deadline,
             'additional_data': {
                 'franchise_details': franchise_details,
@@ -512,11 +516,14 @@ class ExcelReader:
             has_construction_work = False
             logger.info(f"CASCO/equipment format ({detailed_context}): transportation and construction work parameters set to False (no automatic detection) | {format_context}")
         
-        # Извлекаем год выпуска для КАСКО/спецтехника
+        # Извлекаем год выпуска и статус имущества для КАСКО/спецтехника
         manufacturing_year = ''
+        asset_status = ''
         if self.application_format == 'casco_equipment':
             manufacturing_year = self._find_manufacturing_year_pandas(df)
+            asset_status = self._find_asset_status_pandas(df)
             logger.debug(f"Manufacturing year extracted (pandas): '{manufacturing_year}' | {format_context}")
+            logger.debug(f"Asset status extracted (pandas): '{asset_status}' | {format_context}")
         
         # Извлекаем дополнительные параметры в зависимости от формата заявки
         if self.application_format == 'casco_equipment':
@@ -543,6 +550,7 @@ class ExcelReader:
             'has_transportation': has_transportation,
             'has_construction_work': has_construction_work,
             'manufacturing_year': manufacturing_year,
+            'asset_status': asset_status,
             'response_deadline': response_deadline,
             'additional_data': {
                 'franchise_details': franchise_details,
@@ -666,9 +674,9 @@ class ExcelReader:
         detailed_context = self._get_detailed_format_context()
         
         try:
-            # Для ИП проверяем B23, для юр.лица B22
-            row_to_check = 23 if self.application_type == 'individual_entrepreneur' else 22
-            b_value = self._get_cell_with_adjustment_openpyxl(sheet, 'B', row_to_check)
+            # Используем базовую строку 22: для ИП смещение +1 будет применено автоматически (B23)
+            base_row = 22
+            b_value = self._get_cell_with_adjustment_openpyxl(sheet, 'B', base_row)
             
             # Проверяем, содержит ли ячейка значение
             b_has_value = self._has_value(b_value)
@@ -684,7 +692,7 @@ class ExcelReader:
                 logger.warning(f"Invalid property insurance type '{insurance_type}' ({detailed_context}), defaulting to 'другое' | {format_context}")
                 insurance_type = 'другое'
             
-            adjusted_row = self._get_adjusted_row(row_to_check)
+            adjusted_row = self._get_adjusted_row(base_row)
             logger.info(f"Determined property insurance type '{insurance_type}' ({detailed_context}) (B{adjusted_row}: {b_value}) | {format_context}")
             return insurance_type
             
@@ -709,9 +717,9 @@ class ExcelReader:
         detailed_context = self._get_detailed_format_context()
         
         try:
-            # Для ИП проверяем B23, для юр.лица B22
-            row_to_check = 23 if self.application_type == 'individual_entrepreneur' else 22
-            b_value = self._get_cell_with_adjustment_pandas(df, row_to_check, 1)  # B column (index 1)
+            # Используем базовую строку 22: для ИП смещение +1 будет применено автоматически (B23)
+            base_row = 22
+            b_value = self._get_cell_with_adjustment_pandas(df, base_row, 1)  # B column (index 1)
             
             # Проверяем, содержит ли ячейка значение
             b_has_value = self._has_value(b_value)
@@ -727,7 +735,7 @@ class ExcelReader:
                 logger.warning(f"Invalid property insurance type '{insurance_type}' ({detailed_context}), defaulting to 'другое' | {format_context}")
                 insurance_type = 'другое'
             
-            adjusted_row = self._get_adjusted_row(row_to_check)
+            adjusted_row = self._get_adjusted_row(base_row)
             logger.info(f"Determined property insurance type '{insurance_type}' ({detailed_context}) (B{adjusted_row}: {b_value}) | {format_context}")
             return insurance_type
             
@@ -994,6 +1002,7 @@ class ExcelReader:
             'has_transportation': False,
             'has_construction_work': False,
             'manufacturing_year': '',
+            'asset_status': '',
             'response_deadline': timezone.now() + timedelta(hours=3),
             'application_type': self.application_type,
             'application_format': self.application_format,
@@ -1302,6 +1311,43 @@ class ExcelReader:
             logger.info(f"No manufacturing year data found ({detailed_context}) in column J | {format_context}")
             return ''
 
+    def _find_asset_status_pandas(self, df) -> str:
+        """Извлекает статус имущества предмета лизинга из столбца K (pandas)"""
+        format_context = self._get_format_context()
+        detailed_context = self._get_detailed_format_context()
+
+        # Строки для поиска статуса имущества: K43, K45, K47, K49 (столбец K = индекс 10)
+        rows_to_check = [43, 45, 47, 49]
+
+        asset_status_parts = []
+
+        logger.info(
+            f"Starting asset status extraction ({detailed_context}) from column K (index 10), rows {rows_to_check} | {format_context}"
+        )
+
+        for row in rows_to_check:
+            value = self._get_cell_with_adjustment_pandas(df, row, 10)  # K = индекс 10
+            adjusted_row = self._get_adjusted_row(row)
+
+            logger.debug(
+                f"Asset status check: row {row} -> row {adjusted_row}, col K (10), value: '{value}' | {format_context}"
+            )
+
+            if value and str(value).strip():
+                asset_status_parts.append(str(value).strip())
+                logger.info(
+                    f"Found asset status data in row {adjusted_row}, col K: '{value}' | {format_context}"
+                )
+
+        # Объединяем найденную информацию
+        if asset_status_parts:
+            result = ' '.join(asset_status_parts)
+            logger.info(f"Asset status extraction completed ({detailed_context}): '{result}' | {format_context}")
+            return result
+        else:
+            logger.info(f"No asset status data found ({detailed_context}) in column K | {format_context}")
+            return ''
+
     def _find_leasing_object_info_property_pandas(self, df) -> str:
         """
         Извлекает информацию о предмете лизинга для формата имущества (pandas)
@@ -1429,6 +1475,39 @@ class ExcelReader:
             return result
         else:
             logger.info(f"No manufacturing year data found ({detailed_context}) in column J | {format_context}")
+            return ''
+
+    def _find_asset_status_openpyxl(self, sheet) -> str:
+        """Извлекает статус имущества предмета лизинга из столбца K (openpyxl)"""
+        format_context = self._get_format_context()
+        detailed_context = self._get_detailed_format_context()
+
+        # Строки для поиска статуса имущества: K43, K45, K47, K49
+        rows_to_check = [43, 45, 47, 49]
+
+        asset_status_parts = []
+
+        logger.info(
+            f"Starting asset status extraction ({detailed_context}) from column K, rows {rows_to_check} | {format_context}"
+        )
+
+        for row in rows_to_check:
+            value = self._get_cell_with_adjustment_openpyxl(sheet, 'K', row)
+            adjusted_row = self._get_adjusted_row(row)
+
+            logger.debug(f"Asset status check: K{row} -> K{adjusted_row}, value: '{value}' | {format_context}")
+
+            if value and str(value).strip():
+                asset_status_parts.append(str(value).strip())
+                logger.info(f"Found asset status data in K{adjusted_row}: '{value}' | {format_context}")
+
+        # Объединяем найденную информацию
+        if asset_status_parts:
+            result = ' '.join(asset_status_parts)
+            logger.info(f"Asset status extraction completed ({detailed_context}): '{result}' | {format_context}")
+            return result
+        else:
+            logger.info(f"No asset status data found ({detailed_context}) in column K | {format_context}")
             return ''
 
     def _find_leasing_object_info_property_openpyxl(self, sheet) -> str:

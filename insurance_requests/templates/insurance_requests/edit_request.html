@@ -283,6 +283,28 @@
                                 </div>
                             </div>
                         </div>
+
+                        <div class="row">
+                            <div class="col-md-6 casco-specific">
+                                <div class="mb-3">
+                                    <label for="{{ form.asset_status.id_for_label }}" class="form-label">
+                                        {{ form.asset_status.label }}
+                                    </label>
+                                    {{ form.asset_status }}
+                                    <div class="form-text">Статус имущества предмета лизинга</div>
+                                    {% if form.asset_status.errors %}
+                                    <div class="text-danger">
+                                        {% for error in form.asset_status.errors %}
+                                        <small>{{ error }}</small>
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <!-- Пустая колонка для симметрии -->
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Дополнительные параметры для страхования имущества -->

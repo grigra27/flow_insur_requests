@@ -3,11 +3,9 @@
 """
 
 import logging
-import re
 from io import BytesIO
 from pathlib import Path
 from typing import Optional, Dict, Any, List
-from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
 from openpyxl import load_workbook
@@ -115,7 +113,7 @@ class ExcelExportService:
     MAX_NOTES_LENGTH = 1000  # Максимальная длина примечаний
     MIN_INSURANCE_SUM = Decimal('1')  # Минимальная страховая сумма
     MAX_INSURANCE_SUM = Decimal('1000000000')  # Максимальная страховая сумма (1 млрд)
-    MANUFACTURING_YEAR_ADDITIONAL_NOTE = 'Обязателен осмотр предмета лизинга.'
+    ASSET_STATUS_ADDITIONAL_NOTE = 'Обязателен осмотр предмета лизинга.'
     FRANCHISE_APPROVAL_ADDITIONAL_NOTE = 'Требуется согласование франшизы с ГО.'
     
     def __init__(self, template_path: str):
@@ -819,46 +817,13 @@ class ExcelExportService:
             logger.error(error_msg, exc_info=True)
             raise ExcelExportServiceError(error_msg) from e
 
-    def _extract_manufacturing_year(self, manufacturing_year_value: str) -> Optional[int]:
+    def _get_additional_note_for_asset_status(self, summary: InsuranceSummary) -> Optional[str]:
         """
-        Извлекает год выпуска предмета лизинга из произвольной строки.
-
-        Args:
-            manufacturing_year_value: Исходное значение года выпуска
-
-        Returns:
-            Optional[int]: Год выпуска или None, если извлечь корректный год не удалось
-        """
-        if manufacturing_year_value is None:
-            return None
-
-        year_text = str(manufacturing_year_value).strip()
-        if not year_text:
-            return None
-
-        match = re.search(r'(19|20)\d{2}', year_text)
-        if not match:
-            return None
-
-        try:
-            extracted_year = int(match.group(0))
-        except (ValueError, TypeError):
-            return None
-
-        current_year = datetime.now().year
-        if extracted_year < 1900 or extracted_year > current_year + 1:
-            return None
-
-        return extracted_year
-
-    def _get_additional_note_for_manufacturing_year(self, summary: InsuranceSummary) -> Optional[str]:
-        """
-        Формирует дополнительное примечание по году выпуска для Excel-выгрузки.
+        Формирует дополнительное примечание по статусу имущества для Excel-выгрузки.
 
         Правила:
-        - Если год выпуска корректный и равен текущему году, примечание не добавляется.
-        - Если год выпуска не равен текущему, примечание добавляется.
-        - Если год выпуска пустой или невалидный, примечание также добавляется.
+        - Если статус имущества равен "новое", примечание не добавляется.
+        - Во всех остальных случаях примечание добавляется.
 
         Args:
             summary: Объект свода
@@ -870,29 +835,21 @@ class ExcelExportService:
         if request is None:
             return None
 
-        current_year = datetime.now().year
-        raw_manufacturing_year = getattr(request, 'manufacturing_year', '')
-        parsed_year = self._extract_manufacturing_year(raw_manufacturing_year)
+        raw_asset_status = getattr(request, 'asset_status', '')
+        normalized_asset_status = str(raw_asset_status).strip().lower()
 
-        if parsed_year is None:
-            logger.info(
-                f"Свод ID {summary.id}: добавляем примечание о годе выпуска "
-                f"(пустое/невалидное значение: '{raw_manufacturing_year}')"
+        if normalized_asset_status == 'новое':
+            logger.debug(
+                f"Свод ID {summary.id}: статус имущества '{raw_asset_status}', "
+                "дополнительное примечание не требуется"
             )
-            return self.MANUFACTURING_YEAR_ADDITIONAL_NOTE
+            return None
 
-        if parsed_year != current_year:
-            logger.info(
-                f"Свод ID {summary.id}: добавляем примечание о несоответствии года выпуска "
-                f"({parsed_year} != {current_year})"
-            )
-            return self.MANUFACTURING_YEAR_ADDITIONAL_NOTE
-
-        logger.debug(
-            f"Свод ID {summary.id}: год выпуска соответствует текущему году ({current_year}), "
-            "дополнительное примечание не требуется"
+        logger.info(
+            f"Свод ID {summary.id}: добавляем примечание по статусу имущества "
+            f"(значение: '{raw_asset_status}')"
         )
-        return None
+        return self.ASSET_STATUS_ADDITIONAL_NOTE
 
     def _build_export_notes(self, offer_notes: Optional[str], additional_note: Optional[str] = None) -> Optional[str]:
         """
@@ -1002,11 +959,11 @@ class ExcelExportService:
             columns = self._get_columns_mapping(template_type)
             logger.debug(f"Используем маппинг колонок для шаблона '{template_type}': {columns}")
 
-            manufacturing_year_note = self._get_additional_note_for_manufacturing_year(summary)
-            if manufacturing_year_note:
+            asset_status_note = self._get_additional_note_for_asset_status(summary)
+            if asset_status_note:
                 logger.info(
                     f"Для свода ID {summary.id} будет добавлено дополнительное примечание в Excel: "
-                    f"{manufacturing_year_note}"
+                    f"{asset_status_note}"
                 )
             
             # Получаем отсортированные данные компаний
@@ -1034,7 +991,7 @@ class ExcelExportService:
 
                 franchise_approval_note = self._get_franchise_approval_note_for_company(offers, company_name)
                 company_additional_note = self._combine_additional_notes(
-                    manufacturing_year_note,
+                    asset_status_note,
                     franchise_approval_note
                 )
                 
