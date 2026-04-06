@@ -640,7 +640,13 @@ class SummaryFilterForm(forms.Form):
         label='Год создания',
         widget=forms.Select(attrs={'class': 'form-select'})
     )
-    
+
+    # Фильтрация по статусу свода
+    status = forms.ChoiceField(
+        required=False,
+        label='Статус свода',
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
 
     
     # Новое поле для фильтрации по филиалам (управляется через вкладки)
@@ -663,6 +669,9 @@ class SummaryFilterForm(forms.Form):
             year_choices.append((year, str(year)))
         
         self.fields['year'].choices = year_choices
+
+        # Динамически подставляем статусы из модели сводов
+        self.fields['status'].choices = [('', 'Все статусы')] + list(InsuranceSummary.STATUS_CHOICES)
     
     def clean_dfa_number(self):
         """Валидация номера ДФА"""
@@ -702,6 +711,18 @@ class SummaryFilterForm(forms.Form):
             except (ValueError, TypeError):
                 raise forms.ValidationError('Некорректный формат года')
         return None
+
+    def clean_status(self):
+        """Валидация статуса свода"""
+        status = self.cleaned_data.get('status')
+        if not status:
+            return None
+
+        valid_statuses = [choice[0] for choice in InsuranceSummary.STATUS_CHOICES]
+        if status not in valid_statuses:
+            raise forms.ValidationError('Некорректный статус свода')
+
+        return status
     
     def clean(self):
         """Дополнительная валидация формы"""

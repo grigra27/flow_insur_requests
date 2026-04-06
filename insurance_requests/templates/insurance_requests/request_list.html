@@ -166,7 +166,12 @@
             </thead>
             <tbody>
                 {% for request in requests %}
-                    <tr>
+                    <tr class="request-row"
+                        data-href="{% url 'insurance_requests:request_detail' request.pk %}"
+                        style="cursor: pointer;"
+                        tabindex="0"
+                        role="link"
+                        aria-label="Открыть заявку {{ request.get_display_name }}">
                         <td>
                             <strong>{{ request.get_display_name }}</strong>
                         </td>
@@ -457,4 +462,31 @@
         {% endif %}
     </div>
 {% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const requestRows = document.querySelectorAll('.request-row[data-href]');
+
+    requestRows.forEach(function (row) {
+        row.addEventListener('click', function (e) {
+            if (e.target.closest('a, button, .btn, .btn-group')) {
+                return;
+            }
+            window.location.href = this.getAttribute('data-href');
+        });
+
+        row.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                if (e.target.closest('a, button, .btn, .btn-group')) {
+                    return;
+                }
+                e.preventDefault();
+                window.location.href = this.getAttribute('data-href');
+            }
+        });
+    });
+});
+</script>
 {% endblock %}

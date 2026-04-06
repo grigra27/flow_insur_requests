@@ -41,8 +41,10 @@ def summary_list(request):
         if current_branch:
             summaries = summaries.filter(request__branch=current_branch)
         
+        # Фильтрация по статусу свода
+        if filter_form.cleaned_data.get('status'):
+            summaries = summaries.filter(status=filter_form.cleaned_data['status'])
 
-        
         # Фильтрация по номеру ДФА
         if filter_form.cleaned_data.get('dfa_number'):
             summaries = summaries.filter(
@@ -65,6 +67,9 @@ def summary_list(request):
         
         # Применяем остальные фильтры для корректного подсчета
         if filter_form.is_valid():
+            if filter_form.cleaned_data.get('status'):
+                branch_summaries = branch_summaries.filter(status=filter_form.cleaned_data['status'])
+
             if filter_form.cleaned_data.get('dfa_number'):
                 branch_summaries = branch_summaries.filter(
                     request__dfa_number__icontains=filter_form.cleaned_data['dfa_number']
@@ -83,6 +88,9 @@ def summary_list(request):
     if not current_branch:
         total_summaries_queryset = InsuranceSummary.objects.select_related('request')
         if filter_form.is_valid():
+            if filter_form.cleaned_data.get('status'):
+                total_summaries_queryset = total_summaries_queryset.filter(status=filter_form.cleaned_data['status'])
+
             if filter_form.cleaned_data.get('dfa_number'):
                 total_summaries_queryset = total_summaries_queryset.filter(
                     request__dfa_number__icontains=filter_form.cleaned_data['dfa_number']
