@@ -12,6 +12,7 @@ urlpatterns = [
     path('<int:pk>/', views.summary_detail, name='summary_detail'),
     path('<int:summary_id>/deal-summary/', views.deal_summary, name='deal_summary'),
     path('statistics/', views.summary_statistics, name='statistics'),
+    path('statistics/export/', views.export_statistics_widget, name='export_statistics_widget'),
     path('help/', views.help_page, name='help'),
     
     # Создание и управление сводами

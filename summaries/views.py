@@ -1440,192 +1440,212 @@ def get_russian_month_name(date):
     return f"{months[date.month]} {date.year}"
 
 
-@admin_required
-def summary_statistics(request):
-    """Статистика по сводам"""
-    from django.db.models import Count, Avg, Min, Max, Sum, Q
+def _parse_statistics_filters(request):
+    """Парсинг и валидация фильтров периода для страницы статистики."""
+    from datetime import datetime, timedelta
     from django.utils import timezone
+
+    period = request.GET.get('period', 'all').strip().lower() or 'all'
+    start_date_str = request.GET.get('start_date', '').strip()
+    end_date_str = request.GET.get('end_date', '').strip()
+
+    start_date = None
+    end_date = None
+    errors = []
+
+    def _parse_date(value, field_label):
+        if not value:
+            return None
+        try:
+            return datetime.strptime(value, '%Y-%m-%d').date()
+        except ValueError:
+            errors.append(f'Некорректная дата в поле "{field_label}"')
+            return None
+
+    # Явные даты имеют приоритет над быстрым периодом.
+    if start_date_str or end_date_str:
+        start_date = _parse_date(start_date_str, 'Дата с')
+        end_date = _parse_date(end_date_str, 'Дата по')
+        period = 'custom'
+    elif period in {'30', '90', '365'}:
+        days = int(period)
+        end_date = timezone.localdate()
+        start_date = end_date - timedelta(days=days - 1)
+    else:
+        period = 'all'
+
+    if start_date and end_date and start_date > end_date:
+        errors.append('Дата начала периода не может быть позже даты окончания')
+        start_date, end_date = None, None
+        period = 'all'
+
+    return {
+        'period': period,
+        'start_date': start_date,
+        'end_date': end_date,
+        'start_date_str': start_date.isoformat() if start_date else '',
+        'end_date_str': end_date.isoformat() if end_date else '',
+        'errors': errors,
+    }
+
+
+def _apply_summary_date_filters(queryset, start_date=None, end_date=None):
+    """Применяет фильтрацию периода к queryset сводов."""
+    if start_date:
+        queryset = queryset.filter(created_at__date__gte=start_date)
+    if end_date:
+        queryset = queryset.filter(created_at__date__lte=end_date)
+    return queryset
+
+
+def _build_statistics_payload(start_date=None, end_date=None):
+    """Строит данные статистики для шаблона и экспортов."""
     from datetime import timedelta
-    
+    from django.db.models import Count, Avg, Sum
+    from django.utils import timezone
+
+    summaries_qs = InsuranceSummary.objects.select_related('request', 'request__created_by')
+    summaries_qs = _apply_summary_date_filters(summaries_qs, start_date=start_date, end_date=end_date)
+    offers_qs = InsuranceOffer.objects.filter(is_valid=True, summary__in=summaries_qs).select_related('summary__request')
+
     # Основная статистика
     stats = {
-        'total_summaries': InsuranceSummary.objects.count(),
-        'collecting': InsuranceSummary.objects.filter(status='collecting').count(),
-        'ready': InsuranceSummary.objects.filter(status='ready').count(),
-        'sent': InsuranceSummary.objects.filter(status='sent').count(),
-        'completed_accepted': InsuranceSummary.objects.filter(status='completed_accepted').count(),
-        'completed_rejected': InsuranceSummary.objects.filter(status='completed_rejected').count(),
-        # Итог завершенных сводов без использования legacy-статуса "completed"
-        'completed': InsuranceSummary.objects.filter(status__in=['completed_accepted', 'completed_rejected']).count(),
-        'avg_offers_per_summary': InsuranceSummary.objects.aggregate(
-            avg=Avg('total_offers')
-        )['avg'] or 0,
-        'total_offers': InsuranceOffer.objects.filter(is_valid=True).count(),
+        'total_summaries': summaries_qs.count(),
+        'collecting': summaries_qs.filter(status='collecting').count(),
+        'ready': summaries_qs.filter(status='ready').count(),
+        'sent': summaries_qs.filter(status='sent').count(),
+        'completed_accepted': summaries_qs.filter(status='completed_accepted').count(),
+        'completed_rejected': summaries_qs.filter(status='completed_rejected').count(),
+        'completed': summaries_qs.filter(status__in=['completed_accepted', 'completed_rejected']).count(),
+        'avg_offers_per_summary': summaries_qs.aggregate(avg=Avg('total_offers'))['avg'] or 0,
+        'total_offers': offers_qs.count(),
     }
-    
-    # Статистика за последний месяц
+
+    # Дельта за 30 дней (в пределах выбранного периода)
     last_month = timezone.now() - timedelta(days=30)
-    stats['summaries_last_month'] = InsuranceSummary.objects.filter(created_at__gte=last_month).count()
-    stats['offers_last_month'] = InsuranceOffer.objects.filter(is_valid=True, received_at__gte=last_month).count()
-    
-    # Статистика по страховым компаниям с разбивкой по типам страхования
-    # Считаем количество уникальных сводов, в которых компания представлена
+    summaries_last_month = summaries_qs.filter(created_at__gte=last_month)
+    offers_last_month = offers_qs.filter(received_at__gte=last_month)
+    stats['summaries_last_month'] = summaries_last_month.count()
+    stats['offers_last_month'] = offers_last_month.count()
+
+    # Статистика по компаниям с разбивкой по типам страхования
     company_stats_detailed = {}
-    all_offers = InsuranceOffer.objects.filter(is_valid=True).select_related('summary__request')
-    
-    for offer in all_offers:
+    for offer in offers_qs:
         company = offer.company_name
         summary_id = offer.summary.id
         insurance_type = offer.summary.request.insurance_type or 'Не указан'
-        
+
         if company not in company_stats_detailed:
-            company_stats_detailed[company] = {
-                'summaries': set(),  # Используем set для уникальных сводов
-                'types': {}
-            }
-        
-        # Добавляем свод в set (автоматически обеспечивает уникальность)
+            company_stats_detailed[company] = {'summaries': set(), 'types': {}}
+
         company_stats_detailed[company]['summaries'].add(summary_id)
-        
-        # Для типов страхования также используем set для уникальных сводов
-        if insurance_type not in company_stats_detailed[company]['types']:
-            company_stats_detailed[company]['types'][insurance_type] = set()
-        
-        company_stats_detailed[company]['types'][insurance_type].add(summary_id)
-    
-    # Преобразуем sets в количество для удобства использования в шаблоне
-    for company in company_stats_detailed:
-        company_stats_detailed[company]['total'] = len(company_stats_detailed[company]['summaries'])
-        for insurance_type in company_stats_detailed[company]['types']:
-            company_stats_detailed[company]['types'][insurance_type] = len(
-                company_stats_detailed[company]['types'][insurance_type]
+        company_stats_detailed[company]['types'].setdefault(insurance_type, set()).add(summary_id)
+
+    for company_name in company_stats_detailed:
+        company_stats_detailed[company_name]['total'] = len(company_stats_detailed[company_name]['summaries'])
+        for insurance_type in list(company_stats_detailed[company_name]['types'].keys()):
+            company_stats_detailed[company_name]['types'][insurance_type] = len(
+                company_stats_detailed[company_name]['types'][insurance_type]
             )
-    
-    # Сортируем компании по общему количеству сводов
+
     company_stats_detailed = dict(
         sorted(company_stats_detailed.items(), key=lambda x: x[1]['total'], reverse=True)
     )
-    
-    for company in company_stats_detailed:
-        company_stats_detailed[company]['types'] = dict(
-            sorted(company_stats_detailed[company]['types'].items(), key=lambda x: x[1], reverse=True)
+    for company_name in company_stats_detailed:
+        company_stats_detailed[company_name]['types'] = dict(
+            sorted(company_stats_detailed[company_name]['types'].items(), key=lambda x: x[1], reverse=True)
         )
-    
-    # Подсчитываем общее количество сводов (для расчета процента представленности)
-    total_summaries_count = InsuranceSummary.objects.count()
-    
-    # Подсчитываем количество сводов по типам страхования
+
+    # Итого по типам страхования для выбранного периода
+    total_summaries_count = summaries_qs.count()
     summaries_by_type = {}
-    for summary in InsuranceSummary.objects.select_related('request'):
+    for summary in summaries_qs:
         insurance_type = summary.request.insurance_type or 'Не указан'
-        if insurance_type not in summaries_by_type:
-            summaries_by_type[insurance_type] = 0
-        summaries_by_type[insurance_type] += 1
-    
+        summaries_by_type[insurance_type] = summaries_by_type.get(insurance_type, 0) + 1
+
     company_totals = {
         'total': total_summaries_count,
         'kasko': summaries_by_type.get('КАСКО', 0),
         'spec': summaries_by_type.get('страхование спецтехники', 0),
         'property': summaries_by_type.get('страхование имущества', 0),
-        'other': summaries_by_type.get('другое', 0)
+        'other': summaries_by_type.get('другое', 0),
     }
-    
+
     # Статистика по годам страхования
-    year_stats = InsuranceOffer.objects.filter(is_valid=True).values('insurance_year').annotate(
-        count=Count('id'),
-        avg_premium=Avg('premium_with_franchise_1'),
-        total_premium=Sum('premium_with_franchise_1')
-    ).order_by('insurance_year')
-    
+    year_stats = list(
+        offers_qs.values('insurance_year').annotate(
+            count=Count('id'),
+            avg_premium=Avg('premium_with_franchise_1'),
+            total_premium=Sum('premium_with_franchise_1')
+        ).order_by('insurance_year')
+    )
+
     # Статистика по месяцам создания сводов
     monthly_summaries_stats = {}
-    all_summaries_for_months = InsuranceSummary.objects.all()
-    
-    for summary in all_summaries_for_months:
+    for summary in summaries_qs:
         month_key = summary.created_at.strftime('%Y-%m')
         month_display = get_russian_month_name(summary.created_at)
-        
-        if month_key not in monthly_summaries_stats:
-            monthly_summaries_stats[month_key] = {
-                'display': month_display,
-                'count': 0
-            }
-        
+        monthly_summaries_stats.setdefault(month_key, {'display': month_display, 'count': 0})
         monthly_summaries_stats[month_key]['count'] += 1
-    
-    # Сортируем месяцы от новых к старым
+
+    # Сортируем месяцы от новых к старым для таблиц
     monthly_summaries_stats = dict(
         sorted(monthly_summaries_stats.items(), key=lambda x: x[0], reverse=True)
     )
-    
-    # Статистика по филиалам с детализацией по видам страхования
+
+    # Статистика по филиалам
     branch_stats_detailed = {}
-    all_summaries_with_branch = InsuranceSummary.objects.filter(
+    summaries_with_branch = summaries_qs.filter(
         request__branch__isnull=False
     ).exclude(
         request__branch=''
-    ).select_related('request')
-    
-    for summary in all_summaries_with_branch:
+    )
+
+    for summary in summaries_with_branch:
         branch = summary.request.branch
         insurance_type = summary.request.insurance_type or 'Не указан'
-        
-        if branch not in branch_stats_detailed:
-            branch_stats_detailed[branch] = {
-                'total': 0,
-                'types': {}
-            }
-        
+        branch_stats_detailed.setdefault(branch, {'total': 0, 'types': {}})
         branch_stats_detailed[branch]['total'] += 1
-        
-        if insurance_type not in branch_stats_detailed[branch]['types']:
-            branch_stats_detailed[branch]['types'][insurance_type] = 0
-        
-        branch_stats_detailed[branch]['types'][insurance_type] += 1
-    
-    # Сортируем филиалы по общему количеству сводов и типы страхования внутри каждого филиала
+        branch_stats_detailed[branch]['types'][insurance_type] = (
+            branch_stats_detailed[branch]['types'].get(insurance_type, 0) + 1
+        )
+
     branch_stats_detailed = dict(
         sorted(branch_stats_detailed.items(), key=lambda x: x[1]['total'], reverse=True)
     )
-    
     for branch in branch_stats_detailed:
         branch_stats_detailed[branch]['types'] = dict(
             sorted(branch_stats_detailed[branch]['types'].items(), key=lambda x: x[1], reverse=True)
         )
-    
-    # Берем топ-10 филиалов
     branch_stats_detailed = dict(list(branch_stats_detailed.items())[:10])
-    
-    # Подсчитываем итоги по всем филиалам
+
     branch_totals = {
         'total': 0,
         'kasko': 0,
         'spec': 0,
         'property': 0,
-        'other': 0
+        'other': 0,
     }
-    
     for branch_data in branch_stats_detailed.values():
         branch_totals['total'] += branch_data['total']
         branch_totals['kasko'] += branch_data['types'].get('КАСКО', 0)
         branch_totals['spec'] += branch_data['types'].get('страхование спецтехники', 0)
         branch_totals['property'] += branch_data['types'].get('страхование имущества', 0)
         branch_totals['other'] += branch_data['types'].get('другое', 0)
-    
+
     # Статистика по пользователям Django
     user_stats = {}
     user_monthly_stats = {}
-    all_summaries = InsuranceSummary.objects.select_related('request').all()
-    
-    for summary in all_summaries:
-        # Получаем пользователя, который создал заявку
+    offers_count_by_summary = dict(
+        offers_qs.values('summary_id').annotate(count=Count('id')).values_list('summary_id', 'count')
+    )
+
+    for summary in summaries_qs:
         user = summary.request.created_by
         if not user:
-            continue  # Пропускаем заявки без указанного пользователя
-            
+            continue
+
         user_display = f"{user.first_name} {user.last_name}".strip() or user.username
-        
-        # Общая статистика по пользователям
         if user_display not in user_stats:
             user_stats[user_display] = {
                 'count': 0,
@@ -1633,68 +1653,62 @@ def summary_statistics(request):
                 'accepted': 0,
                 'rejected': 0,
             }
+
         user_stats[user_display]['count'] += 1
-        user_stats[user_display]['offers_count'] += summary.offers.filter(is_valid=True).count()
-        
-        # Подсчет акцептов и отказов
+        user_stats[user_display]['offers_count'] += offers_count_by_summary.get(summary.id, 0)
         if summary.status == 'completed_accepted':
             user_stats[user_display]['accepted'] += 1
         elif summary.status == 'completed_rejected':
             user_stats[user_display]['rejected'] += 1
-        
-        # Статистика по месяцам для каждого пользователя
+
         month_key = summary.created_at.strftime('%Y-%m')
         month_display = get_russian_month_name(summary.created_at)
-        
-        if user_display not in user_monthly_stats:
-            user_monthly_stats[user_display] = {}
-        
-        if month_key not in user_monthly_stats[user_display]:
-            user_monthly_stats[user_display][month_key] = {
-                'display': month_display,
-                'count': 0,
-            }
-        
+        user_monthly_stats.setdefault(user_display, {})
+        user_monthly_stats[user_display].setdefault(month_key, {'display': month_display, 'count': 0})
         user_monthly_stats[user_display][month_key]['count'] += 1
-    
-    # Фиксированный порядок пользователей (приоритетные пользователи)
-    # Можно добавлять новых пользователей в этот список по мере необходимости
-    user_priority_order = [
-        'grigoriigrachev',  # Основной пользователь
-        'test_user',        # Тестовый пользователь
-        'testuser',         # Другой тестовый пользователь
-    ]
-    
-    # Сортируем пользователей: сначала приоритетные, потом остальные по алфавиту
-    priority_users = []
-    other_users = []
-    
-    for user_display in user_stats.keys():
-        if user_display in user_priority_order:
-            priority_users.append(user_display)
-        else:
-            other_users.append(user_display)
-    
-    # Сортируем приоритетных пользователей согласно заданному порядку
-    priority_users.sort(key=lambda x: user_priority_order.index(x) if x in user_priority_order else 999)
-    
-    # Сортируем остальных пользователей по алфавиту
+
+    user_priority_order = ['grigoriigrachev', 'test_user', 'testuser']
+    priority_users = [u for u in user_stats.keys() if u in user_priority_order]
+    other_users = [u for u in user_stats.keys() if u not in user_priority_order]
+    priority_users.sort(key=lambda x: user_priority_order.index(x))
     other_users.sort()
-    
-    # Объединяем списки
     ordered_users = priority_users + other_users
-    
-    # Пересоздаем словари в нужном порядке
     user_stats = {user: user_stats[user] for user in ordered_users if user in user_stats}
     user_monthly_stats = {user: user_monthly_stats[user] for user in ordered_users if user in user_monthly_stats}
-    
-    # Сортируем месяцы для каждого пользователя (от новых к старым)
+
     for user_display in user_monthly_stats:
         user_monthly_stats[user_display] = dict(
             sorted(user_monthly_stats[user_display].items(), key=lambda x: x[0], reverse=True)
         )
-    
-    return render(request, 'summaries/statistics.html', {
+
+    # Данные для мини-графиков
+    monthly_chart_items = sorted(monthly_summaries_stats.items(), key=lambda x: x[0])
+    top_companies_items = list(company_stats_detailed.items())[:8]
+    chart_data = {
+        'statuses': {
+            'labels': ['Сбор', 'Готов', 'Отправлен', 'Акцепт', 'Не будет'],
+            'values': [
+                stats['collecting'],
+                stats['ready'],
+                stats['sent'],
+                stats['completed_accepted'],
+                stats['completed_rejected'],
+            ],
+            'colors': ['#f59e0b', '#06b6d4', '#3b82f6', '#16a34a', '#64748b'],
+        },
+        'monthly': {
+            'labels': [item[1]['display'] for item in monthly_chart_items],
+            'values': [item[1]['count'] for item in monthly_chart_items],
+            'color': '#0d6efd',
+        },
+        'top_companies': {
+            'labels': [item[0] for item in top_companies_items],
+            'values': [item[1]['total'] for item in top_companies_items],
+            'color': '#7c3aed',
+        },
+    }
+
+    return {
         'stats': stats,
         'company_stats_detailed': company_stats_detailed,
         'company_totals': company_totals,
@@ -1704,7 +1718,162 @@ def summary_statistics(request):
         'branch_totals': branch_totals,
         'user_stats': user_stats,
         'user_monthly_stats': user_monthly_stats,
-    })
+        'chart_data': chart_data,
+    }
+
+
+@admin_required
+def summary_statistics(request):
+    """Статистика по сводам"""
+    filters = _parse_statistics_filters(request)
+    for error_message in filters['errors']:
+        messages.warning(request, error_message)
+
+    payload = _build_statistics_payload(
+        start_date=filters['start_date'],
+        end_date=filters['end_date']
+    )
+
+    context = {
+        **payload,
+        'filters': {
+            'period': filters['period'],
+            'start_date': filters['start_date_str'],
+            'end_date': filters['end_date_str'],
+        },
+    }
+    return render(request, 'summaries/statistics.html', context)
+
+
+@admin_required
+def export_statistics_widget(request):
+    """Экспорт виджетов статистики в XLSX."""
+    from io import BytesIO
+    from django.utils import timezone
+    from openpyxl import Workbook
+    from openpyxl.styles import Font
+
+    filters = _parse_statistics_filters(request)
+    payload = _build_statistics_payload(
+        start_date=filters['start_date'],
+        end_date=filters['end_date']
+    )
+    widget = request.GET.get('widget', 'overview').strip().lower() or 'overview'
+
+    workbook = Workbook()
+    worksheet = workbook.active
+    worksheet.title = 'Статистика'
+
+    title_map = {
+        'overview': 'Сводка по статистике',
+        'statuses': 'Статусы сводов',
+        'monthly': 'Динамика по месяцам',
+        'companies': 'Компании',
+        'branches': 'Филиалы',
+        'users': 'Пользователи',
+    }
+    worksheet['A1'] = title_map.get(widget, title_map['overview'])
+    worksheet['A1'].font = Font(bold=True, size=14)
+
+    period_display = 'Все время'
+    if filters['start_date'] and filters['end_date']:
+        period_display = f"{filters['start_date_str']} - {filters['end_date_str']}"
+    elif filters['start_date']:
+        period_display = f"с {filters['start_date_str']}"
+    elif filters['end_date']:
+        period_display = f"по {filters['end_date_str']}"
+
+    worksheet['A2'] = f"Период: {period_display}"
+    worksheet['A3'] = f"Сформировано: {timezone.localtime().strftime('%d.%m.%Y %H:%M')}"
+
+    row = 5
+
+    def write_headers(*headers):
+        nonlocal row
+        for idx, header in enumerate(headers, start=1):
+            cell = worksheet.cell(row=row, column=idx, value=header)
+            cell.font = Font(bold=True)
+        row += 1
+
+    def write_row(*values):
+        nonlocal row
+        for idx, value in enumerate(values, start=1):
+            worksheet.cell(row=row, column=idx, value=value)
+        row += 1
+
+    if widget == 'statuses':
+        write_headers('Статус', 'Количество')
+        status_labels = payload['chart_data']['statuses']['labels']
+        status_values = payload['chart_data']['statuses']['values']
+        for label, value in zip(status_labels, status_values):
+            write_row(label, value)
+    elif widget == 'monthly':
+        write_headers('Месяц', 'Количество сводов')
+        for month_key, month_data in sorted(payload['monthly_summaries_stats'].items(), key=lambda x: x[0]):
+            write_row(month_data['display'], month_data['count'])
+    elif widget == 'companies':
+        write_headers('Компания', 'В сводах, шт.', 'КАСКО', 'Спецтехника', 'Имущество', 'Другое')
+        for company_name, company_data in payload['company_stats_detailed'].items():
+            write_row(
+                company_name,
+                company_data.get('total', 0),
+                company_data['types'].get('КАСКО', 0),
+                company_data['types'].get('страхование спецтехники', 0),
+                company_data['types'].get('страхование имущества', 0),
+                company_data['types'].get('другое', 0),
+            )
+    elif widget == 'branches':
+        write_headers('Филиал', 'Всего, шт.', 'КАСКО', 'Спецтехника', 'Имущество', 'Другое')
+        for branch_name, branch_data in payload['branch_stats_detailed'].items():
+            write_row(
+                branch_name,
+                branch_data.get('total', 0),
+                branch_data['types'].get('КАСКО', 0),
+                branch_data['types'].get('страхование спецтехники', 0),
+                branch_data['types'].get('страхование имущества', 0),
+                branch_data['types'].get('другое', 0),
+            )
+    elif widget == 'users':
+        write_headers('Пользователь', 'Сводов', 'Предложений', 'Акцептов', 'Не будет')
+        for user_display, user_data in payload['user_stats'].items():
+            write_row(
+                user_display,
+                user_data.get('count', 0),
+                user_data.get('offers_count', 0),
+                user_data.get('accepted', 0),
+                user_data.get('rejected', 0),
+            )
+    else:
+        write_headers('Метрика', 'Значение')
+        write_row('Всего сводов', payload['stats']['total_summaries'])
+        write_row('Всего предложений', payload['stats']['total_offers'])
+        write_row('Среднее предложений на свод', float(payload['stats']['avg_offers_per_summary'] or 0))
+        write_row('Сбор предложений', payload['stats']['collecting'])
+        write_row('Готов к отправке', payload['stats']['ready'])
+        write_row('Отправлен в Альянс', payload['stats']['sent'])
+        write_row('Завершен: акцепт/распоряжение', payload['stats']['completed_accepted'])
+        write_row('Завершен: не будет', payload['stats']['completed_rejected'])
+
+    for column in worksheet.columns:
+        max_length = 0
+        column_letter = column[0].column_letter
+        for cell in column:
+            value = '' if cell.value is None else str(cell.value)
+            max_length = max(max_length, len(value))
+        worksheet.column_dimensions[column_letter].width = min(max_length + 2, 45)
+
+    output = BytesIO()
+    workbook.save(output)
+    output.seek(0)
+
+    today = timezone.localtime().strftime('%d_%m_%Y')
+    filename = f"stats_{widget}_{today}.xlsx"
+    response = HttpResponse(
+        output.getvalue(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
 
 
 @user_required

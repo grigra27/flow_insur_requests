@@ -3,499 +3,816 @@
 
 {% block title %}Статистика по сводам - {{ block.super }}{% endblock %}
 
+{% block extra_css %}
+<style>
+    .stats-dashboard {
+        --stats-primary: #0d6efd;
+        --stats-success: #15803d;
+        --stats-accent: #f59e0b;
+        --stats-muted: #64748b;
+    }
+
+    .stats-filter-card {
+        border: 0;
+        background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%);
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+    }
+
+    .stats-filter-card .btn-group .btn {
+        border-color: #cbd5e1;
+    }
+
+    .stats-filter-card .btn-group .btn.active {
+        background: var(--stats-primary);
+        border-color: var(--stats-primary);
+        color: #fff;
+    }
+
+    .stats-kpi-card {
+        position: relative;
+        border: 0;
+        box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+        overflow: hidden;
+        height: 100%;
+    }
+
+    .stats-kpi-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: var(--kpi-color, #0d6efd);
+    }
+
+    .stats-kpi-icon {
+        width: 42px;
+        height: 42px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 12px;
+        font-size: 1.1rem;
+        color: #fff;
+        background: var(--kpi-color, #0d6efd);
+        box-shadow: 0 8px 18px rgba(13, 110, 253, 0.2);
+    }
+
+    .stats-kpi-card.kpi-primary {
+        --kpi-color: #0d6efd;
+    }
+
+    .stats-kpi-card.kpi-success {
+        --kpi-color: #15803d;
+    }
+
+    .stats-kpi-card.kpi-info {
+        --kpi-color: #0891b2;
+    }
+
+    .stats-kpi-card.kpi-warning {
+        --kpi-color: #d97706;
+    }
+
+    .stats-chart-card {
+        border: 0;
+        box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+    }
+
+    .stats-chart-wrap {
+        position: relative;
+        height: 260px;
+    }
+
+    .stats-aux-card {
+        border: 0;
+        box-shadow: 0 10px 20px rgba(15, 23, 42, 0.06);
+        height: 100%;
+    }
+
+    .stats-table-card {
+        border: 0;
+        box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+    }
+
+    @media (max-width: 991px) {
+        .stats-chart-wrap {
+            height: 230px;
+        }
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h1><i class="bi bi-graph-up"></i> Статистика по сводам</h1>
-    <a href="{% url 'summaries:summary_list' %}" class="btn btn-outline-primary">
-        <i class="bi bi-arrow-left"></i> К сводам
-    </a>
-</div>
+<div class="stats-dashboard">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="mb-0"><i class="bi bi-graph-up"></i> Статистика по сводам</h1>
+        <div class="d-flex gap-2">
+            <a href="{% url 'summaries:export_statistics_widget' %}?widget=overview" class="btn btn-outline-success js-export-xlsx" data-widget="overview">
+                <i class="bi bi-file-earmark-spreadsheet"></i> XLSX сводка
+            </a>
+            <a href="{% url 'summaries:summary_list' %}" class="btn btn-outline-primary">
+                <i class="bi bi-arrow-left"></i> К сводам
+            </a>
+        </div>
+    </div>
 
-<!-- Общая статистика -->
-<div class="row mb-4">
-    <div class="col-md-3">
-        <div class="card text-center">
-            <div class="card-body">
-                <h5 class="card-title text-primary">
-                    <i class="bi bi-collection"></i>
-                </h5>
-                <h3 class="text-primary">{{ stats.total_summaries }}</h3>
-                <p class="card-text">Всего сводов</p>
-                <small class="text-muted">+{{ stats.summaries_last_month }} за месяц</small>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card text-center">
-            <div class="card-body">
-                <h5 class="card-title text-success">
-                    <i class="bi bi-file-earmark-text"></i>
-                </h5>
-                <h3 class="text-success">{{ stats.total_offers }}</h3>
-                <p class="card-text">Всего предложений</p>
-                <small class="text-muted">+{{ stats.offers_last_month }} за месяц</small>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card text-center">
-            <div class="card-body">
-                <h5 class="card-title text-info">
-                    <i class="bi bi-calculator"></i>
-                </h5>
-                <h3 class="text-info">{{ stats.avg_offers_per_summary|floatformat:1 }}</h3>
-                <p class="card-text">Среднее предложений на свод</p>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card text-center">
-            <div class="card-body">
-                <h5 class="card-title text-warning">
-                    <i class="bi bi-hourglass-split"></i>
-                </h5>
-                <h3 class="text-warning">{{ stats.collecting }}</h3>
-                <p class="card-text">В процессе сбора</p>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Статистика по статусам, годам и условиям оплаты -->
-<div class="row mb-4">
-    <div class="col-md-4">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0"><i class="bi bi-pie-chart"></i> Статусы сводов</h5>
-            </div>
-            <div class="card-body">
-                <div class="d-flex justify-content-between mb-1">
-                    <span>Сбор предложений:</span>
-                    <span class="badge bg-warning">{{ stats.collecting }}</span>
-                </div>
-                <div class="d-flex justify-content-between mb-1">
-                    <span>Готов к отправке:</span>
-                    <span class="badge bg-info">{{ stats.ready }}</span>
-                </div>
-                <div class="d-flex justify-content-between mb-1">
-                    <span>Отправлен:</span>
-                    <span class="badge bg-primary">{{ stats.sent }}</span>
-                </div>
-                <div class="d-flex justify-content-between mb-1">
-                    <span>Акцепт:</span>
-                    <span class="badge bg-success">{{ stats.completed_accepted }}</span>
-                </div>
-                <div class="d-flex justify-content-between">
-                    <span>Не будет:</span>
-                    <span class="badge bg-secondary">{{ stats.completed_rejected }}</span>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Статистика по годам страхования -->
-    <div class="col-md-4">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0"><i class="bi bi-calendar-range"></i> По годам страхования</h5>
-            </div>
-            <div class="card-body">
-                {% for year in year_stats %}
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span>{{ year.insurance_year }} год:</span>
-                    <div>
-                        <span class="badge bg-primary me-2">{{ year.count }} предл.</span>
-                        <small class="text-muted">
-                            ср. {{ year.avg_premium|floatformat:0|default:"—" }} ₽
-                        </small>
+    <div class="card stats-filter-card mb-4">
+        <div class="card-body">
+            <div class="row g-3 align-items-end">
+                <div class="col-12 col-lg-8">
+                    <label class="form-label text-muted small mb-2">Быстрый период</label>
+                    <div class="btn-group w-100" role="group" aria-label="Период статистики">
+                        <a href="{% url 'summaries:statistics' %}" class="btn btn-outline-secondary {% if filters.period == 'all' %}active{% endif %}">
+                            Все время
+                        </a>
+                        <a href="{% url 'summaries:statistics' %}?period=30" class="btn btn-outline-secondary {% if filters.period == '30' %}active{% endif %}">
+                            30 дней
+                        </a>
+                        <a href="{% url 'summaries:statistics' %}?period=90" class="btn btn-outline-secondary {% if filters.period == '90' %}active{% endif %}">
+                            90 дней
+                        </a>
+                        <a href="{% url 'summaries:statistics' %}?period=365" class="btn btn-outline-secondary {% if filters.period == '365' %}active{% endif %}">
+                            365 дней
+                        </a>
                     </div>
                 </div>
-                {% empty %}
-                <p class="text-muted">Нет данных</p>
-                {% endfor %}
+                <div class="col-12 col-lg-4 text-lg-end">
+                    <small class="text-muted">Если заданы даты, они имеют приоритет над быстрым периодом</small>
+                </div>
+            </div>
+
+            <form method="get" class="row g-3 mt-1 align-items-end">
+                <input type="hidden" name="period" value="custom">
+                <div class="col-12 col-md-4 col-lg-3">
+                    <label for="start-date" class="form-label mb-1">Дата с</label>
+                    <input id="start-date" type="date" name="start_date" value="{{ filters.start_date }}" class="form-control">
+                </div>
+                <div class="col-12 col-md-4 col-lg-3">
+                    <label for="end-date" class="form-label mb-1">Дата по</label>
+                    <input id="end-date" type="date" name="end_date" value="{{ filters.end_date }}" class="form-control">
+                </div>
+                <div class="col-12 col-md-4 col-lg-6 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-funnel"></i> Применить фильтр
+                    </button>
+                    <a href="{% url 'summaries:statistics' %}" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-counterclockwise"></i> Сбросить
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-md-6 col-xl-3">
+            <div class="card stats-kpi-card kpi-primary">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <span class="stats-kpi-icon"><i class="bi bi-collection"></i></span>
+                        <small class="text-muted">+{{ stats.summaries_last_month }} за 30 дней</small>
+                    </div>
+                    <h3 class="text-primary mb-1">{{ stats.total_summaries }}</h3>
+                    <p class="text-muted mb-0">Всего сводов</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-6 col-xl-3">
+            <div class="card stats-kpi-card kpi-success">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <span class="stats-kpi-icon"><i class="bi bi-file-earmark-text"></i></span>
+                        <small class="text-muted">+{{ stats.offers_last_month }} за 30 дней</small>
+                    </div>
+                    <h3 class="text-success mb-1">{{ stats.total_offers }}</h3>
+                    <p class="text-muted mb-0">Всего предложений</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-6 col-xl-3">
+            <div class="card stats-kpi-card kpi-info">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <span class="stats-kpi-icon"><i class="bi bi-calculator"></i></span>
+                    </div>
+                    <h3 class="text-info mb-1">{{ stats.avg_offers_per_summary|floatformat:1 }}</h3>
+                    <p class="text-muted mb-0">Среднее предложений на свод</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-6 col-xl-3">
+            <div class="card stats-kpi-card kpi-warning">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <span class="stats-kpi-icon"><i class="bi bi-hourglass-split"></i></span>
+                    </div>
+                    <h3 class="text-warning mb-1">{{ stats.collecting }}</h3>
+                    <p class="text-muted mb-0">В процессе сбора</p>
+                </div>
             </div>
         </div>
     </div>
-    
-    <!-- Своды по месяцам -->
-    {% if monthly_summaries_stats %}
-    <div class="col-md-4">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0"><i class="bi bi-calendar3"></i> Своды по месяцам</h5>
-            </div>
-            <div class="card-body" style="max-height: 300px; overflow-y: auto;">
-                {% for month_key, month_data in monthly_summaries_stats.items %}
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span>{{ month_data.display }}</span>
-                    <span class="badge bg-info">{{ month_data.count }}</span>
+
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-xl-4">
+            <div class="card stats-chart-card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-pie-chart"></i> Статусы</h5>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary js-export-png" data-chart-id="chartStatuses" data-filename="statuses">
+                            <i class="bi bi-image"></i> PNG
+                        </button>
+                        <a href="{% url 'summaries:export_statistics_widget' %}?widget=statuses" class="btn btn-sm btn-outline-success js-export-xlsx" data-widget="statuses">
+                            <i class="bi bi-file-earmark-spreadsheet"></i> XLSX
+                        </a>
+                    </div>
                 </div>
-                {% endfor %}
+                <div class="card-body">
+                    <div class="stats-chart-wrap">
+                        <canvas id="chartStatuses"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-xl-4">
+            <div class="card stats-chart-card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-graph-up-arrow"></i> Динамика по месяцам</h5>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary js-export-png" data-chart-id="chartMonthly" data-filename="monthly">
+                            <i class="bi bi-image"></i> PNG
+                        </button>
+                        <a href="{% url 'summaries:export_statistics_widget' %}?widget=monthly" class="btn btn-sm btn-outline-success js-export-xlsx" data-widget="monthly">
+                            <i class="bi bi-file-earmark-spreadsheet"></i> XLSX
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="stats-chart-wrap">
+                        <canvas id="chartMonthly"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-xl-4">
+            <div class="card stats-chart-card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-trophy"></i> Топ компаний</h5>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary js-export-png" data-chart-id="chartCompanies" data-filename="top_companies">
+                            <i class="bi bi-image"></i> PNG
+                        </button>
+                        <a href="{% url 'summaries:export_statistics_widget' %}?widget=companies" class="btn btn-sm btn-outline-success js-export-xlsx" data-widget="companies">
+                            <i class="bi bi-file-earmark-spreadsheet"></i> XLSX
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="stats-chart-wrap">
+                        <canvas id="chartCompanies"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-lg-4">
+            <div class="card stats-aux-card">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="bi bi-clipboard-data"></i> Детализация статусов</h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Сбор предложений</span>
+                        <span class="badge bg-warning text-dark">{{ stats.collecting }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Готов к отправке</span>
+                        <span class="badge bg-info text-dark">{{ stats.ready }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Отправлен</span>
+                        <span class="badge bg-primary">{{ stats.sent }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Акцепт</span>
+                        <span class="badge bg-success">{{ stats.completed_accepted }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span>Не будет</span>
+                        <span class="badge bg-secondary">{{ stats.completed_rejected }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-lg-4">
+            <div class="card stats-aux-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0"><i class="bi bi-calendar-range"></i> По годам страхования</h6>
+                </div>
+                <div class="card-body">
+                    {% for year in year_stats %}
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span>{{ year.insurance_year }} год</span>
+                        <div class="text-end">
+                            <span class="badge bg-primary me-1">{{ year.count }} предл.</span>
+                            <small class="text-muted">ср. {{ year.avg_premium|floatformat:0|default:"—" }} ₽</small>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <p class="text-muted mb-0">Нет данных</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-lg-4">
+            <div class="card stats-aux-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0"><i class="bi bi-calendar3"></i> Своды по месяцам</h6>
+                </div>
+                <div class="card-body" style="max-height: 280px; overflow-y: auto;">
+                    {% for month_key, month_data in monthly_summaries_stats.items %}
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span>{{ month_data.display }}</span>
+                        <span class="badge bg-info text-dark">{{ month_data.count }}</span>
+                    </div>
+                    {% empty %}
+                    <p class="text-muted mb-0">Нет данных</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card stats-table-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-trophy"></i> Страховые компании (по предоставленным предложениям)</h5>
+                    <a href="{% url 'summaries:export_statistics_widget' %}?widget=companies" class="btn btn-sm btn-outline-success js-export-xlsx" data-widget="companies">
+                        <i class="bi bi-file-earmark-spreadsheet"></i> XLSX
+                    </a>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Компания</th>
+                                    <th class="text-center">Представленность, %</th>
+                                    <th class="text-center">В сводах, шт.</th>
+                                    <th class="text-center">Из них: КАСКО</th>
+                                    <th class="text-center">Из них: Спецтехника</th>
+                                    <th class="text-center">Из них: Имущество</th>
+                                    <th class="text-center">Из них: Другое</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for company_name, company_data in company_stats_detailed.items %}
+                                <tr>
+                                    <td><strong>{{ company_name }}</strong></td>
+                                    <td class="text-center">
+                                        {% if company_totals.total > 0 %}
+                                            <span class="badge bg-secondary">{% widthratio company_data.total company_totals.total 100 %}%</span>
+                                        {% else %}
+                                            <span class="text-muted">—</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-primary fs-6">{{ company_data.total }}</span>
+                                    </td>
+                                    <td class="text-center">
+                                        {% if company_data.types.КАСКО %}
+                                            {{ company_data.types.КАСКО }}
+                                            <small class="text-muted ms-1">({% widthratio company_data.types.КАСКО company_data.total 100 %}%)</small>
+                                        {% else %}
+                                            <span class="text-muted">—</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        {% with spec_count=company_data.types|get_item:"страхование спецтехники" %}
+                                            {% if spec_count %}
+                                                {{ spec_count }}
+                                                <small class="text-muted ms-1">({% widthratio spec_count company_data.total 100 %}%)</small>
+                                            {% else %}
+                                                <span class="text-muted">—</span>
+                                            {% endif %}
+                                        {% endwith %}
+                                    </td>
+                                    <td class="text-center">
+                                        {% with property_count=company_data.types|get_item:"страхование имущества" %}
+                                            {% if property_count %}
+                                                {{ property_count }}
+                                                <small class="text-muted ms-1">({% widthratio property_count company_data.total 100 %}%)</small>
+                                            {% else %}
+                                                <span class="text-muted">—</span>
+                                            {% endif %}
+                                        {% endwith %}
+                                    </td>
+                                    <td class="text-center">
+                                        {% if company_data.types.другое %}
+                                            {{ company_data.types.другое }}
+                                            <small class="text-muted ms-1">({% widthratio company_data.types.другое company_data.total 100 %}%)</small>
+                                        {% else %}
+                                            <span class="text-muted">—</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="7" class="text-center text-muted">Нет данных о предложениях</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            {% if company_totals %}
+                            <tfoot class="table-light">
+                                <tr>
+                                    <td><strong>Итого (кол. всех сводов)</strong></td>
+                                    <td class="text-center"><span class="badge bg-secondary">100%</span></td>
+                                    <td class="text-center"><span class="badge bg-primary fs-6">{{ company_totals.total }}</span></td>
+                                    <td class="text-center">
+                                        <strong>{{ company_totals.kasko }}</strong>
+                                        {% if company_totals.total > 0 %}
+                                            <small class="text-muted ms-1">({% widthratio company_totals.kasko company_totals.total 100 %}%)</small>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        <strong>{{ company_totals.spec }}</strong>
+                                        {% if company_totals.total > 0 %}
+                                            <small class="text-muted ms-1">({% widthratio company_totals.spec company_totals.total 100 %}%)</small>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        <strong>{{ company_totals.property }}</strong>
+                                        {% if company_totals.total > 0 %}
+                                            <small class="text-muted ms-1">({% widthratio company_totals.property company_totals.total 100 %}%)</small>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        <strong>{{ company_totals.other }}</strong>
+                                        {% if company_totals.total > 0 %}
+                                            <small class="text-muted ms-1">({% widthratio company_totals.other company_totals.total 100 %}%)</small>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            </tfoot>
+                            {% endif %}
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if branch_stats_detailed %}
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card stats-table-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-building"></i> По филиалам</h5>
+                    <a href="{% url 'summaries:export_statistics_widget' %}?widget=branches" class="btn btn-sm btn-outline-success js-export-xlsx" data-widget="branches">
+                        <i class="bi bi-file-earmark-spreadsheet"></i> XLSX
+                    </a>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Филиал</th>
+                                    <th class="text-center">Доля, %</th>
+                                    <th class="text-center">Всего, шт.</th>
+                                    <th class="text-center">Из них: КАСКО</th>
+                                    <th class="text-center">Из них: Спецтехника</th>
+                                    <th class="text-center">Из них: Имущество</th>
+                                    <th class="text-center">Из них: Другое</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for branch_name, branch_data in branch_stats_detailed.items %}
+                                <tr>
+                                    <td><strong>{{ branch_name }}</strong></td>
+                                    <td class="text-center">
+                                        {% if branch_totals.total > 0 %}
+                                            <span class="badge bg-secondary">{% widthratio branch_data.total branch_totals.total 100 %}%</span>
+                                        {% else %}
+                                            <span class="text-muted">—</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-primary fs-6">{{ branch_data.total }}</span>
+                                    </td>
+                                    <td class="text-center">
+                                        {% if branch_data.types.КАСКО %}
+                                            {{ branch_data.types.КАСКО }}
+                                            <small class="text-muted ms-1">({% widthratio branch_data.types.КАСКО branch_data.total 100 %}%)</small>
+                                        {% else %}
+                                            <span class="text-muted">—</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        {% with spec_count=branch_data.types|get_item:"страхование спецтехники" %}
+                                            {% if spec_count %}
+                                                {{ spec_count }}
+                                                <small class="text-muted ms-1">({% widthratio spec_count branch_data.total 100 %}%)</small>
+                                            {% else %}
+                                                <span class="text-muted">—</span>
+                                            {% endif %}
+                                        {% endwith %}
+                                    </td>
+                                    <td class="text-center">
+                                        {% with property_count=branch_data.types|get_item:"страхование имущества" %}
+                                            {% if property_count %}
+                                                {{ property_count }}
+                                                <small class="text-muted ms-1">({% widthratio property_count branch_data.total 100 %}%)</small>
+                                            {% else %}
+                                                <span class="text-muted">—</span>
+                                            {% endif %}
+                                        {% endwith %}
+                                    </td>
+                                    <td class="text-center">
+                                        {% if branch_data.types.другое %}
+                                            {{ branch_data.types.другое }}
+                                            <small class="text-muted ms-1">({% widthratio branch_data.types.другое branch_data.total 100 %}%)</small>
+                                        {% else %}
+                                            <span class="text-muted">—</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="7" class="text-center text-muted">Нет данных о филиалах</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            {% if branch_totals %}
+                            <tfoot class="table-light">
+                                <tr>
+                                    <td><strong>Итого</strong></td>
+                                    <td class="text-center"><span class="badge bg-secondary">100%</span></td>
+                                    <td class="text-center"><span class="badge bg-primary fs-6">{{ branch_totals.total }}</span></td>
+                                    <td class="text-center">
+                                        <strong>{{ branch_totals.kasko }}</strong>
+                                        {% if branch_totals.total > 0 %}
+                                            <small class="text-muted ms-1">({% widthratio branch_totals.kasko branch_totals.total 100 %}%)</small>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        <strong>{{ branch_totals.spec }}</strong>
+                                        {% if branch_totals.total > 0 %}
+                                            <small class="text-muted ms-1">({% widthratio branch_totals.spec branch_totals.total 100 %}%)</small>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        <strong>{{ branch_totals.property }}</strong>
+                                        {% if branch_totals.total > 0 %}
+                                            <small class="text-muted ms-1">({% widthratio branch_totals.property branch_totals.total 100 %}%)</small>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        <strong>{{ branch_totals.other }}</strong>
+                                        {% if branch_totals.total > 0 %}
+                                            <small class="text-muted ms-1">({% widthratio branch_totals.other branch_totals.total 100 %}%)</small>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            </tfoot>
+                            {% endif %}
+                        </table>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
     {% endif %}
-</div>
 
-<!-- Статистика по страховым компаниям -->
-<div class="row">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0"><i class="bi bi-trophy"></i> Страховые компании (по предоставленным предложениям)</h5>
-            </div>
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-striped">
-                        <thead>
-                            <tr>
-                                <th>Компания</th>
-                                <th class="text-center">Представленность, %</th>
-                                <th class="text-center">В сводах, шт.</th>
-                                <th class="text-center">Из них: КАСКО</th>
-                                <th class="text-center">Из них: Спецтехника</th>
-                                <th class="text-center">Из них: Имущество</th>
-                                <th class="text-center">Из них: Другое</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for company_name, company_data in company_stats_detailed.items %}
-                            <tr>
-                                <td>
-                                    <strong>{{ company_name }}</strong>
-                                </td>
-                                <td class="text-center">
-                                    {% if company_totals.total > 0 %}
-                                        <span class="badge bg-secondary">{% widthratio company_data.total company_totals.total 100 %}%</span>
-                                    {% else %}
-                                        <span class="text-muted">—</span>
-                                    {% endif %}
-                                </td>
-                                <td class="text-center">
-                                    <span class="badge bg-primary fs-6">{{ company_data.total }}</span>
-                                </td>
-                                <td class="text-center">
-                                    {% if company_data.types.КАСКО %}
-                                        {{ company_data.types.КАСКО }}
-                                        <small class="text-muted ms-1">({% widthratio company_data.types.КАСКО company_data.total 100 %}%)</small>
-                                    {% else %}
-                                        <span class="text-muted">—</span>
-                                    {% endif %}
-                                </td>
-                                <td class="text-center">
-                                    {% with spec_count=company_data.types|get_item:"страхование спецтехники" %}
-                                        {% if spec_count %}
-                                            {{ spec_count }}
-                                            <small class="text-muted ms-1">({% widthratio spec_count company_data.total 100 %}%)</small>
-                                        {% else %}
-                                            <span class="text-muted">—</span>
-                                        {% endif %}
-                                    {% endwith %}
-                                </td>
-                                <td class="text-center">
-                                    {% with property_count=company_data.types|get_item:"страхование имущества" %}
-                                        {% if property_count %}
-                                            {{ property_count }}
-                                            <small class="text-muted ms-1">({% widthratio property_count company_data.total 100 %}%)</small>
-                                        {% else %}
-                                            <span class="text-muted">—</span>
-                                        {% endif %}
-                                    {% endwith %}
-                                </td>
-                                <td class="text-center">
-                                    {% if company_data.types.другое %}
-                                        {{ company_data.types.другое }}
-                                        <small class="text-muted ms-1">({% widthratio company_data.types.другое company_data.total 100 %}%)</small>
-                                    {% else %}
-                                        <span class="text-muted">—</span>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            {% empty %}
-                            <tr>
-                                <td colspan="7" class="text-center text-muted">
-                                    Нет данных о предложениях
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                        {% if company_totals %}
-                        <tfoot class="table-light">
-                            <tr>
-                                <td><strong>Итого (кол. всех сводов)</strong></td>
-                                <td class="text-center">
-                                    <span class="badge bg-secondary">100%</span>
-                                </td>
-                                <td class="text-center">
-                                    <span class="badge bg-primary fs-6">{{ company_totals.total }}</span>
-                                </td>
-                                <td class="text-center">
-                                    <strong>{{ company_totals.kasko }}</strong>
-                                    {% if company_totals.total > 0 %}
-                                        <small class="text-muted ms-1">({% widthratio company_totals.kasko company_totals.total 100 %}%)</small>
-                                    {% endif %}
-                                </td>
-                                <td class="text-center">
-                                    <strong>{{ company_totals.spec }}</strong>
-                                    {% if company_totals.total > 0 %}
-                                        <small class="text-muted ms-1">({% widthratio company_totals.spec company_totals.total 100 %}%)</small>
-                                    {% endif %}
-                                </td>
-                                <td class="text-center">
-                                    <strong>{{ company_totals.property }}</strong>
-                                    {% if company_totals.total > 0 %}
-                                        <small class="text-muted ms-1">({% widthratio company_totals.property company_totals.total 100 %}%)</small>
-                                    {% endif %}
-                                </td>
-                                <td class="text-center">
-                                    <strong>{{ company_totals.other }}</strong>
-                                    {% if company_totals.total > 0 %}
-                                        <small class="text-muted ms-1">({% widthratio company_totals.other company_totals.total 100 %}%)</small>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                        </tfoot>
-                        {% endif %}
-                    </table>
+    {% if user_stats %}
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card stats-table-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="bi bi-person-check"></i> По пользователям Django
+                        <i class="bi bi-info-circle text-muted ms-2"
+                           style="cursor: help; font-size: 0.9rem;"
+                           data-bs-toggle="tooltip"
+                           data-bs-placement="right"
+                           data-bs-html="true"
+                           title="<strong>Статистика по пользователям:</strong><br>Показывает данные в разбивке по пользователям Django,<br>которые загружали заявки или создавали своды.<br>Включает метрики: своды, предложения, акцепты, отказы.">
+                        </i>
+                    </h5>
+                    <a href="{% url 'summaries:export_statistics_widget' %}?widget=users" class="btn btn-sm btn-outline-success js-export-xlsx" data-widget="users">
+                        <i class="bi bi-file-earmark-spreadsheet"></i> XLSX
+                    </a>
                 </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Статистика по филиалам -->
-{% if branch_stats_detailed %}
-<div class="row mt-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0"><i class="bi bi-building"></i> По филиалам</h5>
-            </div>
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-striped">
-                        <thead>
-                            <tr>
-                                <th>Филиал</th>
-                                <th class="text-center">Доля, %</th>
-                                <th class="text-center">Всего, шт.</th>
-                                <th class="text-center">Из них: КАСКО</th>
-                                <th class="text-center">Из них: Спецтехника</th>
-                                <th class="text-center">Из них: Имущество</th>
-                                <th class="text-center">Из них: Другое</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for branch_name, branch_data in branch_stats_detailed.items %}
-                            <tr>
-                                <td>
-                                    <strong>{{ branch_name }}</strong>
-                                </td>
-                                <td class="text-center">
-                                    {% if branch_totals.total > 0 %}
-                                        <span class="badge bg-secondary">{% widthratio branch_data.total branch_totals.total 100 %}%</span>
-                                    {% else %}
-                                        <span class="text-muted">—</span>
-                                    {% endif %}
-                                </td>
-                                <td class="text-center">
-                                    <span class="badge bg-primary fs-6">{{ branch_data.total }}</span>
-                                </td>
-                                <td class="text-center">
-                                    {% if branch_data.types.КАСКО %}
-                                        {{ branch_data.types.КАСКО }}
-                                        <small class="text-muted ms-1">({% widthratio branch_data.types.КАСКО branch_data.total 100 %}%)</small>
-                                    {% else %}
-                                        <span class="text-muted">—</span>
-                                    {% endif %}
-                                </td>
-                                <td class="text-center">
-                                    {% with spec_count=branch_data.types|get_item:"страхование спецтехники" %}
-                                        {% if spec_count %}
-                                            {{ spec_count }}
-                                            <small class="text-muted ms-1">({% widthratio spec_count branch_data.total 100 %}%)</small>
-                                        {% else %}
-                                            <span class="text-muted">—</span>
-                                        {% endif %}
-                                    {% endwith %}
-                                </td>
-                                <td class="text-center">
-                                    {% with property_count=branch_data.types|get_item:"страхование имущества" %}
-                                        {% if property_count %}
-                                            {{ property_count }}
-                                            <small class="text-muted ms-1">({% widthratio property_count branch_data.total 100 %}%)</small>
-                                        {% else %}
-                                            <span class="text-muted">—</span>
-                                        {% endif %}
-                                    {% endwith %}
-                                </td>
-                                <td class="text-center">
-                                    {% if branch_data.types.другое %}
-                                        {{ branch_data.types.другое }}
-                                        <small class="text-muted ms-1">({% widthratio branch_data.types.другое branch_data.total 100 %}%)</small>
-                                    {% else %}
-                                        <span class="text-muted">—</span>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            {% empty %}
-                            <tr>
-                                <td colspan="7" class="text-center text-muted">
-                                    Нет данных о филиалах
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                        {% if branch_totals %}
-                        <tfoot class="table-light">
-                            <tr>
-                                <td><strong>Итого</strong></td>
-                                <td class="text-center">
-                                    <span class="badge bg-secondary">100%</span>
-                                </td>
-                                <td class="text-center">
-                                    <span class="badge bg-primary fs-6">{{ branch_totals.total }}</span>
-                                </td>
-                                <td class="text-center">
-                                    <strong>{{ branch_totals.kasko }}</strong>
-                                    {% if branch_totals.total > 0 %}
-                                        <small class="text-muted ms-1">({% widthratio branch_totals.kasko branch_totals.total 100 %}%)</small>
-                                    {% endif %}
-                                </td>
-                                <td class="text-center">
-                                    <strong>{{ branch_totals.spec }}</strong>
-                                    {% if branch_totals.total > 0 %}
-                                        <small class="text-muted ms-1">({% widthratio branch_totals.spec branch_totals.total 100 %}%)</small>
-                                    {% endif %}
-                                </td>
-                                <td class="text-center">
-                                    <strong>{{ branch_totals.property }}</strong>
-                                    {% if branch_totals.total > 0 %}
-                                        <small class="text-muted ms-1">({% widthratio branch_totals.property branch_totals.total 100 %}%)</small>
-                                    {% endif %}
-                                </td>
-                                <td class="text-center">
-                                    <strong>{{ branch_totals.other }}</strong>
-                                    {% if branch_totals.total > 0 %}
-                                        <small class="text-muted ms-1">({% widthratio branch_totals.other branch_totals.total 100 %}%)</small>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                        </tfoot>
-                        {% endif %}
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-{% endif %}
-
-<!-- Статистика по пользователям Django -->
-{% if user_stats %}
-<div class="row mt-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">
-                    <i class="bi bi-person-check"></i> По пользователям Django
-                    <i class="bi bi-info-circle text-muted ms-2" 
-                       style="cursor: help; font-size: 0.9rem;"
-                       data-bs-toggle="tooltip" 
-                       data-bs-placement="right"
-                       data-bs-html="true"
-                       title="<strong>Статистика по пользователям:</strong><br>
-                              Показывает данные в разбивке по пользователям Django,<br>
-                              которые загружали заявки или создавали своды.<br>
-                              Включает те же метрики: своды, предложения, акцепты, отказы.">
-                    </i>
-                </h5>
-            </div>
-            <div class="card-body">
-                <!-- Общая статистика по пользователям -->
-                <div class="row mb-4">
-                    {% for user_display, data in user_stats.items %}
-                    <div class="col-md-4 mb-3">
-                        <div class="card bg-light">
-                            <div class="card-body">
-                                <h5 class="card-title text-center mb-3">{{ user_display }}</h5>
-                                <div class="row text-center">
-                                    <div class="col-6 mb-2">
-                                        <h4 class="text-primary mb-0">{{ data.count }}</h4>
-                                        <small class="text-muted">сводов</small>
-                                    </div>
-                                    <div class="col-6 mb-2">
-                                        <h4 class="text-info mb-0">{{ data.offers_count }}</h4>
-                                        <small class="text-muted">предложений</small>
-                                    </div>
-                                    <div class="col-6">
-                                        <h4 class="text-success mb-0">{{ data.accepted }}</h4>
-                                        <small class="text-muted">акцептов</small>
-                                    </div>
-                                    <div class="col-6">
-                                        <h4 class="text-secondary mb-0">{{ data.rejected }}</h4>
-                                        <small class="text-muted">не будет</small>
+                <div class="card-body">
+                    <div class="row mb-4">
+                        {% for user_display, data in user_stats.items %}
+                        <div class="col-md-4 mb-3">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h5 class="card-title text-center mb-3">{{ user_display }}</h5>
+                                    <div class="row text-center">
+                                        <div class="col-6 mb-2">
+                                            <h4 class="text-primary mb-0">{{ data.count }}</h4>
+                                            <small class="text-muted">сводов</small>
+                                        </div>
+                                        <div class="col-6 mb-2">
+                                            <h4 class="text-info mb-0">{{ data.offers_count }}</h4>
+                                            <small class="text-muted">предложений</small>
+                                        </div>
+                                        <div class="col-6">
+                                            <h4 class="text-success mb-0">{{ data.accepted }}</h4>
+                                            <small class="text-muted">акцептов</small>
+                                        </div>
+                                        <div class="col-6">
+                                            <h4 class="text-secondary mb-0">{{ data.rejected }}</h4>
+                                            <small class="text-muted">не будет</small>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
+                        {% endfor %}
                     </div>
-                    {% endfor %}
-                </div>
-                
-                <!-- Разбивка по месяцам -->
-                {% if user_monthly_stats %}
-                <hr>
-                <h6 class="mb-3"><i class="bi bi-calendar3"></i> Разбивка по месяцам</h6>
-                <div class="row">
-                    {% for user_display, months in user_monthly_stats.items %}
-                    <div class="col-md-4 mb-3">
-                        <div class="card">
-                            <div class="card-header bg-light">
-                                <strong>{{ user_display }}</strong>
-                            </div>
-                            <div class="card-body p-2">
-                                <div class="table-responsive">
-                                    <table class="table table-sm table-hover mb-0">
-                                        <tbody>
-                                            {% for month_key, month_data in months.items %}
-                                            <tr>
-                                                <td>{{ month_data.display }}</td>
-                                                <td class="text-end">
-                                                    <span class="badge bg-primary">{{ month_data.count }}</span>
-                                                </td>
-                                            </tr>
-                                            {% endfor %}
-                                        </tbody>
-                                    </table>
+
+                    {% if user_monthly_stats %}
+                    <hr>
+                    <h6 class="mb-3"><i class="bi bi-calendar3"></i> Разбивка по месяцам</h6>
+                    <div class="row">
+                        {% for user_display, months in user_monthly_stats.items %}
+                        <div class="col-md-4 mb-3">
+                            <div class="card">
+                                <div class="card-header bg-light"><strong>{{ user_display }}</strong></div>
+                                <div class="card-body p-2">
+                                    <div class="table-responsive">
+                                        <table class="table table-sm table-hover mb-0">
+                                            <tbody>
+                                                {% for month_key, month_data in months.items %}
+                                                <tr>
+                                                    <td>{{ month_data.display }}</td>
+                                                    <td class="text-end"><span class="badge bg-primary">{{ month_data.count }}</span></td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
                             </div>
                         </div>
+                        {% endfor %}
                     </div>
-                    {% endfor %}
+                    {% endif %}
                 </div>
-                {% endif %}
             </div>
         </div>
     </div>
-</div>
-{% endif %}
+    {% endif %}
 
-<div class="mt-4">
-    <small class="text-muted">
-        <i class="bi bi-info-circle"></i>
-        Статистика обновляется в реальном времени и включает только действительные предложения.
-    </small>
+    <div class="mt-4">
+        <small class="text-muted">
+            <i class="bi bi-info-circle"></i>
+            Статистика обновляется в реальном времени и включает только действительные предложения.
+        </small>
+    </div>
 </div>
 
+{{ chart_data|json_script:"statistics-chart-data" }}
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <script>
-// Инициализация tooltips
-document.addEventListener('DOMContentLoaded', function() {
-    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-        return new bootstrap.Tooltip(tooltipTriggerEl);
-    });
-});
-</script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
 
+        const chartDataEl = document.getElementById('statistics-chart-data');
+        if (!chartDataEl) {
+            return;
+        }
+
+        const chartData = JSON.parse(chartDataEl.textContent);
+        const charts = {};
+
+        charts.statuses = new Chart(document.getElementById('chartStatuses'), {
+            type: 'doughnut',
+            data: {
+                labels: chartData.statuses.labels,
+                datasets: [{
+                    data: chartData.statuses.values,
+                    backgroundColor: chartData.statuses.colors,
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
+        });
+
+        charts.monthly = new Chart(document.getElementById('chartMonthly'), {
+            type: 'line',
+            data: {
+                labels: chartData.monthly.labels,
+                datasets: [{
+                    label: 'Своды',
+                    data: chartData.monthly.values,
+                    borderColor: chartData.monthly.color,
+                    backgroundColor: 'rgba(13, 110, 253, 0.15)',
+                    fill: true,
+                    tension: 0.35
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            precision: 0
+                        }
+                    }
+                }
+            }
+        });
+
+        charts.topCompanies = new Chart(document.getElementById('chartCompanies'), {
+            type: 'bar',
+            data: {
+                labels: chartData.top_companies.labels,
+                datasets: [{
+                    label: 'Своды',
+                    data: chartData.top_companies.values,
+                    backgroundColor: chartData.top_companies.color,
+                    borderRadius: 6
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        ticks: {
+                            precision: 0
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                }
+            }
+        });
+
+        const exportBaseUrl = "{% url 'summaries:export_statistics_widget' %}";
+        const currentParams = new URLSearchParams(window.location.search);
+        document.querySelectorAll('.js-export-xlsx').forEach(function (link) {
+            const widget = link.dataset.widget || 'overview';
+            const params = new URLSearchParams(currentParams.toString());
+            params.set('widget', widget);
+            link.href = exportBaseUrl + '?' + params.toString();
+        });
+
+        document.querySelectorAll('.js-export-png').forEach(function (button) {
+            button.addEventListener('click', function () {
+                const chartId = button.dataset.chartId;
+                const canvas = document.getElementById(chartId);
+                if (!canvas) {
+                    return;
+                }
+
+                const filename = (button.dataset.filename || chartId) + '.png';
+                const exportCanvas = document.createElement('canvas');
+                exportCanvas.width = canvas.width;
+                exportCanvas.height = canvas.height;
+
+                const ctx = exportCanvas.getContext('2d');
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+                ctx.drawImage(canvas, 0, 0);
+
+                const link = document.createElement('a');
+                link.href = exportCanvas.toDataURL('image/png', 1.0);
+                link.download = filename;
+                link.click();
+            });
+        });
+    });
+</script>
 {% endblock %}
