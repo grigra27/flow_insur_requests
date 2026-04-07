@@ -36,22 +36,16 @@
             </button>
             
             <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav me-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="{% url 'insurance_requests:request_list' %}">
-                            <i class="bi bi-list-ul"></i> Заявки
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{% url 'insurance_requests:upload_excel' %}">
-                            <i class="bi bi-upload"></i> Загрузить заявку
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{% url 'summaries:summary_list' %}">
-                            <i class="bi bi-collection"></i> Своды
-                        </a>
-                    </li>
+                <ul class="navbar-nav me-auto app-nav-links">
+                    {% for item in app_navigation.main_items %}
+                        <li class="nav-item">
+                            <a class="nav-link {% if item.active %}active{% endif %}"
+                               href="{{ item.url }}"
+                               {% if item.active %}aria-current="page"{% endif %}>
+                                <i class="bi {{ item.icon }}"></i> {{ item.label }}
+                            </a>
+                        </li>
+                    {% endfor %}
                 </ul>
                 
                 <ul class="navbar-nav">
@@ -74,6 +68,33 @@
         </div>
     </nav>
 
+    {% if user.is_authenticated and app_navigation %}
+        <section class="app-context-shell" aria-label="Навигация по разделу">
+            <div class="container">
+                <div class="app-context-bar">
+                    <div class="app-context-meta">
+                        <span class="app-context-icon">
+                            <i class="bi {{ app_navigation.current_section.icon }}"></i>
+                        </span>
+                        <div>
+                            <div class="app-context-overline">Текущий раздел</div>
+                            <div class="app-context-title">{{ app_navigation.current_context_label }}</div>
+                        </div>
+                    </div>
+                    <div class="app-context-links" role="navigation" aria-label="Быстрые переходы">
+                        {% for item in app_navigation.section_items %}
+                            <a href="{{ item.url }}"
+                               class="app-context-link {% if item.active %}active{% endif %}"
+                               {% if item.active %}aria-current="page"{% endif %}>
+                                {{ item.label }}
+                            </a>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </section>
+    {% endif %}
+
     <!-- Messages -->
     {% if messages %}
         <div class="container mt-3">
@@ -94,7 +115,7 @@
     <!-- Footer -->
     <footer class="app-footer mt-5 py-4">
         <div class="container text-center">
-            <p class="text-muted mb-0">флоу / заявки и своды 2.0 / 2025</p>
+            <p class="text-muted mb-0">флоу / заявки и своды 2.2 / 2026</p>
         </div>
     </footer>
 

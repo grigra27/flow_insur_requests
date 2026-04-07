@@ -46,6 +46,22 @@ h6 {
     color: var(--app-text);
 }
 
+/* Не ломаем контраст в цветных хедерах карточек и блоков */
+.text-white h1,
+.text-white h2,
+.text-white h3,
+.text-white h4,
+.text-white h5,
+.text-white h6,
+.card-header[class*="bg-"] h1,
+.card-header[class*="bg-"] h2,
+.card-header[class*="bg-"] h3,
+.card-header[class*="bg-"] h4,
+.card-header[class*="bg-"] h5,
+.card-header[class*="bg-"] h6 {
+    color: inherit !important;
+}
+
 a {
     color: var(--app-primary-dark);
 }
@@ -94,6 +110,103 @@ a:hover {
     color: #ffffff !important;
 }
 
+.app-nav-links {
+    gap: 0.25rem;
+}
+
+.app-nav-links .nav-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.app-nav-links .nav-link.active {
+    background-color: rgba(255, 255, 255, 0.24);
+    color: #ffffff !important;
+    box-shadow: 0 6px 14px rgba(17, 31, 52, 0.22);
+}
+
+.app-context-shell {
+    border-bottom: 1px solid var(--app-border);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.94) 0%, rgba(245, 250, 255, 0.95) 100%);
+    box-shadow: 0 4px 12px rgba(17, 31, 52, 0.06);
+}
+
+.app-context-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.78rem 0;
+}
+
+.app-context-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+}
+
+.app-context-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffffff;
+    background: linear-gradient(120deg, var(--app-primary-dark) 0%, var(--app-primary) 100%);
+    box-shadow: 0 6px 14px rgba(11, 122, 117, 0.2);
+}
+
+.app-context-overline {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--app-muted);
+    font-weight: 700;
+}
+
+.app-context-title {
+    font-family: 'Space Grotesk', 'Trebuchet MS', sans-serif;
+    font-size: 1.02rem;
+    font-weight: 700;
+    color: var(--app-text);
+}
+
+.app-context-links {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.4rem;
+}
+
+.app-context-link {
+    font-size: 0.86rem;
+    font-weight: 600;
+    padding: 0.3rem 0.65rem;
+    border-radius: 999px;
+    border: 1px solid rgba(11, 122, 117, 0.25);
+    color: var(--app-primary-dark);
+    text-decoration: none;
+    background: #ffffff;
+    transition: all 0.2s ease;
+}
+
+.app-context-link:hover {
+    color: #ffffff;
+    background: var(--app-primary);
+    border-color: var(--app-primary);
+    transform: translateY(-1px);
+}
+
+.app-context-link.active {
+    color: #ffffff;
+    background: var(--app-primary);
+    border-color: var(--app-primary);
+    box-shadow: 0 6px 14px rgba(11, 122, 117, 0.22);
+}
+
 .app-footer {
     background: rgba(255, 255, 255, 0.86);
     border-top: 1px solid var(--app-border);
@@ -104,6 +217,17 @@ a:hover {
     color: var(--app-muted) !important;
     font-weight: 600;
     letter-spacing: 0.02em;
+}
+
+@media (max-width: 991px) {
+    .app-context-bar {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .app-context-links {
+        justify-content: flex-start;
+    }
 }
 
 .card {
@@ -187,7 +311,9 @@ a:hover {
     color: var(--app-muted);
 }
 
-/* Стили для заголовка таблицы сводов - только для table-dark */
+/* Стили для темных заголовков таблиц (thead.table-dark и table.table-dark) */
+.table thead.table-dark th,
+.table.table-dark thead th,
 .table-dark thead th {
     background-color: #000000 !important;
     color: #ffffff !important;
@@ -196,11 +322,15 @@ a:hover {
 }
 
 /* Обеспечиваем контрастность для ссылок в заголовках table-dark */
+.table thead.table-dark th a,
+.table.table-dark thead th a,
 .table-dark thead th a {
     color: #ffffff !important;
     text-decoration: none;
 }
 
+.table thead.table-dark th a:hover,
+.table.table-dark thead th a:hover,
 .table-dark thead th a:hover {
     color: #e9ecef !important;
     text-decoration: underline;
