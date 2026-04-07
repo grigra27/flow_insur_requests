@@ -6,7 +6,7 @@
 {% block extra_css %}
 <style>
     .stats-dashboard {
-        --stats-primary: #0d6efd;
+        --stats-primary: var(--app-primary);
         --stats-success: #15803d;
         --stats-accent: #f59e0b;
         --stats-muted: #64748b;
@@ -43,7 +43,7 @@
         left: 0;
         right: 0;
         height: 4px;
-        background: var(--kpi-color, #0d6efd);
+        background: var(--kpi-color, var(--app-primary));
     }
 
     .stats-kpi-icon {
@@ -55,12 +55,12 @@
         border-radius: 12px;
         font-size: 1.1rem;
         color: #fff;
-        background: var(--kpi-color, #0d6efd);
-        box-shadow: 0 8px 18px rgba(13, 110, 253, 0.2);
+        background: var(--kpi-color, var(--app-primary));
+        box-shadow: 0 8px 18px rgba(11, 122, 117, 0.2);
     }
 
     .stats-kpi-card.kpi-primary {
-        --kpi-color: #0d6efd;
+        --kpi-color: var(--app-primary);
     }
 
     .stats-kpi-card.kpi-success {
@@ -730,7 +730,7 @@
                     label: 'Своды',
                     data: chartData.monthly.values,
                     borderColor: chartData.monthly.color,
-                    backgroundColor: 'rgba(13, 110, 253, 0.15)',
+                    backgroundColor: 'rgba(11, 122, 117, 0.15)',
                     fill: true,
                     tension: 0.35
                 }]

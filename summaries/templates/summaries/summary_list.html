@@ -8,10 +8,10 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h1><i class="bi bi-collection"></i> Своды предложений</h1>
     <div>
-        <a href="{% url 'summaries:help' %}" class="btn btn-outline-info me-2">
+        <a href="{% url 'summaries:help' %}" class="btn btn-outline-primary me-2">
             <i class="bi bi-question-circle"></i> Справка
         </a>
-        <a href="{% url 'summaries:statistics' %}" class="btn btn-outline-info">
+        <a href="{% url 'summaries:statistics' %}" class="btn btn-outline-primary">
             <i class="bi bi-graph-up"></i> Статистика
         </a>
     </div>
@@ -25,9 +25,9 @@
             <a class="nav-link{% if not current_branch %} active{% endif %}" 
                href="#" 
                onclick="filterByBranch('')">
-                <i class="bi bi-list-ul"></i> Все
+                <i class="bi bi-list-ul"></i> Все своды
                 {% if show_total_count %}
-                    <span class="badge bg-primary ms-1">{{ total_summaries_count }}</span>
+                    <span class="badge app-branch-count-badge ms-1">{{ total_summaries_count }}</span>
                 {% endif %}
             </a>
         </li>
@@ -38,7 +38,7 @@
                onclick="filterByBranch('{{ branch|escapejs }}')">
                 <!--i class="bi bi-building"></i--> {{ branch|format_branch }}
                 {% if show_branch_counts and current_branch == branch %}
-                    <span class="badge bg-primary ms-1">{{ branch_counts|get_item:branch|default:0 }}</span>
+                    <span class="badge app-branch-count-badge ms-1">{{ branch_counts|get_item:branch|default:0 }}</span>
                 {% endif %}
             </a>
         </li>
@@ -279,7 +279,7 @@
     }
     
     .filter-active {
-        border-left: 4px solid #0d6efd;
+        border-left: 4px solid var(--app-primary);
     }
     
     /* Optimized filter form styles */
@@ -316,14 +316,14 @@
     }
 
     .branch-filter-tabs .nav-link:hover {
-        border-bottom-color: #0d6efd;
-        color: #0d6efd;
-        background-color: rgba(13, 110, 253, 0.05);
+        border-bottom-color: var(--app-primary);
+        color: var(--app-primary);
+        background-color: rgba(11, 122, 117, 0.08);
     }
 
     .branch-filter-tabs .nav-link.active {
-        border-bottom-color: #0d6efd;
-        color: #0d6efd;
+        border-bottom-color: var(--app-primary);
+        color: var(--app-primary);
         background-color: transparent;
         font-weight: 500;
     }
@@ -334,7 +334,7 @@
     }
 
     .branch-filter-tabs .nav-link.active .badge {
-        background-color: #0d6efd !important;
+        background-color: var(--app-primary) !important;
     }
     
     /* Адаптивность для мобильных устройств */
@@ -414,7 +414,7 @@
     }
     
     .pagination .page-link {
-        color: #0d6efd;
+        color: var(--app-primary);
         border: 1px solid #dee2e6;
         padding: 0.5rem 0.75rem;
         margin: 0 0.125rem;
@@ -423,15 +423,15 @@
     }
     
     .pagination .page-link:hover {
-        color: #0a58ca;
+        color: var(--app-primary-dark);
         background-color: #e9ecef;
         border-color: #adb5bd;
         text-decoration: none;
     }
     
     .pagination .page-item.active .page-link {
-        background-color: #0d6efd;
-        border-color: #0d6efd;
+        background-color: var(--app-primary);
+        border-color: var(--app-primary);
         color: white;
         font-weight: 500;
     }

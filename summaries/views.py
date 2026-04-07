@@ -1699,7 +1699,7 @@ def _build_statistics_payload(start_date=None, end_date=None):
         'monthly': {
             'labels': [item[1]['display'] for item in monthly_chart_items],
             'values': [item[1]['count'] for item in monthly_chart_items],
-            'color': '#0d6efd',
+            'color': '#0b7a75',
         },
         'top_companies': {
             'labels': [item[0] for item in top_companies_items],

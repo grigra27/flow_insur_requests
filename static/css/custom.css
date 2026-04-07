@@ -14,6 +14,10 @@
     --app-shadow-md: 0 14px 32px rgba(17, 31, 52, 0.13);
     --app-radius-md: 12px;
     --app-radius-lg: 16px;
+    --bs-primary: #0b7a75;
+    --bs-primary-rgb: 11, 122, 117;
+    --bs-link-color: #075c58;
+    --bs-link-hover-color: #0b7a75;
 }
 
 body.app-body {
@@ -24,6 +28,27 @@ body.app-body {
         radial-gradient(1150px 460px at 95% -18%, rgba(28, 94, 168, 0.14), transparent 55%),
         linear-gradient(180deg, var(--app-bg-accent) 0%, var(--app-bg) 28%, #f7f9fd 100%);
     min-height: 100vh;
+}
+
+/* Режимы ширины контента: default / wide / full */
+.app-layout-default,
+.app-layout-wide,
+.app-layout-full {
+    padding-left: 1rem;
+    padding-right: 1rem;
+}
+
+.app-layout-default {
+    max-width: 1220px !important;
+}
+
+.app-layout-wide {
+    max-width: 1520px !important;
+}
+
+.app-layout-full {
+    width: 100%;
+    max-width: 100% !important;
 }
 
 h1,
@@ -492,6 +517,25 @@ a:hover {
     color: white;
 }
 
+.app-branch-count-badge {
+    background-color: rgba(11, 122, 117, 0.14) !important;
+    border: 1px solid rgba(11, 122, 117, 0.28);
+    color: var(--app-primary-dark) !important;
+    font-weight: 600;
+}
+
+.branch-filter-tabs .nav-link.active .app-branch-count-badge {
+    border-color: transparent;
+    color: #ffffff !important;
+}
+
+.app-filter-chip {
+    background-color: var(--app-primary-soft) !important;
+    border: 1px solid rgba(11, 122, 117, 0.28);
+    color: var(--app-primary-dark) !important;
+    font-weight: 600;
+}
+
 /* Стили для цветовых бейджей количества компаний */
 .companies-count-badge {
     font-weight: 600;
@@ -586,7 +630,10 @@ a:hover {
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
-    .container {
+    .container,
+    .app-layout-default,
+    .app-layout-wide,
+    .app-layout-full {
         padding-left: 15px;
         padding-right: 15px;
     }
@@ -650,15 +697,75 @@ a:hover {
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-.pagination .page-link {
-    border-radius: 6px;
-    margin: 0 2px;
-    transition: all 0.3s ease;
+.app-pagination {
+    margin-bottom: 0;
 }
 
-.pagination .page-link:hover {
+.app-pagination .page-link {
+    color: var(--app-primary);
+    border: 1px solid #dee2e6;
+    padding: 0.5rem 0.75rem;
+    margin: 0 0.125rem;
+    border-radius: 0.375rem;
+    transition: all 0.2s ease-in-out;
+}
+
+.app-pagination .page-link:hover {
+    color: var(--app-primary-dark);
+    background-color: #e9ecef;
+    border-color: #adb5bd;
+    text-decoration: none;
     transform: translateY(-1px);
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.app-pagination .page-item.active .page-link {
+    background-color: var(--app-primary);
+    border-color: var(--app-primary);
+    color: #ffffff;
+    font-weight: 500;
+}
+
+.app-pagination .page-item.disabled .page-link {
+    color: #6c757d;
+    background-color: #ffffff;
+    border-color: #dee2e6;
+    cursor: not-allowed;
+}
+
+.app-pagination .page-item.disabled .page-link:hover {
+    color: #6c757d;
+    background-color: #ffffff;
+    border-color: #dee2e6;
+    transform: none;
+    box-shadow: none;
+}
+
+@media (max-width: 768px) {
+    .app-pagination .page-link {
+        padding: 0.375rem 0.5rem;
+        font-size: 0.875rem;
+    }
+
+    .app-pagination .page-item:not(:first-child):not(:last-child) {
+        display: none;
+    }
+
+    .app-pagination .page-item:first-child,
+    .app-pagination .page-item:last-child {
+        display: block;
+    }
+
+    .app-pagination .page-item.active {
+        display: block !important;
+    }
+}
+
+@media (max-width: 576px) {
+    .app-pagination .page-link {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.8rem;
+    }
 }
 
 /* Стили для улучшения доступности */
@@ -706,7 +813,7 @@ a:hover {
 
 /* Стили для подсказок в формах */
 .form-text .bi-info-circle {
-    color: #1c5ea8;
+    color: var(--app-primary-dark);
     margin-right: 0.25rem;
 }
 
@@ -729,7 +836,7 @@ a:hover {
 }
 
 .alert-success .text-info {
-    color: #0c63e4 !important;
+    color: var(--app-primary-dark) !important;
     font-weight: 500;
 }
 
@@ -778,7 +885,7 @@ a:hover {
 
 /* Стили для информационных блоков */
 .alert-info .bi-info-circle-fill {
-    color: #0c63e4;
+    color: var(--app-primary-dark);
     margin-right: 0.5rem;
 }
 
@@ -802,7 +909,7 @@ a:hover {
     left: 0;
     right: 0;
     height: 4px;
-    background: linear-gradient(90deg, #0b7a75 0%, #1c5ea8 50%, #0b7a75 100%);
+    background: linear-gradient(90deg, var(--app-primary) 0%, var(--app-primary-dark) 50%, var(--app-primary) 100%);
     background-size: 200% 100%;
     animation: gradientShift 3s ease-in-out infinite;
 }

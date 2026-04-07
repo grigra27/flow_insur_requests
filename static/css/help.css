@@ -45,21 +45,21 @@
 
 .help-navigation .nav-link:hover {
     background-color: #e9ecef;
-    color: #0d6efd;
+    color: var(--app-primary);
     text-decoration: none;
     transform: translateX(4px);
-    border-color: #0d6efd;
+    border-color: var(--app-primary);
 }
 
 .help-navigation .nav-link.active {
-    background-color: #0d6efd;
+    background-color: var(--app-primary);
     color: white;
     font-weight: 600;
-    box-shadow: 0 2px 4px rgba(13, 110, 253, 0.3);
+    box-shadow: 0 2px 4px rgba(11, 122, 117, 0.24);
 }
 
 .help-navigation .nav-link.active:hover {
-    background-color: #0b5ed7;
+    background-color: var(--app-primary-dark);
     transform: translateX(2px);
 }
 
@@ -75,8 +75,8 @@
 }
 
 .help-section h3 {
-    color: #0d6efd;
-    border-bottom: 3px solid #0d6efd;
+    color: var(--app-primary);
+    border-bottom: 3px solid var(--app-primary);
     padding-bottom: 0.75rem;
     margin-bottom: 1.5rem;
     font-weight: 600;
@@ -137,12 +137,12 @@
 }
 
 .example-card.export-example {
-    border-left-color: #0d6efd;
+    border-left-color: var(--app-primary);
 }
 
 .example-card.export-example .card-header {
-    background-color: #0d6efd;
-    border-bottom: 1px solid #0b5ed7;
+    background-color: var(--app-primary);
+    border-bottom: 1px solid var(--app-primary-dark);
 }
 
 .example-card.workflow-example {
@@ -210,7 +210,7 @@
     margin: 0.5rem 0;
     font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
     font-size: 0.875rem;
-    color: #0c63e4;
+    color: var(--app-primary-dark);
     font-weight: 500;
     transition: all 0.2s ease;
 }
@@ -317,7 +317,7 @@
 }
 
 .help-section .table tbody tr:hover {
-    background-color: rgba(13, 110, 253, 0.05);
+    background-color: rgba(11, 122, 117, 0.08);
 }
 
 /* Стили для аккордеона ошибок */
@@ -342,7 +342,7 @@
 }
 
 .accordion-button:focus {
-    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+    box-shadow: 0 0 0 0.25rem rgba(11, 122, 117, 0.24);
 }
 
 .accordion-body {
@@ -570,7 +570,7 @@
 .example-card:focus,
 .table-cell-example:focus,
 .field-mapping:focus {
-    outline: 2px solid #0d6efd;
+    outline: 2px solid var(--app-primary);
     outline-offset: 2px;
 }
 
@@ -651,11 +651,11 @@
 
 .quick-nav-floating .nav-link:hover {
     background-color: #e9ecef;
-    color: #0d6efd;
+    color: var(--app-primary);
 }
 
 .quick-nav-floating .nav-link.active {
-    background-color: #0d6efd;
+    background-color: var(--app-primary);
     color: white;
 }
 
@@ -689,16 +689,16 @@
 
     .help-page .help-navigation .nav-link:hover {
         background-color: #e9ecef;
-        color: #0d6efd;
+        color: var(--app-primary);
     }
 
     .help-page .help-navigation .nav-link.active {
-        background-color: #0d6efd;
+        background-color: var(--app-primary);
         color: #ffffff;
     }
 
     .help-page .help-section h3 {
-        color: #0d6efd;
+        color: var(--app-primary);
     }
 
     .help-page .help-section h4,

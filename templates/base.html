@@ -26,7 +26,7 @@
 <body class="app-body">
     <!-- Navigation -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary app-navbar">
-        <div class="container">
+        <div class="{{ app_layout.container_class|default:'container app-layout-default' }}">
             <a class="navbar-brand" href="{% url 'insurance_requests:request_list' %}">
                 <i class="bi bi-shield-check"></i> флоу // заявки и своды
             </a>
@@ -70,7 +70,7 @@
 
     {% if user.is_authenticated and app_navigation %}
         <section class="app-context-shell" aria-label="Навигация по разделу">
-            <div class="container">
+            <div class="{{ app_layout.container_class|default:'container app-layout-default' }}">
                 <div class="app-context-bar">
                     <div class="app-context-meta">
                         <span class="app-context-icon">
@@ -97,7 +97,7 @@
 
     <!-- Messages -->
     {% if messages %}
-        <div class="container mt-3">
+        <div class="{{ app_layout.container_class|default:'container app-layout-default' }} mt-3">
             {% for message in messages %}
                 <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
                     {{ message }}
@@ -108,13 +108,13 @@
     {% endif %}
 
     <!-- Main Content -->
-    <main class="container mt-4 app-main">
+    <main class="{{ app_layout.container_class|default:'container app-layout-default' }} mt-4 app-main">
         {% block content %}{% endblock %}
     </main>
 
     <!-- Footer -->
     <footer class="app-footer mt-5 py-4">
-        <div class="container text-center">
+        <div class="{{ app_layout.container_class|default:'container app-layout-default' }} text-center">
             <p class="text-muted mb-0">флоу / заявки и своды 2.2 / 2026</p>
         </div>
     </footer>

@@ -13,14 +13,15 @@
 
 <!-- Branch filtering tabs -->
 {% if available_branches %}
-<div class="filter-container mb-4">
+<div class="branch-filter-tabs mb-4">
     <ul class="nav nav-tabs">
         <li class="nav-item">
             <a class="nav-link {% if not current_branch %}active{% endif %}" 
                href="?{% if current_dfa_filter %}dfa_filter={{ current_dfa_filter|urlencode }}&{% endif %}{% if current_month %}month={{ current_month }}&{% endif %}{% if current_year %}year={{ current_year }}{% endif %}"
+               >
                 <i class="bi bi-list-ul"></i> Все заявки
                 {% if not current_branch %}
-                    <span class="badge bg-primary ms-1">{{ total_requests }}</span>
+                    <span class="badge app-branch-count-badge ms-1">{{ total_requests }}</span>
                 {% endif %}
             </a>
         </li>
@@ -28,9 +29,10 @@
         <li class="nav-item">
             <a class="nav-link {% if current_branch == branch %}active{% endif %}" 
                href="?branch={{ branch|urlencode }}{% if current_dfa_filter %}&dfa_filter={{ current_dfa_filter|urlencode }}{% endif %}{% if current_month %}&month={{ current_month }}{% endif %}{% if current_year %}&year={{ current_year }}{% endif %}"
-                <i class="bi bi-building"></i> {{ branch }}
+               >
+                {{ branch }}
                 {% if current_branch == branch %}
-                    <span class="badge bg-primary ms-1">{{ total_requests }}</span>
+                    <span class="badge app-branch-count-badge ms-1">{{ total_requests }}</span>
                 {% endif %}
             </a>
         </li>
@@ -126,14 +128,14 @@
                 <strong>Активные фильтры:</strong>
                 <span class="ms-2">
                     {% if current_branch %}
-                        <span class="badge bg-primary me-1">Филиал: {{ current_branch|escape }}</span>
+                        <span class="badge app-filter-chip me-1">Филиал: {{ current_branch|escape }}</span>
                     {% endif %}
                     {% if current_month and current_year %}
-                        <span class="badge bg-primary me-1">Период: {{ current_month|date:"F" }} {{ current_year }}</span>
+                        <span class="badge app-filter-chip me-1">Период: {{ current_month|date:"F" }} {{ current_year }}</span>
                     {% elif current_year %}
-                        <span class="badge bg-primary me-1">Год: {{ current_year }}</span>
+                        <span class="badge app-filter-chip me-1">Год: {{ current_year }}</span>
                     {% elif current_month %}
-                        <span class="badge bg-primary me-1">Месяц: {{ current_month|date:"F" }}</span>
+                        <span class="badge app-filter-chip me-1">Месяц: {{ current_month|date:"F" }}</span>
                     {% endif %}
                     {% if current_dfa_filter %}
                         <span class="badge bg-success me-1">ДФА: {{ current_dfa_filter|escape }}</span>
@@ -274,7 +276,7 @@
             </div>
         </div>
         
-        <ul class="pagination justify-content-center flex-wrap">
+        <ul class="pagination justify-content-center flex-wrap app-pagination">
             <!-- Previous Button -->
             {% if page_obj.has_previous %}
                 <li class="page-item">

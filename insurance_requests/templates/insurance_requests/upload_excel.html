@@ -18,6 +18,52 @@
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
     }
 
+    .upload-navigation h6 {
+        color: var(--app-primary-dark);
+        font-weight: 700;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid rgba(11, 122, 117, 0.2);
+    }
+
+    .upload-navigation .nav-link {
+        color: #495057;
+        padding: 0.65rem 0.8rem;
+        border-radius: 0.5rem;
+        border: 1px solid transparent;
+        margin-bottom: 0.3rem;
+        font-weight: 500;
+        transition: all 0.2s ease;
+    }
+
+    .upload-navigation .nav-link i {
+        width: 1.2rem;
+        margin-right: 0.45rem;
+        text-align: center;
+    }
+
+    .upload-navigation .nav-link:hover {
+        color: var(--app-primary);
+        background-color: rgba(11, 122, 117, 0.08);
+        border-color: rgba(11, 122, 117, 0.25);
+        text-decoration: none;
+        transform: translateX(2px);
+    }
+
+    .upload-navigation .nav-link.active,
+    .upload-navigation .nav-pills .nav-link.active {
+        color: #ffffff;
+        background-color: var(--app-primary);
+        border-color: var(--app-primary);
+        box-shadow: 0 4px 10px rgba(11, 122, 117, 0.2);
+    }
+
+    .upload-navigation .nav-link.active:hover,
+    .upload-navigation .nav-pills .nav-link.active:hover {
+        color: #ffffff;
+        background-color: var(--app-primary-dark);
+        border-color: var(--app-primary-dark);
+    }
+
     .upload-section {
         margin-bottom: 3rem;
         scroll-margin-top: 100px;
@@ -30,8 +76,8 @@
 
     .upload-section h4,
     .upload-section h5 {
-        color: #0d6efd;
-        border-bottom: 2px solid #0d6efd;
+        color: var(--app-primary);
+        border-bottom: 2px solid var(--app-primary);
         padding-bottom: 0.5rem;
         margin-bottom: 1.5rem;
         display: flex;
@@ -92,7 +138,7 @@
     }
 
     .table-primary {
-        background-color: rgba(13, 110, 253, 0.15) !important;
+        background-color: rgba(11, 122, 117, 0.15) !important;
     }
 
     .text-danger {
@@ -105,7 +151,7 @@
     }
 
     .example-card.legal-entity {
-        border-left-color: #0d6efd;
+        border-left-color: var(--app-primary);
     }
 
     .example-card.individual-entrepreneur {
@@ -445,7 +491,7 @@
                 между типами заявок</li>
             <li><span class="bg-success px-1 text-white"><strong>Зеленым фоном</strong></span> выделены новые параметры
             </li>
-            <li><span class="bg-primary px-1 text-white"><strong>Синим фоном</strong></span> выделены параметры,
+            <li><span class="bg-primary px-1 text-white"><strong>Акцентным фоном</strong></span> выделены параметры,
                 специфичные для формата</li>
         </ul>
     </div>

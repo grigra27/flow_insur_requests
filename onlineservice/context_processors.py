@@ -141,6 +141,23 @@ BREADCRUMB_TEMPLATES = {
 }
 
 
+LAYOUT_MODE_BY_PAGE = {
+    ('insurance_requests', 'request_list'): 'wide',
+    ('insurance_requests', 'upload_excel'): 'wide',
+    ('summaries', 'summary_list'): 'wide',
+    ('summaries', 'statistics'): 'wide',
+    ('summaries', 'deal_summary'): 'wide',
+    ('summaries', 'summary_detail'): 'full',
+}
+
+
+LAYOUT_CLASS_BY_MODE = {
+    'default': 'container app-layout-default',
+    'wide': 'container app-layout-wide',
+    'full': 'container-fluid app-layout-full',
+}
+
+
 def _is_nav_item_active(item, app_name, url_name):
     if app_name != item.get('match_app'):
         return False
@@ -195,6 +212,8 @@ def navigation_context(request):
 
     current_page_label = PAGE_LABELS.get((app_name, url_name), _humanize_url_name(url_name))
     breadcrumb_template = BREADCRUMB_TEMPLATES.get((app_name, url_name))
+    layout_mode = LAYOUT_MODE_BY_PAGE.get((app_name, url_name), 'default')
+    layout_container_class = LAYOUT_CLASS_BY_MODE.get(layout_mode, LAYOUT_CLASS_BY_MODE['default'])
 
     if breadcrumb_template is None:
         breadcrumb_template = []
@@ -232,5 +251,9 @@ def navigation_context(request):
             },
             'current_page': current_page_label,
             'current_context_label': current_context_label,
-        }
+        },
+        'app_layout': {
+            'mode': layout_mode,
+            'container_class': layout_container_class,
+        },
     }
