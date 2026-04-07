@@ -1,35 +1,190 @@
 /* Кастомные стили для приложения */
 
+:root {
+    --app-bg: #f4f7fc;
+    --app-bg-accent: #ebf4f2;
+    --app-surface: #ffffff;
+    --app-border: #d9e5ef;
+    --app-text: #182235;
+    --app-muted: #5b6d84;
+    --app-primary: #0b7a75;
+    --app-primary-dark: #075c58;
+    --app-primary-soft: #e5f4f2;
+    --app-shadow-sm: 0 8px 20px rgba(17, 31, 52, 0.07);
+    --app-shadow-md: 0 14px 32px rgba(17, 31, 52, 0.13);
+    --app-radius-md: 12px;
+    --app-radius-lg: 16px;
+}
+
+body.app-body {
+    font-family: 'Manrope', 'Segoe UI', Tahoma, sans-serif;
+    color: var(--app-text);
+    background:
+        radial-gradient(1200px 420px at 8% -12%, rgba(11, 122, 117, 0.16), transparent 56%),
+        radial-gradient(1150px 460px at 95% -18%, rgba(28, 94, 168, 0.14), transparent 55%),
+        linear-gradient(180deg, var(--app-bg-accent) 0%, var(--app-bg) 28%, #f7f9fd 100%);
+    min-height: 100vh;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+.navbar-brand {
+    font-family: 'Space Grotesk', 'Trebuchet MS', sans-serif;
+    letter-spacing: 0.01em;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    color: var(--app-text);
+}
+
+a {
+    color: var(--app-primary-dark);
+}
+
+a:hover {
+    color: var(--app-primary);
+}
+
+.app-main {
+    animation: appPageReveal 0.45s ease-out;
+}
+
+@keyframes appPageReveal {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.app-navbar {
+    background: linear-gradient(120deg, #18345a 0%, #12606d 52%, #0b7a75 100%);
+    box-shadow: 0 10px 24px rgba(17, 31, 52, 0.2);
+}
+
+.app-navbar .navbar-brand {
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+
+.app-navbar .nav-link {
+    color: rgba(255, 255, 255, 0.88) !important;
+    font-weight: 600;
+    border-radius: 10px;
+    padding: 0.45rem 0.8rem;
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.app-navbar .nav-link:hover,
+.app-navbar .nav-link:focus {
+    background-color: rgba(255, 255, 255, 0.16);
+    color: #ffffff !important;
+}
+
+.app-footer {
+    background: rgba(255, 255, 255, 0.86);
+    border-top: 1px solid var(--app-border);
+    backdrop-filter: blur(6px);
+}
+
+.app-footer .text-muted {
+    color: var(--app-muted) !important;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
 .card {
-    transition: transform 0.2s ease-in-out;
+    background: var(--app-surface);
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius-lg);
+    box-shadow: var(--app-shadow-sm);
+    transition: transform 0.22s ease, box-shadow 0.22s ease;
 }
 
 .card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    transform: translateY(-3px);
+    box-shadow: var(--app-shadow-md);
 }
 
-.navbar-brand {
-    font-weight: 600;
+.card-header {
+    border-bottom: 1px solid var(--app-border);
+    border-top-left-radius: var(--app-radius-lg) !important;
+    border-top-right-radius: var(--app-radius-lg) !important;
+    font-weight: 700;
 }
 
 .alert {
-    border: none;
-    border-radius: 8px;
+    border: 1px solid transparent;
+    border-radius: var(--app-radius-md);
+    box-shadow: 0 6px 16px rgba(17, 31, 52, 0.08);
 }
 
 .btn {
-    border-radius: 6px;
+    border-radius: 10px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+}
+
+.btn-primary {
+    background: linear-gradient(120deg, var(--app-primary-dark) 0%, var(--app-primary) 100%);
+    border-color: var(--app-primary-dark);
+    box-shadow: 0 6px 14px rgba(11, 122, 117, 0.25);
+}
+
+.btn-primary:hover,
+.btn-primary:focus {
+    background: linear-gradient(120deg, #086965 0%, #10938e 100%);
+    border-color: #086965;
+    box-shadow: 0 10px 22px rgba(11, 122, 117, 0.3);
+}
+
+.btn-outline-primary {
+    color: var(--app-primary-dark);
+    border-color: rgba(11, 122, 117, 0.46);
+}
+
+.btn-outline-primary:hover,
+.btn-outline-primary:focus {
+    background-color: var(--app-primary);
+    border-color: var(--app-primary);
+    color: #ffffff;
 }
 
 .form-control,
 .form-select {
-    border-radius: 6px;
+    border: 1px solid var(--app-border);
+    border-radius: 10px;
+    min-height: 42px;
+}
+
+.form-control:focus,
+.form-select:focus {
+    border-color: rgba(11, 122, 117, 0.52);
+    box-shadow: 0 0 0 0.25rem rgba(11, 122, 117, 0.14);
 }
 
 .table th {
     border-top: none;
-    font-weight: 600;
+    font-weight: 700;
+    color: var(--app-muted);
 }
 
 /* Стили для заголовка таблицы сводов - только для table-dark */
@@ -75,7 +230,7 @@
 .summary-list-table .table thead th {
     font-weight: 600;
     font-size: 0.9rem;
-    border-bottom: 2px solid #495057;
+    border-bottom: 2px solid var(--app-primary-dark);
 }
 
 .summary-list-table .table tbody td {
@@ -84,7 +239,7 @@
 }
 
 .summary-list-table .table-hover tbody tr:hover {
-    background-color: rgba(13, 110, 253, 0.08) !important;
+    background-color: rgba(11, 122, 117, 0.09) !important;
 }
 
 /* Общие улучшения для всех таблиц */
@@ -96,7 +251,7 @@
 /* Стили для таблиц справки */
 .table-light thead th {
     background-color: #f8f9fa !important;
-    color: #495057 !important;
+    color: var(--app-muted) !important;
     font-weight: 600;
     border-bottom: 1px solid #dee2e6;
 }
@@ -123,8 +278,8 @@
 
 .file-drop-area:hover,
 .file-drop-area.drag-over {
-    border-color: #0d6efd;
-    background-color: #f8f9fa;
+    border-color: var(--app-primary);
+    background-color: var(--app-primary-soft);
 }
 
 /* Стили для создания свода */
@@ -177,15 +332,15 @@
 }
 
 .branch-filter-tabs .nav-link:hover {
-    color: #0d6efd;
-    background-color: rgba(13, 110, 253, 0.1);
-    border-bottom-color: rgba(13, 110, 253, 0.3);
+    color: var(--app-primary);
+    background-color: rgba(11, 122, 117, 0.1);
+    border-bottom-color: rgba(11, 122, 117, 0.32);
     transform: translateY(-1px);
 }
 
 .branch-filter-tabs .nav-link.active {
-    border-bottom-color: #0d6efd;
-    color: #0d6efd;
+    border-bottom-color: var(--app-primary);
+    color: var(--app-primary);
     background-color: #ffffff;
     font-weight: 600;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
@@ -203,7 +358,7 @@
 }
 
 .branch-filter-tabs .nav-link.active .badge {
-    background-color: #0d6efd !important;
+    background-color: var(--app-primary) !important;
     color: white;
 }
 
@@ -245,7 +400,7 @@
 }
 
 .companies-count-7-plus {
-    background-color: #6f42c1 !important;
+    background-color: #1c5ea8 !important;
     color: white !important;
 }
 
@@ -278,7 +433,7 @@
 }
 
 .table tbody tr:hover {
-    background-color: rgba(13, 110, 253, 0.05);
+    background-color: rgba(11, 122, 117, 0.07);
 }
 
 /* Анимация для загрузки контента */
@@ -379,7 +534,7 @@
 /* Стили для улучшения доступности */
 .branch-filter-tabs .nav-link:focus,
 .companies-count-badge:focus {
-    outline: 2px solid #0d6efd;
+    outline: 2px solid var(--app-primary);
     outline-offset: 2px;
 }
 
@@ -395,12 +550,12 @@
     }
     
     .summary-list-page.branch-filter-tabs .nav-link:hover {
-        color: #0d6efd;
-        background-color: rgba(13, 110, 253, 0.1);
+        color: var(--app-primary);
+        background-color: rgba(11, 122, 117, 0.1);
     }
     
     .summary-list-page.branch-filter-tabs .nav-link.active {
-        color: #0d6efd;
+        color: var(--app-primary);
         background-color: #ffffff;
     }
 }
@@ -421,7 +576,7 @@
 
 /* Стили для подсказок в формах */
 .form-text .bi-info-circle {
-    color: #0dcaf0;
+    color: #1c5ea8;
     margin-right: 0.25rem;
 }
 
@@ -434,7 +589,7 @@
 /* Стили для успешных сообщений загрузки */
 .success-detail {
     font-weight: 600;
-    color: #198754;
+    color: var(--app-primary-dark);
 }
 
 /* Стили для предупреждающих сообщений в результатах загрузки */
@@ -480,7 +635,7 @@
 }
 
 .tooltip-inner {
-    background-color: #495057;
+    background-color: #223957;
     border-radius: 6px;
     padding: 0.5rem 0.75rem;
 }
@@ -517,7 +672,7 @@
     left: 0;
     right: 0;
     height: 4px;
-    background: linear-gradient(90deg, #0d6efd 0%, #6610f2 50%, #0d6efd 100%);
+    background: linear-gradient(90deg, #0b7a75 0%, #1c5ea8 50%, #0b7a75 100%);
     background-size: 200% 100%;
     animation: gradientShift 3s ease-in-out infinite;
 }
@@ -557,7 +712,7 @@
     left: 0;
     width: 60px;
     height: 2px;
-    background: linear-gradient(90deg, #0d6efd, #6610f2);
+    background: linear-gradient(90deg, #0b7a75, #1c5ea8);
     border-radius: 1px;
 }
 
@@ -573,7 +728,7 @@
 .company-block .table th {
     font-size: 0.9rem;
     font-weight: 600;
-    color: #495057;
+    color: var(--app-muted);
     border-top: none;
     padding: 0.875rem 0.75rem;
     background-color: #f8f9fa;
@@ -600,13 +755,13 @@
 .company-block .table tbody tr:hover {
     background-color: #f0f7ff !important;
     transform: scale(1.01);
-    box-shadow: 0 2px 4px rgba(13, 110, 253, 0.1);
+    box-shadow: 0 2px 4px rgba(11, 122, 117, 0.14);
 }
 
 /* Стили для примечаний компании */
 .company-notes .alert {
     border: none;
-    border-left: 4px solid #0dcaf0;
+    border-left: 4px solid #1c5ea8;
     background: linear-gradient(135deg, #e7f3ff 0%, #f0f9ff 100%);
     color: #055160;
     font-size: 0.9rem;
@@ -615,7 +770,7 @@
 }
 
 .company-notes .alert i {
-    color: #0dcaf0;
+    color: #1c5ea8;
     font-size: 1rem;
 }
 
@@ -635,7 +790,7 @@
 
 .company-block .btn-outline-primary:hover {
     transform: translateY(-1px);
-    box-shadow: 0 2px 4px rgba(13, 110, 253, 0.3);
+    box-shadow: 0 2px 4px rgba(11, 122, 117, 0.3);
 }
 
 /* Стили для бейджей в таблице */
