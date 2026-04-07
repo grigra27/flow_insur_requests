@@ -1,8 +1,9 @@
 """
 Tests for insurance_requests app
 """
-from django.test import TestCase, Client
-from django.contrib.auth.models import User
+from django.test import TestCase, Client, override_settings
+from django.contrib.auth.models import User, Group
+from django.core.cache import cache
 from django.urls import reverse
 from .models import InsuranceRequest
 
@@ -88,3 +89,58 @@ class RequestDetailViewTest(TestCase):
         self.assertEqual(response.status_code, 200)
         # With the new logic, emails_sent status should show create summary button
         self.assertContains(response, 'Создать свод')
+
+
+@override_settings(
+    LOGIN_RATE_LIMIT_ENABLED=True,
+    LOGIN_MAX_ATTEMPTS=3,
+    LOGIN_MAX_ATTEMPTS_PER_IP=30,
+    LOGIN_ATTEMPT_WINDOW_SECONDS=300,
+    LOGIN_LOCKOUT_SECONDS=600,
+)
+class LoginSecurityTest(TestCase):
+    """Security tests for login form: anti-enumeration and rate limit."""
+
+    def setUp(self):
+        self.client = Client()
+        self.login_url = reverse('login')
+        self.user = User.objects.create_user(username='secure_user', password='securepass123')
+
+        user_group, _ = Group.objects.get_or_create(name='Пользователи')
+        self.user.groups.add(user_group)
+        cache.clear()
+
+    def tearDown(self):
+        cache.clear()
+
+    def _post_login(self, username, password, remote_addr='127.0.0.1'):
+        return self.client.post(
+            self.login_url,
+            {'username': username, 'password': password},
+            REMOTE_ADDR=remote_addr
+        )
+
+    def test_login_error_message_does_not_reveal_user_existence(self):
+        unknown_user_response = self._post_login('unknown_user', 'somepass123')
+        wrong_password_response = self._post_login('secure_user', 'wrongpass123')
+
+        self.assertEqual(unknown_user_response.status_code, 200)
+        self.assertEqual(wrong_password_response.status_code, 200)
+
+        self.assertContains(unknown_user_response, 'Неверный логин или пароль')
+        self.assertContains(wrong_password_response, 'Неверный логин или пароль')
+
+        self.assertNotContains(unknown_user_response, 'Пользователь с таким логином не найден')
+        self.assertNotContains(wrong_password_response, 'Пользователь с таким логином не найден')
+        self.assertNotContains(unknown_user_response, 'Неверный пароль')
+        self.assertNotContains(wrong_password_response, 'Неверный пароль')
+
+    def test_login_is_locked_after_too_many_attempts(self):
+        for _ in range(3):
+            self._post_login('secure_user', 'wrongpass123')
+
+        locked_response = self._post_login('secure_user', 'securepass123')
+        self.assertEqual(locked_response.status_code, 200)
+        self.assertContains(locked_response, 'Слишком много неудачных попыток входа')
+
+        self.assertNotIn('_auth_user_id', self.client.session)

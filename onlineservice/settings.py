@@ -118,6 +118,18 @@ LOGIN_URL = '/login/'
 LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/login/'
 
+# Login security settings (anti-bruteforce / anti-enumeration support)
+LOGIN_RATE_LIMIT_ENABLED = config('LOGIN_RATE_LIMIT_ENABLED', default=True, cast=bool)
+LOGIN_MAX_ATTEMPTS = config('LOGIN_MAX_ATTEMPTS', default=5, cast=int)
+LOGIN_MAX_ATTEMPTS_PER_IP = config('LOGIN_MAX_ATTEMPTS_PER_IP', default=20, cast=int)
+LOGIN_ATTEMPT_WINDOW_SECONDS = config('LOGIN_ATTEMPT_WINDOW_SECONDS', default=900, cast=int)
+LOGIN_LOCKOUT_SECONDS = config('LOGIN_LOCKOUT_SECONDS', default=900, cast=int)
+LOGIN_RATE_LIMIT_TRUST_X_FORWARDED_FOR = config(
+    'LOGIN_RATE_LIMIT_TRUST_X_FORWARDED_FOR',
+    default=False,
+    cast=bool
+)
+
 # Session settings
 SESSION_COOKIE_AGE = 3600  # 1 hour
 SESSION_SAVE_EVERY_REQUEST = True

@@ -4,6 +4,7 @@
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth import authenticate
+from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 from .models import InsuranceRequest, RequestAttachment
@@ -41,6 +42,8 @@ class CustomAuthenticationForm(AuthenticationForm):
     
     def __init__(self, request=None, *args, **kwargs):
         super().__init__(request, *args, **kwargs)
+        self.failure_reason = None
+        self.failure_context = {}
         
         # Добавляем дополнительные атрибуты для улучшения UX
         self.fields['username'].widget.attrs.update({
@@ -102,25 +105,18 @@ class CustomAuthenticationForm(AuthenticationForm):
             )
             
             if self.user_cache is None:
-                # Проверяем, существует ли пользователь
-                from django.contrib.auth.models import User
-                try:
-                    user = User.objects.get(username=username)
-                    if not user.is_active:
-                        raise ValidationError(
-                            'Ваша учетная запись отключена. Обратитесь к администратору.',
-                            code='inactive'
-                        )
-                    else:
-                        raise ValidationError(
-                            'Неверный пароль. Проверьте правильность введенных данных.',
-                            code='invalid_password'
-                        )
-                except User.DoesNotExist:
-                    raise ValidationError(
-                        'Пользователь с таким логином не найден.',
-                        code='invalid_username'
-                    )
+                # Анти-enumeration: не раскрываем, существует ли пользователь.
+                user_model = get_user_model()
+                user = user_model.objects.filter(username=username).only('is_active').first()
+                self.failure_reason = 'invalid_credentials'
+                self.failure_context = {
+                    'user_exists': bool(user),
+                    'user_active': bool(user.is_active) if user else None,
+                }
+                raise ValidationError(
+                    'Неверный логин или пароль. Проверьте правильность введенных данных.',
+                    code='invalid_login'
+                )
             else:
                 self.confirm_login_allowed(self.user_cache)
         
@@ -129,9 +125,14 @@ class CustomAuthenticationForm(AuthenticationForm):
     def confirm_login_allowed(self, user):
         """Дополнительные проверки для разрешения входа"""
         if not user.is_active:
+            self.failure_reason = 'invalid_credentials'
+            self.failure_context = {
+                'user_exists': True,
+                'user_active': False,
+            }
             raise ValidationError(
-                'Ваша учетная запись отключена.',
-                code='inactive'
+                'Неверный логин или пароль. Проверьте правильность введенных данных.',
+                code='invalid_login'
             )
 
 

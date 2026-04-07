@@ -15,6 +15,13 @@ import logging
 from .models import InsuranceRequest, RequestAttachment
 from .forms import ExcelUploadForm, InsuranceRequestForm, EmailPreviewForm, CustomAuthenticationForm, RequestStatusForm
 from .decorators import user_required, admin_required
+from .security import (
+    clear_login_failures,
+    format_lockout_message,
+    get_login_client_ip,
+    get_login_lock_state,
+    register_failed_login_attempt,
+)
 from core.excel_utils import ExcelReader
 from core.templates import EmailTemplateGenerator
 
@@ -64,13 +71,28 @@ def login_view(request):
         return redirect('insurance_requests:request_list')
     
     if request.method == 'POST':
+        username = request.POST.get('username', '').strip()
+        client_ip = get_login_client_ip(request)
+        current_lock_state = get_login_lock_state(request, username)
         form = CustomAuthenticationForm(request, data=request.POST)
-        if form.is_valid():
+
+        if current_lock_state.is_locked:
+            lock_message = format_lockout_message(current_lock_state.remaining_seconds)
+            form.add_error(None, lock_message)
+            logger.warning(
+                "Blocked login attempt from %s for username '%s' (scope=%s, remaining=%ss)",
+                client_ip,
+                username or '<empty>',
+                current_lock_state.scope,
+                current_lock_state.remaining_seconds,
+            )
+        elif form.is_valid():
             user = form.get_user()
             login(request, user)
+            clear_login_failures(request, user.username)
             
             # Логируем успешный вход
-            logger.info(f"User {user.username} successfully logged in")
+            logger.info(f"User {user.username} successfully logged in from {client_ip}")
             
             # Добавляем сообщение о успешном входе
             messages.success(request, f'Добро пожаловать, {user.get_full_name() or user.username}!')
@@ -82,21 +104,31 @@ def login_view(request):
             else:
                 return redirect('insurance_requests:request_list')
         else:
-            # Детализированная обработка ошибок
-            username = request.POST.get('username', '')
-            
-            # Логируем неудачную попытку входа
-            logger.warning(f"Failed login attempt for username: {username}")
-            
-            # Проверяем специфические ошибки
-            if form.errors.get('__all__'):
-                error_messages = form.errors['__all__']
-                for error in error_messages:
-                    if 'inactive' in str(error).lower():
-                        messages.error(request, 'Ваша учетная запись отключена. Обратитесь к администратору.')
-                    else:
-                        messages.error(request, 'Неверный логин или пароль. Проверьте правильность введенных данных.')
+            failure_reason = getattr(form, 'failure_reason', None)
+            failure_context = getattr(form, 'failure_context', {})
+
+            if failure_reason == 'invalid_credentials':
+                updated_lock_state = register_failed_login_attempt(request, username)
+                logger.warning(
+                    "Failed login attempt for username '%s' from %s (reason=%s, details=%s, locked=%s)",
+                    username or '<empty>',
+                    client_ip,
+                    failure_reason,
+                    failure_context,
+                    updated_lock_state.is_locked,
+                )
+
+                if updated_lock_state.is_locked:
+                    lock_message = format_lockout_message(updated_lock_state.remaining_seconds)
+                    if '__all__' not in form.errors or lock_message not in form.errors['__all__']:
+                        form.add_error(None, lock_message)
             else:
+                logger.warning(
+                    "Login form validation failed for username '%s' from %s (errors=%s)",
+                    username or '<empty>',
+                    client_ip,
+                    form.errors,
+                )
                 messages.error(request, 'Пожалуйста, исправьте ошибки в форме.')
     else:
         form = CustomAuthenticationForm()
