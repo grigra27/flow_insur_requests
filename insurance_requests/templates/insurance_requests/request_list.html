@@ -19,7 +19,7 @@
             <a class="nav-link {% if not current_branch %}active{% endif %}" 
                href="?{% if current_dfa_filter %}dfa_filter={{ current_dfa_filter|urlencode }}&{% endif %}{% if current_month %}month={{ current_month }}&{% endif %}{% if current_year %}year={{ current_year }}{% endif %}"
                >
-                <i class="bi bi-list-ul"></i> Все заявки
+                <i class="bi bi-list-ul"></i> Все
                 {% if not current_branch %}
                     <span class="badge app-branch-count-badge ms-1">{{ total_requests }}</span>
                 {% endif %}
@@ -158,7 +158,7 @@
                 <tr>
                     <th scope="col">Заявка</th>
                     <th scope="col">Клиент</th>
-                    <th scope="col">Тип</th>
+                    <th scope="col">Предмет лизинга</th>
                     <th scope="col">Филиал</th>
                     <th scope="col">Статус</th>
                     <th scope="col">Дата создания</th>
@@ -179,9 +179,9 @@
                         </td>
                         <td>{{ request.client_name }}</td>
                         <td>
-                            <i class="bi bi-shield-check text-muted"></i>
-                            <span class="d-none d-lg-inline">{{ request.get_insurance_type_display|default:"Не указан" }}</span>
-                            <span class="d-lg-none">{{ request.get_insurance_type_display|default:"Не указан"|truncatechars:15 }}</span>
+                            <i class="bi bi-box-seam text-muted"></i>
+                            <span class="d-none d-lg-inline">{{ request.vehicle_info|default:"Не указан" }}</span>
+                            <span class="d-lg-none">{{ request.vehicle_info|default:"Не указан"|truncatechars:15 }}</span>
                         </td>
                         <td>
                             <i class="bi bi-building text-muted"></i>
