@@ -38,9 +38,6 @@
                                 <dt class="col-sm-5">Статус сделки:</dt>
                                 <dd class="col-sm-7">{{ request.get_deal_status_display }}</dd>
 
-                                <dt class="col-sm-5">ФИО менеджера:</dt>
-                                <dd class="col-sm-7">{{ request.manager_name|default:"Не указано" }}</dd>
-
                                 <dt class="col-sm-5">Филиал:</dt>
                                 <dd class="col-sm-7">{{ request.branch|default:"Не указан" }}</dd>
 
@@ -104,6 +101,34 @@
 
                     <div class="col-lg-5">
                         <section class="mb-4">
+                            <h6 class="text-uppercase text-muted mb-3">ДФА и менеджеры</h6>
+                            <dl class="row mb-0">
+                                <dt class="col-sm-6">Номер ДФА:</dt>
+                                <dd class="col-sm-6">{{ request.dfa_number|default:"Не указан" }}</dd>
+
+                                <dt class="col-sm-6">Менеджер ЛК:</dt>
+                                <dd class="col-sm-6">{{ request.manager_name|default:"Не указано" }}</dd>
+
+                                <dt class="col-sm-6">Менеджер Ст.Б.:</dt>
+                                <dd class="col-sm-6">
+                                    {% if request.created_by %}
+                                        {% if request.created_by.last_name and request.created_by.first_name %}
+                                            {{ request.created_by.last_name }} {{ request.created_by.first_name }}
+                                        {% elif request.created_by.last_name %}
+                                            {{ request.created_by.last_name }}
+                                        {% elif request.created_by.first_name %}
+                                            {{ request.created_by.first_name }}
+                                        {% else %}
+                                            Не указано
+                                        {% endif %}
+                                    {% else %}
+                                        Не указано
+                                    {% endif %}
+                                </dd>
+                            </dl>
+                        </section>
+
+                        <section class="mb-4">
                             <h6 class="text-uppercase text-muted mb-3">Условия страхования</h6>
                             <dl class="row mb-3">
                                 <dt class="col-sm-6">Тип страхования:</dt>
@@ -114,17 +139,9 @@
 
                                 <dt class="col-sm-6">Территория страхования:</dt>
                                 <dd class="col-sm-6">{{ request.insurance_territory|default:"Не указано" }}</dd>
-                            </dl>
-                        </section>
 
-                        <section class="mb-4">
-                            <h6 class="text-uppercase text-muted mb-3">Финансово-договорные параметры</h6>
-                            <dl class="row mb-0">
                                 <dt class="col-sm-6">Банк-кредитор:</dt>
                                 <dd class="col-sm-6">{{ request.creditor_bank|default:"Не указано" }}</dd>
-
-                                <dt class="col-sm-6">Номер ДФА:</dt>
-                                <dd class="col-sm-6">{{ request.dfa_number|default:"Не указан" }}</dd>
                             </dl>
                         </section>
 
