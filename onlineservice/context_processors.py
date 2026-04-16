@@ -144,6 +144,7 @@ BREADCRUMB_TEMPLATES = {
 LAYOUT_MODE_BY_PAGE = {
     ('insurance_requests', 'request_list'): 'wide',
     ('insurance_requests', 'upload_excel'): 'wide',
+    ('insurance_requests', 'request_detail'): 'wide',
     ('summaries', 'summary_list'): 'wide',
     ('summaries', 'statistics'): 'wide',
     ('summaries', 'deal_summary'): 'wide',
