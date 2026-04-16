@@ -29,6 +29,7 @@ INSTALLED_APPS = [
     # Local apps
     'insurance_requests',
     'summaries',
+    'backup',
 ]
 
 MIDDLEWARE = [

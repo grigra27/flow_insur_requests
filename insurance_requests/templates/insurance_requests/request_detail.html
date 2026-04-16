@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load tz %}
+{% load summary_extras %}
 
 {% block title %}{{ request.get_display_name }} - {{ block.super }}{% endblock %}
 
@@ -18,41 +19,64 @@
 
 <div class="row">
     <div class="col-lg-8">
+        <!-- Прогресс-бар статусов -->
+        {% if request.summary %}
+            {% status_progress request request.summary %}
+        {% else %}
+            {% status_progress request %}
+        {% endif %}
+
         <!-- Параметры заявки -->
         <div class="card mb-4">
             <div class="card-header">
                 <h5 class="mb-0">Параметры заявки</h5>
             </div>
             <div class="card-body">
+                <div class="req-hero mb-4">
+                    <div class="req-hero__name">{{ request.client_name }}</div>
+                    <div class="req-hero__meta">
+                        {% if request.inn %}
+                        <div class="req-hero__meta-item">
+                            <span class="req-hero__meta-label">ИНН</span>
+                            <span class="req-hero__meta-value">{{ request.inn }}</span>
+                        </div>
+                        {% endif %}
+                        {% if request.dfa_number %}
+                        <div class="req-hero__meta-item">
+                            <span class="req-hero__meta-label">ДФА</span>
+                            <span class="req-hero__meta-value">{{ request.dfa_number }}</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
                 <div class="row g-4">
                     <div class="col-lg-7">
                         <section class="mb-4">
                             <h6 class="text-uppercase text-muted mb-3">Клиент и сделка</h6>
                             <dl class="row mb-0">
-                                <dt class="col-sm-5">Клиент:</dt>
-                                <dd class="col-sm-7">{{ request.client_name }}</dd>
-
-                                <dt class="col-sm-5">ИНН:</dt>
-                                <dd class="col-sm-7">{{ request.inn }}</dd>
-
                                 <dt class="col-sm-5">Статус сделки:</dt>
                                 <dd class="col-sm-7">{{ request.get_deal_status_display }}</dd>
 
                                 <dt class="col-sm-5">Филиал:</dt>
                                 <dd class="col-sm-7">{{ request.branch|default:"Не указан" }}</dd>
 
-                                <dt class="col-sm-5"><small class="text-muted">Создана:</small></dt>
-                                <dd class="col-sm-7">{% timezone "Europe/Moscow" %}{{ request.created_at|date:"d.m.Y в H:i" }}{% endtimezone %}</dd>
+                                <dt class="col-sm-5">Менеджер Альянса:</dt>
+                                <dd class="col-sm-7">{{ request.manager_name|default:"Не указано" }}</dd>
 
-                                <dt class="col-sm-5"><small class="text-muted">Обновлена:</small></dt>
-                                <dd class="col-sm-7">{% timezone "Europe/Moscow" %}{{ request.updated_at|date:"d.m.Y в H:i" }}{% endtimezone %}</dd>
-
-                                <dt class="col-sm-5"><small class="text-muted">Срок ответа:</small></dt>
+                                <dt class="col-sm-5">Менеджер Онлайна:</dt>
                                 <dd class="col-sm-7">
-                                    {% if request.response_deadline %}
-                                    {% timezone "Europe/Moscow" %}{{ request.response_deadline|date:"d.m.Y в H:i" }}{% endtimezone %}
+                                    {% if request.created_by %}
+                                        {% if request.created_by.last_name and request.created_by.first_name %}
+                                            {{ request.created_by.last_name }} {{ request.created_by.first_name }}
+                                        {% elif request.created_by.last_name %}
+                                            {{ request.created_by.last_name }}
+                                        {% elif request.created_by.first_name %}
+                                            {{ request.created_by.first_name }}
+                                        {% else %}
+                                            Не указано
+                                        {% endif %}
                                     {% else %}
-                                    Не указан
+                                        Не указано
                                     {% endif %}
                                 </dd>
 
@@ -72,12 +96,13 @@
                         </section>
 
                         <section class="mb-4">
-                            <div class="border rounded-3 bg-light p-3 p-md-4">
-                                <h6 class="fs-5 mb-3">Объект страхования</h6>
-                                <dl class="row mb-0">
-                                    <dt class="col-sm-5">Информация о ПЛ:</dt>
-                                    <dd class="col-sm-7">{{ request.vehicle_info|default:"Не указано" }}</dd>
-
+                            <div class="req-object-block">
+                                <div class="req-object-block__header">
+                                    <i class="bi bi-truck-front-fill req-object-block__icon"></i>
+                                    <span class="req-object-block__title">Объект страхования</span>
+                                </div>
+                                <div class="req-object-block__vehicle">{{ request.vehicle_info|default:"Не указано" }}</div>
+                                <dl class="row mb-0 mt-2">
                                     <dt class="col-sm-5">Год выпуска:</dt>
                                     <dd class="col-sm-7">{{ request.manufacturing_year|default:"Не указан" }}</dd>
 
@@ -100,34 +125,6 @@
                     </div>
 
                     <div class="col-lg-5">
-                        <section class="mb-4">
-                            <h6 class="text-uppercase text-muted mb-3">ДФА и менеджеры</h6>
-                            <dl class="row mb-0">
-                                <dt class="col-sm-6">Номер ДФА:</dt>
-                                <dd class="col-sm-6">{{ request.dfa_number|default:"Не указан" }}</dd>
-
-                                <dt class="col-sm-6">Менеджер ЛК:</dt>
-                                <dd class="col-sm-6">{{ request.manager_name|default:"Не указано" }}</dd>
-
-                                <dt class="col-sm-6">Менеджер Ст.Б.:</dt>
-                                <dd class="col-sm-6">
-                                    {% if request.created_by %}
-                                        {% if request.created_by.last_name and request.created_by.first_name %}
-                                            {{ request.created_by.last_name }} {{ request.created_by.first_name }}
-                                        {% elif request.created_by.last_name %}
-                                            {{ request.created_by.last_name }}
-                                        {% elif request.created_by.first_name %}
-                                            {{ request.created_by.first_name }}
-                                        {% else %}
-                                            Не указано
-                                        {% endif %}
-                                    {% else %}
-                                        Не указано
-                                    {% endif %}
-                                </dd>
-                            </dl>
-                        </section>
-
                         <section class="mb-4">
                             <h6 class="text-uppercase text-muted mb-3">Условия страхования</h6>
                             <dl class="row mb-3">
@@ -163,30 +160,32 @@
 
                 <div class="mt-4 pt-3 border-top">
                     <h6 class="text-uppercase text-muted mb-3">Дополнительные параметры</h6>
-                    <div class="d-flex flex-wrap gap-2 mb-0">
-                        {% if request.has_franchise %}
-                        <span class="badge bg-warning text-dark">Франшиза</span>
-                        {% endif %}
-                        {% if request.has_installment %}
-                        <span class="badge bg-info text-dark">Рассрочка</span>
-                        {% endif %}
-                        {% if request.has_autostart %}
-                        <span class="badge bg-secondary">Автозапуск</span>
-                        {% endif %}
-                        {% if request.has_casco_ce %}
-                        <span class="badge bg-primary">КАСКО кат. C/E</span>
-                        {% endif %}
-                        {% if request.has_transportation %}
-                        <span class="badge bg-success">Перевозка</span>
-                        {% endif %}
-                        {% if request.has_construction_work %}
-                        <span class="badge bg-dark text-light">СМР</span>
-                        {% endif %}
-                        {% if not request.has_franchise and not request.has_installment and not request.has_autostart and not request.has_casco_ce and not request.has_transportation and not request.has_construction_work %}
-                        <span class="text-muted">Дополнительных параметров нет</span>
-                        {% endif %}
+                    <div class="d-flex flex-wrap gap-2">
+                        <span class="badge req-param-badge {% if request.has_franchise %}bg-warning text-dark{% else %}req-param-badge--off{% endif %}">
+                            <i class="bi {% if request.has_franchise %}bi-check-lg{% else %}bi-x-lg{% endif %} me-1"></i>Франшиза
+                        </span>
+                        <span class="badge req-param-badge {% if request.has_installment %}bg-info text-dark{% else %}req-param-badge--off{% endif %}">
+                            <i class="bi {% if request.has_installment %}bi-check-lg{% else %}bi-x-lg{% endif %} me-1"></i>Рассрочка
+                        </span>
+                        <span class="badge req-param-badge {% if request.has_autostart %}req-param-badge--autostart{% else %}req-param-badge--off{% endif %}">
+                            <i class="bi {% if request.has_autostart %}bi-check-lg{% else %}bi-x-lg{% endif %} me-1"></i>Автозапуск
+                        </span>
+                        <span class="badge req-param-badge {% if request.has_casco_ce %}bg-primary{% else %}req-param-badge--off{% endif %}">
+                            <i class="bi {% if request.has_casco_ce %}bi-check-lg{% else %}bi-x-lg{% endif %} me-1"></i>КАСКО кат. C/E
+                        </span>
+                        <span class="badge req-param-badge {% if request.has_transportation %}bg-danger{% else %}req-param-badge--off{% endif %}">
+                            <i class="bi {% if request.has_transportation %}bi-check-lg{% else %}bi-x-lg{% endif %} me-1"></i>Перевозка
+                        </span>
+                        <span class="badge req-param-badge {% if request.has_construction_work %}bg-dark{% else %}req-param-badge--off{% endif %}">
+                            <i class="bi {% if request.has_construction_work %}bi-check-lg{% else %}bi-x-lg{% endif %} me-1"></i>СМР
+                        </span>
                     </div>
                 </div>
+            </div>
+            <div class="card-footer req-dates-footer">
+                <span class="req-date-item"><span class="req-date-label">Создана:</span> {% timezone "Europe/Moscow" %}{{ request.created_at|date:"d.m.Y в H:i" }}{% endtimezone %}</span>
+                <span class="req-date-item"><span class="req-date-label">Обновлена:</span> {% timezone "Europe/Moscow" %}{{ request.updated_at|date:"d.m.Y в H:i" }}{% endtimezone %}</span>
+                <span class="req-date-item"><span class="req-date-label">Срок ответа:</span> {% if request.response_deadline %}{% timezone "Europe/Moscow" %}{{ request.response_deadline|date:"d.m.Y в H:i" }}{% endtimezone %}{% else %}Не указан{% endif %}</span>
             </div>
         </div>
 

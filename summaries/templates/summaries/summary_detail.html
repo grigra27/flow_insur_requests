@@ -23,68 +23,97 @@
 
 <div class="row">
     <div class="col-lg-8">
+        <!-- Прогресс-бар статусов -->
+        {% status_progress summary.request summary %}
+
         <!-- Информация о заявке -->
-        <div class="card mb-4">
+        <div class="card mb-4 status-card status-card--{{ summary.status|status_color }}">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">Информация о заявке</h5>
-                <span class="badge {{ summary.status|status_badge_class }} fs-6">
+                <span class="badge {{ summary.status|status_badge_class }}">
                     {{ summary.get_status_display }}
                 </span>
             </div>
             <div class="card-body">
-                <div class="row">
-                    <div class="col-md-8">
-                        <dl class="row">
-                            <dt class="col-sm-5">Клиент:</dt>
-                            <dd class="col-sm-7">{{ summary.request.client_name }}</dd>
-                            
-                            <dt class="col-sm-5">ИНН:</dt>
-                            <dd class="col-sm-7">{{ summary.request.inn }}</dd>
-                            
-                            <dt class="col-sm-5">Филиал:</dt>
-                            <dd class="col-sm-7">{{ summary.branch|format_branch }}</dd>
-                            
-                            <dt class="col-sm-5">Тип страхования:</dt>
-                            <dd class="col-sm-7">{{ summary.request.insurance_type }}</dd>
-                            
-                            <dt class="col-sm-5">Информация о предмете лизинга:</dt>
-                            <dd class="col-sm-7">{{ summary.request.vehicle_info|default:"Не указано" }}</dd>
-
-                            <dt class="col-sm-5">Год выпуска:</dt>
-                            <dd class="col-sm-7">{{ summary.request.manufacturing_year|default:"Не указано" }}</dd>
-
-                            <dt class="col-sm-5">Статус имущества:</dt>
-                            <dd class="col-sm-7">{{ summary.request.asset_status|default:"Не указано" }}</dd>
-                        </dl>
-                    </div>
-                    <div class="col-md-4">
-                        <dl class="row">
-                            <dt class="col-sm-5 text-end">Заявка:</dt>
-                            <dd class="col-sm-7">
-                                <a href="{% url 'insurance_requests:request_detail' summary.request.pk %}">{{ summary.request.get_display_name }}</a>
-                            </dd>
-                            
-                            <dt class="col-sm-5 text-end">Создан:</dt>
-                            <dd class="col-sm-7">{% timezone "Europe/Moscow" %}{{ summary.created_at|date:"d.m.Y H:i" }}{% endtimezone %}</dd>
-                            
-                            {% if summary.sent_to_client_at %}
-                                <dt class="col-sm-5 text-end">Отправлен:</dt>
-                                <dd class="col-sm-7">{% timezone "Europe/Moscow" %}{{ summary.sent_to_client_at|date:"d.m.Y H:i" }}{% endtimezone %}</dd>
-                            {% endif %}
-                        </dl>
+                <div class="req-hero mb-4">
+                    <div class="req-hero__name">{{ summary.request.client_name }}</div>
+                    <div class="req-hero__meta">
+                        {% if summary.request.inn %}
+                        <div class="req-hero__meta-item">
+                            <span class="req-hero__meta-label">ИНН</span>
+                            <span class="req-hero__meta-value">{{ summary.request.inn }}</span>
+                        </div>
+                        {% endif %}
+                        {% if summary.request.dfa_number %}
+                        <div class="req-hero__meta-item">
+                            <span class="req-hero__meta-label">ДФА</span>
+                            <span class="req-hero__meta-value">{{ summary.request.dfa_number }}</span>
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
+
+                <dl class="row mb-3">
+                    <dt class="col-sm-4">Филиал:</dt>
+                    <dd class="col-sm-8">{{ summary.branch|format_branch }}</dd>
+
+                    <dt class="col-sm-4">Тип страхования:</dt>
+                    <dd class="col-sm-8">{{ summary.request.insurance_type }}</dd>
+                </dl>
+
+                <div class="req-object-block">
+                    <div class="req-object-block__header">
+                        <i class="bi bi-truck-front-fill req-object-block__icon"></i>
+                        <span class="req-object-block__title">Объект страхования</span>
+                    </div>
+                    <div class="req-object-block__vehicle">{{ summary.request.vehicle_info|default:"Не указано" }}</div>
+                    <dl class="row mb-0 mt-2">
+                        <dt class="col-sm-4">Год выпуска:</dt>
+                        <dd class="col-sm-8">{{ summary.request.manufacturing_year|default:"Не указано" }}</dd>
+
+                        <dt class="col-sm-4">Статус имущества:</dt>
+                        <dd class="col-sm-8">{{ summary.request.asset_status|default:"Не указано" }}</dd>
+                    </dl>
+                </div>
+            </div>
+            <div class="card-footer req-dates-footer">
+                <span class="req-date-item">
+                    <span class="req-date-label">Заявка:</span>
+                    <a href="{% url 'insurance_requests:request_detail' summary.request.pk %}">{{ summary.request.get_display_name }}</a>
+                </span>
+                <span class="req-date-item">
+                    <span class="req-date-label">Создан:</span>
+                    {% timezone "Europe/Moscow" %}{{ summary.created_at|date:"d.m.Y в H:i" }}{% endtimezone %}
+                </span>
+                {% if summary.sent_to_client_at %}
+                <span class="req-date-item">
+                    <span class="req-date-label">Отправлен:</span>
+                    {% timezone "Europe/Moscow" %}{{ summary.sent_to_client_at|date:"d.m.Y в H:i" }}{% endtimezone %}
+                </span>
+                {% endif %}
             </div>
         </div>
 
         <!-- Предложения страховщиков -->
         <div class="card mb-4">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">Предложения страховщиков ({{ sorted_companies|length }})</h5>
+            <div class="summary-offers-hero">
+                <div class="summary-offers-hero__left">
+                    <i class="bi bi-shield-check summary-offers-hero__icon"></i>
+                    <div>
+                        <div class="summary-offers-hero__title">Предложения страховщиков</div>
+                        <div class="summary-offers-hero__sub">
+                            {% if sorted_companies %}
+                                {{ sorted_companies|length }} компани{% if sorted_companies|length == 1 %}я{% elif sorted_companies|length < 5 %}и{% else %}й{% endif %}
+                            {% else %}
+                                Предложений пока нет
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
                 {% if summary.status == 'collecting' %}
-                    <a href="{% url 'summaries:add_offer' summary.pk %}" class="btn btn-success btn-sm">
-                        <i class="bi bi-plus-circle"></i> Добавить предложение вручную
-                    </a>
+                <a href="{% url 'summaries:add_offer' summary.pk %}" class="btn btn-success btn-sm">
+                    <i class="bi bi-plus-circle me-1"></i>Добавить вручную
+                </a>
                 {% endif %}
             </div>
             <div class="card-body">
@@ -115,16 +144,20 @@
                                 {% endwith %}
                                 
                                 <div class="table-responsive">
-                                    <table class="table table-hover table-sm">
-                                        <thead class="custom-table-header">
+                                    <table class="table table-hover table-sm offers-table">
+                                        <thead>
                                             <tr>
-                                                <th style="width: 10%;">Год</th>
-                                                <th style="width: 19%;">СС</th>
-                                                <th style="width: 13%;">Фр.-1</th>
-                                                <th style="width: 16%;">СП-1</th>
-                                                <th style="width: 13%;">Фр.-2</th>
-                                                <th style="width: 16%;">СП-2</th>
-                                                <th style="width: 13%;">Действия</th>
+                                                <th rowspan="2" class="offers-th-base align-middle" style="width: 10%;">Год</th>
+                                                <th rowspan="2" class="offers-th-base align-middle" style="width: 19%;">Страх. сумма</th>
+                                                <th colspan="2" class="offers-variant-header offers-variant-1-header text-center">Вариант&nbsp;1</th>
+                                                <th colspan="2" class="offers-variant-header offers-variant-2-header text-center">Вариант&nbsp;2</th>
+                                                <th rowspan="2" class="offers-th-base align-middle" style="width: 13%;">Действия</th>
+                                            </tr>
+                                            <tr>
+                                                <th class="offers-th-base offers-v1-bg" style="width: 13%;">Франшиза</th>
+                                                <th class="offers-th-base offers-v1-bg" style="width: 16%;">Премия</th>
+                                                <th class="offers-th-base offers-v2-bg" style="width: 13%;">Франшиза</th>
+                                                <th class="offers-th-base offers-v2-bg" style="width: 16%;">Премия</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -244,9 +277,9 @@
         <!-- Примечание к своду -->
         <div class="card mb-4">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <h6 class="mb-0"><i class="bi bi-sticky"></i> Общее примечание</h6>
+                <h6 class="mb-0"><i class="bi bi-sticky-fill text-warning me-1"></i> Общее примечание</h6>
                 <button type="button" class="btn btn-outline-primary btn-sm" onclick="toggleNotesEdit()">
-                    <i class="bi bi-pencil"></i> Редактировать
+                    <i class="bi bi-pencil"></i>
                 </button>
             </div>
             <div class="card-body">
@@ -393,17 +426,25 @@
                 </div>
                 
                 {% if summary.selected_company %}
-                <div class="alert alert-success d-flex justify-content-between align-items-center">
-                    <div>
-                        <i class="bi bi-check-circle"></i>
-                        <strong>Выбранная СК:</strong> {{ summary.selected_company }}
-                        {% if summary.selected_franchise_variant %}
-                            <br><small><strong>Вариант:</strong> {{ summary.get_selected_franchise_variant_display }}</small>
-                        {% endif %}
+                <div class="deal-result-block mb-3">
+                    <div class="deal-result-block__body">
+                        <div class="deal-result-block__icon">
+                            <i class="bi bi-check-circle-fill"></i>
+                        </div>
+                        <div class="deal-result-block__info">
+                            <div class="deal-result-block__label">Выбранная страховая компания</div>
+                            <div class="deal-result-block__company">{{ summary.selected_company }}</div>
+                            {% if summary.selected_franchise_variant %}
+                            <div class="deal-result-block__variant">{{ summary.get_selected_franchise_variant_display }}</div>
+                            {% endif %}
+                        </div>
                     </div>
-                    <a href="{% url 'summaries:deal_summary' summary.id %}" class="btn btn-sm btn-outline-success">
-                        <i class="bi bi-file-text"></i> Резюме по сделке
+                    {% if summary.status == 'completed_accepted' %}
+                    <a href="{% url 'summaries:deal_summary' summary.id %}" class="deal-result-block__btn">
+                        <i class="bi bi-file-earmark-check me-1"></i>Открыть резюме по сделке
+                        <i class="bi bi-chevron-right ms-1"></i>
                     </a>
+                    {% endif %}
                 </div>
                 {% endif %}
                 
@@ -474,6 +515,51 @@
 
 {% block extra_css %}
 <style>
+/* Offers hero header */
+.summary-offers-hero {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+    background: linear-gradient(135deg, #f0f4ff 0%, #f8faff 100%);
+    border-bottom: 1px solid var(--app-border);
+    border-left: 4px solid #4f6ef7;
+    border-radius: calc(var(--app-radius-md) - 1px) calc(var(--app-radius-md) - 1px) 0 0;
+}
+
+.summary-offers-hero__left {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.summary-offers-hero__icon {
+    font-size: 1.8rem;
+    color: #4f6ef7;
+    flex-shrink: 0;
+}
+
+.summary-offers-hero__title {
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: var(--app-text);
+    line-height: 1.2;
+}
+
+.summary-offers-hero__sub {
+    font-size: 0.8rem;
+    color: var(--app-muted);
+    margin-top: 0.1rem;
+}
+
+/* req-hero inside status-card: override gradient to respect status border */
+.status-card .req-hero {
+    margin: -1.25rem -1.25rem 1.25rem;
+    border-radius: 0;
+    border-left: none;
+}
+
 /* Company notes styles */
 .company-notes {
     margin-bottom: 1rem;

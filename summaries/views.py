@@ -212,12 +212,30 @@ def deal_summary(request, summary_id):
     insurance_request = summary.request
     
     # Получаем предложения выбранной компании
-    selected_offers = summary.offers.filter(
-        company_name=summary.selected_company,
-        is_valid=True
-    ).order_by('insurance_year')
-    
-    # Подготавливаем данные для отображения (аналогично техническому листу)
+    selected_offers = list(
+        summary.offers.filter(
+            company_name=summary.selected_company,
+            is_valid=True
+        ).order_by('insurance_year')
+    )
+
+    # Менеджер Онлайна — форматируем имя
+    created_by = insurance_request.created_by
+    if created_by:
+        if created_by.last_name and created_by.first_name:
+            manager_online = f"{created_by.last_name} {created_by.first_name}"
+        elif created_by.last_name:
+            manager_online = created_by.last_name
+        elif created_by.first_name:
+            manager_online = created_by.first_name
+        else:
+            manager_online = created_by.username
+    else:
+        manager_online = None
+
+    is_casco_type = insurance_request.insurance_type in ['КАСКО', 'страхование спецтехники']
+    is_property_type = insurance_request.insurance_type == 'страхование имущества'
+
     context = {
         'summary': summary,
         'request': insurance_request,
@@ -225,7 +243,8 @@ def deal_summary(request, summary_id):
         'selected_franchise_variant': summary.selected_franchise_variant,
         'selected_franchise_variant_display': summary.get_selected_franchise_variant_display() if summary.selected_franchise_variant else None,
         'selected_offers': selected_offers,
-        
+        'total_years': len(selected_offers),
+
         # Основные данные заявки
         'request_number': insurance_request.dfa_number,
         'client_name': insurance_request.client_name,
@@ -233,25 +252,35 @@ def deal_summary(request, summary_id):
         'branch': insurance_request.get_branch_display() if hasattr(insurance_request, 'get_branch_display') else insurance_request.branch,
         'insurance_type': insurance_request.get_insurance_type_display(),
         'vehicle_info': insurance_request.vehicle_info,
-        
-        # Дополнительные параметры
+        'manufacturing_year': insurance_request.manufacturing_year,
+        'asset_status': insurance_request.asset_status,
+        'insurance_period': getattr(insurance_request, 'insurance_period', ''),
+
+        # Условия договора
         'creditor_bank': insurance_request.creditor_bank,
         'usage_purposes': insurance_request.usage_purposes,
+        'has_franchise': insurance_request.has_franchise,
         'franchise_type': 'Да' if insurance_request.has_franchise else 'Нет',
         'has_installment': insurance_request.has_installment,
-        
+        'has_casco_ce': insurance_request.has_casco_ce if is_casco_type else None,
+        'deal_status_display': insurance_request.get_deal_status_display() if hasattr(insurance_request, 'get_deal_status_display') else '',
+
+        # Менеджеры
+        'manager_name': insurance_request.manager_name,
+        'manager_online': manager_online,
+
         # Параметры для КАСКО/спецтехники
-        'has_autostart': insurance_request.has_autostart if insurance_request.insurance_type in ['КАСКО', 'страхование спецтехники'] else None,
-        'key_completeness': insurance_request.key_completeness if insurance_request.insurance_type in ['КАСКО', 'страхование спецтехники'] else None,
-        'pts_psm': insurance_request.pts_psm if insurance_request.insurance_type in ['КАСКО', 'страхование спецтехники'] else None,
-        'telematics_complex': insurance_request.telematics_complex if insurance_request.insurance_type in ['КАСКО', 'страхование спецтехники'] else None,
-        
+        'has_autostart': insurance_request.has_autostart if is_casco_type else None,
+        'key_completeness': insurance_request.key_completeness if is_casco_type else None,
+        'pts_psm': insurance_request.pts_psm if is_casco_type else None,
+        'telematics_complex': insurance_request.telematics_complex if is_casco_type else None,
+
         # Параметры для страхования имущества
-        'insurance_territory': insurance_request.insurance_territory if insurance_request.insurance_type == 'страхование имущества' else None,
-        'has_transportation': insurance_request.has_transportation if insurance_request.insurance_type == 'страхование имущества' else None,
-        'has_construction_work': insurance_request.has_construction_work if insurance_request.insurance_type == 'страхование имущества' else None,
+        'insurance_territory': insurance_request.insurance_territory if is_property_type else None,
+        'has_transportation': insurance_request.has_transportation if is_property_type else None,
+        'has_construction_work': insurance_request.has_construction_work if is_property_type else None,
     }
-    
+
     return render(request, 'summaries/deal_summary.html', context)
 
 

@@ -1,938 +1,851 @@
 {% extends 'base.html' %}
 
-{% block title %}Загрузка Excel файла - {{ block.super }}{% endblock %}
+{% block title %}Загрузить заявку — {{ block.super }}{% endblock %}
 
 {% block extra_css %}
-{% load static %}
-<link rel="stylesheet" href="{% static 'css/help.css' %}">
 <style>
-    /* Дополнительные стили для страницы загрузки заявок */
-    .upload-navigation {
-        position: sticky;
-        top: 20px;
-        background: #f8f9fa;
-        border-radius: 0.375rem;
-        padding: 1rem;
-        margin-bottom: 2rem;
-        border: 1px solid #dee2e6;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-    }
+/* ── Upload page ─────────────────────────────────────────── */
 
-    .upload-navigation h6 {
-        color: var(--app-primary-dark);
-        font-weight: 700;
-        padding-bottom: 0.5rem;
-        border-bottom: 1px solid rgba(11, 122, 117, 0.2);
-    }
+/* Sidebar navigation */
+.upload-nav__title {
+    font-size: 0.63rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--app-muted);
+    padding-bottom: 0.5rem;
+    margin-bottom: 0.4rem;
+    border-bottom: 1px solid var(--app-border);
+}
 
-    .upload-navigation .nav-link {
-        color: #495057;
-        padding: 0.65rem 0.8rem;
-        border-radius: 0.5rem;
-        border: 1px solid transparent;
-        margin-bottom: 0.3rem;
-        font-weight: 500;
-        transition: all 0.2s ease;
-    }
+.upload-nav .nav-link {
+    color: var(--app-text);
+    padding: 0.55rem 0.75rem;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    margin-bottom: 0.2rem;
+    font-weight: 500;
+    font-size: 0.88rem;
+    transition: all 0.15s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
 
-    .upload-navigation .nav-link i {
-        width: 1.2rem;
-        margin-right: 0.45rem;
-        text-align: center;
-    }
+.upload-nav .nav-link:hover {
+    color: var(--app-primary);
+    background: var(--app-primary-soft);
+    border-color: rgba(11,122,117,0.2);
+    text-decoration: none;
+}
 
-    .upload-navigation .nav-link:hover {
-        color: var(--app-primary);
-        background-color: rgba(11, 122, 117, 0.08);
-        border-color: rgba(11, 122, 117, 0.25);
-        text-decoration: none;
-        transform: translateX(2px);
-    }
+.upload-nav .nav-link.active {
+    color: #fff;
+    background: var(--app-primary);
+    border-color: var(--app-primary);
+}
 
-    .upload-navigation .nav-link.active,
-    .upload-navigation .nav-pills .nav-link.active {
-        color: #ffffff;
-        background-color: var(--app-primary);
-        border-color: var(--app-primary);
-        box-shadow: 0 4px 10px rgba(11, 122, 117, 0.2);
-    }
+/* Upload form hero header */
+.upload-form-hero {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.1rem 1.5rem;
+    background: linear-gradient(135deg, var(--app-primary-soft) 0%, #f0f8ff 100%);
+    border-bottom: 1px solid var(--app-border);
+    border-left: 4px solid var(--app-primary);
+    border-radius: calc(var(--app-radius-md) - 1px) calc(var(--app-radius-md) - 1px) 0 0;
+}
 
-    .upload-navigation .nav-link.active:hover,
-    .upload-navigation .nav-pills .nav-link.active:hover {
-        color: #ffffff;
-        background-color: var(--app-primary-dark);
-        border-color: var(--app-primary-dark);
-    }
+.upload-form-hero__icon {
+    font-size: 2.2rem;
+    color: var(--app-primary);
+    flex-shrink: 0;
+}
 
-    .upload-section {
-        margin-bottom: 3rem;
-        scroll-margin-top: 100px;
-        padding: 1.5rem;
-        background: white;
-        border-radius: 0.5rem;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-        border: 1px solid #e9ecef;
-    }
+.upload-form-hero__title {
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: var(--app-text);
+    line-height: 1.2;
+}
 
-    .upload-section h4,
-    .upload-section h5 {
-        color: var(--app-primary);
-        border-bottom: 2px solid var(--app-primary);
-        padding-bottom: 0.5rem;
-        margin-bottom: 1.5rem;
-        display: flex;
-        align-items: center;
-    }
+.upload-form-hero__sub {
+    font-size: 0.82rem;
+    color: var(--app-muted);
+    margin-top: 0.15rem;
+}
 
-    .upload-section h4 i,
-    .upload-section h5 i {
-        margin-right: 0.75rem;
-    }
+/* Numbered steps */
+.upload-step {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+}
 
-    /* Улучшение читаемости таблиц на мобильных устройствах */
-    @media (max-width: 768px) {
-        .upload-navigation {
-            position: static;
-            margin-bottom: 1rem;
-            padding: 0.75rem;
-        }
+.upload-step__num {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: var(--app-primary);
+    color: #fff;
+    font-size: 0.82rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 0.3rem;
+    box-shadow: 0 2px 8px rgba(11,122,117,0.3);
+}
 
-        .upload-section {
-            padding: 1rem;
-        }
+.upload-step__body {
+    flex: 1;
+}
 
-        .table-responsive table {
-            font-size: 0.85rem;
-        }
+.upload-step__body .form-label {
+    font-weight: 600;
+    color: var(--app-text);
+    margin-bottom: 0.35rem;
+}
 
-        .table-responsive th,
-        .table-responsive td {
-            padding: 0.5rem 0.25rem;
-            word-break: break-word;
-        }
+/* Drop zone */
+.upload-dropzone {
+    border: 2px dashed var(--app-border);
+    border-radius: var(--app-radius-md);
+    padding: 2rem 1.5rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: #fafbfc;
+}
 
-        .table-responsive .text-danger {
-            font-weight: bold;
-        }
+.upload-dropzone:hover,
+.upload-dropzone.drag-over {
+    border-color: var(--app-primary);
+    background: var(--app-primary-soft);
+}
 
-        .badge {
-            font-size: 0.7rem;
-        }
+.upload-dropzone.has-file {
+    border-color: #198754;
+    background: #f0faf5;
+    border-style: solid;
+}
 
-        .alert {
-            font-size: 0.9rem;
-        }
+.upload-dropzone__icon {
+    font-size: 2.5rem;
+    color: var(--app-muted);
+    display: block;
+    margin-bottom: 0.5rem;
+    transition: color 0.2s;
+}
 
-        .card-body {
-            padding: 1rem 0.75rem;
-        }
-    }
+.upload-dropzone:hover .upload-dropzone__icon,
+.upload-dropzone.drag-over .upload-dropzone__icon {
+    color: var(--app-primary);
+}
 
-    /* Улучшение контрастности для различий между типами заявок */
-    .table-warning {
-        background-color: rgba(255, 193, 7, 0.2) !important;
-    }
+.upload-dropzone.has-file .upload-dropzone__icon {
+    color: #198754;
+}
 
-    .table-success {
-        background-color: rgba(25, 135, 84, 0.15) !important;
-    }
+.upload-dropzone__text {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--app-text);
+}
 
-    .table-primary {
-        background-color: rgba(11, 122, 117, 0.15) !important;
-    }
+.upload-dropzone__sub {
+    font-size: 0.8rem;
+    color: var(--app-muted);
+    margin: 0.35rem 0;
+}
 
-    .text-danger {
-        font-weight: 600;
-    }
+.upload-dropzone__hint {
+    font-size: 0.75rem;
+    color: var(--app-muted);
+    margin-top: 0.6rem;
+}
 
-    /* Стили для примеров */
-    .example-card {
-        border-left: 4px solid;
-    }
+.upload-dropzone__filename {
+    margin-top: 0.75rem;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: #198754;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+}
 
-    .example-card.legal-entity {
-        border-left-color: var(--app-primary);
-    }
+.upload-dropzone input[type="file"] {
+    display: none;
+}
 
-    .example-card.individual-entrepreneur {
-        border-left-color: #198754;
-    }
+/* Docs accordion */
+.docs-accordion .accordion-button {
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--app-text);
+    background: #f8fafc;
+    padding: 0.9rem 1.25rem;
+}
 
-    /* Исправление темного фона для элементов code */
-    .upload-page code {
-        background-color: #f8f9fa !important;
-        color: #495057 !important;
-        padding: 0.2rem 0.4rem;
-        border-radius: 0.25rem;
-        font-size: 0.875em;
-        border: 1px solid #e9ecef;
-    }
+.docs-accordion .accordion-button:not(.collapsed) {
+    color: var(--app-primary-dark);
+    background: var(--app-primary-soft);
+    box-shadow: none;
+}
 
-    /* Переопределение темной темы для страницы загрузки */
-    @media (prefers-color-scheme: dark) {
+.docs-accordion .accordion-item {
+    border-color: var(--app-border);
+    margin-bottom: 0.5rem;
+    border-radius: var(--app-radius-md) !important;
+    overflow: hidden;
+}
 
-        .upload-page,
-        .upload-page .upload-navigation,
-        .upload-page .upload-section,
-        .upload-page .card-body {
-            background-color: #ffffff;
-            color: #212529;
-        }
+.docs-accordion .accordion-body {
+    font-size: 0.88rem;
+}
 
-        .upload-page code {
-            background-color: #f8f9fa !important;
-            color: #495057 !important;
-            border-color: #e9ecef !important;
-        }
-
-        .upload-page .text-muted {
-            color: #6c757d !important;
-        }
-    }
+.upload-page code {
+    background-color: #f3f6f9;
+    color: #c0392b;
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.85em;
+    border: 1px solid #e8ecf0;
+}
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="row upload-page">
+
+    <!-- ── Sidebar ──────────────────────────────────────── -->
     <div class="col-lg-3">
-        <!-- Быстрая навигация -->
-        <nav class="upload-navigation">
-            <h6 class="mb-3"><i class="bi bi-list-ul"></i> Разделы справки</h6>
-            <ul class="nav nav-pills flex-column">
-                <li class="nav-item">
-                    <a class="nav-link" href="#upload-form">
-                        <i class="bi bi-upload"></i> Загрузка файла
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="#casco-structure">
-                        <i class="bi bi-car-front"></i> КАСКО/спецтехника
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="#property-structure">
-                        <i class="bi bi-building"></i> Имущество
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="#examples">
-                        <i class="bi bi-file-earmark-text"></i> Примеры
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="#franchise-logic">
-                        <i class="bi bi-gear"></i> Логика франшизы
-                    </a>
-                </li>
-            </ul>
+        <nav class="upload-nav card mb-4" style="position: sticky; top: 20px;">
+            <div class="card-body p-3">
+                <div class="upload-nav__title mb-3"><i class="bi bi-list-ul me-1"></i>Разделы</div>
+                <ul class="nav flex-column">
+                    <li class="nav-item">
+                        <a class="nav-link" href="#upload-form"
+                           data-scroll-target="upload-form">
+                            <i class="bi bi-upload"></i> Загрузка файла
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#casco-structure"
+                           data-scroll-target="casco-structure"
+                           data-accordion-target="acc-casco">
+                            <i class="bi bi-car-front"></i> КАСКО/спецтехника
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#property-structure"
+                           data-scroll-target="property-structure"
+                           data-accordion-target="acc-property">
+                            <i class="bi bi-building"></i> Имущество
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#examples"
+                           data-scroll-target="examples"
+                           data-accordion-target="acc-examples">
+                            <i class="bi bi-file-earmark-text"></i> Примеры
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#franchise-logic"
+                           data-scroll-target="franchise-logic"
+                           data-accordion-target="acc-franchise">
+                            <i class="bi bi-gear"></i> Логика франшизы
+                        </a>
+                    </li>
+                </ul>
+            </div>
         </nav>
     </div>
 
+    <!-- ── Main content ─────────────────────────────────── -->
     <div class="col-lg-9">
-        <section id="upload-form" class="upload-section">
-            <h4><i class="bi bi-upload"></i> Загрузка Excel файла с заявкой</h4>
-            <form method="post" enctype="multipart/form-data">
-                {% csrf_token %}
 
-                <div class="mb-3">
-                    <label for="{{ form.application_format.id_for_label }}" class="form-label">
-                        {{ form.application_format.label }}
-                    </label>
-                    {{ form.application_format }}
-                    {% if form.application_format.help_text %}
-                    <div class="form-text">{{ form.application_format.help_text }}</div>
-                    {% endif %}
-                    {% if form.application_format.errors %}
-                    <div class="text-danger">
-                        {% for error in form.application_format.errors %}
-                        <small>{{ error }}</small>
-                        {% endfor %}
-                    </div>
-                    {% endif %}
+        <!-- Upload form card -->
+        <div class="card mb-4" id="upload-form">
+            <div class="upload-form-hero">
+                <i class="bi bi-file-earmark-arrow-up upload-form-hero__icon"></i>
+                <div>
+                    <div class="upload-form-hero__title">Загрузить заявку</div>
+                    <div class="upload-form-hero__sub">Выберите формат, тип и прикрепите Excel-файл</div>
                 </div>
+            </div>
+            <div class="card-body p-4">
+                <form method="post" enctype="multipart/form-data">
+                    {% csrf_token %}
 
-                <div class="mb-3">
-                    <label for="{{ form.application_type.id_for_label }}" class="form-label">
-                        {{ form.application_type.label }}
-                    </label>
-                    {{ form.application_type }}
-                    {% if form.application_type.help_text %}
-                    <div class="form-text">{{ form.application_type.help_text }}</div>
-                    {% endif %}
-                    {% if form.application_type.errors %}
-                    <div class="text-danger">
-                        {% for error in form.application_type.errors %}
-                        <small>{{ error }}</small>
-                        {% endfor %}
+                    <!-- Шаг 1 -->
+                    <div class="upload-step mb-4">
+                        <div class="upload-step__num">1</div>
+                        <div class="upload-step__body">
+                            <label for="{{ form.application_format.id_for_label }}" class="form-label">
+                                {{ form.application_format.label }}
+                            </label>
+                            {{ form.application_format }}
+                            {% if form.application_format.help_text %}
+                            <div class="form-text">{{ form.application_format.help_text }}</div>
+                            {% endif %}
+                            {% if form.application_format.errors %}
+                            <div class="text-danger">{% for e in form.application_format.errors %}<small>{{ e }}</small>{% endfor %}</div>
+                            {% endif %}
+                        </div>
                     </div>
-                    {% endif %}
-                </div>
 
-                <div class="mb-3">
-                    <label for="{{ form.excel_file.id_for_label }}" class="form-label">
-                        {{ form.excel_file.label }}
-                    </label>
-                    <div class="input-group">
-                        {{ form.excel_file }}
+                    <!-- Шаг 2 -->
+                    <div class="upload-step mb-4">
+                        <div class="upload-step__num">2</div>
+                        <div class="upload-step__body">
+                            <label for="{{ form.application_type.id_for_label }}" class="form-label">
+                                {{ form.application_type.label }}
+                            </label>
+                            {{ form.application_type }}
+                            {% if form.application_type.help_text %}
+                            <div class="form-text">{{ form.application_type.help_text }}</div>
+                            {% endif %}
+                            {% if form.application_type.errors %}
+                            <div class="text-danger">{% for e in form.application_type.errors %}<small>{{ e }}</small>{% endfor %}</div>
+                            {% endif %}
+                        </div>
                     </div>
-                    {% if form.excel_file.help_text %}
-                    <div class="form-text">{{ form.excel_file.help_text }}</div>
-                    {% endif %}
-                    {% if form.excel_file.errors %}
-                    <div class="text-danger">
-                        {% for error in form.excel_file.errors %}
-                        <small>{{ error }}</small>
-                        {% endfor %}
+
+                    <!-- Шаг 3: зона загрузки файла -->
+                    <div class="upload-step mb-4">
+                        <div class="upload-step__num">3</div>
+                        <div class="upload-step__body">
+                            <label class="form-label">{{ form.excel_file.label }}</label>
+                            <div class="upload-dropzone" id="dropzone">
+                                <i class="bi bi-cloud-arrow-up upload-dropzone__icon" id="dropzone-icon"></i>
+                                <div class="upload-dropzone__text" id="dropzone-text">Перетащите файл сюда</div>
+                                <div class="upload-dropzone__sub">или</div>
+                                <label class="btn btn-outline-primary btn-sm" for="{{ form.excel_file.id_for_label }}">
+                                    <i class="bi bi-folder2-open me-1"></i>Выбрать файл
+                                </label>
+                                {{ form.excel_file }}
+                                <div class="upload-dropzone__hint">.xls · .xlsx · .xltx · до 10 МБ</div>
+                                <div class="upload-dropzone__filename d-none" id="selected-filename">
+                                    <i class="bi bi-file-earmark-excel text-success"></i>
+                                    <span id="filename-text"></span>
+                                </div>
+                            </div>
+                            {% if form.excel_file.errors %}
+                            <div class="text-danger mt-1">{% for e in form.excel_file.errors %}<small>{{ e }}</small>{% endfor %}</div>
+                            {% endif %}
+                        </div>
                     </div>
-                    {% endif %}
-                </div>
 
-                <div class="alert alert-info">
-                    <i class="bi bi-info-circle"></i>
-                    <strong>Требования к файлу:</strong>
-                    <ul class="mb-0 mt-2">
-                        <li>Формат: .xls, .xlsx или .xltx</li>
-                        <li>Максимальный размер: 10 МБ</li>
-                        <li>Данные должны быть в соответствующем формате заявки (КАСКО/спецтехника или имущество)</li>
-                        <li><strong>Важно:</strong> Выберите правильный формат заявки перед загрузкой файла</li>
-                        <li><strong>Срок страхования:</strong> Система поддерживает только "1 год" и "на весь срок
-                            лизинга"</li>
-                    </ul>
-                </div>
+                    <div class="d-flex justify-content-between align-items-center pt-3 border-top">
+                        <a href="{% url 'insurance_requests:request_list' %}" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left"></i> К списку
+                        </a>
+                        <button type="submit" class="btn btn-primary btn-lg px-4">
+                            <i class="bi bi-upload me-1"></i> Загрузить и обработать
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
 
-                <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                    <a href="{% url 'insurance_requests:request_list' %}" class="btn btn-secondary">
-                        <i class="bi bi-arrow-left"></i> Назад
-                    </a>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="bi bi-upload"></i> Загрузить и обработать
+        <!-- ── Documentation accordion ──────────────────── -->
+        <div class="accordion docs-accordion" id="docsAccordion">
+
+            <!-- КАСКО/спецтехника -->
+            <div class="accordion-item" id="casco-structure">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed" type="button"
+                            data-bs-toggle="collapse" data-bs-target="#acc-casco"
+                            aria-expanded="false">
+                        <i class="bi bi-car-front me-2" style="color:var(--app-primary)"></i>
+                        Структура файла — КАСКО/спецтехника
                     </button>
-                </div>
-            </form>
-    </div>
-</div>
+                </h2>
+                <div id="acc-casco" class="accordion-collapse collapse" data-bs-parent="#docsAccordion">
+                    <div class="accordion-body">
+                        <div class="alert alert-warning">
+                            <i class="bi bi-exclamation-triangle"></i>
+                            <strong>Внимание!</strong> Таблица показывает структуру для формата <strong>«КАСКО/спецтехника»</strong>.
+                            Для формата <strong>«Имущество»</strong> используется другая структура.
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-bordered">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Поле</th>
+                                        <th><i class="bi bi-building"></i> Юр.лицо</th>
+                                        <th><i class="bi bi-person"></i> ИП</th>
+                                        <th>Описание</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td><strong>Имя клиента</strong></td>
+                                        <td>D7</td><td>D7</td>
+                                        <td>Название организации или ФИО</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>ФИО менеджера</strong></td>
+                                        <td>C5</td><td>C5</td>
+                                        <td>ФИО ответственного менеджера</td>
+                                    </tr>
+                                    <tr class="table-warning">
+                                        <td><strong>ИНН</strong></td>
+                                        <td>D9</td><td><span class="text-danger">D10</span></td>
+                                        <td>ИНН клиента (10 или 12 цифр)</td>
+                                    </tr>
+                                    <tr class="table-warning">
+                                        <td><strong>Тип страхования</strong></td>
+                                        <td>D21/D22</td><td><span class="text-danger">D22/D23</span></td>
+                                        <td>D21/D22 не пустая → «КАСКО»<br>D21/D22 пустая, D22/D23 не пустая → «спецтехника»<br>Обе пустые → «другое»</td>
+                                    </tr>
+                                    <tr class="table-warning">
+                                        <td><strong>Срок страхования</strong></td>
+                                        <td>N17/N18</td><td><span class="text-danger">N18/N19</span></td>
+                                        <td>N17/N18 не пустая → «1 год»<br>N17/N18 пустая, N18/N19 не пустая → «на весь срок лизинга»</td>
+                                    </tr>
+                                    <tr class="table-warning">
+                                        <td><strong>Франшиза</strong></td>
+                                        <td>D29/E29/F29</td><td><span class="text-danger">D30/E30/F30</span></td>
+                                        <td><strong>none:</strong> D не пустая И E,F пустые<br><strong>with_franchise:</strong> D пустая И (E ИЛИ F) не пустые<br><strong>both_variants:</strong> D не пустая И (E ИЛИ F) не пустые</td>
+                                    </tr>
+                                    <tr class="table-warning">
+                                        <td><strong>Рассрочка</strong></td>
+                                        <td>F34 + D32/33/34/35</td><td><span class="text-danger">F35 + D33/34/35/36</span></td>
+                                        <td>F34 пустая И D32/33/34/35 пустая → есть рассрочка<br>Иначе → НЕТ рассрочки</td>
+                                    </tr>
+                                    <tr class="table-warning">
+                                        <td><strong>Автозапуск</strong></td>
+                                        <td>M24</td><td><span class="text-danger">M25</span></td>
+                                        <td>M24/M25 = «нет» → НЕТ автозапуска<br>Любое другое значение → ЕСТЬ автозапуск</td>
+                                    </tr>
+                                    <tr class="table-success">
+                                        <td><strong>КАСКО кат. C/E</strong> <span class="badge bg-success">НОВОЕ</span></td>
+                                        <td>C45–I45</td><td><span class="text-danger">C46–I46</span></td>
+                                        <td>Любая ячейка непустая → TRUE<br>Все пустые → FALSE</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Перевозка</strong></td>
+                                        <td colspan="2" class="text-center text-muted">Всегда FALSE</td>
+                                        <td>Не применяется для КАСКО/спецтехника</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>СМР</strong></td>
+                                        <td colspan="2" class="text-center text-muted">Всегда FALSE</td>
+                                        <td>Не применяется для КАСКО/спецтехника</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Номер ДФА</strong></td>
+                                        <td>HIJ2</td><td>HIJ2</td>
+                                        <td>Номер договора финансовой аренды</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Филиал</strong></td>
+                                        <td>CDEF4</td><td>CDEF4</td>
+                                        <td>Название филиала с автоматическим маппингом</td>
+                                    </tr>
+                                    <tr class="table-warning">
+                                        <td><strong>Информация о ТС</strong></td>
+                                        <td>CDEFGHI43/45/47/49</td><td><span class="text-danger">CDEFGHI44/46/48/50</span></td>
+                                        <td>Описание предмета лизинга (из нескольких строк)</td>
+                                    </tr>
+                                    <tr class="table-warning">
+                                        <td><strong>Год выпуска</strong></td>
+                                        <td>J43/J45/J47/J49</td><td><span class="text-danger">J44/J46/J48/J50</span></td>
+                                        <td>Столбец J, непустые значения объединяются через пробел</td>
+                                    </tr>
+                                    <tr class="table-warning">
+                                        <td><strong>Статус имущества</strong></td>
+                                        <td>K43/K45/K47/K49</td><td><span class="text-danger">K44/K46/K48/K50</span></td>
+                                        <td>Столбец K, непустые значения объединяются через пробел</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
 
-</section>
+                        <h6 class="mt-3 mb-2"><i class="bi bi-plus-circle"></i> Дополнительные параметры</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-bordered">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Параметр</th>
+                                        <th><i class="bi bi-building"></i> Юр.лицо</th>
+                                        <th><i class="bi bi-person"></i> ИП</th>
+                                        <th>Описание</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr class="table-warning"><td><strong>Комплектность ключей</strong></td><td>M25 (MN25)</td><td><span class="text-danger">M26 (MN26)</span></td><td>Объединённая ячейка MN25</td></tr>
+                                    <tr class="table-warning"><td><strong>ПТС/ПСМ</strong></td><td>M26 (MN26)</td><td><span class="text-danger">M27 (MN27)</span></td><td>Объединённая ячейка MN26</td></tr>
+                                    <tr class="table-warning"><td><strong>Банк-кредитор</strong></td><td>D17 (DE17)</td><td><span class="text-danger">D18 (DE18)</span></td><td>Объединённая ячейка DE17</td></tr>
+                                    <tr class="table-warning"><td><strong>Цели использования</strong></td><td>D37 (DEF37)</td><td><span class="text-danger">D38 (DEF38)</span></td><td>Объединённая ячейка DEF37</td></tr>
+                                    <tr class="table-warning"><td><strong>Телематический комплекс</strong></td><td>D63</td><td><span class="text-danger">D64</span></td><td>Телематическое оборудование</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
 
-<section id="casco-structure" class="upload-section">
-    <h5><i class="bi bi-car-front"></i> Структура Excel файла - формат КАСКО/спецтехника</h5>
-    <div class="alert alert-warning">
-        <i class="bi bi-exclamation-triangle"></i>
-        <strong>Внимание!</strong> Таблица ниже показывает структуру для формата <strong>"КАСКО/спецтехника"</strong>.
-        Для формата <strong>"имущество"</strong> используется другая структура извлечения данных.
-    </div>
-    <div class="table-responsive">
-        <table class="table table-sm table-bordered">
-            <thead class="table-light">
-                <tr>
-                    <th>Поле</th>
-                    <th><i class="bi bi-building"></i> Заявка от юр.лица</th>
-                    <th><i class="bi bi-person"></i> Заявка от ИП</th>
-                    <th>Описание</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td><strong>Имя клиента</strong></td>
-                    <td>D7</td>
-                    <td>D7</td>
-                    <td>Название организации или ФИО</td>
-                </tr>
-                <tr>
-                    <td><strong>ФИО менеджера</strong></td>
-                    <td>C5</td>
-                    <td>C5</td>
-                    <td>ФИО ответственного менеджера</td>
-                </tr>
-                <tr class="table-warning">
-                    <td><strong>ИНН</strong></td>
-                    <td>D9</td>
-                    <td><span class="text-danger">D10</span></td>
-                    <td>ИНН клиента (10 или 12 цифр)</td>
-                </tr>
-                <tr class="table-warning">
-                    <td><strong>Тип страхования</strong></td>
-                    <td>D21/D22</td>
-                    <td><span class="text-danger">D22/D23</span></td>
-                    <td>D21/D22 не пустая → "КАСКО"<br>D21/D22 пустая, D22/D23 не пустая → "спецтехника"<br>Обе пустые →
-                        "другое"</td>
-                </tr>
-                <tr class="table-warning">
-                    <td><strong>Срок страхования</strong></td>
-                    <td>N17/N18</td>
-                    <td><span class="text-danger">N18/N19</span></td>
-                    <td>N17/N18 не пустая → "1 год"<br>N17/N18 пустая, N18/N19 не пустая → "на весь срок лизинга"</td>
-                </tr>
-                <tr class="table-warning">
-                    <td><strong>Франшиза (новая логика)</strong></td>
-                    <td>D29/E29/F29</td>
-                    <td><span class="text-danger">D30/E30/F30</span></td>
-                    <td><strong>none:</strong> D не пустая И E,F пустые<br><strong>with_franchise:</strong> D пустая И
-                        (E ИЛИ F) не пустые<br><strong>both_variants:</strong> D не пустая И (E ИЛИ F) не пустые</td>
-                </tr>
-                <tr class="table-warning">
-                    <td><strong>Рассрочка</strong></td>
-                    <td>F34 + D32/33/34/35</td>
-                    <td><span class="text-danger">F35 + D33/34/35/36</span></td>
-                    <td>F34 пустая И D32/33/34/35 пустая → есть рассрочка<br>F34 не пустая ИЛИ D32/33/34/35 не пустая → НЕТ рассрочки<br><small class="text-muted">(для ИП: F35 + D33/34/35/36)</small></td>
-                </tr>
-                <tr class="table-warning">
-                    <td><strong>Автозапуск</strong></td>
-                    <td>M24</td>
-                    <td><span class="text-danger">M25</span></td>
-                    <td>M24/M25 = "нет" → НЕТ автозапуска<br>Любое другое значение → ЕСТЬ автозапуск</td>
-                </tr>
-                <tr class="table-success">
-                    <td><strong>КАСКО кат. C/E</strong> <span class="badge bg-success">НОВОЕ</span></td>
-                    <td>C45-I45</td>
-                    <td><span class="text-danger">C46-I46</span></td>
-                    <td>Если ЛЮБАЯ из ячеек C45-I45 содержит непустое значение → TRUE<br>Все ячейки пустые → FALSE</td>
-                </tr>
-                <tr>
-                    <td><strong>Перевозка</strong></td>
-                    <td colspan="2" class="text-center text-muted">Всегда FALSE</td>
-                    <td>Автоматическое определение не применяется для КАСКО/спецтехника</td>
-                </tr>
-                <tr>
-                    <td><strong>СМР</strong></td>
-                    <td colspan="2" class="text-center text-muted">Всегда FALSE</td>
-                    <td>Автоматическое определение не применяется для КАСКО/спецтехника</td>
-                </tr>
-                <tr>
-                    <td><strong>Номер ДФА</strong></td>
-                    <td>HIJ2</td>
-                    <td>HIJ2</td>
-                    <td>Номер договора финансовой аренды</td>
-                </tr>
-                <tr>
-                    <td><strong>Филиал</strong></td>
-                    <td>CDEF4</td>
-                    <td>CDEF4</td>
-                    <td>Название филиала с автоматическим маппингом</td>
-                </tr>
-                <tr class="table-warning">
-                    <td><strong>Информация о ТС</strong></td>
-                    <td>CDEFGHI43/45/47/49</td>
-                    <td><span class="text-danger">CDEFGHI44/46/48/50</span></td>
-                    <td>Описание предмета лизинга (извлечение из нескольких строк)</td>
-                </tr>
-                <tr class="table-warning">
-                    <td><strong>Год выпуска</strong></td>
-                    <td>J43/J45/J47/J49</td>
-                    <td><span class="text-danger">J44/J46/J48/J50</span></td>
-                    <td>Извлекается отдельно от "Информация о ТС" из столбца J; все непустые значения объединяются через пробел</td>
-                </tr>
-                <tr class="table-warning">
-                    <td><strong>Статус имущества</strong></td>
-                    <td>K43/K45/K47/K49</td>
-                    <td><span class="text-danger">K44/K46/K48/K50</span></td>
-                    <td>Извлекается отдельно от "Информация о ТС" из столбца K; все непустые значения объединяются через пробел</td>
-                </tr>
-            </tbody>
-        </table>
-    </div>
+                        <div class="alert alert-light mt-3">
+                            <i class="bi bi-lightbulb"></i>
+                            <strong>Цветовое кодирование:</strong>
+                            <ul class="mb-0 mt-1 small">
+                                <li><span class="text-danger fw-bold">Красным</span> — ячейки, отличающиеся для ИП</li>
+                                <li><span class="bg-warning px-1 fw-bold">Жёлтый фон</span> — строки с различиями между типами заявок</li>
+                                <li><span class="bg-success px-1 text-white fw-bold">Зелёный фон</span> — новые параметры</li>
+                            </ul>
+                        </div>
 
-    <!-- Дополнительные параметры КАСКО/спецтехника -->
-    <div class="mt-3">
-        <h6><i class="bi bi-plus-circle"></i> Дополнительные параметры КАСКО/спецтехника</h6>
-        <div class="table-responsive">
-            <table class="table table-sm table-bordered">
-                <thead class="table-light">
-                    <tr>
-                        <th>Параметр</th>
-                        <th><i class="bi bi-building"></i> Юр.лицо</th>
-                        <th><i class="bi bi-person"></i> ИП</th>
-                        <th>Описание</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr class="table-warning">
-                        <td><strong>Комплектность ключей</strong></td>
-                        <td>M25 (MN25)</td>
-                        <td><span class="text-danger">M26 (MN26)</span></td>
-                        <td>Объединенная ячейка MN25</td>
-                    </tr>
-                    <tr class="table-warning">
-                        <td><strong>ПТС/ПСМ</strong></td>
-                        <td>M26 (MN26)</td>
-                        <td><span class="text-danger">M27 (MN27)</span></td>
-                        <td>Объединенная ячейка MN26</td>
-                    </tr>
-                    <tr class="table-warning">
-                        <td><strong>Банк-кредитор</strong></td>
-                        <td>D17 (DE17)</td>
-                        <td><span class="text-danger">D18 (DE18)</span></td>
-                        <td>Объединенная ячейка DE17</td>
-                    </tr>
-                    <tr class="table-warning">
-                        <td><strong>Цели использования</strong></td>
-                        <td>D37 (DEF37)</td>
-                        <td><span class="text-danger">D38 (DEF38)</span></td>
-                        <td>Объединенная ячейка DEF37</td>
-                    </tr>
-                    <tr class="table-warning">
-                        <td><strong>Телематический комплекс</strong></td>
-                        <td>D63</td>
-                        <td><span class="text-danger">D64</span></td>
-                        <td>Телематическое оборудование</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-    <div class="alert alert-light mt-3">
-        <i class="bi bi-lightbulb"></i>
-        <strong>Пояснение цветового кодирования:</strong>
-        <ul class="mb-0 mt-2">
-            <li><span class="text-danger"><strong>Красным цветом</strong></span> выделены ячейки, которые отличаются для
-                заявок от ИП</li>
-            <li><span class="bg-warning px-1"><strong>Желтым фоном</strong></span> выделены строки, где есть различия
-                между типами заявок</li>
-            <li><span class="bg-success px-1 text-white"><strong>Зеленым фоном</strong></span> выделены новые параметры
-            </li>
-            <li><span class="bg-primary px-1 text-white"><strong>Акцентным фоном</strong></span> выделены параметры,
-                специфичные для формата</li>
-        </ul>
-    </div>
-
-    <div class="alert alert-info mt-3">
-        <i class="bi bi-info-circle"></i>
-        <strong>Логика смещения строк для заявок от ИП:</strong>
-        <div class="mt-2">
-            <p class="mb-2"><strong>Ключевое правило:</strong> Для заявок от ИП применяется смещение +1 для всех строк >
-                8.</p>
-            <div class="row">
-                <div class="col-md-6">
-                    <h6><i class="bi bi-building"></i> Заявки от юр.лиц:</h6>
-                    <ul class="small">
-                        <li>Строки 1-8: без изменений</li>
-                        <li>Строки 9+: без изменений</li>
-                        <li>Пример: ИНН в D9, франшиза в D29</li>
-                    </ul>
-                </div>
-                <div class="col-md-6">
-                    <h6><i class="bi bi-person"></i> Заявки от ИП:</h6>
-                    <ul class="small">
-                        <li>Строки 1-8: без изменений</li>
-                        <li>Строки 9+: смещение +1</li>
-                        <li>Пример: ИНН в D10, франшиза в D30</li>
-                        <li><strong>Причина:</strong> дополнительная строка в позиции 8</li>
-                    </ul>
-                </div>
-            </div>
-        </div>
-    </div>
-
-</section>
-
-<section id="examples" class="upload-section">
-    <h5><i class="bi bi-file-earmark-text"></i> Примеры заполнения</h5>
-
-    <div class="row">
-        <div class="col-md-6">
-            <div class="card example-card legal-entity">
-                <div class="card-header bg-primary text-white">
-                    <h6 class="mb-0"><i class="bi bi-building"></i> Пример КАСКО/спецтехника - юр.лицо</h6>
-                </div>
-                <div class="card-body">
-                    <small class="text-muted">Стандартная структура файла:</small>
-                    <div class="mt-2">
-                        <code>D7: ООО "АЛТЫН ЯР"</code><br>
-                        <code>D9: 1234567890</code> <span class="text-muted">(ИНН 10 цифр)</span><br>
-                        <code>D21: КАСКО</code> <span class="text-muted">(тип страхования)</span><br>
-                        <code>N17: ✓</code> <span class="text-muted">(1 год)</span><br>
-                        <code>D29: Без франшизы</code> <span class="text-muted">(none)</span><br>
-                        <code>E29: </code> <span class="text-muted">(пустая)</span><br>
-                        <code>F34: </code> <span class="text-muted">(пустая = есть рассрочка)</span><br>
-                        <code>M24: да</code> <span class="text-muted">(есть автозапуск)</span><br>
-                        <code>C45: ✓</code> <span class="badge bg-success">КАСКО C/E</span>
+                        <div class="alert alert-info mt-2">
+                            <i class="bi bi-info-circle"></i>
+                            <strong>Смещение строк для ИП:</strong> для заявок от ИП применяется +1 для всех строк &gt; 8.
+                            <div class="row mt-2 small">
+                                <div class="col-md-6"><strong><i class="bi bi-building"></i> Юр.лица:</strong> строки без изменений. Пример: ИНН в D9, франшиза в D29.</div>
+                                <div class="col-md-6"><strong><i class="bi bi-person"></i> ИП:</strong> строки 9+ смещены на +1. Пример: ИНН в D10, франшиза в D30.</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
-        <div class="col-md-6">
-            <div class="card example-card individual-entrepreneur">
-                <div class="card-header bg-success text-white">
-                    <h6 class="mb-0"><i class="bi bi-person"></i> Пример КАСКО/спецтехника - ИП</h6>
-                </div>
-                <div class="card-body">
-                    <small class="text-muted">Структура с дополнительной строкой 8:</small>
-                    <div class="mt-2">
-                        <code>D7: ИП Иванов И.И.</code><br>
-                        <code>D8: Дополнительная информация</code> <span class="badge bg-warning text-dark">+1
-                            СТРОКА</span><br>
-                        <code>D10: 123456789012</code> <span class="text-muted">(ИНН 12 цифр, смещено)</span><br>
-                        <code>D22: КАСКО</code> <span class="text-muted">(смещено с D21)</span><br>
-                        <code>N18: ✓</code> <span class="text-muted">(1 год, смещено)</span><br>
-                        <code>D30: </code> <span class="text-muted">(пустая)</span><br>
-                        <code>E30: 50000</code> <span class="text-muted">(with_franchise)</span><br>
-                        <code>F35: НЕТ</code> <span class="text-muted">(НЕТ рассрочки)</span><br>
-                        <code>M25: нет</code> <span class="text-muted">(НЕТ автозапуска)</span><br>
-                        <code>D46: ✓</code> <span class="badge bg-success">КАСКО C/E (смещено)</span>
+
+            <!-- Имущество -->
+            <div class="accordion-item" id="property-structure">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed" type="button"
+                            data-bs-toggle="collapse" data-bs-target="#acc-property"
+                            aria-expanded="false">
+                        <i class="bi bi-building me-2" style="color:#0dcaf0"></i>
+                        Структура файла — Имущество
+                    </button>
+                </h2>
+                <div id="acc-property" class="accordion-collapse collapse" data-bs-parent="#docsAccordion">
+                    <div class="accordion-body">
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i>
+                            Формат <strong>«Имущество»</strong> использует специальную логику с автоматическим определением параметров.
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-bordered">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Поле</th>
+                                        <th><i class="bi bi-building"></i> Юр.лицо</th>
+                                        <th><i class="bi bi-person"></i> ИП</th>
+                                        <th>Описание</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr class="table-primary"><td><strong>ФИО менеджера</strong></td><td>C5</td><td>C5</td><td>ФИО ответственного менеджера</td></tr>
+                                    <tr class="table-primary"><td><strong>Тип страхования</strong></td><td>B22</td><td><span class="text-danger">B23</span></td><td>B22/B23 не пустая → «страхование имущества»<br>Пустая → «другое»</td></tr>
+                                    <tr class="table-success"><td><strong>Перевозка</strong> <span class="badge bg-success">НОВОЕ</span></td><td>C44</td><td><span class="text-danger">C45</span></td><td>C44/C45 не пустая → TRUE</td></tr>
+                                    <tr class="table-success"><td><strong>СМР</strong> <span class="badge bg-success">НОВОЕ</span></td><td>C48</td><td><span class="text-danger">C49</span></td><td>C48/C49 не пустая → TRUE</td></tr>
+                                    <tr class="table-primary"><td><strong>Информация об имуществе</strong></td><td>CDEFGHIJ42</td><td>CDEFGHIJ43</td><td>Описание застрахованного имущества<br><strong>Важно:</strong> смещение ИП НЕ применяется</td></tr>
+                                    <tr class="table-primary"><td><strong>Год выпуска</strong></td><td colspan="2" class="text-center text-muted">Отдельно не извлекается</td><td>Поле остаётся пустым</td></tr>
+                                    <tr class="table-primary"><td><strong>Статус имущества</strong></td><td colspan="2" class="text-center text-muted">Отдельно не извлекается</td><td>Поле остаётся пустым</td></tr>
+                                    <tr class="table-primary"><td><strong>Автозапуск</strong></td><td colspan="2" class="text-center text-muted">Всегда FALSE</td><td>Не применяется</td></tr>
+                                    <tr class="table-primary"><td><strong>КАСКО кат. C/E</strong></td><td colspan="2" class="text-center text-muted">Всегда FALSE</td><td>Не применяется</td></tr>
+                                    <tr><td colspan="4" class="table-secondary text-center"><em>Остальные поля (клиент, ИНН, ДФА, филиал, франшиза, рассрочка) — как в КАСКО/спецтехника</em></td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <h6 class="mt-3 mb-2"><i class="bi bi-plus-circle"></i> Дополнительные параметры</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-bordered">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Параметр</th>
+                                        <th><i class="bi bi-building"></i> Юр.лицо</th>
+                                        <th><i class="bi bi-person"></i> ИП</th>
+                                        <th>Описание</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr class="table-warning"><td><strong>Банк-кредитор</strong></td><td>D17 (DE17)</td><td><span class="text-danger">D18 (DE18)</span></td><td>Объединённая ячейка DE17</td></tr>
+                                    <tr class="table-warning"><td><strong>Цели использования</strong></td><td>D37 (DEF37)</td><td><span class="text-danger">D38 (DEF38)</span></td><td>Объединённая ячейка DEF37</td></tr>
+                                    <tr class="table-warning"><td><strong>Территория страхования</strong></td><td>L20 (LMN20–22)</td><td><span class="text-danger">L21 (LMN21–23)</span></td><td>Географическая территория страхования</td></tr>
+                                    <tr><td><strong>Комплектность ключей</strong></td><td colspan="2" class="text-center text-muted">Не используется</td><td>Не применяется</td></tr>
+                                    <tr><td><strong>ПТС/ПСМ</strong></td><td colspan="2" class="text-center text-muted">Не используется</td><td>Не применяется</td></tr>
+                                    <tr><td><strong>Телематический комплекс</strong></td><td colspan="2" class="text-center text-muted">Не используется</td><td>Не применяется</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
-    </div>
 
-    <div class="row mt-3">
-        <div class="col-md-6">
-            <div class="card example-card legal-entity">
-                <div class="card-header bg-info text-white">
-                    <h6 class="mb-0"><i class="bi bi-building"></i> Пример имущество - юр.лицо</h6>
-                </div>
-                <div class="card-body">
-                    <small class="text-muted">Специальная логика для имущества:</small>
-                    <div class="mt-2">
-                        <code>D7: ООО "СТРОЙКОМ"</code><br>
-                        <code>D9: 7712345678</code> <span class="text-muted">(ИНН 10 цифр)</span><br>
-                        <code>B22: ✓</code> <span class="text-muted">(страхование имущества)</span><br>
-                        <code>C44: Требуется</code> <span class="badge bg-success">Перевозка = TRUE</span><br>
-                        <code>C48: </code> <span class="text-muted">(пустая, СМР = FALSE)</span><br>
-                        <code>CDEFGHIJ42: Офисное здание...</code> <span class="text-muted">(без смещения!)</span><br>
-                        <code>L20: Москва и МО</code> <span class="badge bg-info">Территория</span>
+            <!-- Примеры -->
+            <div class="accordion-item" id="examples">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed" type="button"
+                            data-bs-toggle="collapse" data-bs-target="#acc-examples"
+                            aria-expanded="false">
+                        <i class="bi bi-file-earmark-text me-2 text-success"></i>
+                        Примеры заполнения
+                    </button>
+                </h2>
+                <div id="acc-examples" class="accordion-collapse collapse" data-bs-parent="#docsAccordion">
+                    <div class="accordion-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <div class="card h-100" style="border-left:4px solid var(--app-primary)">
+                                    <div class="card-header bg-primary text-white">
+                                        <h6 class="mb-0"><i class="bi bi-building"></i> КАСКО/спецтехника — юр.лицо</h6>
+                                    </div>
+                                    <div class="card-body small">
+                                        <div class="text-muted mb-2">Стандартная структура файла:</div>
+                                        <code>D7: ООО "АЛТЫН ЯР"</code><br>
+                                        <code>D9: 1234567890</code> <span class="text-muted">(ИНН 10 цифр)</span><br>
+                                        <code>D21: КАСКО</code><br>
+                                        <code>N17: ✓</code> <span class="text-muted">(1 год)</span><br>
+                                        <code>D29: Без франшизы</code> <span class="text-muted">(none)</span><br>
+                                        <code>F34: </code> <span class="text-muted">(пустая = есть рассрочка)</span><br>
+                                        <code>M24: да</code> <span class="text-muted">(есть автозапуск)</span><br>
+                                        <code>C45: ✓</code> <span class="badge bg-success">КАСКО C/E</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <div class="card h-100" style="border-left:4px solid #198754">
+                                    <div class="card-header bg-success text-white">
+                                        <h6 class="mb-0"><i class="bi bi-person"></i> КАСКО/спецтехника — ИП</h6>
+                                    </div>
+                                    <div class="card-body small">
+                                        <div class="text-muted mb-2">Структура с дополнительной строкой 8:</div>
+                                        <code>D7: ИП Иванов И.И.</code><br>
+                                        <code>D8: </code> <span class="badge bg-warning text-dark">+1 СТРОКА</span><br>
+                                        <code>D10: 123456789012</code> <span class="text-muted">(ИНН 12 цифр)</span><br>
+                                        <code>D22: КАСКО</code> <span class="text-muted">(смещено)</span><br>
+                                        <code>N18: ✓</code> <span class="text-muted">(1 год)</span><br>
+                                        <code>E30: 50000</code> <span class="text-muted">(with_franchise)</span><br>
+                                        <code>M25: нет</code> <span class="text-muted">(НЕТ автозапуска)</span><br>
+                                        <code>D46: ✓</code> <span class="badge bg-success">КАСКО C/E</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <div class="card h-100" style="border-left:4px solid #0dcaf0">
+                                    <div class="card-header bg-info text-white">
+                                        <h6 class="mb-0"><i class="bi bi-building"></i> Имущество — юр.лицо</h6>
+                                    </div>
+                                    <div class="card-body small">
+                                        <div class="text-muted mb-2">Специальная логика для имущества:</div>
+                                        <code>D7: ООО "СТРОЙКОМ"</code><br>
+                                        <code>D9: 7712345678</code><br>
+                                        <code>B22: ✓</code> <span class="text-muted">(страхование имущества)</span><br>
+                                        <code>C44: Требуется</code> <span class="badge bg-success">Перевозка = TRUE</span><br>
+                                        <code>C48: </code> <span class="text-muted">(пустая, СМР = FALSE)</span><br>
+                                        <code>L20: Москва и МО</code> <span class="badge bg-info text-dark">Территория</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <div class="card h-100" style="border-left:4px solid #ffc107">
+                                    <div class="card-header bg-warning text-dark">
+                                        <h6 class="mb-0"><i class="bi bi-person"></i> Имущество — ИП</h6>
+                                    </div>
+                                    <div class="card-body small">
+                                        <div class="text-muted mb-2">Смещение применяется выборочно:</div>
+                                        <code>D7: ИП Петров П.П.</code><br>
+                                        <code>D8: </code> <span class="badge bg-warning text-dark">+1 СТРОКА</span><br>
+                                        <code>D10: 123456789012</code><br>
+                                        <code>B23: ✓</code> <span class="text-muted">(смещено)</span><br>
+                                        <code>C49: СМР</code> <span class="badge bg-success">СМР = TRUE</span><br>
+                                        <code>CDEFGHIJ43: Склад...</code> <span class="text-muted">(без смещения!)</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
-        <div class="col-md-6">
-            <div class="card example-card individual-entrepreneur">
-                <div class="card-header bg-warning text-dark">
-                    <h6 class="mb-0"><i class="bi bi-person"></i> Пример имущество - ИП</h6>
-                </div>
-                <div class="card-body">
-                    <small class="text-muted">Смещение применяется выборочно:</small>
-                    <div class="mt-2">
-                        <code>D7: ИП Петров П.П.</code><br>
-                        <code>D8: Дополнительная информация</code> <span class="badge bg-warning text-dark">+1
-                            СТРОКА</span><br>
-                        <code>D10: 123456789012</code> <span class="text-muted">(ИНН 12 цифр, смещено)</span><br>
-                        <code>B23: ✓</code> <span class="text-muted">(страхование имущества, смещено)</span><br>
-                        <code>C45: </code> <span class="text-muted">(пустая, перевозка = FALSE)</span><br>
-                        <code>C49: СМР</code> <span class="badge bg-success">СМР = TRUE (смещено)</span><br>
-                        <code>CDEFGHIJ43: Складское помещение...</code> <span class="text-muted">(БЕЗ
-                            смещения!)</span><br>
-                        <code>L21: СПб</code> <span class="badge bg-info">Территория (смещено)</span>
+
+            <!-- Логика франшизы -->
+            <div class="accordion-item" id="franchise-logic">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed" type="button"
+                            data-bs-toggle="collapse" data-bs-target="#acc-franchise"
+                            aria-expanded="false">
+                        <i class="bi bi-gear me-2 text-warning"></i>
+                        Логика франшизы
+                    </button>
+                </h2>
+                <div id="acc-franchise" class="accordion-collapse collapse" data-bs-parent="#docsAccordion">
+                    <div class="accordion-body">
+                        <div class="row mb-3">
+                            <div class="col-md-4 mb-3">
+                                <div class="card border-secondary h-100">
+                                    <div class="card-header bg-secondary text-white">
+                                        <strong>none</strong> — без франшизы
+                                    </div>
+                                    <div class="card-body small">
+                                        <code>D29: Без франшизы</code><br>
+                                        <code>E29: </code> <span class="text-muted">(пустая)</span><br>
+                                        <code>F29: </code> <span class="text-muted">(пустая)</span><br>
+                                        <div class="mt-2"><strong>Результат:</strong> none</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <div class="card border-warning h-100">
+                                    <div class="card-header bg-warning text-dark">
+                                        <strong>with_franchise</strong>
+                                    </div>
+                                    <div class="card-body small">
+                                        <code>D29: </code> <span class="text-muted">(пустая)</span><br>
+                                        <code>E29: 50000</code><br>
+                                        <code>F29: </code> <span class="text-muted">(пустая)</span><br>
+                                        <div class="mt-2"><strong>Результат:</strong> with_franchise</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <div class="card border-success h-100">
+                                    <div class="card-header bg-success text-white">
+                                        <strong>both_variants</strong>
+                                    </div>
+                                    <div class="card-body small">
+                                        <code>D29: Без франшизы</code><br>
+                                        <code>E29: 50000</code><br>
+                                        <code>F29: </code> <span class="text-muted">(пустая)</span><br>
+                                        <div class="mt-2"><strong>Результат:</strong> both_variants</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="alert alert-warning">
+                            <i class="bi bi-exclamation-triangle"></i>
+                            <strong>Внимание!</strong> Неправильный выбор формата или типа заявки приведёт к извлечению данных из неправильных ячеек.
+                        </div>
+
+                        <div class="alert alert-info mb-0">
+                            <i class="bi bi-info-circle"></i>
+                            <strong>Ключевые особенности:</strong>
+                            <ul class="mb-0 mt-2 small">
+                                <li><strong>Смещение для ИП:</strong> применяется только к строкам &gt; 8</li>
+                                <li><strong>Информация об имуществе:</strong> смещение НЕ применяется (строки 42/43 уже учитывают тип заявки)</li>
+                                <li><strong>Год выпуска (КАСКО/спецтехника):</strong> столбец J, строки 43/45/47/49</li>
+                                <li><strong>Статус имущества (КАСКО/спецтехника):</strong> столбец K, строки 43/45/47/49</li>
+                                <li><strong>Новые параметры:</strong> КАСКО C/E (строка 45), перевозка (C44), СМР (C48)</li>
+                                <li><strong>Перевозка и СМР</strong> определяются только для формата «Имущество»</li>
+                            </ul>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
-    </div>
 
-</section>
+        </div>{# /accordion #}
 
-<section id="property-structure" class="upload-section">
-    <h5><i class="bi bi-building"></i> Структура Excel файла - формат имущество</h5>
-    <div class="alert alert-info">
-        <i class="bi bi-info-circle"></i>
-        <strong>Формат "имущество"</strong> использует специальную логику извлечения данных с автоматическим
-        определением параметров:
-    </div>
-
-    <div class="table-responsive">
-        <table class="table table-sm table-bordered">
-            <thead class="table-light">
-                <tr>
-                    <th>Поле</th>
-                    <th><i class="bi bi-building"></i> Заявка от юр.лица</th>
-                    <th><i class="bi bi-person"></i> Заявка от ИП</th>
-                    <th>Описание</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr class="table-primary">
-                    <td><strong>ФИО менеджера</strong></td>
-                    <td>C5</td>
-                    <td>C5</td>
-                    <td>ФИО ответственного менеджера</td>
-                </tr>
-                <tr class="table-primary">
-                    <td><strong>Тип страхования</strong></td>
-                    <td>B22</td>
-                    <td><span class="text-danger">B23</span></td>
-                    <td>B22/B23 не пустая → "страхование имущества"<br>Пустая → "другое"</td>
-                </tr>
-                <tr class="table-success">
-                    <td><strong>Перевозка</strong> <span class="badge bg-success">НОВОЕ</span></td>
-                    <td>C44</td>
-                    <td><span class="text-danger">C45</span></td>
-                    <td>C44/C45 не пустая → TRUE (требуется страхование перевозки)<br>Пустая → FALSE</td>
-                </tr>
-                <tr class="table-success">
-                    <td><strong>СМР</strong> <span class="badge bg-success">НОВОЕ</span></td>
-                    <td>C48</td>
-                    <td><span class="text-danger">C49</span></td>
-                    <td>C48/C49 не пустая → TRUE (требуются строительно-монтажные работы)<br>Пустая → FALSE</td>
-                </tr>
-                <tr class="table-primary">
-                    <td><strong>Информация об имуществе</strong></td>
-                    <td>CDEFGHIJ42</td>
-                    <td>CDEFGHIJ43</td>
-                    <td>Описание застрахованного имущества (одна строка, включая столбец J)<br><strong>Важно:</strong>
-                        НЕ применяется смещение ИП</td>
-                </tr>
-                <tr class="table-primary">
-                    <td><strong>Год выпуска</strong></td>
-                    <td colspan="2" class="text-center text-muted">Отдельно не извлекается</td>
-                    <td>Для формата "имущество" отдельное поле года выпуска не заполняется (значение остается пустым)</td>
-                </tr>
-                <tr class="table-primary">
-                    <td><strong>Статус имущества</strong></td>
-                    <td colspan="2" class="text-center text-muted">Отдельно не извлекается</td>
-                    <td>Для формата "имущество" отдельное поле статуса имущества не заполняется (значение остается пустым)</td>
-                </tr>
-                <tr class="table-primary">
-                    <td><strong>Автозапуск</strong></td>
-                    <td colspan="2" class="text-center text-muted">Всегда FALSE</td>
-                    <td>Для страхования имущества автозапуск не применяется</td>
-                </tr>
-                <tr class="table-primary">
-                    <td><strong>КАСКО кат. C/E</strong></td>
-                    <td colspan="2" class="text-center text-muted">Всегда FALSE</td>
-                    <td>Для страхования имущества не применяется</td>
-                </tr>
-                <tr>
-                    <td colspan="4" class="table-secondary text-center">
-                        <em>Остальные поля (клиент, ИНН, ДФА, филиал, франшиза, рассрочка) извлекаются так же, как в
-                            формате КАСКО/спецтехника</em>
-                    </td>
-                </tr>
-            </tbody>
-        </table>
-    </div>
-
-    <!-- Дополнительные параметры имущества -->
-    <div class="mt-3">
-        <h6><i class="bi bi-plus-circle"></i> Дополнительные параметры имущества</h6>
-        <div class="table-responsive">
-            <table class="table table-sm table-bordered">
-                <thead class="table-light">
-                    <tr>
-                        <th>Параметр</th>
-                        <th><i class="bi bi-building"></i> Юр.лицо</th>
-                        <th><i class="bi bi-person"></i> ИП</th>
-                        <th>Описание</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr class="table-warning">
-                        <td><strong>Банк-кредитор</strong></td>
-                        <td>D17 (DE17)</td>
-                        <td><span class="text-danger">D18 (DE18)</span></td>
-                        <td>Объединенная ячейка DE17</td>
-                    </tr>
-                    <tr class="table-warning">
-                        <td><strong>Цели использования</strong></td>
-                        <td>D37 (DEF37)</td>
-                        <td><span class="text-danger">D38 (DEF38)</span></td>
-                        <td>Объединенная ячейка DEF37</td>
-                    </tr>
-                    <tr class="table-warning">
-                        <td><strong>Территория страхования</strong></td>
-                        <td>L20 (LMN20-22)</td>
-                        <td><span class="text-danger">L21 (LMN21-23)</span></td>
-                        <td>Географическая территория действия страхования<br>Объединенная ячейка LMN20-22</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Комплектность ключей</strong></td>
-                        <td colspan="2" class="text-center text-muted">Не используется</td>
-                        <td>Не применяется для страхования имущества</td>
-                    </tr>
-                    <tr>
-                        <td><strong>ПТС/ПСМ</strong></td>
-                        <td colspan="2" class="text-center text-muted">Не используется</td>
-                        <td>Не применяется для страхования имущества</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Телематический комплекс</strong></td>
-                        <td colspan="2" class="text-center text-muted">Не используется</td>
-                        <td>Не применяется для страхования имущества</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-    </div>
-    </div>
-
-</section>
-
-<section id="franchise-logic" class="upload-section">
-    <h5><i class="bi bi-gear"></i> Примеры новой логики франшизы</h5>
-    <div class="row">
-        <div class="col-md-4">
-            <div class="card border-secondary">
-                <div class="card-header bg-secondary text-white">
-                    <small><strong>none</strong> - без франшизы</small>
-                </div>
-                <div class="card-body p-2">
-                    <small>
-                        <code>D29: Без франшизы</code><br>
-                        <code>E29: </code> <span class="text-muted">(пустая)</span><br>
-                        <code>F29: </code> <span class="text-muted">(пустая)</span><br>
-                        <strong>Результат:</strong> none
-                    </small>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="card border-warning">
-                <div class="card-header bg-warning text-dark">
-                    <small><strong>with_franchise</strong> - только с франшизой</small>
-                </div>
-                <div class="card-body p-2">
-                    <small>
-                        <code>D29: </code> <span class="text-muted">(пустая)</span><br>
-                        <code>E29: 50000</code><br>
-                        <code>F29: </code> <span class="text-muted">(пустая)</span><br>
-                        <strong>Результат:</strong> with_franchise
-                    </small>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="card border-success">
-                <div class="card-header bg-success text-white">
-                    <small><strong>both_variants</strong> - оба варианта</small>
-                </div>
-                <div class="card-body p-2">
-                    <small>
-                        <code>D29: Без франшизы</code><br>
-                        <code>E29: 50000</code><br>
-                        <code>F29: </code> <span class="text-muted">(пустая)</span><br>
-                        <strong>Результат:</strong> both_variants
-                    </small>
-                </div>
-            </div>
-        </div>
-    </div>
-    </div>
-
-    <div class="alert alert-warning mt-3">
-        <i class="bi bi-exclamation-triangle"></i>
-        <strong>Внимание!</strong> Неправильный выбор формата или типа заявки приведет к извлечению данных из
-        неправильных ячеек.
-        Всегда проверяйте соответствие выбранных параметров структуре загружаемого файла.
-    </div>
-
-    <div class="alert alert-info mt-3">
-        <i class="bi bi-info-circle"></i>
-        <strong>Ключевые особенности:</strong>
-        <ul class="mb-0 mt-2">
-            <li><strong>Смещение для ИП:</strong> Применяется только к строкам > 8</li>
-            <li><strong>Информация об имуществе:</strong> НЕ применяется смещение (строки 42/43 уже учитывают тип
-                заявки)</li>
-            <li><strong>Год выпуска (КАСКО/спецтехника):</strong> извлекается из столбца J по строкам 43/45/47/49 (для ИП с учетом смещения +1)</li>
-            <li><strong>Статус имущества (КАСКО/спецтехника):</strong> извлекается из столбца K по строкам 43/45/47/49 (для ИП с учетом смещения +1)</li>
-            <li><strong>Новые параметры:</strong> КАСКО C/E (строка 45), перевозка (C44), СМР (C48)</li>
-            <li><strong>Автоматическое определение:</strong> Перевозка и СМР определяются только для формата "имущество"
-            </li>
-            <li><strong>Франшиза:</strong> Новая трехуровневая система (none/with_franchise/both_variants)</li>
-        </ul>
-    </div>
-    </div>
-</section>
-</div>
-</div>
+    </div>{# /col-lg-9 #}
+</div>{# /row #}
 {% endblock %}
 
 {% block extra_js %}
 <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        // Плавная прокрутка для навигационных ссылок
-        const navLinks = document.querySelectorAll('.upload-navigation .nav-link');
-        const sections = document.querySelectorAll('.upload-section');
+document.addEventListener('DOMContentLoaded', function () {
 
-        // Обработчик клика по навигационным ссылкам
-        function handleNavClick(e) {
+    // ── Drag-and-drop file zone ───────────────────────────
+    const dropzone     = document.getElementById('dropzone');
+    const fileInput    = dropzone ? dropzone.querySelector('input[type="file"]') : null;
+    const filenameEl   = document.getElementById('selected-filename');
+    const filenameText = document.getElementById('filename-text');
+    const dropzoneText = document.getElementById('dropzone-text');
+    const dropzoneIcon = document.getElementById('dropzone-icon');
+
+    function showFile(file) {
+        if (!file) return;
+        filenameText.textContent = file.name;
+        filenameEl.classList.remove('d-none');
+        dropzoneText.textContent = 'Файл выбран';
+        dropzoneIcon.className = 'bi bi-file-earmark-check upload-dropzone__icon';
+        dropzone.classList.add('has-file');
+        dropzone.classList.remove('drag-over');
+    }
+
+    if (fileInput) {
+        fileInput.addEventListener('change', function () {
+            if (this.files[0]) showFile(this.files[0]);
+        });
+    }
+
+    if (dropzone) {
+        dropzone.addEventListener('dragover', function (e) {
+            e.preventDefault();
+            this.classList.add('drag-over');
+        });
+        dropzone.addEventListener('dragleave', function (e) {
+            if (!this.contains(e.relatedTarget)) this.classList.remove('drag-over');
+        });
+        dropzone.addEventListener('drop', function (e) {
+            e.preventDefault();
+            this.classList.remove('drag-over');
+            const file = e.dataTransfer.files[0];
+            if (file && fileInput) {
+                const dt = new DataTransfer();
+                dt.items.add(file);
+                fileInput.files = dt.files;
+                showFile(file);
+            }
+        });
+    }
+
+    // ── Sidebar navigation ────────────────────────────────
+    const navLinks = document.querySelectorAll('.upload-nav .nav-link');
+
+    navLinks.forEach(link => {
+        link.addEventListener('click', function (e) {
             e.preventDefault();
 
-            const targetId = this.getAttribute('href').substring(1);
-            const targetElement = document.getElementById(targetId);
+            navLinks.forEach(l => l.classList.remove('active'));
+            this.classList.add('active');
 
-            if (targetElement) {
-                // Убираем активный класс со всех ссылок
-                navLinks.forEach(l => l.classList.remove('active'));
+            const accordionTarget = this.dataset.accordionTarget;
+            const scrollTarget    = this.dataset.scrollTarget;
 
-                // Добавляем активный класс к текущей ссылке
-                this.classList.add('active');
-
-                // Плавная прокрутка
-                targetElement.scrollIntoView({
-                    behavior: 'smooth',
-                    block: 'start'
-                });
-            }
-        }
-
-        // Настройка обработчиков для навигации
-        navLinks.forEach(link => {
-            link.addEventListener('click', handleNavClick);
-        });
-
-        // Отслеживание активного раздела при прокрутке
-        function updateActiveSection() {
-            let currentSection = '';
-            const scrollPosition = window.scrollY + 150;
-
-            sections.forEach(section => {
-                const sectionTop = section.offsetTop;
-                const sectionHeight = section.offsetHeight;
-
-                if (scrollPosition >= sectionTop && scrollPosition < sectionTop + sectionHeight) {
-                    currentSection = section.id;
-                }
-            });
-
-            // Обновляем активные ссылки
-            navLinks.forEach(link => {
-                link.classList.remove('active');
-                if (link.getAttribute('href') === `#${currentSection}`) {
-                    link.classList.add('active');
-                }
-            });
-        }
-
-        // Обработчик прокрутки с throttling
-        let scrollTimeout;
-        window.addEventListener('scroll', function () {
-            if (scrollTimeout) {
-                clearTimeout(scrollTimeout);
-            }
-            scrollTimeout = setTimeout(updateActiveSection, 10);
-        });
-
-        // Инициализация активного раздела
-        updateActiveSection();
-
-        // Улучшенная поддержка клавиатурной навигации
-        document.addEventListener('keydown', function (e) {
-            // Навигация по разделам с помощью стрелок
-            if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
-                e.preventDefault();
-
-                const currentActive = document.querySelector('.upload-navigation .nav-link.active');
-                if (currentActive) {
-                    const allNavLinks = Array.from(navLinks);
-                    const currentIndex = allNavLinks.indexOf(currentActive);
-
-                    let nextIndex;
-                    if (e.key === 'ArrowDown') {
-                        nextIndex = (currentIndex + 1) % allNavLinks.length;
-                    } else {
-                        nextIndex = currentIndex === 0 ? allNavLinks.length - 1 : currentIndex - 1;
-                    }
-
-                    allNavLinks[nextIndex].click();
+            if (accordionTarget) {
+                const panel = document.getElementById(accordionTarget);
+                if (panel) {
+                    const bsCollapse = bootstrap.Collapse.getOrCreateInstance(panel, { toggle: false });
+                    bsCollapse.show();
                 }
             }
 
-            // Возврат к началу страницы
-            if (e.key === 'Home' && e.ctrlKey) {
-                e.preventDefault();
-                window.scrollTo({ top: 0, behavior: 'smooth' });
+            const el = document.getElementById(scrollTarget);
+            if (el) {
+                setTimeout(() => {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, accordionTarget ? 200 : 0);
             }
         });
     });
+
+    // Active nav highlight on scroll
+    const sectionIds = ['upload-form', 'casco-structure', 'property-structure', 'examples', 'franchise-logic'];
+    function updateActiveNav() {
+        const scrollY = window.scrollY + 160;
+        let current = 'upload-form';
+        sectionIds.forEach(id => {
+            const el = document.getElementById(id);
+            if (el && el.offsetTop <= scrollY) current = id;
+        });
+        navLinks.forEach(link => {
+            link.classList.toggle('active', link.dataset.scrollTarget === current);
+        });
+    }
+
+    let ticking = false;
+    window.addEventListener('scroll', function () {
+        if (!ticking) {
+            requestAnimationFrame(function () { updateActiveNav(); ticking = false; });
+            ticking = true;
+        }
+    });
+    updateActiveNav();
+});
 </script>
 {% endblock %}

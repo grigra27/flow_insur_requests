@@ -1,0 +1,47 @@
+<div class="card mb-4 status-progress">
+    <div class="card-body py-3 px-4">
+
+        {# Подписи фаз #}
+        <div class="sp-phases">
+            <div class="sp-phase-label sp-phase-label--request">
+                <a href="{{ request_url }}" class="sp-phase-link">
+                    <i class="bi bi-file-text-fill me-1"></i>Заявка
+                </a>
+            </div>
+            <div class="sp-phase-label sp-phase-label--summary">
+                {% if summary_url %}
+                    <a href="{{ summary_url }}" class="sp-phase-link">
+                        <i class="bi bi-collection-fill me-1"></i>Свод
+                    </a>
+                {% else %}
+                    <i class="bi bi-collection-fill me-1"></i>Свод
+                {% endif %}
+            </div>
+        </div>
+
+        {# Трек шагов #}
+        <div class="sp-track">
+            <div class="sp-track-bg"></div>
+            <div class="sp-track-fill" style="width: {{ progress_pct }}%"></div>
+            <div class="sp-phase-marker"></div>
+            {% for step in steps %}
+            <div class="sp-step sp-step--{{ step.state }}{% if step.is_rejected %} sp-step--rejected{% endif %}">
+                <div class="sp-dot{% if step.state == 'active' %} sp-dot--{{ step.color }}{% endif %}">
+                    {% if step.state == 'done' %}
+                        <i class="bi {% if step.is_rejected %}bi-x-lg{% else %}bi-check-lg{% endif %}"></i>
+                    {% else %}
+                        {{ step.index }}
+                    {% endif %}
+                </div>
+                <div class="sp-label">
+                    {{ step.label }}{% if step.sublabel %}<br><span>{{ step.sublabel }}</span>{% endif %}
+                    {% if forloop.last and deal_summary_url and step.state == 'done' and not step.is_rejected %}
+                        <a href="{{ deal_summary_url }}" class="sp-deal-link">резюме</a>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+    </div>
+</div>

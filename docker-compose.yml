@@ -42,6 +42,7 @@ services:
       - media_data_timeweb:/app/media
       - logs_data_timeweb:/app/logs
       - staticfiles_data_timeweb:/app/staticfiles
+      - backups_data_timeweb:/app/backups
     depends_on:
       db:
         condition: service_healthy
@@ -104,3 +105,4 @@ volumes:
   media_data_timeweb:
   logs_data_timeweb:
   staticfiles_data_timeweb:
+  backups_data_timeweb:

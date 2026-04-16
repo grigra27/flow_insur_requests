@@ -177,6 +177,89 @@ def sum_premiums_variant2(offers):
         return Decimal('0')
 
 
+@register.inclusion_tag('components/status_progress.html')
+def status_progress(insurance_request, summary=None):
+    """Рендерит сквозной прогресс-бар статусов заявки и свода."""
+    from ..status_colors import get_status_color
+
+    STEPS = [
+        {'key': 'uploaded',        'label': 'Загружено',  'sublabel': '',              'phase': 'request'},
+        {'key': 'email_generated', 'label': 'Письмо',     'sublabel': 'сгенерировано', 'phase': 'request'},
+        {'key': 'emails_sent',     'label': 'Письма',     'sublabel': 'отправлены',    'phase': 'request'},
+        {'key': 'collecting',      'label': 'Сбор',       'sublabel': 'предложений',   'phase': 'summary'},
+        {'key': 'ready',           'label': 'Готов к',    'sublabel': 'отправке',      'phase': 'summary'},
+        {'key': 'sent',            'label': 'Отправлен',  'sublabel': 'в Альянс',      'phase': 'summary'},
+        {'key': 'completed',       'label': 'Завершён',   'sublabel': '',              'phase': 'summary'},
+    ]
+
+    req_status = getattr(insurance_request, 'status', 'uploaded')
+    REQUEST_ORDER = ['uploaded', 'email_generated', 'emails_sent']
+    req_idx = REQUEST_ORDER.index(req_status) if req_status in REQUEST_ORDER else 0
+
+    sum_status = getattr(summary, 'status', None) if summary else None
+    is_terminal = sum_status in ('completed_accepted', 'completed_rejected')
+
+    if sum_status is None:
+        current_idx = req_idx
+    elif is_terminal:
+        current_idx = 7  # все шаги выполнены
+    else:
+        SUMMARY_TO_IDX = {'collecting': 3, 'ready': 4, 'sent': 5}
+        current_idx = SUMMARY_TO_IDX.get(sum_status, 3)
+
+    is_rejected = sum_status == 'completed_rejected'
+
+    steps = []
+    for i, step in enumerate(STEPS):
+        if i < current_idx:
+            state = 'done'
+        elif i == current_idx:
+            state = 'active'
+        else:
+            state = 'pending'
+
+        # Цвет для активного шага
+        if state == 'active':
+            if step['phase'] == 'request':
+                color = get_status_color(req_status)
+            else:
+                color = get_status_color(sum_status) if sum_status else 'secondary'
+        else:
+            color = ''
+
+        step_is_rejected = (i == 6 and is_rejected)
+        steps.append({
+            'label': 'Отказ' if step_is_rejected else step['label'],
+            'sublabel': '' if step_is_rejected else step['sublabel'],
+            'phase': step['phase'],
+            'state': state,
+            'color': color,
+            'is_rejected': step_is_rejected,
+            'index': i + 1,
+        })
+
+    # Ширина заполненной части линии: от центра шага 0 до центра текущего шага
+    # current_idx / 7 * 100% — при 7 равных flex-шагах
+    fill_idx = min(current_idx, 6)
+    progress_pct = round(fill_idx / 7 * 100, 3)
+
+    from django.urls import reverse
+    request_url = reverse('insurance_requests:request_detail', args=[insurance_request.pk])
+    summary_url = reverse('summaries:summary_detail', args=[summary.pk]) if summary else None
+    deal_summary_url = None
+    if (summary and getattr(summary, 'status', None) == 'completed_accepted'
+            and getattr(summary, 'selected_company', None)):
+        deal_summary_url = reverse('summaries:deal_summary', args=[summary.pk])
+
+    return {
+        'steps': steps,
+        'progress_pct': progress_pct,
+        'request_url': request_url,
+        'summary_url': summary_url,
+        'deal_summary_url': deal_summary_url,
+    }
+
+
 @register.filter
 def has_variant2(offers):
     """Проверяет, есть ли хотя бы у одного предложения вариант с франшизой-2"""
