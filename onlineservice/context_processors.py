@@ -148,7 +148,7 @@ LAYOUT_MODE_BY_PAGE = {
     ('summaries', 'summary_list'): 'wide',
     ('summaries', 'statistics'): 'wide',
     ('summaries', 'deal_summary'): 'wide',
-    ('summaries', 'summary_detail'): 'full',
+    ('summaries', 'summary_detail'): 'wide',
 }
 
 
