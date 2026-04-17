@@ -31,6 +31,15 @@ MAIN_NAV_ITEMS = [
         'icon': 'bi-collection',
         'route': 'summaries:summary_list',
         'match_app': 'summaries',
+        'exclude_urls': {'analytics'},
+    },
+    {
+        'label': 'Аналитика',
+        'icon': 'bi-bar-chart-line',
+        'route': 'summaries:analytics',
+        'match_app': 'summaries',
+        'include_urls': {'analytics'},
+        'requires_admin': True,
     },
 ]
 
@@ -55,6 +64,24 @@ SECTION_CONFIG = {
             ('Справка', 'summaries:help'),
         ],
     },
+    'analytics': {
+        'label': 'Аналитика',
+        'icon': 'bi-bar-chart-line',
+        'root': 'summaries:analytics',
+        'links': [
+            ('Обзор аналитики', 'summaries:analytics'),
+        ],
+    },
+}
+
+
+ADMIN_ONLY_ROUTES = {
+    'summaries:analytics',
+}
+
+
+SECTION_ROUTE_OVERRIDES = {
+    ('summaries', 'analytics'): 'analytics',
 }
 
 
@@ -72,6 +99,7 @@ PAGE_LABELS = {
     ('summaries', 'copy_offer'): 'Копирование предложения',
     ('summaries', 'deal_summary'): 'Сводка сделки',
     ('summaries', 'statistics'): 'Статистика',
+    ('summaries', 'analytics'): 'Аналитика',
     ('summaries', 'help'): 'Справка',
     ('summaries', 'offer_search'): 'Поиск предложений',
 }
@@ -130,6 +158,7 @@ BREADCRUMB_TEMPLATES = {
         ('Своды', 'summaries:summary_list'),
         ('Статистика', None),
     ],
+    ('summaries', 'analytics'): [('Аналитика', None)],
     ('summaries', 'help'): [
         ('Своды', 'summaries:summary_list'),
         ('Справка', None),
@@ -147,6 +176,7 @@ LAYOUT_MODE_BY_PAGE = {
     ('insurance_requests', 'request_detail'): 'wide',
     ('summaries', 'summary_list'): 'wide',
     ('summaries', 'statistics'): 'wide',
+    ('summaries', 'analytics'): 'wide',
     ('summaries', 'deal_summary'): 'wide',
     ('summaries', 'summary_detail'): 'wide',
 }
@@ -177,13 +207,22 @@ def _humanize_url_name(url_name):
     return url_name.replace('_', ' ').strip().capitalize()
 
 
+def _has_admin_navigation_access(user):
+    """Check whether user can access admin-only navigation items."""
+    return (
+        user.is_authenticated
+        and user.groups.filter(name='Администраторы').exists()
+    )
+
+
 def navigation_context(request):
     """Global navigation context for active menu, breadcrumbs and quick links."""
     resolver_match = getattr(request, 'resolver_match', None)
     app_name = getattr(resolver_match, 'app_name', '') or ''
     url_name = getattr(resolver_match, 'url_name', '') or ''
+    section_key = SECTION_ROUTE_OVERRIDES.get((app_name, url_name), app_name)
 
-    section = SECTION_CONFIG.get(app_name, {
+    section = SECTION_CONFIG.get(section_key, {
         'label': 'Система',
         'icon': 'bi-grid-1x2',
         'root': 'insurance_requests:request_list',
@@ -192,9 +231,12 @@ def navigation_context(request):
             ('Своды', 'summaries:summary_list'),
         ],
     })
+    user_has_admin_access = _has_admin_navigation_access(request.user)
 
     main_items = []
     for item in MAIN_NAV_ITEMS:
+        if item.get('requires_admin') and not user_has_admin_access:
+            continue
         main_items.append({
             'label': item['label'],
             'icon': item['icon'],
@@ -204,6 +246,8 @@ def navigation_context(request):
 
     section_items = []
     for label, route_name in section['links']:
+        if route_name in ADMIN_ONLY_ROUTES and not user_has_admin_access:
+            continue
         route_app, _, route_url_name = route_name.partition(':')
         section_items.append({
             'label': label,

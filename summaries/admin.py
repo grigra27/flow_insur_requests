@@ -97,10 +97,8 @@ class InsuranceCompanyAdmin(admin.ModelAdmin):
         readonly_fields = list(self.readonly_fields)
         
         # Если компания имеет предложения, делаем название только для чтения
-        if obj and obj.has_offers():
+        if obj and obj.has_offers() and 'name' not in readonly_fields:
             readonly_fields.append('name')
-            if 'name' not in readonly_fields:
-                readonly_fields.append('name')
         
         return readonly_fields
     
@@ -110,10 +108,12 @@ class InsuranceCompanyAdmin(admin.ModelAdmin):
         
         if obj and obj.has_offers():
             # Добавляем предупреждение для компаний с существующими предложениями
-            form.base_fields['name'].help_text = (
-                f'Внимание: У этой компании есть {obj.get_offers_count()} предложений. '
-                f'Изменение названия может повлиять на существующие данные.'
-            )
+            name_field = form.base_fields.get('name')
+            if name_field is not None:
+                name_field.help_text = (
+                    f'Внимание: У этой компании есть {obj.get_offers_count()} предложений. '
+                    f'Изменение названия может повлиять на существующие данные.'
+                )
         
         return form
 

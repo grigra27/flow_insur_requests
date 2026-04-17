@@ -1905,6 +1905,12 @@ def export_statistics_widget(request):
     return response
 
 
+@admin_required
+def analytics_placeholder(request):
+    """Временная заглушка для будущего раздела аналитики."""
+    return render(request, 'summaries/analytics_placeholder.html')
+
+
 @user_required
 def help_page(request):
     """

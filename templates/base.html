@@ -27,8 +27,10 @@
     <!-- Navigation -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary app-navbar">
         <div class="{{ app_layout.container_class|default:'container app-layout-default' }}">
-            <a class="navbar-brand" href="{% url 'insurance_requests:request_list' %}">
-                <i class="bi bi-shield-check"></i> флоу // заявки и своды
+            <a class="navbar-brand app-brand" href="{% url 'insurance_requests:request_list' %}">
+                <span class="app-brand-flow">флоу</span>
+                <span class="app-brand-separator" aria-hidden="true">//</span>
+                <span class="app-brand-tail">заявки и своды</span>
             </a>
             
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">

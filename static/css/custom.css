@@ -117,8 +117,34 @@ a:hover {
 }
 
 .app-navbar .navbar-brand {
-    font-weight: 700;
+    font-weight: 500;
     letter-spacing: 0.02em;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.32rem;
+    white-space: nowrap;
+}
+
+.app-brand::before {
+    content: "";
+    display: inline-block;
+    width: 1.7rem;
+}
+
+.app-brand-flow {
+    font-weight: 800;
+    color: #ffffff;
+}
+
+.app-brand-separator {
+    font-weight: 300;
+    opacity: 0.5;
+    letter-spacing: 0.05em;
+}
+
+.app-brand-tail {
+    font-weight: 400;
+    color: rgba(255, 255, 255, 0.94);
 }
 
 .app-navbar .nav-link {
