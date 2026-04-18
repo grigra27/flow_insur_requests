@@ -209,10 +209,14 @@ def _humanize_url_name(url_name):
 
 def _has_admin_navigation_access(user):
     """Check whether user can access admin-only navigation items."""
-    return (
-        user.is_authenticated
-        and user.groups.filter(name='Администраторы').exists()
-    )
+    if not getattr(user, 'is_authenticated', False):
+        return False
+
+    user_groups = getattr(user, 'groups', None)
+    if user_groups is None:
+        return False
+
+    return user_groups.filter(name='Администраторы').exists()
 
 
 def navigation_context(request):
@@ -231,7 +235,7 @@ def navigation_context(request):
             ('Своды', 'summaries:summary_list'),
         ],
     })
-    user_has_admin_access = _has_admin_navigation_access(request.user)
+    user_has_admin_access = _has_admin_navigation_access(getattr(request, 'user', None))
 
     main_items = []
     for item in MAIN_NAV_ITEMS:
