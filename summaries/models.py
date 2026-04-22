@@ -138,6 +138,14 @@ class InsuranceSummary(models.Model):
     
     # Отправка клиенту
     sent_to_client_at = models.DateTimeField(null=True, blank=True, verbose_name='Отправлен клиенту')
+
+    # Дата фактического закрытия сделки (для статуса completed_accepted)
+    completed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='Дата закрытия сделки',
+        help_text='Фиксируется при переводе свода в статус "Завершен: акцепт/распоряжение"'
+    )
     
     # Примечание к своду
     notes = models.TextField(blank=True, verbose_name='Примечание', help_text='Дополнительное примечание к своду')
@@ -175,6 +183,11 @@ class InsuranceSummary(models.Model):
     def dfa_number(self):
         """Возвращает номер ДФА из связанной заявки"""
         return self.request.dfa_number if self.request else None
+
+    @property
+    def deal_closed_at(self):
+        """Возвращает дату закрытия сделки с обратной совместимостью."""
+        return self.completed_at or self.updated_at
     
     def get_status_display(self):
         """Переопределенное отображение статусов"""

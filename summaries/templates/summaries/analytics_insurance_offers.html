@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% load summary_extras %}
 {% load tz %}
+{% load l10n %}
 
 {% block title %}Аналитика по страховым предложениям - {{ block.super }}{% endblock %}
 
@@ -324,7 +325,7 @@
                                     <div class="price-range-line"></div>
                                     {% for point in row.points %}
                                         <span class="price-point {% if point.is_selected %}selected{% endif %}"
-                                              style="left: {{ point.position_pct }}%;"
+                                              style="left: {{ point.position_pct|unlocalize }}%;"
                                               title="{{ point.company_name }}: {{ point.total|format_currency_with_spaces }} (вариант {{ point.variant_used }})"></span>
                                     {% endfor %}
                                 </div>

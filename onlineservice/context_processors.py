@@ -31,7 +31,15 @@ MAIN_NAV_ITEMS = [
         'icon': 'bi-collection',
         'route': 'summaries:summary_list',
         'match_app': 'summaries',
-        'exclude_urls': {'analytics', 'analytics_insurance_offers'},
+        'exclude_urls': {'analytics', 'analytics_insurance_offers', 'deal_list'},
+    },
+    {
+        'label': 'Сделки',
+        'icon': 'bi-briefcase',
+        'route': 'summaries:deal_list',
+        'match_app': 'summaries',
+        'include_urls': {'deal_list'},
+        'requires_admin': True,
     },
     {
         'label': 'Аналитика',
@@ -68,6 +76,14 @@ SECTION_CONFIG = {
             ('Справка', 'summaries:help'),
         ],
     },
+    'deals': {
+        'label': 'Сделки',
+        'icon': 'bi-briefcase',
+        'root': 'summaries:deal_list',
+        'links': [
+            ('Список сделок', 'summaries:deal_list'),
+        ],
+    },
     'analytics': {
         'label': 'Аналитика',
         'icon': 'bi-bar-chart-line',
@@ -81,12 +97,14 @@ SECTION_CONFIG = {
 
 
 ADMIN_ONLY_ROUTES = {
+    'summaries:deal_list',
     'summaries:analytics',
     'summaries:analytics_insurance_offers',
 }
 
 
 SECTION_ROUTE_OVERRIDES = {
+    ('summaries', 'deal_list'): 'deals',
     ('summaries', 'analytics'): 'analytics',
     ('summaries', 'analytics_insurance_offers'): 'analytics',
 }
@@ -100,6 +118,7 @@ PAGE_LABELS = {
     ('insurance_requests', 'preview_email'): 'Предпросмотр письма',
     ('insurance_requests', 'access_denied'): 'Недостаточно прав',
     ('summaries', 'summary_list'): 'Список сводов',
+    ('summaries', 'deal_list'): 'Список сделок',
     ('summaries', 'summary_detail'): 'Карточка свода',
     ('summaries', 'add_offer'): 'Добавление предложения',
     ('summaries', 'edit_offer'): 'Редактирование предложения',
@@ -134,6 +153,7 @@ BREADCRUMB_TEMPLATES = {
         ('Предпросмотр письма', None),
     ],
     ('summaries', 'summary_list'): [('Своды', None)],
+    ('summaries', 'deal_list'): [('Сделки', None)],
     ('summaries', 'summary_detail'): [
         ('Своды', 'summaries:summary_list'),
         ('Карточка свода', None),
@@ -187,6 +207,7 @@ LAYOUT_MODE_BY_PAGE = {
     ('insurance_requests', 'upload_excel'): 'wide',
     ('insurance_requests', 'request_detail'): 'wide',
     ('summaries', 'summary_list'): 'wide',
+    ('summaries', 'deal_list'): 'wide',
     ('summaries', 'statistics'): 'wide',
     ('summaries', 'analytics'): 'wide',
     ('summaries', 'analytics_insurance_offers'): 'wide',

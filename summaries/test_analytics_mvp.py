@@ -71,6 +71,7 @@ class DealAnalyticsMvpTests(TestCase):
         self.assertEqual(row['selected_rank'], 2)
         self.assertFalse(row['is_min_selected'])
         self.assertEqual(row['delta_to_min_abs'], Decimal('1000.00'))
+        self.assertContains(response, 'left: 33.33%;')
 
     def test_analytics_filters_deals_by_branch(self):
         moscow_summary = self._create_completed_summary(

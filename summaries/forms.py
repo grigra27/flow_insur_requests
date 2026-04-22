@@ -3,9 +3,12 @@
 """
 from django import forms
 from django.core.exceptions import ValidationError
+from django.utils import timezone
 from .models import InsuranceOffer, InsuranceSummary, SummaryTemplate
+from insurance_requests.models import InsuranceRequest
 from .constants import get_company_choices, is_valid_company_name, get_company_names
 from decimal import Decimal
+from datetime import timedelta
 import os
 
 
@@ -735,6 +738,144 @@ class SummaryFilterForm(forms.Form):
             from datetime import datetime
             cleaned_data['year'] = datetime.now().year
         
+        return cleaned_data
+
+
+class DealListFilterForm(forms.Form):
+    """Форма фильтрации раздела заключенных сделок."""
+
+    PERIOD_CHOICES = [
+        ('all', 'Все время'),
+        ('30', '30 дней'),
+        ('90', '90 дней'),
+        ('365', '365 дней'),
+    ]
+    SORT_CHOICES = [
+        ('-closed_at', 'Дата закрытия (сначала новые)'),
+        ('closed_at', 'Дата закрытия (сначала старые)'),
+        ('-total_premium', 'Премия (по убыванию)'),
+        ('total_premium', 'Премия (по возрастанию)'),
+        ('client_name', 'Клиент (А-Я)'),
+        ('-client_name', 'Клиент (Я-А)'),
+    ]
+
+    period = forms.ChoiceField(
+        required=False,
+        choices=PERIOD_CHOICES,
+        label='Период',
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    start_date = forms.DateField(
+        required=False,
+        label='Дата с',
+        widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'})
+    )
+    end_date = forms.DateField(
+        required=False,
+        label='Дата по',
+        widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'})
+    )
+    branch = forms.ChoiceField(
+        required=False,
+        label='Филиал',
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    insurance_type = forms.ChoiceField(
+        required=False,
+        label='Тип страхования',
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    manager = forms.ChoiceField(
+        required=False,
+        label='Менеджер',
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    selected_company = forms.ChoiceField(
+        required=False,
+        label='Выбранная СК',
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    deal_status = forms.ChoiceField(
+        required=False,
+        label='Статус сделки',
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    search = forms.CharField(
+        required=False,
+        label='Поиск',
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'ДФА, клиент, ИНН, СК',
+        })
+    )
+    sort = forms.ChoiceField(
+        required=False,
+        choices=SORT_CHOICES,
+        label='Сортировка',
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+
+    def __init__(
+        self,
+        *args,
+        branch_choices=None,
+        insurance_type_choices=None,
+        manager_choices=None,
+        company_choices=None,
+        **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
+
+        self.fields['branch'].choices = [('', 'Все филиалы')] + [
+            (branch, branch) for branch in (branch_choices or [])
+        ]
+        self.fields['insurance_type'].choices = [('', 'Все типы')] + [
+            (insurance_type, insurance_type) for insurance_type in (insurance_type_choices or [])
+        ]
+        self.fields['manager'].choices = [('', 'Все менеджеры')] + list(manager_choices or [])
+        self.fields['selected_company'].choices = [('', 'Все компании')] + [
+            (company, company) for company in (company_choices or [])
+        ]
+        self.fields['deal_status'].choices = [('', 'Любой')] + list(InsuranceRequest.DEAL_STATUS_CHOICES)
+
+        if not self.data:
+            self.initial.setdefault('period', 'all')
+            self.initial.setdefault('sort', '-closed_at')
+
+    def clean_period(self):
+        period = (self.cleaned_data.get('period') or 'all').strip()
+        valid_periods = {choice[0] for choice in self.PERIOD_CHOICES}
+        if period not in valid_periods:
+            raise forms.ValidationError('Некорректный период')
+        return period
+
+    def clean_search(self):
+        search = self.cleaned_data.get('search')
+        if search:
+            search = search.strip()
+        return search or ''
+
+    def clean(self):
+        cleaned_data = super().clean()
+        period = cleaned_data.get('period') or 'all'
+        start_date = cleaned_data.get('start_date')
+        end_date = cleaned_data.get('end_date')
+
+        if start_date and end_date and start_date > end_date:
+            raise forms.ValidationError('Дата начала периода не может быть позже даты окончания')
+
+        if start_date or end_date:
+            cleaned_data['applied_start_date'] = start_date
+            cleaned_data['applied_end_date'] = end_date
+        elif period in {'30', '90', '365'}:
+            days = int(period)
+            applied_end_date = timezone.localdate()
+            cleaned_data['applied_end_date'] = applied_end_date
+            cleaned_data['applied_start_date'] = applied_end_date - timedelta(days=days - 1)
+        else:
+            cleaned_data['applied_start_date'] = None
+            cleaned_data['applied_end_date'] = None
+
         return cleaned_data
 
 

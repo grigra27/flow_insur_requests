@@ -9,6 +9,7 @@ app_name = 'summaries'
 urlpatterns = [
     # Основные страницы
     path('', views.summary_list, name='summary_list'),
+    path('deals/', views.deal_list, name='deal_list'),
     path('<int:pk>/', views.summary_detail, name='summary_detail'),
     path('<int:summary_id>/deal-summary/', views.deal_summary, name='deal_summary'),
     path('statistics/', views.summary_statistics, name='statistics'),

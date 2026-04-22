@@ -6,15 +6,18 @@ from django.contrib import messages
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_http_methods
 from django.db import transaction, IntegrityError
+from django.db.models import Q
+from django.db.models.functions import Coalesce
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from decimal import Decimal, InvalidOperation
+from django.utils import timezone
 import logging
 import os
 
 from .models import InsuranceSummary, InsuranceOffer, SummaryTemplate
 from insurance_requests.models import InsuranceRequest
 from insurance_requests.decorators import user_required, admin_required
-from .forms import OfferForm, SummaryForm, AddOfferToSummaryForm
+from .forms import OfferForm, SummaryForm, AddOfferToSummaryForm, DealListFilterForm
 from .exceptions import DuplicateOfferError
 
 logger = logging.getLogger(__name__)
@@ -138,6 +141,303 @@ def summary_list(request):
         'current_sort': sort_by,
         'show_branch_counts': bool(current_branch),  # Показывать счетчики только для активного филиала
         'show_total_count': not current_branch,      # Показывать общий счетчик только для "Все своды"
+    })
+
+
+def _resolve_manager_online_name(insurance_request):
+    """Возвращает отображаемое имя менеджера Онлайна из пользователя-создателя заявки."""
+    created_by = getattr(insurance_request, 'created_by', None)
+    if not created_by:
+        return None
+
+    if created_by.last_name and created_by.first_name:
+        return f"{created_by.last_name} {created_by.first_name}"
+    if created_by.last_name:
+        return created_by.last_name
+    if created_by.first_name:
+        return created_by.first_name
+    return created_by.username
+
+
+def _safe_decimal_or_none(value):
+    """Безопасно приводит значение к Decimal или возвращает None."""
+    if value is None:
+        return None
+    try:
+        return Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError):
+        return None
+
+
+def _build_deal_list_row(summary):
+    """Готовит строку списка сделок на основе завершенного свода."""
+    selected_company = (summary.selected_company or '').strip()
+    if not selected_company:
+        return None
+
+    selected_variant = summary.selected_franchise_variant if summary.selected_franchise_variant in (1, 2) else 1
+    selected_variant_display = (
+        summary.get_selected_franchise_variant_display()
+        if summary.selected_franchise_variant
+        else 'Вариант 1 (по умолчанию)'
+    )
+
+    valid_offers = [offer for offer in summary.offers.all() if offer.is_valid]
+    companies_count = len({offer.company_name for offer in valid_offers})
+
+    selected_offers = sorted(
+        [offer for offer in valid_offers if offer.company_name == selected_company],
+        key=lambda offer: offer.insurance_year,
+    )
+
+    selected_total = Decimal('0')
+    has_complete_selected_totals = bool(selected_offers)
+    for offer in selected_offers:
+        premium_raw = (
+            offer.premium_with_franchise_2
+            if selected_variant == 2
+            else offer.premium_with_franchise_1
+        )
+        premium_value = _safe_decimal_or_none(premium_raw)
+        if premium_value is None or premium_value <= 0:
+            has_complete_selected_totals = False
+            continue
+        selected_total += premium_value
+
+    if not has_complete_selected_totals:
+        selected_total = None
+
+    price_range = None
+    price_row = _build_deal_price_row(
+        summary,
+        comparison_mode='selected_variant',
+        require_full_coverage=True,
+    )
+    if price_row:
+        selected_point = next(
+            (point for point in price_row['points'] if point.get('is_selected')),
+            None
+        )
+        price_range = {
+            'points': price_row['points'],
+            'min_total': price_row['min_total'],
+            'max_total': price_row['max_total'],
+            'selected_rank': price_row['selected_rank'],
+            'comparable_companies_count': price_row['comparable_companies_count'],
+            'delta_to_min_abs': price_row['delta_to_min_abs'],
+            'delta_to_min_pct': price_row['delta_to_min_pct'],
+            'best_company_name': price_row['best_company_name'],
+            'is_min_selected': price_row['is_min_selected'],
+            'selected_position_pct': selected_point['position_pct'] if selected_point else None,
+        }
+
+    request_obj = summary.request
+    return {
+        'summary': summary,
+        'request': request_obj,
+        'closed_at': summary.deal_closed_at,
+        'selected_company': selected_company,
+        'selected_variant': selected_variant,
+        'selected_variant_display': selected_variant_display,
+        'selected_total': selected_total,
+        'total_years': len(selected_offers),
+        'companies_count': companies_count,
+        'has_data_warning': not has_complete_selected_totals,
+        'price_range': price_range,
+    }
+
+
+def _sort_deal_rows(rows, sort_value):
+    """Сортирует строки списка сделок по выбранному полю."""
+    if sort_value == 'closed_at':
+        return sorted(rows, key=lambda row: row['closed_at'] or timezone.now())
+
+    if sort_value == '-closed_at':
+        return sorted(rows, key=lambda row: row['closed_at'] or timezone.now(), reverse=True)
+
+    if sort_value in {'total_premium', '-total_premium'}:
+        rows_with_premium = [row for row in rows if row['selected_total'] is not None]
+        rows_without_premium = [row for row in rows if row['selected_total'] is None]
+        rows_with_premium.sort(
+            key=lambda row: (row['selected_total'], row['closed_at'] or timezone.now()),
+            reverse=(sort_value == '-total_premium'),
+        )
+        return rows_with_premium + rows_without_premium
+
+    if sort_value == 'client_name':
+        return sorted(
+            rows,
+            key=lambda row: (
+                (row['request'].client_name or '').lower(),
+                row['closed_at'] or timezone.now(),
+            ),
+        )
+
+    if sort_value == '-client_name':
+        return sorted(
+            rows,
+            key=lambda row: (
+                (row['request'].client_name or '').lower(),
+                row['closed_at'] or timezone.now(),
+            ),
+            reverse=True,
+        )
+
+    return sorted(rows, key=lambda row: row['closed_at'] or timezone.now(), reverse=True)
+
+
+def _build_deal_list_kpi(rows):
+    """Собирает KPI для страницы списка сделок."""
+    total_deals = len(rows)
+    rows_with_totals = [row for row in rows if row['selected_total'] is not None]
+    total_premium_sum = sum((row['selected_total'] for row in rows_with_totals), Decimal('0'))
+    avg_premium = (
+        total_premium_sum / Decimal(len(rows_with_totals))
+        if rows_with_totals else None
+    )
+    avg_years = (
+        sum(row['total_years'] for row in rows) / total_deals
+        if total_deals > 0 else 0
+    )
+
+    return {
+        'total_deals': total_deals,
+        'total_premium_sum': total_premium_sum if rows_with_totals else None,
+        'avg_premium': avg_premium,
+        'avg_years': avg_years,
+        'rows_with_warning': sum(1 for row in rows if row['has_data_warning']),
+    }
+
+
+@admin_required
+def deal_list(request):
+    """Список реально заключенных сделок."""
+    base_queryset = InsuranceSummary.objects.select_related('request', 'request__created_by').annotate(
+        deal_closed_at_value=Coalesce('completed_at', 'updated_at')
+    ).filter(
+        status='completed_accepted'
+    ).exclude(
+        selected_company__isnull=True
+    ).exclude(
+        selected_company=''
+    )
+
+    available_branches = list(
+        base_queryset.exclude(
+            request__branch__isnull=True
+        ).exclude(
+            request__branch=''
+        ).values_list('request__branch', flat=True).distinct().order_by('request__branch')
+    )
+    available_insurance_types = list(
+        base_queryset.exclude(
+            request__insurance_type__isnull=True
+        ).exclude(
+            request__insurance_type=''
+        ).values_list('request__insurance_type', flat=True).distinct().order_by('request__insurance_type')
+    )
+    available_companies = list(
+        base_queryset.exclude(
+            selected_company__isnull=True
+        ).exclude(
+            selected_company=''
+        ).values_list('selected_company', flat=True).distinct().order_by('selected_company')
+    )
+    manager_rows = base_queryset.exclude(request__created_by__isnull=True).values(
+        'request__created_by_id',
+        'request__created_by__username',
+        'request__created_by__first_name',
+        'request__created_by__last_name',
+    ).distinct()
+    available_managers = []
+    for manager_row in manager_rows:
+        first_name = (manager_row.get('request__created_by__first_name') or '').strip()
+        last_name = (manager_row.get('request__created_by__last_name') or '').strip()
+        username = (manager_row.get('request__created_by__username') or '').strip()
+        display_name = f"{first_name} {last_name}".strip() or username
+        available_managers.append((str(manager_row.get('request__created_by_id')), display_name))
+    available_managers = sorted(available_managers, key=lambda item: item[1].lower())
+
+    filter_form = DealListFilterForm(
+        request.GET or None,
+        branch_choices=available_branches,
+        insurance_type_choices=available_insurance_types,
+        manager_choices=available_managers,
+        company_choices=available_companies,
+    )
+
+    deals_queryset = base_queryset
+    current_sort = '-closed_at'
+
+    if filter_form.is_valid():
+        search = filter_form.cleaned_data.get('search')
+        if search:
+            deals_queryset = deals_queryset.filter(
+                Q(request__dfa_number__icontains=search)
+                | Q(request__client_name__icontains=search)
+                | Q(request__inn__icontains=search)
+                | Q(selected_company__icontains=search)
+            )
+
+        branch = filter_form.cleaned_data.get('branch')
+        if branch:
+            deals_queryset = deals_queryset.filter(request__branch=branch)
+
+        insurance_type = filter_form.cleaned_data.get('insurance_type')
+        if insurance_type:
+            deals_queryset = deals_queryset.filter(request__insurance_type=insurance_type)
+
+        manager_id = filter_form.cleaned_data.get('manager')
+        if manager_id:
+            deals_queryset = deals_queryset.filter(request__created_by_id=int(manager_id))
+
+        selected_company = filter_form.cleaned_data.get('selected_company')
+        if selected_company:
+            deals_queryset = deals_queryset.filter(selected_company=selected_company)
+
+        deal_status = filter_form.cleaned_data.get('deal_status')
+        if deal_status:
+            deals_queryset = deals_queryset.filter(request__deal_status=deal_status)
+
+        start_date = filter_form.cleaned_data.get('applied_start_date')
+        end_date = filter_form.cleaned_data.get('applied_end_date')
+        if start_date:
+            deals_queryset = deals_queryset.filter(deal_closed_at_value__date__gte=start_date)
+        if end_date:
+            deals_queryset = deals_queryset.filter(deal_closed_at_value__date__lte=end_date)
+
+        current_sort = filter_form.cleaned_data.get('sort') or '-closed_at'
+
+    deals_queryset = deals_queryset.prefetch_related('offers')
+    rows = []
+    for summary in deals_queryset:
+        row = _build_deal_list_row(summary)
+        if row is not None:
+            rows.append(row)
+
+    rows = _sort_deal_rows(rows, current_sort)
+    kpi = _build_deal_list_kpi(rows)
+
+    paginator = Paginator(rows, 25)
+    page = request.GET.get('page')
+    try:
+        rows_page = paginator.page(page)
+    except PageNotAnInteger:
+        rows_page = paginator.page(1)
+    except EmptyPage:
+        rows_page = paginator.page(paginator.num_pages)
+
+    query_params = request.GET.copy()
+    query_params.pop('page', None)
+    querystring_without_page = query_params.urlencode()
+
+    return render(request, 'summaries/deal_list.html', {
+        'deals': rows_page,
+        'paginator': paginator,
+        'filter_form': filter_form,
+        'kpi': kpi,
+        'current_sort': current_sort,
+        'querystring_without_page': querystring_without_page,
     })
 
 
@@ -858,13 +1158,15 @@ def change_summary_status(request, summary_id):
         if new_status == 'completed_accepted':
             summary.selected_company = selected_company
             summary.selected_franchise_variant = selected_franchise_variant
+            if old_status != 'completed_accepted' or not summary.completed_at:
+                summary.completed_at = timezone.now()
         else:
             summary.selected_company = None
             summary.selected_franchise_variant = None
+            summary.completed_at = None
         
         # Если статус изменен на "Отправлен в Альянс", устанавливаем время отправки
         if new_status == 'sent':
-            from django.utils import timezone
             summary.sent_to_client_at = timezone.now()
         
         summary.save()
