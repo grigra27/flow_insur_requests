@@ -7,6 +7,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 from decimal import Decimal, InvalidOperation
+import unicodedata
 
 from openpyxl import load_workbook
 from openpyxl.workbook import Workbook
@@ -3273,6 +3274,77 @@ class ExcelResponseProcessor:
             
         except (ValueError, TypeError):
             raise RowProcessingError(row_number, 'год', f'некорректное значение "{value}", ожидается положительное число', cell_address)
+
+    def _sanitize_numeric_string(self, value: Any) -> str:
+        """
+        Удаляет из числовой строки невидимые управляющие/форматирующие символы и пробелы.
+
+        Включая кейсы вроде U+202C (POP DIRECTIONAL FORMATTING), которые визуально не заметны,
+        но ломают Decimal().
+        """
+        value_str = str(value).strip()
+        cleaned_chars = []
+        for char in value_str:
+            category = unicodedata.category(char)
+            if char.isspace() or category in {'Cf', 'Cc'}:
+                continue
+            cleaned_chars.append(char)
+        return ''.join(cleaned_chars)
+
+    def _normalize_decimal_separator_for_parser(self, value_str: str) -> str:
+        """
+        Нормализует десятичный разделитель для парсинга в Decimal.
+
+        Поддерживаемые примеры:
+        - "382171,80" -> "382171.80"
+        - "382171.80" -> "382171.80"
+        - "1.234,56" -> "1234.56"
+        - "1,234.56" -> "1234.56"
+        """
+        normalized = self._sanitize_numeric_string(value_str)
+
+        if ',' not in normalized and '.' not in normalized:
+            return normalized
+
+        # Если есть и точка, и запятая — последняя встреченная считается десятичным разделителем
+        if ',' in normalized and '.' in normalized:
+            comma_pos = normalized.rfind(',')
+            dot_pos = normalized.rfind('.')
+            if comma_pos > dot_pos:
+                # 1.234,56 -> 1234.56
+                return normalized.replace('.', '').replace(',', '.')
+            # 1,234.56 -> 1234.56
+            return normalized.replace(',', '')
+
+        # Только запятая
+        if ',' in normalized:
+            comma_pos = normalized.rfind(',')
+            fractional = normalized[comma_pos + 1:]
+
+            # 1-2 знака после запятой считаем десятичной частью
+            if fractional.isdigit() and 1 <= len(fractional) <= 2:
+                return normalized.replace(',', '.')
+
+            # Иначе считаем запятую разделителем тысяч
+            return normalized.replace(',', '')
+
+        # Только точка
+        if '.' in normalized:
+            dot_pos = normalized.rfind('.')
+            fractional = normalized[dot_pos + 1:]
+
+            # 1-2 знака после точки считаем десятичной частью
+            if fractional.isdigit() and 1 <= len(fractional) <= 2:
+                return normalized
+
+            # Иначе считаем точку разделителем тысяч
+            return normalized.replace('.', '')
+
+        return normalized
+
+    def _normalize_decimal_input(self, value: Any) -> str:
+        """Подготовка входного значения к безопасному Decimal-парсингу."""
+        return self._normalize_decimal_separator_for_parser(str(value))
     
     def _parse_decimal(self, value, cell_address: str, field_name: str, default_value: Optional[Decimal] = None) -> Decimal:
         """
@@ -3296,8 +3368,8 @@ class ExcelResponseProcessor:
                     return default_value
                 raise InvalidDataError(field_name, value, 'числовое значение')
             
-            # Преобразуем в Decimal
-            decimal_value = Decimal(str(value))
+            # Нормализуем и преобразуем в Decimal (поддерживаем и "," и ".")
+            decimal_value = Decimal(self._normalize_decimal_input(value))
             
             # Проверяем, что значение положительное (кроме франшизы, которая может быть 0)
             if decimal_value < 0:
@@ -3334,8 +3406,8 @@ class ExcelResponseProcessor:
                     return None
                 raise RowProcessingError(row_number, field_name, 'значение не указано', cell_address)
             
-            # Преобразуем в Decimal с ограничением точности
-            decimal_value = Decimal(str(value))
+            # Нормализуем и преобразуем в Decimal (поддерживаем и "," и ".")
+            decimal_value = Decimal(self._normalize_decimal_input(value))
             
             # Ограничиваем точность до 15 цифр (13 до запятой + 2 после)
             # Это соответствует ограничению модели max_digits=15, decimal_places=2

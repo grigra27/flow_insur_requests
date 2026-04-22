@@ -2,6 +2,7 @@
 Тесты для пользовательских сообщений и подсказок при работе со страховыми компаниями
 """
 import unittest
+from decimal import Decimal
 from django.test import TestCase
 from django.contrib.auth.models import User
 from unittest.mock import Mock, patch
@@ -149,6 +150,32 @@ class UserMessagesTestCase(TestCase):
         widget_attrs = form.fields['company_name'].widget.attrs
         self.assertIn('data-bs-toggle', widget_attrs)
         self.assertIn('title', widget_attrs)
+
+    def test_excel_processor_parses_decimal_with_comma(self):
+        """Парсер должен поддерживать запятую как десятичный разделитель."""
+        processor = ExcelResponseProcessor()
+        parsed = processor._parse_decimal_with_row('382171,80', 'D6', 'премия', 6)
+        self.assertEqual(parsed, Decimal('382171.80'))
+
+    def test_excel_processor_parses_decimal_with_mixed_separators(self):
+        """Парсер должен корректно читать форматы с разделителем тысяч."""
+        processor = ExcelResponseProcessor()
+        parsed_eu = processor._parse_decimal_with_row('1.234,56', 'D6', 'премия', 6)
+        parsed_us = processor._parse_decimal_with_row('1,234.56', 'D6', 'премия', 6)
+        self.assertEqual(parsed_eu, Decimal('1234.56'))
+        self.assertEqual(parsed_us, Decimal('1234.56'))
+
+    def test_excel_processor_cleans_invisible_unicode_in_decimal(self):
+        """Парсер должен удалять невидимые Unicode-символы из числовых значений."""
+        processor = ExcelResponseProcessor()
+        parsed = processor._parse_decimal_with_row('382\u00A0171,8\u202c0', 'D6', 'премия', 6)
+        self.assertEqual(parsed, Decimal('382171.80'))
+
+    def test_excel_processor_cleans_regular_spaces_in_decimal(self):
+        """Парсер должен удалять обычные пробелы внутри числовой строки."""
+        processor = ExcelResponseProcessor()
+        parsed = processor._parse_decimal_with_row(' 382 171,80 ', 'D6', 'премия', 6)
+        self.assertEqual(parsed, Decimal('382171.80'))
 
 
 if __name__ == '__main__':
