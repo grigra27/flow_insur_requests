@@ -1,0 +1,400 @@
+{% extends 'base.html' %}
+{% load summary_extras %}
+{% load tz %}
+
+{% block title %}Аналитика по страховым предложениям - {{ block.super }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .deal-analytics-page {
+        --deal-analytics-primary: var(--app-primary);
+        --deal-analytics-track: #dbe7ee;
+        --deal-analytics-track-line: #8aa5b4;
+    }
+
+    .deal-analytics-filter-card {
+        border: 0;
+        box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+        background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%);
+    }
+
+    .deal-analytics-kpi-card {
+        border: 0;
+        box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
+        height: 100%;
+    }
+
+    .deal-analytics-table-card {
+        border: 0;
+        box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+    }
+
+    .price-range-track {
+        position: relative;
+        height: 12px;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #d8e4ea 0%, #eef4f7 100%);
+        border: 1px solid var(--deal-analytics-track);
+        overflow: visible;
+    }
+
+    .price-range-line {
+        position: absolute;
+        left: 8px;
+        right: 8px;
+        top: 50%;
+        height: 2px;
+        background: var(--deal-analytics-track-line);
+        transform: translateY(-50%);
+        opacity: 0.55;
+    }
+
+    .price-point {
+        position: absolute;
+        top: 50%;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        border: 2px solid #0f172a;
+        background: #fff;
+        transform: translate(-50%, -50%);
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.16);
+    }
+
+    .price-point.selected {
+        width: 16px;
+        height: 16px;
+        border-color: #fff;
+        background: var(--deal-analytics-primary);
+        box-shadow: 0 0 0 3px rgba(11, 122, 117, 0.25);
+        z-index: 2;
+    }
+
+    .price-range-labels {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.75rem;
+        color: #64748b;
+        margin-top: 0.35rem;
+    }
+
+    .deal-kpi-value {
+        font-size: 1.8rem;
+        line-height: 1.1;
+        font-weight: 700;
+    }
+
+    .deal-analytics-mini-list {
+        margin: 0;
+        padding-left: 1rem;
+        font-size: 0.82rem;
+    }
+
+    .deal-analytics-mini-list li {
+        margin-bottom: 0.15rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="deal-analytics-page">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">
+                <i class="bi bi-bar-chart-line"></i> Аналитика по страховым предложениям
+            </h1>
+            <p class="text-muted mb-0">
+                Проверка гипотезы: выбирает ли клиент минимальный тариф среди полученных предложений.
+            </p>
+        </div>
+        <a href="{% url 'summaries:analytics' %}" class="btn btn-outline-primary">
+            <i class="bi bi-arrow-left"></i> К разделам аналитики
+        </a>
+    </div>
+
+    <div class="card deal-analytics-filter-card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-12 col-md-3 col-lg-2">
+                    <label class="form-label mb-1">Период</label>
+                    <select class="form-select" name="period">
+                        <option value="all" {% if filters.period == 'all' %}selected{% endif %}>Все время</option>
+                        <option value="30" {% if filters.period == '30' %}selected{% endif %}>30 дней</option>
+                        <option value="90" {% if filters.period == '90' %}selected{% endif %}>90 дней</option>
+                        <option value="365" {% if filters.period == '365' %}selected{% endif %}>365 дней</option>
+                    </select>
+                </div>
+
+                <div class="col-12 col-md-3 col-lg-2">
+                    <label class="form-label mb-1">Дата с</label>
+                    <input type="date" class="form-control" name="start_date" value="{{ filters.start_date }}">
+                </div>
+
+                <div class="col-12 col-md-3 col-lg-2">
+                    <label class="form-label mb-1">Дата по</label>
+                    <input type="date" class="form-control" name="end_date" value="{{ filters.end_date }}">
+                </div>
+
+                <div class="col-12 col-md-3 col-lg-2">
+                    <label class="form-label mb-1">Филиал</label>
+                    <select class="form-select" name="branch">
+                        <option value="">Все филиалы</option>
+                        {% for branch in available_branches %}
+                        <option value="{{ branch }}" {% if filters.branch == branch %}selected{% endif %}>{{ branch }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-12 col-md-4 col-lg-2">
+                    <label class="form-label mb-1">Тип страхования</label>
+                    <select class="form-select" name="insurance_type">
+                        <option value="">Все типы</option>
+                        {% for insurance_type in available_insurance_types %}
+                        <option value="{{ insurance_type }}" {% if filters.insurance_type == insurance_type %}selected{% endif %}>
+                            {{ insurance_type }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-12 col-md-4 col-lg-2">
+                    <label class="form-label mb-1">Менеджер</label>
+                    <select class="form-select" name="manager">
+                        <option value="">Все менеджеры</option>
+                        {% for manager in available_managers %}
+                        <option value="{{ manager.id }}" {% if filters.manager == manager.id %}selected{% endif %}>{{ manager.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-12 col-md-4 col-lg-3">
+                    <label class="form-label mb-1">Режим сравнения тарифа</label>
+                    <select class="form-select" name="comparison_mode">
+                        <option value="selected_variant" {% if filters.comparison_mode == 'selected_variant' %}selected{% endif %}>
+                            По выбранному варианту клиента
+                        </option>
+                        <option value="best_available" {% if filters.comparison_mode == 'best_available' %}selected{% endif %}>
+                            По лучшему доступному варианту конкурентов
+                        </option>
+                    </select>
+                </div>
+
+                <div class="col-12 col-md-4 col-lg-3">
+                    <label class="form-label mb-1">Сопоставимость лет</label>
+                    <select class="form-select" name="full_coverage">
+                        <option value="1" {% if filters.full_coverage %}selected{% endif %}>Только полное совпадение лет</option>
+                        <option value="0" {% if not filters.full_coverage %}selected{% endif %}>Разрешить неполное покрытие</option>
+                    </select>
+                </div>
+
+                <div class="col-12 col-lg-6 d-flex align-items-end gap-2">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-funnel"></i> Применить
+                    </button>
+                    <a href="{% url 'summaries:analytics' %}" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-counterclockwise"></i> Сбросить
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-md-6 col-xl-3">
+            <div class="card deal-analytics-kpi-card">
+                <div class="card-body">
+                    <div class="text-muted mb-2">Сделок в выборке</div>
+                    <div class="deal-kpi-value text-primary">{{ analytics_kpi.total_deals }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-6 col-xl-3">
+            <div class="card deal-analytics-kpi-card">
+                <div class="card-body">
+                    <div class="text-muted mb-2">Выбран минимум по цене</div>
+                    <div class="deal-kpi-value text-success">{{ analytics_kpi.min_selected_rate|floatformat:1 }}%</div>
+                    <small class="text-muted">{{ analytics_kpi.min_selected_count }} из {{ analytics_kpi.total_deals }}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-6 col-xl-3">
+            <div class="card deal-analytics-kpi-card">
+                <div class="card-body">
+                    <div class="text-muted mb-2">Медиана отклонения от min</div>
+                    <div class="deal-kpi-value text-warning">
+                        {% if analytics_kpi.median_delta_abs %}
+                            {{ analytics_kpi.median_delta_abs|format_currency_with_spaces }}
+                        {% else %}
+                            —
+                        {% endif %}
+                    </div>
+                    <small class="text-muted">
+                        {% if analytics_kpi.median_delta_pct %}
+                            {{ analytics_kpi.median_delta_pct|floatformat:1 }}%
+                        {% else %}
+                            —
+                        {% endif %}
+                    </small>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-6 col-xl-3">
+            <div class="card deal-analytics-kpi-card">
+                <div class="card-body">
+                    <div class="text-muted mb-2">Среднее число сопоставимых СК</div>
+                    <div class="deal-kpi-value text-info">{{ analytics_kpi.avg_companies|floatformat:1 }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card deal-analytics-table-card">
+        <div class="card-header">
+            <h2 class="h5 mb-0"><i class="bi bi-table"></i> Сделки и ценовой диапазон предложений</h2>
+        </div>
+        <div class="card-body">
+            {% if rows %}
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th style="min-width: 240px;">Сделка</th>
+                            <th style="min-width: 240px;">Выбор клиента</th>
+                            <th style="min-width: 220px;">Диапазон тарифа</th>
+                            <th style="min-width: 160px;">Ранг выбора</th>
+                            <th style="min-width: 320px;">Линейка предложений</th>
+                            <th style="min-width: 220px;">Ближайшие альтернативы</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in rows %}
+                        <tr>
+                            <td>
+                                <div class="fw-semibold">
+                                    <a href="{% url 'summaries:summary_detail' row.summary.pk %}">
+                                        {{ row.request.get_display_name }}
+                                    </a>
+                                </div>
+                                <div class="small text-muted">{{ row.request.client_name }}</div>
+                                <div class="small text-muted">
+                                    {% timezone "Europe/Moscow" %}{{ row.summary.created_at|date:"d.m.Y H:i" }}{% endtimezone %}
+                                </div>
+                                <div class="small text-muted">
+                                    {{ row.request.insurance_type }}{% if row.request.branch %} • {{ row.request.branch }}{% endif %}
+                                </div>
+                            </td>
+                            <td>
+                                <div><strong>{{ row.selected_company }}</strong></div>
+                                <div class="small text-muted">
+                                    Вариант {{ row.selected_variant }} • {{ row.selected_total|format_currency_with_spaces }}
+                                </div>
+                                {% if row.is_min_selected %}
+                                    <span class="badge bg-success">Выбран минимум</span>
+                                {% else %}
+                                    <span class="badge bg-warning text-dark">Выбран не минимум</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div><strong>{{ row.min_total|format_currency_with_spaces }} — {{ row.max_total|format_currency_with_spaces }}</strong></div>
+                                <div class="small text-muted">
+                                    Разброс: {{ row.spread_abs|format_currency_with_spaces }}
+                                    {% if row.spread_pct %}
+                                        ({{ row.spread_pct|floatformat:1 }}%)
+                                    {% endif %}
+                                </div>
+                                <div class="small text-muted">
+                                    Лучшее: {{ row.best_company_name }}
+                                </div>
+                            </td>
+                            <td>
+                                <div class="fw-semibold">{{ row.selected_rank }} / {{ row.comparable_companies_count }}</div>
+                                <div class="small text-muted">
+                                    +{{ row.delta_to_min_abs|format_currency_with_spaces }}
+                                </div>
+                                <div class="small text-muted">
+                                    {% if row.delta_to_min_pct %}
+                                        +{{ row.delta_to_min_pct|floatformat:1 }}%
+                                    {% else %}
+                                        —
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td>
+                                <div class="price-range-track">
+                                    <div class="price-range-line"></div>
+                                    {% for point in row.points %}
+                                        <span class="price-point {% if point.is_selected %}selected{% endif %}"
+                                              style="left: {{ point.position_pct }}%;"
+                                              title="{{ point.company_name }}: {{ point.total|format_currency_with_spaces }} (вариант {{ point.variant_used }})"></span>
+                                    {% endfor %}
+                                </div>
+                                <div class="price-range-labels">
+                                    <span>min</span>
+                                    <span>max</span>
+                                </div>
+                                <div class="small text-muted mt-1">
+                                    Сопоставимых СК: {{ row.comparable_companies_count }} из {{ row.total_companies_count }}
+                                </div>
+                            </td>
+                            <td>
+                                {% if row.top_competitors %}
+                                <ol class="deal-analytics-mini-list">
+                                    {% for competitor in row.top_competitors %}
+                                    <li>
+                                        {{ competitor.company_name }} —
+                                        {{ competitor.total|format_currency_with_spaces }}
+                                    </li>
+                                    {% endfor %}
+                                </ol>
+                                {% else %}
+                                <span class="text-muted small">Нет альтернатив</span>
+                                {% endif %}
+                                <div class="mt-2">
+                                    <a href="{% url 'summaries:deal_summary' row.summary.pk %}" class="btn btn-sm btn-outline-primary">
+                                        Сделка
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% if rows.has_other_pages %}
+            <nav aria-label="Навигация по аналитике" class="mt-3 d-flex justify-content-between align-items-center">
+                <div class="small text-muted">
+                    Страница {{ rows.number }} из {{ rows.paginator.num_pages }}
+                </div>
+                <div class="btn-group">
+                    {% if rows.has_previous %}
+                        <a class="btn btn-outline-secondary btn-sm" href="?{% if querystring_without_page %}{{ querystring_without_page }}&{% endif %}page={{ rows.previous_page_number }}">
+                            <i class="bi bi-chevron-left"></i> Назад
+                        </a>
+                    {% else %}
+                        <button class="btn btn-outline-secondary btn-sm" disabled>
+                            <i class="bi bi-chevron-left"></i> Назад
+                        </button>
+                    {% endif %}
+
+                    {% if rows.has_next %}
+                        <a class="btn btn-outline-secondary btn-sm" href="?{% if querystring_without_page %}{{ querystring_without_page }}&{% endif %}page={{ rows.next_page_number }}">
+                            Вперед <i class="bi bi-chevron-right"></i>
+                        </a>
+                    {% else %}
+                        <button class="btn btn-outline-secondary btn-sm" disabled>
+                            Вперед <i class="bi bi-chevron-right"></i>
+                        </button>
+                    {% endif %}
+                </div>
+            </nav>
+            {% endif %}
+            {% else %}
+            <div class="alert alert-light border mb-0">
+                По выбранным фильтрам нет сделок с сопоставимыми предложениями.
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -40,18 +40,41 @@ class AnalyticsPlaceholderAccessTests(TestCase):
         self.assertEqual(response.status_code, 403)
         self.assertTemplateUsed(response, 'insurance_requests/access_denied.html')
 
+    def test_analytics_insurance_offers_page_access_matches_statistics_for_admin(self):
+        self.client.login(username='analytics_admin', password='testpass123')
+
+        analytics_response = self.client.get(reverse('summaries:analytics_insurance_offers'))
+        statistics_response = self.client.get(reverse('summaries:statistics'))
+
+        self.assertEqual(analytics_response.status_code, 200)
+        self.assertEqual(statistics_response.status_code, 200)
+
+    def test_analytics_insurance_offers_page_access_matches_statistics_for_regular_user(self):
+        self.client.login(username='analytics_user', password='testpass123')
+
+        analytics_response = self.client.get(reverse('summaries:analytics_insurance_offers'))
+        statistics_response = self.client.get(reverse('summaries:statistics'))
+
+        self.assertEqual(analytics_response.status_code, 403)
+        self.assertEqual(statistics_response.status_code, 403)
+        self.assertTemplateUsed(analytics_response, 'insurance_requests/access_denied.html')
+        self.assertTemplateUsed(statistics_response, 'insurance_requests/access_denied.html')
+
     def test_top_menu_item_visible_only_for_admin_group(self):
         analytics_url = reverse('summaries:analytics')
+        analytics_offers_url = reverse('summaries:analytics_insurance_offers')
 
         self.client.login(username='analytics_admin', password='testpass123')
         admin_response = self.client.get(reverse('summaries:summary_list'))
         self.assertContains(admin_response, analytics_url)
+        self.assertContains(admin_response, analytics_offers_url)
         self.assertContains(admin_response, 'Аналитика')
 
         self.client.logout()
         self.client.login(username='analytics_user', password='testpass123')
         user_response = self.client.get(reverse('summaries:summary_list'))
         self.assertNotContains(user_response, analytics_url)
+        self.assertNotContains(user_response, analytics_offers_url)
 
     def test_analytics_page_uses_its_own_navigation_section(self):
         self.client.login(username='analytics_admin', password='testpass123')
@@ -65,6 +88,7 @@ class AnalyticsPlaceholderAccessTests(TestCase):
 
         section_labels = [item['label'] for item in app_navigation['section_items']]
         self.assertIn('Обзор аналитики', section_labels)
+        self.assertIn('Страховые предложения', section_labels)
         self.assertNotIn('Статистика', section_labels)
         self.assertNotIn('Справка', section_labels)
         self.assertNotContains(response, 'Своды / Аналитика')

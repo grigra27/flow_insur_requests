@@ -2,18 +2,74 @@
 
 {% block title %}Аналитика - {{ block.super }}{% endblock %}
 
+{% block extra_css %}
+<style>
+    .analytics-index-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 1rem;
+    }
+
+    .analytics-index-card {
+        border: 0;
+        box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+        height: 100%;
+    }
+
+    .analytics-index-meta {
+        color: #64748b;
+        font-size: 0.88rem;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="card shadow-sm border-0">
-    <div class="card-body p-4 p-md-5">
-        <h1 class="h3 mb-3">
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-1">
             <i class="bi bi-bar-chart-line"></i> Аналитика
         </h1>
-        <p class="text-muted mb-2">
-            Раздел аналитики в разработке.
+        <p class="text-muted mb-0">
+            Каталог аналитических разделов. Новые отчеты будут добавляться в этот список.
         </p>
-        <p class="mb-0">
-            Пока здесь размещена временная заглушка.
-        </p>
+    </div>
+</div>
+
+<div class="analytics-index-grid">
+    <div class="card analytics-index-card">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <h2 class="h5 mb-0">Аналитика по страховым предложениям</h2>
+                <span class="badge bg-success">Доступно</span>
+            </div>
+            <p class="text-muted mb-3">
+                Сравнение диапазона тарифов по сделкам, выбранной клиентом компании и отклонения от минимальной цены.
+            </p>
+            <div class="analytics-index-meta mb-3">
+                Первый вложенный раздел аналитики
+            </div>
+            <a href="{% url 'summaries:analytics_insurance_offers' %}" class="btn btn-primary">
+                Открыть раздел
+            </a>
+        </div>
+    </div>
+
+    <div class="card analytics-index-card">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <h2 class="h5 mb-0">Следующий раздел</h2>
+                <span class="badge bg-secondary">Скоро</span>
+            </div>
+            <p class="text-muted mb-3">
+                Здесь появится следующий аналитический модуль.
+            </p>
+            <div class="analytics-index-meta mb-3">
+                Место зарезервировано
+            </div>
+            <button class="btn btn-outline-secondary" disabled>
+                В разработке
+            </button>
+        </div>
     </div>
 </div>
 {% endblock %}

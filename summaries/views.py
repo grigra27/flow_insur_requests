@@ -7,6 +7,7 @@ from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_http_methods
 from django.db import transaction, IntegrityError
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+from decimal import Decimal, InvalidOperation
 import logging
 import os
 
@@ -1915,9 +1916,364 @@ def export_statistics_widget(request):
     return response
 
 
+def _safe_decimal(value):
+    """Безопасно приводит значение к Decimal."""
+    if value is None:
+        return None
+
+    try:
+        return Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError):
+        return None
+
+
+def _median_decimal(values):
+    """Возвращает медиану для списка Decimal значений."""
+    if not values:
+        return None
+
+    sorted_values = sorted(values)
+    total_count = len(sorted_values)
+    middle_index = total_count // 2
+
+    if total_count % 2 == 1:
+        return sorted_values[middle_index]
+
+    return (sorted_values[middle_index - 1] + sorted_values[middle_index]) / Decimal('2')
+
+
+def _sum_company_premium_for_variant(offers, variant, years_for_comparison):
+    """
+    Суммирует итоговую премию компании по выбранному варианту франшизы.
+
+    Возвращает None, если по любому из годов нет валидной премии.
+    """
+    offers_by_year = {offer.insurance_year: offer for offer in offers}
+    total = Decimal('0')
+
+    for year in sorted(years_for_comparison):
+        offer = offers_by_year.get(year)
+        if offer is None:
+            return None
+
+        premium_raw = (
+            offer.premium_with_franchise_1
+            if variant == 1
+            else offer.premium_with_franchise_2
+        )
+        premium_value = _safe_decimal(premium_raw)
+        if premium_value is None or premium_value <= 0:
+            return None
+
+        total += premium_value
+
+    return total
+
+
+def _build_deal_price_row(summary, comparison_mode='selected_variant', require_full_coverage=True):
+    """Формирует аналитическую строку по одной завершенной сделке."""
+    selected_company = (summary.selected_company or '').strip()
+    if not selected_company:
+        return None
+
+    selected_variant = summary.selected_franchise_variant or 1
+    if selected_variant not in (1, 2):
+        selected_variant = 1
+
+    offers_by_company = {}
+    for offer in summary.offers.all():
+        if not offer.is_valid:
+            continue
+        offers_by_company.setdefault(offer.company_name, []).append(offer)
+
+    selected_offers = offers_by_company.get(selected_company, [])
+    if not selected_offers:
+        return None
+
+    selected_years = {offer.insurance_year for offer in selected_offers}
+    if not selected_years:
+        return None
+
+    company_totals = {}
+    company_variants = {}
+
+    for company_name, company_offers in offers_by_company.items():
+        company_years = {offer.insurance_year for offer in company_offers}
+        years_for_comparison = selected_years if require_full_coverage else company_years
+
+        if require_full_coverage and company_years != selected_years:
+            continue
+
+        if company_name == selected_company:
+            selected_total = _sum_company_premium_for_variant(
+                company_offers,
+                selected_variant,
+                years_for_comparison,
+            )
+            if selected_total is None:
+                continue
+
+            company_totals[company_name] = selected_total
+            company_variants[company_name] = selected_variant
+            continue
+
+        if comparison_mode == 'best_available':
+            total_variant_1 = _sum_company_premium_for_variant(
+                company_offers,
+                1,
+                years_for_comparison,
+            )
+            total_variant_2 = _sum_company_premium_for_variant(
+                company_offers,
+                2,
+                years_for_comparison,
+            )
+
+            candidates = []
+            if total_variant_1 is not None:
+                candidates.append((1, total_variant_1))
+            if total_variant_2 is not None:
+                candidates.append((2, total_variant_2))
+
+            if not candidates:
+                continue
+
+            best_variant, best_total = min(candidates, key=lambda item: item[1])
+            company_totals[company_name] = best_total
+            company_variants[company_name] = best_variant
+        else:
+            total_same_variant = _sum_company_premium_for_variant(
+                company_offers,
+                selected_variant,
+                years_for_comparison,
+            )
+            if total_same_variant is None:
+                continue
+
+            company_totals[company_name] = total_same_variant
+            company_variants[company_name] = selected_variant
+
+    if selected_company not in company_totals:
+        return None
+
+    if len(company_totals) < 2:
+        return None
+
+    sorted_companies = sorted(company_totals.items(), key=lambda item: (item[1], item[0]))
+    selected_total = company_totals[selected_company]
+    min_total = sorted_companies[0][1]
+    max_total = sorted_companies[-1][1]
+    spread_abs = max_total - min_total
+    spread_pct = ((spread_abs / min_total) * Decimal('100')) if min_total > 0 else None
+
+    selected_rank = 1 + sum(
+        1 for _, total_value in company_totals.items()
+        if total_value < selected_total
+    )
+    delta_to_min_abs = selected_total - min_total
+    delta_to_min_pct = ((delta_to_min_abs / min_total) * Decimal('100')) if min_total > 0 else None
+    is_min_selected = selected_total == min_total
+
+    best_company_names = [
+        company_name for company_name, total_value in sorted_companies
+        if total_value == min_total
+    ]
+    best_company_name = ', '.join(best_company_names)
+
+    points = []
+    for company_name, total_value in sorted_companies:
+        if spread_abs > 0:
+            position_pct = float(((total_value - min_total) / spread_abs) * Decimal('100'))
+        else:
+            position_pct = 50.0
+
+        points.append({
+            'company_name': company_name,
+            'total': total_value,
+            'variant_used': company_variants.get(company_name),
+            'is_selected': company_name == selected_company,
+            'position_pct': round(position_pct, 2),
+        })
+
+    competitor_points = [point for point in points if not point['is_selected']]
+    top_competitors = competitor_points[:3]
+
+    return {
+        'summary': summary,
+        'request': summary.request,
+        'selected_company': selected_company,
+        'selected_variant': selected_variant,
+        'selected_total': selected_total,
+        'min_total': min_total,
+        'max_total': max_total,
+        'spread_abs': spread_abs,
+        'spread_pct': spread_pct,
+        'delta_to_min_abs': delta_to_min_abs,
+        'delta_to_min_pct': delta_to_min_pct,
+        'selected_rank': selected_rank,
+        'is_min_selected': is_min_selected,
+        'best_company_name': best_company_name,
+        'comparable_companies_count': len(company_totals),
+        'total_companies_count': len(offers_by_company),
+        'years_count': len(selected_years),
+        'points': points,
+        'top_competitors': top_competitors,
+    }
+
+
+@admin_required
+def analytics_insurance_offers(request):
+    """MVP аналитики по выбору страховых предложений."""
+    filters = _parse_statistics_filters(request)
+    for error_message in filters['errors']:
+        messages.warning(request, error_message)
+
+    comparison_mode = (request.GET.get('comparison_mode') or 'selected_variant').strip()
+    if comparison_mode not in {'selected_variant', 'best_available'}:
+        comparison_mode = 'selected_variant'
+
+    full_coverage_raw = (request.GET.get('full_coverage') or '1').strip().lower()
+    require_full_coverage = full_coverage_raw not in {'0', 'false', 'no'}
+
+    selected_branch = (request.GET.get('branch') or '').strip()
+    selected_insurance_type = (request.GET.get('insurance_type') or '').strip()
+    selected_manager_id = (request.GET.get('manager') or '').strip()
+
+    filter_base_qs = InsuranceSummary.objects.select_related('request', 'request__created_by').filter(
+        status='completed_accepted'
+    ).exclude(
+        selected_company__isnull=True
+    ).exclude(
+        selected_company=''
+    )
+    filter_base_qs = _apply_summary_date_filters(
+        filter_base_qs,
+        start_date=filters['start_date'],
+        end_date=filters['end_date']
+    )
+
+    available_branches = list(
+        filter_base_qs.exclude(
+            request__branch__isnull=True
+        ).exclude(
+            request__branch=''
+        ).values_list('request__branch', flat=True).distinct().order_by('request__branch')
+    )
+
+    available_insurance_types = list(
+        filter_base_qs.exclude(
+            request__insurance_type__isnull=True
+        ).exclude(
+            request__insurance_type=''
+        ).values_list('request__insurance_type', flat=True).distinct().order_by('request__insurance_type')
+    )
+
+    manager_rows = filter_base_qs.exclude(request__created_by__isnull=True).values(
+        'request__created_by_id',
+        'request__created_by__username',
+        'request__created_by__first_name',
+        'request__created_by__last_name'
+    ).distinct()
+
+    available_managers = []
+    for manager_row in manager_rows:
+        first_name = (manager_row.get('request__created_by__first_name') or '').strip()
+        last_name = (manager_row.get('request__created_by__last_name') or '').strip()
+        username = (manager_row.get('request__created_by__username') or '').strip()
+        display_name = f"{first_name} {last_name}".strip() or username
+
+        available_managers.append({
+            'id': str(manager_row.get('request__created_by_id')),
+            'name': display_name,
+        })
+    available_managers = sorted(available_managers, key=lambda item: item['name'].lower())
+
+    summaries_qs = filter_base_qs
+    if selected_branch:
+        summaries_qs = summaries_qs.filter(request__branch=selected_branch)
+    if selected_insurance_type:
+        summaries_qs = summaries_qs.filter(request__insurance_type=selected_insurance_type)
+    if selected_manager_id:
+        try:
+            summaries_qs = summaries_qs.filter(request__created_by_id=int(selected_manager_id))
+        except ValueError:
+            messages.warning(request, 'Некорректный фильтр менеджера был сброшен')
+            selected_manager_id = ''
+
+    summaries_qs = summaries_qs.prefetch_related('offers').order_by('-created_at')
+
+    rows = []
+    for summary in summaries_qs:
+        row_data = _build_deal_price_row(
+            summary,
+            comparison_mode=comparison_mode,
+            require_full_coverage=require_full_coverage,
+        )
+        if row_data is not None:
+            rows.append(row_data)
+
+    total_deals = len(rows)
+    min_selected_count = sum(1 for row in rows if row['is_min_selected'])
+    non_min_selected_count = total_deals - min_selected_count
+
+    delta_abs_values = [row['delta_to_min_abs'] for row in rows if row['delta_to_min_abs'] is not None]
+    delta_pct_values = [row['delta_to_min_pct'] for row in rows if row['delta_to_min_pct'] is not None]
+    comparable_counts = [row['comparable_companies_count'] for row in rows]
+
+    median_delta_abs = _median_decimal(delta_abs_values)
+    median_delta_pct = _median_decimal(delta_pct_values)
+    avg_companies = (sum(comparable_counts) / total_deals) if total_deals > 0 else 0
+    min_selected_rate = (
+        (Decimal(min_selected_count) / Decimal(total_deals) * Decimal('100'))
+        if total_deals > 0 else Decimal('0')
+    )
+
+    paginator = Paginator(rows, 25)
+    page = request.GET.get('page')
+    try:
+        rows_page = paginator.page(page)
+    except PageNotAnInteger:
+        rows_page = paginator.page(1)
+    except EmptyPage:
+        rows_page = paginator.page(paginator.num_pages)
+
+    query_params = request.GET.copy()
+    query_params.pop('page', None)
+    querystring_without_page = query_params.urlencode()
+
+    context = {
+        'rows': rows_page,
+        'paginator': paginator,
+        'analytics_kpi': {
+            'total_deals': total_deals,
+            'min_selected_count': min_selected_count,
+            'non_min_selected_count': non_min_selected_count,
+            'min_selected_rate': min_selected_rate,
+            'median_delta_abs': median_delta_abs,
+            'median_delta_pct': median_delta_pct,
+            'avg_companies': avg_companies,
+        },
+        'filters': {
+            'period': filters['period'],
+            'start_date': filters['start_date_str'],
+            'end_date': filters['end_date_str'],
+            'branch': selected_branch,
+            'insurance_type': selected_insurance_type,
+            'manager': selected_manager_id,
+            'comparison_mode': comparison_mode,
+            'full_coverage': require_full_coverage,
+        },
+        'available_branches': available_branches,
+        'available_insurance_types': available_insurance_types,
+        'available_managers': available_managers,
+        'querystring_without_page': querystring_without_page,
+    }
+    return render(request, 'summaries/analytics_insurance_offers.html', context)
+
+
 @admin_required
 def analytics_placeholder(request):
-    """Временная заглушка для будущего раздела аналитики."""
+    """Индексный экран раздела аналитики со списком вложенных отчетов."""
     return render(request, 'summaries/analytics_placeholder.html')
 
 

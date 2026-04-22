@@ -40,13 +40,37 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto app-nav-links">
                     {% for item in app_navigation.main_items %}
-                        <li class="nav-item">
-                            <a class="nav-link {% if item.active %}active{% endif %}"
-                               href="{{ item.url }}"
-                               {% if item.active %}aria-current="page"{% endif %}>
-                                <i class="bi {{ item.icon }}"></i> {{ item.label }}
-                            </a>
-                        </li>
+                        {% if item.children %}
+                            <li class="nav-item dropdown">
+                                <a class="nav-link dropdown-toggle {% if item.active %}active{% endif %}"
+                                   href="{{ item.url }}"
+                                   id="navbarDropdown{{ forloop.counter }}"
+                                   role="button"
+                                   data-bs-toggle="dropdown"
+                                   aria-expanded="false"
+                                   {% if item.active %}aria-current="page"{% endif %}>
+                                    <i class="bi {{ item.icon }}"></i> {{ item.label }}
+                                </a>
+                                <ul class="dropdown-menu" aria-labelledby="navbarDropdown{{ forloop.counter }}">
+                                    {% for child in item.children %}
+                                        <li>
+                                            <a class="dropdown-item {% if child.active %}active{% endif %}"
+                                               href="{{ child.url }}">
+                                                {{ child.label }}
+                                            </a>
+                                        </li>
+                                    {% endfor %}
+                                </ul>
+                            </li>
+                        {% else %}
+                            <li class="nav-item">
+                                <a class="nav-link {% if item.active %}active{% endif %}"
+                                   href="{{ item.url }}"
+                                   {% if item.active %}aria-current="page"{% endif %}>
+                                    <i class="bi {{ item.icon }}"></i> {{ item.label }}
+                                </a>
+                            </li>
+                        {% endif %}
                     {% endfor %}
                 </ul>
                 

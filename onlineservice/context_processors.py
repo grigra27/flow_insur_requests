@@ -31,14 +31,18 @@ MAIN_NAV_ITEMS = [
         'icon': 'bi-collection',
         'route': 'summaries:summary_list',
         'match_app': 'summaries',
-        'exclude_urls': {'analytics'},
+        'exclude_urls': {'analytics', 'analytics_insurance_offers'},
     },
     {
         'label': 'Аналитика',
         'icon': 'bi-bar-chart-line',
         'route': 'summaries:analytics',
         'match_app': 'summaries',
-        'include_urls': {'analytics'},
+        'include_urls': {'analytics', 'analytics_insurance_offers'},
+        'children': [
+            ('Обзор аналитики', 'summaries:analytics'),
+            ('Аналитика по страховым предложениям', 'summaries:analytics_insurance_offers'),
+        ],
         'requires_admin': True,
     },
 ]
@@ -70,6 +74,7 @@ SECTION_CONFIG = {
         'root': 'summaries:analytics',
         'links': [
             ('Обзор аналитики', 'summaries:analytics'),
+            ('Страховые предложения', 'summaries:analytics_insurance_offers'),
         ],
     },
 }
@@ -77,11 +82,13 @@ SECTION_CONFIG = {
 
 ADMIN_ONLY_ROUTES = {
     'summaries:analytics',
+    'summaries:analytics_insurance_offers',
 }
 
 
 SECTION_ROUTE_OVERRIDES = {
     ('summaries', 'analytics'): 'analytics',
+    ('summaries', 'analytics_insurance_offers'): 'analytics',
 }
 
 
@@ -100,6 +107,7 @@ PAGE_LABELS = {
     ('summaries', 'deal_summary'): 'Сводка сделки',
     ('summaries', 'statistics'): 'Статистика',
     ('summaries', 'analytics'): 'Аналитика',
+    ('summaries', 'analytics_insurance_offers'): 'Аналитика страховых предложений',
     ('summaries', 'help'): 'Справка',
     ('summaries', 'offer_search'): 'Поиск предложений',
 }
@@ -159,6 +167,10 @@ BREADCRUMB_TEMPLATES = {
         ('Статистика', None),
     ],
     ('summaries', 'analytics'): [('Аналитика', None)],
+    ('summaries', 'analytics_insurance_offers'): [
+        ('Аналитика', 'summaries:analytics'),
+        ('Страховые предложения', None),
+    ],
     ('summaries', 'help'): [
         ('Своды', 'summaries:summary_list'),
         ('Справка', None),
@@ -177,6 +189,7 @@ LAYOUT_MODE_BY_PAGE = {
     ('summaries', 'summary_list'): 'wide',
     ('summaries', 'statistics'): 'wide',
     ('summaries', 'analytics'): 'wide',
+    ('summaries', 'analytics_insurance_offers'): 'wide',
     ('summaries', 'deal_summary'): 'wide',
     ('summaries', 'summary_detail'): 'wide',
 }
@@ -241,11 +254,27 @@ def navigation_context(request):
     for item in MAIN_NAV_ITEMS:
         if item.get('requires_admin') and not user_has_admin_access:
             continue
+        children = []
+        for child_label, child_route in item.get('children', []):
+            if child_route in ADMIN_ONLY_ROUTES and not user_has_admin_access:
+                continue
+
+            child_app, _, child_url_name = child_route.partition(':')
+            children.append({
+                'label': child_label,
+                'url': _safe_reverse(child_route),
+                'active': child_app == app_name and child_url_name == url_name,
+            })
+
+        is_active = _is_nav_item_active(item, app_name, url_name) or any(
+            child['active'] for child in children
+        )
         main_items.append({
             'label': item['label'],
             'icon': item['icon'],
             'url': _safe_reverse(item['route']),
-            'active': _is_nav_item_active(item, app_name, url_name),
+            'active': is_active,
+            'children': children,
         })
 
     section_items = []

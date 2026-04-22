@@ -14,6 +14,7 @@ urlpatterns = [
     path('statistics/', views.summary_statistics, name='statistics'),
     path('statistics/export/', views.export_statistics_widget, name='export_statistics_widget'),
     path('analytics/', views.analytics_placeholder, name='analytics'),
+    path('analytics/insurance-offers/', views.analytics_insurance_offers, name='analytics_insurance_offers'),
     path('help/', views.help_page, name='help'),
     
     # Создание и управление сводами
