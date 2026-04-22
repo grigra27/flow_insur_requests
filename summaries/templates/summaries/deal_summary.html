@@ -155,6 +155,18 @@
                                 <td><span class="text-muted">—</span></td>
                             </tr>
                             {% endif %}
+
+                            {% if selected_offer_notes_summary %}
+                            <tr class="deal-offer-note-row">
+                                <td colspan="5">
+                                    <div class="deal-offer-note">
+                                        <i class="bi bi-chat-left-text me-1"></i>
+                                        <strong>Комментарий предложения:</strong>
+                                        {{ selected_offer_notes_summary }}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endif %}
                         </tbody>
                     </table>
                 </div>

@@ -1302,6 +1302,26 @@ a:hover {
     padding: 0.85rem 0.75rem;
 }
 
+.deal-offer-note-row td {
+    padding: 0.45rem 0.75rem 0.85rem;
+    border-top: 0;
+    background: #ffffff;
+}
+
+.deal-offer-note {
+    font-size: 0.83rem;
+    color: var(--app-text);
+    line-height: 1.45;
+}
+
+.deal-offer-note strong {
+    color: var(--app-primary-dark);
+}
+
+.deal-offer-note .bi {
+    color: var(--app-primary);
+}
+
 .deal-premium-value {
     font-size: 1rem;
     color: var(--app-primary-dark);

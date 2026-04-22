@@ -219,6 +219,15 @@ def deal_summary(request, summary_id):
         ).order_by('insurance_year')
     )
 
+    # Собираем общий комментарий по выбранным предложениям (без дублей, с сохранением порядка)
+    selected_offer_notes = []
+    for offer in selected_offers:
+        note = (offer.notes or '').strip()
+        if note and note not in selected_offer_notes:
+            selected_offer_notes.append(note)
+
+    selected_offer_notes_summary = ' | '.join(selected_offer_notes)
+
     # Менеджер Онлайна — форматируем имя
     created_by = insurance_request.created_by
     if created_by:
@@ -243,6 +252,7 @@ def deal_summary(request, summary_id):
         'selected_franchise_variant': summary.selected_franchise_variant,
         'selected_franchise_variant_display': summary.get_selected_franchise_variant_display() if summary.selected_franchise_variant else None,
         'selected_offers': selected_offers,
+        'selected_offer_notes_summary': selected_offer_notes_summary,
         'total_years': len(selected_offers),
 
         # Основные данные заявки
