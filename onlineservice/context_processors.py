@@ -13,6 +13,14 @@ def _safe_reverse(route_name):
 
 MAIN_NAV_ITEMS = [
     {
+        'label': 'Загрузить заявку',
+        'icon': 'bi-upload',
+        'route': 'insurance_requests:upload_excel',
+        'match_app': 'insurance_requests',
+        'include_urls': {'upload_excel'},
+        'nav_style': 'action',
+    },
+    {
         'label': 'Заявки',
         'icon': 'bi-list-ul',
         'route': 'insurance_requests:request_list',
@@ -20,26 +28,18 @@ MAIN_NAV_ITEMS = [
         'exclude_urls': {'upload_excel'},
     },
     {
-        'label': 'Загрузить заявку',
-        'icon': 'bi-upload',
-        'route': 'insurance_requests:upload_excel',
-        'match_app': 'insurance_requests',
-        'include_urls': {'upload_excel'},
-    },
-    {
         'label': 'Своды',
         'icon': 'bi-collection',
         'route': 'summaries:summary_list',
         'match_app': 'summaries',
-        'exclude_urls': {'analytics', 'analytics_insurance_offers', 'deal_list'},
+        'exclude_urls': {'analytics', 'analytics_insurance_offers', 'deal_list', 'deal_summary'},
     },
     {
         'label': 'Сделки',
         'icon': 'bi-briefcase',
         'route': 'summaries:deal_list',
         'match_app': 'summaries',
-        'include_urls': {'deal_list'},
-        'requires_admin': True,
+        'include_urls': {'deal_list', 'deal_summary'},
     },
     {
         'label': 'Аналитика',
@@ -97,7 +97,6 @@ SECTION_CONFIG = {
 
 
 ADMIN_ONLY_ROUTES = {
-    'summaries:deal_list',
     'summaries:analytics',
     'summaries:analytics_insurance_offers',
 }
@@ -105,6 +104,7 @@ ADMIN_ONLY_ROUTES = {
 
 SECTION_ROUTE_OVERRIDES = {
     ('summaries', 'deal_list'): 'deals',
+    ('summaries', 'deal_summary'): 'deals',
     ('summaries', 'analytics'): 'analytics',
     ('summaries', 'analytics_insurance_offers'): 'analytics',
 }
@@ -123,7 +123,7 @@ PAGE_LABELS = {
     ('summaries', 'add_offer'): 'Добавление предложения',
     ('summaries', 'edit_offer'): 'Редактирование предложения',
     ('summaries', 'copy_offer'): 'Копирование предложения',
-    ('summaries', 'deal_summary'): 'Сводка сделки',
+    ('summaries', 'deal_summary'): 'Резюме по сделке',
     ('summaries', 'statistics'): 'Статистика',
     ('summaries', 'analytics'): 'Аналитика',
     ('summaries', 'analytics_insurance_offers'): 'Аналитика страховых предложений',
@@ -178,9 +178,8 @@ BREADCRUMB_TEMPLATES = {
         ('Копировать предложение', None),
     ],
     ('summaries', 'deal_summary'): [
-        ('Своды', 'summaries:summary_list'),
-        ('Карточка свода', None),
-        ('Сводка сделки', None),
+        ('Сделки', 'summaries:deal_list'),
+        ('Резюме по сделке', None),
     ],
     ('summaries', 'statistics'): [
         ('Своды', 'summaries:summary_list'),
@@ -296,6 +295,7 @@ def navigation_context(request):
             'url': _safe_reverse(item['route']),
             'active': is_active,
             'children': children,
+            'nav_style': item.get('nav_style', ''),
         })
 
     section_items = []

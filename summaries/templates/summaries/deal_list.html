@@ -19,10 +19,95 @@
         font-weight: 700;
     }
 
-    .deal-list-filter-card,
     .deal-list-table-card {
         border: 0;
         box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+    }
+
+    .summary-filter-card {
+        border: 0;
+        box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+    }
+
+    .summary-filter-card__header {
+        padding: 0;
+        background: #fff;
+        border-bottom: 1px solid #e9ecef;
+    }
+
+    .summary-filter-toggle {
+        width: 100%;
+        border: 0;
+        border-radius: 0;
+        padding: 1rem 1.25rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-weight: 600;
+        color: #0f172a;
+        text-align: left;
+    }
+
+    .summary-filter-toggle:hover {
+        color: var(--app-primary);
+        background-color: rgba(11, 122, 117, 0.06);
+    }
+
+    .summary-filter-toggle:focus {
+        box-shadow: none;
+        color: var(--app-primary);
+    }
+
+    .summary-filter-toggle__title {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .summary-filter-toggle__meta {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        color: #64748b;
+        font-size: 0.85rem;
+    }
+
+    .summary-filter-toggle__icon {
+        transition: transform 0.2s ease-in-out, color 0.2s ease-in-out;
+    }
+
+    .summary-filter-toggle[aria-expanded="true"] .summary-filter-toggle__icon {
+        transform: rotate(180deg);
+        color: var(--app-primary);
+    }
+
+    .summary-filter-card .card-body {
+        padding: 1.25rem;
+    }
+
+    .summary-filter-form .row.g-3 {
+        align-items: end;
+    }
+
+    .summary-filter-form .form-label {
+        font-weight: 500;
+        margin-bottom: 0.5rem;
+        color: #334155;
+    }
+
+    .summary-filter-form .form-control,
+    .summary-filter-form .form-select {
+        min-height: calc(2.25rem + 2px);
+    }
+
+    .summary-filter-actions {
+        display: flex;
+        gap: 0.5rem;
+        align-items: end;
+    }
+
+    .summary-filter-actions .btn {
+        font-weight: 500;
     }
 
     .deal-list-table tbody tr {
@@ -91,6 +176,18 @@
     .deal-min-selected-badge {
         background-color: #6f42c1;
         color: #fff;
+    }
+
+    .deal-companies-cell {
+        text-align: center;
+    }
+
+    .deal-companies-badge {
+        min-width: 2.25rem;
+        padding: 0.34rem 0.62rem;
+        font-size: 0.92rem;
+        font-weight: 700;
+        line-height: 1;
     }
 
     .price-range-track {
@@ -162,6 +259,25 @@
             padding: 0.22rem 0.60rem 0.28rem;
         }
     }
+
+    @media (max-width: 576px) {
+        .summary-filter-card .card-body {
+            padding: 1rem;
+        }
+
+        .summary-filter-toggle {
+            padding: 0.85rem 1rem;
+        }
+
+        .summary-filter-actions {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .summary-filter-actions .btn {
+            width: 100%;
+        }
+    }
 </style>
 {% endblock %}
 
@@ -226,49 +342,60 @@
     </div>
 </div>
 
-<div class="card deal-list-filter-card mb-4">
-    <div class="card-header">
-        <h2 class="h5 mb-0"><i class="bi bi-funnel"></i> Фильтры</h2>
+<div class="card summary-filter-card mb-4">
+    <div class="card-header summary-filter-card__header">
+        <button class="btn summary-filter-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#dealFilterForm" aria-expanded="true" aria-controls="dealFilterForm">
+            <span class="summary-filter-toggle__title">
+                <i class="bi bi-funnel"></i>
+                <span>Фильтры сделок</span>
+            </span>
+            <span class="summary-filter-toggle__meta">
+                <span class="summary-filter-toggle__hint d-none d-md-inline">Поиск, даты, тип, менеджер</span>
+                <i class="bi bi-chevron-down summary-filter-toggle__icon"></i>
+            </span>
+        </button>
     </div>
-    <div class="card-body">
-        <form method="get" class="row g-3">
+    <div class="collapse show" id="dealFilterForm">
+        <div class="card-body">
+        <form method="get" id="deal-filter-form" class="summary-filter-form">
+            <div class="row g-3">
             <div class="col-12 col-md-3 col-lg-2">
-                <label class="form-label">{{ filter_form.period.label }}</label>
+                <label for="{{ filter_form.period.id_for_label }}" class="form-label">{{ filter_form.period.label }}</label>
                 {{ filter_form.period }}
             </div>
             <div class="col-12 col-md-3 col-lg-2">
-                <label class="form-label">{{ filter_form.start_date.label }}</label>
+                <label for="{{ filter_form.start_date.id_for_label }}" class="form-label">{{ filter_form.start_date.label }}</label>
                 {{ filter_form.start_date }}
             </div>
             <div class="col-12 col-md-3 col-lg-2">
-                <label class="form-label">{{ filter_form.end_date.label }}</label>
+                <label for="{{ filter_form.end_date.id_for_label }}" class="form-label">{{ filter_form.end_date.label }}</label>
                 {{ filter_form.end_date }}
             </div>
             <div class="col-12 col-md-3 col-lg-2">
-                <label class="form-label">{{ filter_form.branch.label }}</label>
+                <label for="{{ filter_form.branch.id_for_label }}" class="form-label">{{ filter_form.branch.label }}</label>
                 {{ filter_form.branch }}
             </div>
             <div class="col-12 col-md-4 col-lg-2">
-                <label class="form-label">{{ filter_form.insurance_type.label }}</label>
+                <label for="{{ filter_form.insurance_type.id_for_label }}" class="form-label">{{ filter_form.insurance_type.label }}</label>
                 {{ filter_form.insurance_type }}
             </div>
             <div class="col-12 col-md-4 col-lg-2">
-                <label class="form-label">{{ filter_form.manager.label }}</label>
+                <label for="{{ filter_form.manager.id_for_label }}" class="form-label">{{ filter_form.manager.label }}</label>
                 {{ filter_form.manager }}
             </div>
             <div class="col-12 col-md-4 col-lg-2">
-                <label class="form-label">{{ filter_form.selected_company.label }}</label>
+                <label for="{{ filter_form.selected_company.id_for_label }}" class="form-label">{{ filter_form.selected_company.label }}</label>
                 {{ filter_form.selected_company }}
             </div>
             <div class="col-12 col-md-4 col-lg-3">
-                <label class="form-label">{{ filter_form.sort.label }}</label>
+                <label for="{{ filter_form.sort.id_for_label }}" class="form-label">{{ filter_form.sort.label }}</label>
                 {{ filter_form.sort }}
             </div>
             <div class="col-12 col-md-8 col-lg-3">
-                <label class="form-label">{{ filter_form.search.label }}</label>
+                <label for="{{ filter_form.search.id_for_label }}" class="form-label">{{ filter_form.search.label }}</label>
                 {{ filter_form.search }}
             </div>
-            <div class="col-12 col-lg-4 d-flex align-items-end gap-2">
+            <div class="col-12 col-lg-4 summary-filter-actions">
                 <button type="submit" class="btn btn-primary">
                     <i class="bi bi-search"></i> Применить
                 </button>
@@ -276,7 +403,9 @@
                     <i class="bi bi-arrow-counterclockwise"></i> Сбросить
                 </a>
             </div>
+            </div>
         </form>
+        </div>
     </div>
 </div>
 
@@ -373,8 +502,8 @@
                                 {% endif %}
                             {% endif %}
                         </td>
-                        <td>
-                            <span class="badge {{ deal.companies_count|companies_count_badge_class }}">
+                        <td class="deal-companies-cell">
+                            <span class="badge deal-companies-badge {{ deal.companies_count|companies_count_badge_class }}">
                                 {{ deal.companies_count }}
                             </span>
                         </td>

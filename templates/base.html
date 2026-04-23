@@ -41,8 +41,8 @@
                 <ul class="navbar-nav me-auto app-nav-links">
                     {% for item in app_navigation.main_items %}
                         {% if item.children %}
-                            <li class="nav-item dropdown">
-                                <a class="nav-link dropdown-toggle {% if item.active %}active{% endif %}"
+                            <li class="nav-item dropdown {% if item.nav_style == 'action' %}app-nav-item-action{% endif %}">
+                                <a class="nav-link dropdown-toggle {% if item.active %}active{% endif %} {% if item.nav_style == 'action' %}app-nav-link-action{% endif %}"
                                    href="{{ item.url }}"
                                    id="navbarDropdown{{ forloop.counter }}"
                                    role="button"
@@ -63,8 +63,8 @@
                                 </ul>
                             </li>
                         {% else %}
-                            <li class="nav-item">
-                                <a class="nav-link {% if item.active %}active{% endif %}"
+                            <li class="nav-item {% if item.nav_style == 'action' %}app-nav-item-action{% endif %}">
+                                <a class="nav-link {% if item.active %}active{% endif %} {% if item.nav_style == 'action' %}app-nav-link-action{% endif %}"
                                    href="{{ item.url }}"
                                    {% if item.active %}aria-current="page"{% endif %}>
                                     <i class="bi {{ item.icon }}"></i> {{ item.label }}

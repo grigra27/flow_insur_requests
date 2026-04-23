@@ -84,23 +84,23 @@ class DealListViewTests(TestCase):
         self.assertEqual(app_navigation['current_section']['label'], 'Сделки')
         self.assertEqual(app_navigation['current_context_label'], 'Сделки')
 
-    def test_deal_list_forbidden_for_regular_user_group(self):
+    def test_deal_list_available_for_regular_user_group(self):
         self.client.logout()
         self.client.login(username='deal_list_regular', password='testpass123')
 
         response = self.client.get(reverse('summaries:deal_list'))
 
-        self.assertEqual(response.status_code, 403)
-        self.assertTemplateUsed(response, 'insurance_requests/access_denied.html')
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'summaries/deal_list.html')
 
-    def test_deal_menu_item_hidden_for_regular_user(self):
+    def test_deal_menu_item_visible_for_regular_user(self):
         self.client.logout()
         self.client.login(username='deal_list_regular', password='testpass123')
 
         response = self.client.get(reverse('summaries:summary_list'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, reverse('summaries:deal_list'))
+        self.assertContains(response, reverse('summaries:deal_list'))
 
     def test_summary_list_filters_by_search_date_type_and_manager(self):
         second_manager = User.objects.create_user(

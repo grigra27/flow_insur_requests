@@ -329,7 +329,7 @@ def _build_deal_list_kpi(rows):
     }
 
 
-@admin_required
+@user_required
 def deal_list(request):
     """Список реально заключенных сделок."""
     base_queryset = InsuranceSummary.objects.select_related('request', 'request__created_by').annotate(
