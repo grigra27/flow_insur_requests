@@ -10,195 +10,119 @@
     <link href="{% static 'css/login.css' %}" rel="stylesheet">
 </head>
 <body class="login-body">
-    <div class="login-container">
-        <div class="login-card">
-            <div class="login-header">
-                <div class="login-icon">
-                    <i class="fas fa-shield-alt"></i>
-                </div>
-                <h2 class="login-title">insurance flow</h2>
-                <p class="login-subtitle">Войдите в свою учетную запись</p>
+    <main class="login-layout" role="main">
+        <section class="login-showcase" aria-label="Информация о системе">
+            <p class="showcase-overline">INSFLOW</p>
+            <h1 class="showcase-title">
+                флоу // <span>заявки</span>
+            </h1>
+            <p class="showcase-description">
+                Единая рабочая среда для обработки заявок, контроля этапов и коммуникации между филиалами и менеджерами.
+            </p>
+
+            <div class="showcase-stats">
+                <article class="showcase-stat">
+                    <span class="stat-label">Версия</span>
+                    <strong class="stat-value">2.0</strong>
+                </article>
+                <article class="showcase-stat">
+                    <span class="stat-label">Мониторинг</span>
+                    <strong class="stat-value">24/7</strong>
+                </article>
+                <article class="showcase-stat showcase-stat--wide">
+                    <span class="stat-label">Контур</span>
+                    <strong class="stat-value">zs.insflow</strong>
+                </article>
             </div>
-            
-            <form method="post" class="login-form" id="loginForm">
-                {% csrf_token %}
-                
+
+            <ul class="showcase-list">
+                <li><i class="fa-solid fa-shield-halved"></i><span>Защищенный вход и контроль доступа</span></li>
+                <li><i class="fa-solid fa-chart-line"></i><span>Прозрачные метрики обработки в одном окне</span></li>
+                <li><i class="fa-solid fa-code-branch"></i><span>Сквозная связка: филиалы, менеджеры, проверка</span></li>
+            </ul>
+        </section>
+
+        <section class="login-panel" aria-label="Форма авторизации">
+            <div class="login-panel-inner">
+                <p class="panel-overline">Авторизация</p>
+                <h2 class="panel-title">Вход в систему</h2>
+                <p class="panel-subtitle">
+                    Используйте корпоративные учетные данные для доступа к рабочему контуру.
+                </p>
+
                 {% if messages %}
                     {% for message in messages %}
-                        <div class="alert alert-{{ message.tags }}">
-                            {{ message }}
+                        <div class="alert alert-{{ message.tags }}" role="alert">
+                            <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+                            <span>{{ message }}</span>
                         </div>
                     {% endfor %}
                 {% endif %}
-                
+
                 {% if form.errors %}
-                    <div class="alert alert-danger">
-                        {% for field, errors in form.errors.items %}
-                            {% for error in errors %}
-                                <div>{{ error }}</div>
+                    <div class="alert alert-danger" role="alert">
+                        <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
+                        <span>
+                            {% for field, errors in form.errors.items %}
+                                {% for error in errors %}
+                                    {{ error }}{% if not forloop.last or not forloop.parentloop.last %}<br>{% endif %}
+                                {% endfor %}
                             {% endfor %}
-                        {% endfor %}
+                        </span>
                     </div>
                 {% endif %}
-                
-                <div class="form-group">
-                    <label for="{{ form.username.id_for_label }}" class="form-label">
-                        <i class="fas fa-user"></i> Логин
-                    </label>
-                    {{ form.username }}
-                    <div class="input-icon">
-                        <i class="fas fa-user"></i>
+
+                <form method="post" class="login-form" id="loginForm">
+                    {% csrf_token %}
+
+                    <div class="form-group">
+                        <label for="{{ form.username.id_for_label }}" class="form-label">Имя пользователя</label>
+                        <div class="input-shell">
+                            <span class="input-icon" aria-hidden="true"><i class="fa-solid fa-user"></i></span>
+                            {{ form.username }}
+                        </div>
                     </div>
-                </div>
-                
-                <div class="form-group">
-                    <label for="{{ form.password.id_for_label }}" class="form-label">
-                        <i class="fas fa-lock"></i> Пароль
-                    </label>
-                    {{ form.password }}
-                    <div class="input-icon">
-                        <i class="fas fa-lock"></i>
+
+                    <div class="form-group">
+                        <label for="{{ form.password.id_for_label }}" class="form-label">Пароль</label>
+                        <div class="input-shell">
+                            <span class="input-icon" aria-hidden="true"><i class="fa-solid fa-lock"></i></span>
+                            {{ form.password }}
+                        </div>
                     </div>
+
+                    <button type="submit" class="btn login-btn" id="loginButton">
+                        <i class="fa-solid fa-right-to-bracket"></i>
+                        Войти
+                    </button>
+                </form>
+
+                <div class="panel-footer">
+                    <span class="panel-footer-note">
+                        <i class="fa-solid fa-shield"></i>
+                        Защищенное соединение
+                    </span>
+                    <span class="panel-footer-badge">Flow v2</span>
                 </div>
-                
-                <button type="submit" class="btn login-btn" id="loginButton">
-                    <i class="fas fa-sign-in-alt"></i>
-                    Войти
-                </button>
-            </form>
-        </div>
-    </div>
+            </div>
+        </section>
+    </main>
 
     <script>
-        // Enhanced login form functionality
         document.addEventListener('DOMContentLoaded', function() {
             const form = document.getElementById('loginForm');
             const loginButton = document.getElementById('loginButton');
-            const inputs = document.querySelectorAll('input[type="text"], input[type="password"]');
-            
-            // Add Bootstrap classes to form inputs
-            inputs.forEach(input => {
-                input.classList.add('form-control');
-                
-                // Add focus/blur effects
-                input.addEventListener('focus', function() {
-                    this.parentElement.classList.add('focused');
-                });
-                
-                input.addEventListener('blur', function() {
-                    if (!this.value) {
-                        this.parentElement.classList.remove('focused');
-                    }
-                });
-                
-                // Real-time validation
-                input.addEventListener('input', function() {
-                    validateField(this);
-                });
-            });
-            
-            // Form submission with loading state
-            form.addEventListener('submit', function(e) {
-                if (!validateForm()) {
-                    e.preventDefault();
-                    return false;
+            const inputs = form.querySelectorAll('input[type="text"], input[type="password"]');
+
+            inputs.forEach((input) => {
+                if (!input.classList.contains('form-control')) {
+                    input.classList.add('form-control');
                 }
-                
-                // Add loading state
+            });
+
+            form.addEventListener('submit', function() {
                 loginButton.classList.add('loading');
                 loginButton.disabled = true;
-                
-                // Remove loading state after timeout (fallback)
-                setTimeout(() => {
-                    loginButton.classList.remove('loading');
-                    loginButton.disabled = false;
-                }, 5000);
-            });
-            
-            // Client-side validation functions
-            function validateField(field) {
-                const value = field.value.trim();
-                const fieldGroup = field.parentElement;
-                
-                // Remove existing error states
-                fieldGroup.classList.remove('error');
-                
-                if (field.type === 'text' && field.name === 'username') {
-                    if (value.length < 3) {
-                        showFieldError(fieldGroup, 'Логин должен содержать минимум 3 символа');
-                        return false;
-                    }
-                }
-                
-                if (field.type === 'password') {
-                    if (value.length < 6) {
-                        showFieldError(fieldGroup, 'Пароль должен содержать минимум 6 символов');
-                        return false;
-                    }
-                }
-                
-                hideFieldError(fieldGroup);
-                return true;
-            }
-            
-            function validateForm() {
-                let isValid = true;
-                inputs.forEach(input => {
-                    if (!validateField(input)) {
-                        isValid = false;
-                    }
-                });
-                return isValid;
-            }
-            
-            function showFieldError(fieldGroup, message) {
-                fieldGroup.classList.add('error');
-                
-                // Remove existing error message
-                const existingError = fieldGroup.querySelector('.field-error');
-                if (existingError) {
-                    existingError.remove();
-                }
-                
-                // Add new error message
-                const errorDiv = document.createElement('div');
-                errorDiv.className = 'field-error';
-                errorDiv.style.color = '#dc3545';
-                errorDiv.style.fontSize = '12px';
-                errorDiv.style.marginTop = '5px';
-                errorDiv.textContent = message;
-                fieldGroup.appendChild(errorDiv);
-            }
-            
-            function hideFieldError(fieldGroup) {
-                fieldGroup.classList.remove('error');
-                const errorDiv = fieldGroup.querySelector('.field-error');
-                if (errorDiv) {
-                    errorDiv.remove();
-                }
-            }
-            
-            // Auto-focus first empty field
-            const firstEmptyInput = Array.from(inputs).find(input => !input.value);
-            if (firstEmptyInput) {
-                firstEmptyInput.focus();
-            }
-            
-            // Keyboard shortcuts
-            document.addEventListener('keydown', function(e) {
-                // Enter key submits form
-                if (e.key === 'Enter' && document.activeElement.tagName !== 'BUTTON') {
-                    form.submit();
-                }
-                
-                // Escape key clears form
-                if (e.key === 'Escape') {
-                    inputs.forEach(input => {
-                        input.value = '';
-                        hideFieldError(input.parentElement);
-                    });
-                    inputs[0].focus();
-                }
             });
         });
     </script>

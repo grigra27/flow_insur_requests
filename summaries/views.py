@@ -29,83 +29,103 @@ def summary_list(request):
     from .forms import SummaryFilterForm
     
     # Получаем базовый queryset с оптимизацией запросов
-    summaries = InsuranceSummary.objects.select_related('request')
+    summaries = InsuranceSummary.objects.select_related('request', 'request__created_by')
     
     # Получаем список доступных филиалов из сводов
     available_branches = summaries.values_list('request__branch', flat=True).distinct().exclude(
         request__branch__isnull=True
     ).exclude(request__branch='').order_by('request__branch')
+
+    available_insurance_types = list(
+        summaries.exclude(
+            request__insurance_type__isnull=True
+        ).exclude(
+            request__insurance_type=''
+        ).values_list('request__insurance_type', flat=True).distinct().order_by('request__insurance_type')
+    )
+    manager_rows = summaries.exclude(
+        request__created_by__isnull=True
+    ).order_by().values(
+        'request__created_by_id',
+        'request__created_by__username',
+        'request__created_by__first_name',
+        'request__created_by__last_name',
+    ).distinct()
+    available_managers = []
+    for manager_row in manager_rows:
+        first_name = (manager_row.get('request__created_by__first_name') or '').strip()
+        last_name = (manager_row.get('request__created_by__last_name') or '').strip()
+        username = (manager_row.get('request__created_by__username') or '').strip()
+        display_name = f"{first_name} {last_name}".strip() or username
+        available_managers.append((str(manager_row.get('request__created_by_id')), display_name))
+    available_managers = sorted(available_managers, key=lambda item: item[1].lower())
     
     # Применяем фильтры
-    filter_form = SummaryFilterForm(request.GET)
+    filter_form = SummaryFilterForm(
+        request.GET or None,
+        insurance_type_choices=available_insurance_types,
+        manager_choices=available_managers,
+    )
+    is_filter_form_valid = filter_form.is_valid()
+    cleaned_data = filter_form.cleaned_data if is_filter_form_valid else {}
     current_branch = request.GET.get('branch')
-    
-    if filter_form.is_valid():
-        # Фильтрация по филиалу
-        if current_branch:
-            summaries = summaries.filter(request__branch=current_branch)
-        
-        # Фильтрация по статусу свода
-        if filter_form.cleaned_data.get('status'):
-            summaries = summaries.filter(status=filter_form.cleaned_data['status'])
 
-        # Фильтрация по номеру ДФА
-        if filter_form.cleaned_data.get('dfa_number'):
-            summaries = summaries.filter(
-                request__dfa_number__icontains=filter_form.cleaned_data['dfa_number']
+    def apply_summary_filters(queryset, include_branch=True):
+        if include_branch and current_branch:
+            queryset = queryset.filter(request__branch=current_branch)
+
+        if not is_filter_form_valid:
+            return queryset
+
+        status = cleaned_data.get('status')
+        if status:
+            queryset = queryset.filter(status=status)
+
+        search = cleaned_data.get('search')
+        if search:
+            queryset = queryset.filter(
+                Q(request__dfa_number__icontains=search)
+                | Q(request__client_name__icontains=search)
+                | Q(request__inn__icontains=search)
+                | Q(selected_company__icontains=search)
             )
-        
-        # Фильтрация по месяцу создания свода
-        if filter_form.cleaned_data.get('month'):
-            summaries = summaries.filter(created_at__month=filter_form.cleaned_data['month'])
-        
-        # Фильтрация по году создания свода
-        if filter_form.cleaned_data.get('year'):
-            summaries = summaries.filter(created_at__year=filter_form.cleaned_data['year'])
+
+        start_date = cleaned_data.get('start_date')
+        if start_date:
+            queryset = queryset.filter(created_at__date__gte=start_date)
+
+        end_date = cleaned_data.get('end_date')
+        if end_date:
+            queryset = queryset.filter(created_at__date__lte=end_date)
+
+        insurance_type = cleaned_data.get('insurance_type')
+        if insurance_type:
+            queryset = queryset.filter(request__insurance_type=insurance_type)
+
+        manager = cleaned_data.get('manager')
+        if manager:
+            queryset = queryset.filter(request__created_by_id=int(manager))
+
+        return queryset
+
+    summaries = apply_summary_filters(summaries, include_branch=True)
     
     # Подсчет количества сводов для каждого филиала (только если выбран конкретный филиал)
     branch_counts = {}
     if available_branches and current_branch:
-        # Считаем только для текущего активного филиала
-        branch_summaries = InsuranceSummary.objects.select_related('request').filter(request__branch=current_branch)
-        
-        # Применяем остальные фильтры для корректного подсчета
-        if filter_form.is_valid():
-            if filter_form.cleaned_data.get('status'):
-                branch_summaries = branch_summaries.filter(status=filter_form.cleaned_data['status'])
-
-            if filter_form.cleaned_data.get('dfa_number'):
-                branch_summaries = branch_summaries.filter(
-                    request__dfa_number__icontains=filter_form.cleaned_data['dfa_number']
-                )
-            
-            if filter_form.cleaned_data.get('month'):
-                branch_summaries = branch_summaries.filter(created_at__month=filter_form.cleaned_data['month'])
-            
-            if filter_form.cleaned_data.get('year'):
-                branch_summaries = branch_summaries.filter(created_at__year=filter_form.cleaned_data['year'])
-        
+        branch_summaries = apply_summary_filters(
+            InsuranceSummary.objects.select_related('request', 'request__created_by'),
+            include_branch=True,
+        )
         branch_counts[current_branch] = branch_summaries.count()
     
     # Подсчет общего количества сводов (только если не выбран конкретный филиал)
     total_summaries_count = 0
     if not current_branch:
-        total_summaries_queryset = InsuranceSummary.objects.select_related('request')
-        if filter_form.is_valid():
-            if filter_form.cleaned_data.get('status'):
-                total_summaries_queryset = total_summaries_queryset.filter(status=filter_form.cleaned_data['status'])
-
-            if filter_form.cleaned_data.get('dfa_number'):
-                total_summaries_queryset = total_summaries_queryset.filter(
-                    request__dfa_number__icontains=filter_form.cleaned_data['dfa_number']
-                )
-            
-            if filter_form.cleaned_data.get('month'):
-                total_summaries_queryset = total_summaries_queryset.filter(created_at__month=filter_form.cleaned_data['month'])
-            
-            if filter_form.cleaned_data.get('year'):
-                total_summaries_queryset = total_summaries_queryset.filter(created_at__year=filter_form.cleaned_data['year'])
-        
+        total_summaries_queryset = apply_summary_filters(
+            InsuranceSummary.objects.select_related('request', 'request__created_by'),
+            include_branch=False,
+        )
         total_summaries_count = total_summaries_queryset.count()
     
     # Сортировка по умолчанию
@@ -343,7 +363,9 @@ def deal_list(request):
             selected_company=''
         ).values_list('selected_company', flat=True).distinct().order_by('selected_company')
     )
-    manager_rows = base_queryset.exclude(request__created_by__isnull=True).values(
+    manager_rows = base_queryset.exclude(
+        request__created_by__isnull=True
+    ).order_by().values(
         'request__created_by_id',
         'request__created_by__username',
         'request__created_by__first_name',
@@ -394,10 +416,6 @@ def deal_list(request):
         selected_company = filter_form.cleaned_data.get('selected_company')
         if selected_company:
             deals_queryset = deals_queryset.filter(selected_company=selected_company)
-
-        deal_status = filter_form.cleaned_data.get('deal_status')
-        if deal_status:
-            deals_queryset = deals_queryset.filter(request__deal_status=deal_status)
 
         start_date = filter_form.cleaned_data.get('applied_start_date')
         end_date = filter_form.cleaned_data.get('applied_end_date')
@@ -2470,7 +2488,9 @@ def analytics_insurance_offers(request):
         ).values_list('request__insurance_type', flat=True).distinct().order_by('request__insurance_type')
     )
 
-    manager_rows = filter_base_qs.exclude(request__created_by__isnull=True).values(
+    manager_rows = filter_base_qs.exclude(
+        request__created_by__isnull=True
+    ).order_by().values(
         'request__created_by_id',
         'request__created_by__username',
         'request__created_by__first_name',

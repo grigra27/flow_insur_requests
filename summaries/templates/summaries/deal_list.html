@@ -40,9 +40,57 @@
         white-space: nowrap;
     }
 
-    .deal-list-table .btn-group .btn {
+    .deal-list-client-primary {
+        font-weight: 700;
+        color: #0f172a;
+    }
+
+    .deal-choice-company-chip {
+        --marker-main-start: #0b6a57;
+        --marker-main-end: #14856d;
+        --marker-shadow-start: #08473c;
+        --marker-shadow-end: #0b5b4b;
         position: relative;
-        z-index: 2;
+        display: inline-block;
+        margin-bottom: 0.38rem;
+        padding: 0.24rem 0.68rem 0.32rem;
+        color: #fff;
+        font-size: 0.86rem;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+        line-height: 1;
+        text-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
+        transform: rotate(-0.8deg);
+        isolation: isolate;
+    }
+
+    .deal-choice-company-chip::before {
+        content: '';
+        position: absolute;
+        inset: -0.08rem -0.20rem -0.10rem -0.14rem;
+        border-radius: 0.45rem 0.95rem 0.55rem 0.38rem;
+        background: linear-gradient(95deg, var(--marker-main-start) 0%, var(--marker-main-end) 58%, #0d735f 100%);
+        box-shadow: 0 1px 0 rgba(255, 255, 255, 0.18) inset;
+        z-index: -1;
+    }
+
+    .deal-choice-company-chip::after {
+        content: '';
+        position: absolute;
+        left: 8%;
+        right: -4%;
+        bottom: -0.34rem;
+        height: 0.28rem;
+        border-radius: 999px;
+        background: linear-gradient(90deg, var(--marker-shadow-start) 0%, var(--marker-shadow-end) 100%);
+        opacity: 0.92;
+        transform: rotate(-1.2deg);
+        z-index: -2;
+    }
+
+    .deal-min-selected-badge {
+        background-color: #6f42c1;
+        color: #fff;
     }
 
     .price-range-track {
@@ -107,6 +155,11 @@
         .deal-list-table th:nth-child(6),
         .deal-list-table td:nth-child(6) {
             display: none;
+        }
+
+        .deal-choice-company-chip {
+            font-size: 0.80rem;
+            padding: 0.22rem 0.60rem 0.28rem;
         }
     }
 </style>
@@ -207,10 +260,6 @@
                 <label class="form-label">{{ filter_form.selected_company.label }}</label>
                 {{ filter_form.selected_company }}
             </div>
-            <div class="col-12 col-md-4 col-lg-2">
-                <label class="form-label">{{ filter_form.deal_status.label }}</label>
-                {{ filter_form.deal_status }}
-            </div>
             <div class="col-12 col-md-4 col-lg-3">
                 <label class="form-label">{{ filter_form.sort.label }}</label>
                 {{ filter_form.sort }}
@@ -245,10 +294,8 @@
                         <th>Сделка</th>
                         <th>Выбор</th>
                         <th>Премия</th>
-                        <th>Лет</th>
-                        <th>СК в своде</th>
                         <th style="min-width: 360px;">Линейка предложений</th>
-                        <th>Действия</th>
+                        <th>СК в своде</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -260,9 +307,11 @@
                             </div>
                         </td>
                         <td>
-                            <div class="fw-semibold">{{ deal.request.get_display_name }}</div>
-                            <div class="deal-list-client-name small text-muted" title="{{ deal.request.client_name }}">
-                                {{ deal.request.client_name }}
+                            <div class="deal-list-client-name deal-list-client-primary" title="{{ deal.request.client_name }}">
+                                <strong>{{ deal.request.client_name|default:deal.request.get_display_name }}</strong>
+                            </div>
+                            <div class="deal-list-client-name small text-muted" title="{{ deal.request.get_display_name }}">
+                                {{ deal.request.get_display_name }}
                             </div>
                             <div class="small text-muted">
                                 ИНН {{ deal.request.inn|default:'—' }}
@@ -270,7 +319,9 @@
                             </div>
                         </td>
                         <td>
-                            <div><strong>{{ deal.selected_company }}</strong></div>
+                            <div>
+                                <span class="deal-choice-company-chip">{{ deal.selected_company }}</span>
+                            </div>
                             <div class="small text-muted">{{ deal.selected_variant_display }}</div>
                             <div class="small text-muted">{{ deal.request.insurance_type }}</div>
                         </td>
@@ -282,14 +333,6 @@
                                     <i class="bi bi-exclamation-triangle"></i> Неполные данные
                                 </span>
                             {% endif %}
-                        </td>
-                        <td>
-                            <span class="badge bg-secondary">{{ deal.total_years }}</span>
-                        </td>
-                        <td>
-                            <span class="badge {{ deal.companies_count|companies_count_badge_class }}">
-                                {{ deal.companies_count }}
-                            </span>
                         </td>
                         <td>
                             {% if deal.price_range %}
@@ -313,7 +356,7 @@
                                 </div>
                                 <div class="small">
                                     {% if deal.price_range.is_min_selected %}
-                                        <span class="badge bg-success">Выбран минимум</span>
+                                        <span class="badge deal-min-selected-badge">Выбран минимум</span>
                                     {% else %}
                                         <span class="text-muted">
                                             +{{ deal.price_range.delta_to_min_abs|format_currency_with_spaces }}
@@ -331,17 +374,9 @@
                             {% endif %}
                         </td>
                         <td>
-                            <div class="btn-group btn-group-sm" role="group">
-                                <a href="{% url 'summaries:deal_summary' deal.summary.pk %}" class="btn btn-outline-primary" title="Резюме сделки">
-                                    <i class="bi bi-file-earmark-check"></i>
-                                </a>
-                                <a href="{% url 'summaries:summary_detail' deal.summary.pk %}" class="btn btn-outline-secondary" title="Свод">
-                                    <i class="bi bi-collection"></i>
-                                </a>
-                                <a href="{% url 'insurance_requests:request_detail' deal.request.pk %}" class="btn btn-outline-dark" title="Заявка">
-                                    <i class="bi bi-file-text"></i>
-                                </a>
-                            </div>
+                            <span class="badge {{ deal.companies_count|companies_count_badge_class }}">
+                                {{ deal.companies_count }}
+                            </span>
                         </td>
                     </tr>
                     {% endfor %}

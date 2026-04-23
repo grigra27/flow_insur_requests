@@ -38,16 +38,19 @@ class DealListViewTests(TestCase):
         dfa_number,
         branch,
         client_name,
+        created_by=None,
+        insurance_type='КАСКО',
         status='completed_accepted',
         selected_company='Абсолют',
         selected_franchise_variant=1,
         deal_status='new',
     ):
+        created_by = created_by or self.admin_user
         request_obj = InsuranceRequest.objects.create(
-            created_by=self.admin_user,
+            created_by=created_by,
             client_name=client_name,
             inn='1234567890',
-            insurance_type='КАСКО',
+            insurance_type=insurance_type,
             insurance_period='1 год',
             dfa_number=dfa_number,
             branch=branch,
@@ -98,6 +101,98 @@ class DealListViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, reverse('summaries:deal_list'))
+
+    def test_summary_list_filters_by_search_date_type_and_manager(self):
+        second_manager = User.objects.create_user(
+            username='summary_filter_manager',
+            email='summary_filter_manager@example.com',
+            password='testpass123',
+            first_name='Петр',
+            last_name='Иванов',
+        )
+        second_manager.groups.add(self.users_group)
+
+        target_summary = self._create_summary(
+            dfa_number='DFA-SUM-01',
+            branch='Москва',
+            client_name='Клиент Целевой',
+            insurance_type='КАСКО',
+            created_by=self.admin_user,
+            status='collecting',
+            selected_company='Абсолют',
+        )
+        other_summary = self._create_summary(
+            dfa_number='DFA-SUM-02',
+            branch='Москва',
+            client_name='Клиент Другой',
+            insurance_type='страхование имущества',
+            created_by=second_manager,
+            status='ready',
+            selected_company='ВСК',
+        )
+
+        InsuranceSummary.objects.filter(pk=target_summary.pk).update(
+            created_at=timezone.now() - timedelta(days=1),
+        )
+        InsuranceSummary.objects.filter(pk=other_summary.pk).update(
+            created_at=timezone.now() - timedelta(days=15),
+        )
+
+        response = self.client.get(
+            reverse('summaries:summary_list'),
+            {
+                'search': 'Целевой',
+                'start_date': (timezone.localdate() - timedelta(days=3)).isoformat(),
+                'end_date': timezone.localdate().isoformat(),
+                'insurance_type': 'КАСКО',
+                'manager': str(self.admin_user.id),
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        rows = response.context['summaries'].object_list
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0].id, target_summary.id)
+
+    def test_summary_list_manager_filter_has_unique_users(self):
+        second_manager = User.objects.create_user(
+            username='summary_unique_manager',
+            email='summary_unique_manager@example.com',
+            password='testpass123',
+            first_name='Петр',
+            last_name='Сидоров',
+        )
+        second_manager.groups.add(self.users_group)
+
+        for index in range(3):
+            self._create_summary(
+                dfa_number=f'DFA-SUM-A-{index}',
+                branch='Москва',
+                client_name=f'Свод A {index}',
+                created_by=self.admin_user,
+                status='collecting',
+            )
+
+        for index in range(2):
+            self._create_summary(
+                dfa_number=f'DFA-SUM-B-{index}',
+                branch='Москва',
+                client_name=f'Свод B {index}',
+                created_by=second_manager,
+                status='ready',
+            )
+
+        response = self.client.get(reverse('summaries:summary_list'))
+        self.assertEqual(response.status_code, 200)
+
+        manager_choices = [
+            value for value, _ in response.context['filter_form'].fields['manager'].choices
+            if value
+        ]
+        self.assertEqual(len(manager_choices), 2)
+        self.assertEqual(len(set(manager_choices)), 2)
+        self.assertIn(str(self.admin_user.id), manager_choices)
+        self.assertIn(str(second_manager.id), manager_choices)
 
     def test_deal_list_shows_only_real_completed_deals(self):
         valid_summary = self._create_summary(
@@ -183,7 +278,7 @@ class DealListViewTests(TestCase):
         self.assertEqual(rows[0]['summary'].id, newer_summary.id)
         self.assertEqual(rows[1]['summary'].id, older_summary.id)
 
-    def test_deal_list_contains_navigation_links_for_each_row(self):
+    def test_deal_list_row_keeps_deal_summary_link_without_actions_column(self):
         summary = self._create_summary(
             dfa_number='DFA-LINKS-01',
             branch='Москва',
@@ -194,8 +289,11 @@ class DealListViewTests(TestCase):
         response = self.client.get(reverse('summaries:deal_list'))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, reverse('summaries:deal_summary', args=[summary.pk]))
-        self.assertContains(response, reverse('summaries:summary_detail', args=[summary.pk]))
-        self.assertContains(response, reverse('insurance_requests:request_detail', args=[summary.request.pk]))
+        self.assertNotContains(response, 'btn-group btn-group-sm')
+        self.assertNotContains(response, 'title="Свод"')
+        self.assertNotContains(response, 'title="Заявка"')
+        self.assertNotContains(response, 'Действия')
+        self.assertNotContains(response, '>Лет<')
 
     def test_deal_list_shows_price_range_position_for_middle_choice(self):
         summary = self._create_summary(
@@ -216,6 +314,46 @@ class DealListViewTests(TestCase):
         self.assertContains(response, '2 / 3')
         self.assertContains(response, 'позиция 50%')
         self.assertContains(response, 'left: 50.0%;')
+
+    def test_deal_list_manager_filter_has_unique_users(self):
+        second_manager = User.objects.create_user(
+            username='deal_list_second_manager',
+            email='deal_list_second_manager@example.com',
+            password='testpass123',
+            first_name='Петр',
+            last_name='Сидоров',
+        )
+        second_manager.groups.add(self.users_group)
+
+        for index in range(3):
+            summary = self._create_summary(
+                dfa_number=f'DFA-MANAGER-A-{index}',
+                branch='Москва',
+                client_name=f'Клиент A {index}',
+                created_by=self.admin_user,
+            )
+            self._add_offer(summary, company_name='Абсолют', premium='11000.00')
+
+        for index in range(2):
+            summary = self._create_summary(
+                dfa_number=f'DFA-MANAGER-B-{index}',
+                branch='Москва',
+                client_name=f'Клиент B {index}',
+                created_by=second_manager,
+            )
+            self._add_offer(summary, company_name='Абсолют', premium='12000.00')
+
+        response = self.client.get(reverse('summaries:deal_list'))
+
+        self.assertEqual(response.status_code, 200)
+        manager_choices = [
+            value for value, _ in response.context['filter_form'].fields['manager'].choices
+            if value
+        ]
+        self.assertEqual(len(manager_choices), 2)
+        self.assertEqual(len(set(manager_choices)), 2)
+        self.assertIn(str(self.admin_user.id), manager_choices)
+        self.assertIn(str(second_manager.id), manager_choices)
 
     def test_change_summary_status_sets_and_resets_completed_at(self):
         summary = self._create_summary(

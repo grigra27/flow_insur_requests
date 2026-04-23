@@ -5,7 +5,6 @@ from django import forms
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 from .models import InsuranceOffer, InsuranceSummary, SummaryTemplate
-from insurance_requests.models import InsuranceRequest
 from .constants import get_company_choices, is_valid_company_name, get_company_names
 from decimal import Decimal
 from datetime import timedelta
@@ -611,43 +610,42 @@ class BulkOfferUploadForm(forms.Form):
 
 class SummaryFilterForm(forms.Form):
     """Форма для фильтрации сводов"""
-    
-    # Месяцы для выбора
-    MONTH_CHOICES = [('', 'Все месяцы')] + [
-        (1, 'Январь'), (2, 'Февраль'), (3, 'Март'), (4, 'Апрель'),
-        (5, 'Май'), (6, 'Июнь'), (7, 'Июль'), (8, 'Август'),
-        (9, 'Сентябрь'), (10, 'Октябрь'), (11, 'Ноябрь'), (12, 'Декабрь')
-    ]
-    
-    # Новое поле для фильтрации по номеру ДФА
-    dfa_number = forms.CharField(
+
+    search = forms.CharField(
         required=False,
-        label='Номер ДФА',
+        label='Универсальный поиск',
         widget=forms.TextInput(attrs={
             'class': 'form-control',
-            'placeholder': 'Введите номер ДФА'
+            'placeholder': 'DFA, клиент, ИНН, СК'
         })
     )
-    
-    # Новое поле для фильтрации по месяцу
-    month = forms.ChoiceField(
-        choices=MONTH_CHOICES,
+
+    start_date = forms.DateField(
         required=False,
-        label='Месяц создания',
-        widget=forms.Select(attrs={'class': 'form-select'})
+        label='Дата с',
+        widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'})
     )
-    
-    # Новое поле для фильтрации по году
-    year = forms.ChoiceField(
+    end_date = forms.DateField(
         required=False,
-        label='Год создания',
-        widget=forms.Select(attrs={'class': 'form-select'})
+        label='Дата по',
+        widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'})
     )
 
     # Фильтрация по статусу свода
     status = forms.ChoiceField(
         required=False,
         label='Статус свода',
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+
+    insurance_type = forms.ChoiceField(
+        required=False,
+        label='Тип страхования',
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    manager = forms.ChoiceField(
+        required=False,
+        label='Менеджер',
         widget=forms.Select(attrs={'class': 'form-select'})
     )
 
@@ -659,61 +657,15 @@ class SummaryFilterForm(forms.Form):
         widget=forms.HiddenInput()  # Скрытое поле, управляется через вкладки
     )
     
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, insurance_type_choices=None, manager_choices=None, **kwargs):
         super().__init__(*args, **kwargs)
-        
-        # Динамически генерируем список годов на основе существующих сводов
-        from datetime import datetime
-        current_year = datetime.now().year
-        
-        # Создаем список годов от текущего года до 5 лет назад
-        year_choices = [('', 'Все годы')]
-        for year in range(current_year, current_year - 6, -1):
-            year_choices.append((year, str(year)))
-        
-        self.fields['year'].choices = year_choices
 
         # Динамически подставляем статусы из модели сводов
         self.fields['status'].choices = [('', 'Все статусы')] + list(InsuranceSummary.STATUS_CHOICES)
-    
-    def clean_dfa_number(self):
-        """Валидация номера ДФА"""
-        dfa_number = self.cleaned_data.get('dfa_number')
-        if dfa_number:
-            # Убираем лишние пробелы
-            dfa_number = dfa_number.strip()
-            # Проверяем, что номер не пустой после очистки
-            if not dfa_number:
-                return None
-        return dfa_number
-    
-    def clean_month(self):
-        """Валидация месяца"""
-        month = self.cleaned_data.get('month')
-        if month:
-            try:
-                month_int = int(month)
-                if month_int < 1 or month_int > 12:
-                    raise forms.ValidationError('Месяц должен быть от 1 до 12')
-                return month_int
-            except (ValueError, TypeError):
-                raise forms.ValidationError('Некорректный формат месяца')
-        return None
-    
-    def clean_year(self):
-        """Валидация года"""
-        year = self.cleaned_data.get('year')
-        if year:
-            try:
-                year_int = int(year)
-                from datetime import datetime
-                current_year = datetime.now().year
-                if year_int < 2020 or year_int > current_year + 1:
-                    raise forms.ValidationError(f'Год должен быть от 2020 до {current_year + 1}')
-                return year_int
-            except (ValueError, TypeError):
-                raise forms.ValidationError('Некорректный формат года')
-        return None
+        self.fields['insurance_type'].choices = [('', 'Все типы')] + [
+            (insurance_type, insurance_type) for insurance_type in (insurance_type_choices or [])
+        ]
+        self.fields['manager'].choices = [('', 'Все менеджеры')] + list(manager_choices or [])
 
     def clean_status(self):
         """Валидация статуса свода"""
@@ -726,17 +678,22 @@ class SummaryFilterForm(forms.Form):
             raise forms.ValidationError('Некорректный статус свода')
 
         return status
+
+    def clean_search(self):
+        """Валидация универсального поиска"""
+        search = self.cleaned_data.get('search')
+        if search:
+            search = search.strip()
+        return search or ''
     
     def clean(self):
         """Дополнительная валидация формы"""
         cleaned_data = super().clean()
-        month = cleaned_data.get('month')
-        year = cleaned_data.get('year')
-        
-        # Если указан месяц, но не указан год, используем текущий год
-        if month and not year:
-            from datetime import datetime
-            cleaned_data['year'] = datetime.now().year
+        start_date = cleaned_data.get('start_date')
+        end_date = cleaned_data.get('end_date')
+
+        if start_date and end_date and start_date > end_date:
+            raise forms.ValidationError('Дата начала периода не может быть позже даты окончания')
         
         return cleaned_data
 
@@ -795,11 +752,6 @@ class DealListFilterForm(forms.Form):
         label='Выбранная СК',
         widget=forms.Select(attrs={'class': 'form-select'})
     )
-    deal_status = forms.ChoiceField(
-        required=False,
-        label='Статус сделки',
-        widget=forms.Select(attrs={'class': 'form-select'})
-    )
     search = forms.CharField(
         required=False,
         label='Поиск',
@@ -836,8 +788,6 @@ class DealListFilterForm(forms.Form):
         self.fields['selected_company'].choices = [('', 'Все компании')] + [
             (company, company) for company in (company_choices or [])
         ]
-        self.fields['deal_status'].choices = [('', 'Любой')] + list(InsuranceRequest.DEAL_STATUS_CHOICES)
-
         if not self.data:
             self.initial.setdefault('period', 'all')
             self.initial.setdefault('sort', '-closed_at')
