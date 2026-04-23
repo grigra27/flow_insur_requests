@@ -16,6 +16,8 @@ urlpatterns = [
     path('statistics/export/', views.export_statistics_widget, name='export_statistics_widget'),
     path('analytics/', views.analytics_placeholder, name='analytics'),
     path('analytics/insurance-offers/', views.analytics_insurance_offers, name='analytics_insurance_offers'),
+    path('analytics/insurance-companies/', views.analytics_insurance_companies, name='analytics_insurance_companies'),
+    path('analytics/insurance-companies/export/', views.export_analytics_insurance_companies_widget, name='export_analytics_insurance_companies_widget'),
     path('help/', views.help_page, name='help'),
     
     # Создание и управление сводами

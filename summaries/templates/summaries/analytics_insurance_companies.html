@@ -1,0 +1,1005 @@
+{% extends 'base.html' %}
+{% load summary_extras %}
+{% load tz %}
+{% load l10n %}
+
+{% block title %}Аналитика по страховым компаниям - {{ block.super }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .company-analytics-page {
+        --analytics-primary: var(--app-primary);
+    }
+
+    .company-filter-card {
+        border: 0;
+        box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+        background: linear-gradient(135deg, #f8fafc 0%, #e8f6f2 100%);
+    }
+
+    .company-kpi-card,
+    .company-table-card,
+    .company-chart-card {
+        border: 0;
+        box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+        height: 100%;
+    }
+
+    .company-kpi-value {
+        font-size: 1.6rem;
+        line-height: 1.1;
+        font-weight: 700;
+    }
+
+    .company-chart-wrap {
+        position: relative;
+        height: 280px;
+    }
+
+    .slice-tabs .nav-link {
+        color: #475569;
+        font-weight: 600;
+    }
+
+    .slice-tabs .nav-link.active {
+        color: #fff;
+        background-color: var(--analytics-primary);
+        border-color: var(--analytics-primary);
+    }
+
+    .dq-critical {
+        border-left: 4px solid #dc2626;
+        background: #fff1f2;
+    }
+
+    .dq-ok {
+        border-left: 4px solid #16a34a;
+        background: #f0fdf4;
+    }
+
+    .details-mini {
+        font-size: 0.82rem;
+        color: #64748b;
+    }
+
+    @media (max-width: 991px) {
+        .company-chart-wrap {
+            height: 240px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="company-analytics-page">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">
+                <i class="bi bi-building"></i> Аналитика по страховым компаниям
+            </h1>
+            <p class="text-muted mb-0">
+                Полный срез по участию, выбору, ценовой позиции и качеству данных в завершенных сделках.
+            </p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{% url 'summaries:export_analytics_insurance_companies_widget' %}?widget=overview" class="btn btn-outline-success js-export-xlsx" data-widget="overview">
+                <i class="bi bi-file-earmark-spreadsheet"></i> XLSX сводка
+            </a>
+            <a href="{% url 'summaries:analytics' %}" class="btn btn-outline-primary">
+                <i class="bi bi-arrow-left"></i> К разделам аналитики
+            </a>
+        </div>
+    </div>
+
+    <div class="card company-filter-card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3 align-items-end">
+                <div class="col-12 col-md-3 col-lg-2">
+                    <label class="form-label mb-1">Период</label>
+                    <select class="form-select" name="period">
+                        <option value="all" {% if filters.period == 'all' %}selected{% endif %}>Все время</option>
+                        <option value="30" {% if filters.period == '30' %}selected{% endif %}>30 дней</option>
+                        <option value="90" {% if filters.period == '90' %}selected{% endif %}>90 дней</option>
+                        <option value="365" {% if filters.period == '365' %}selected{% endif %}>365 дней</option>
+                    </select>
+                </div>
+
+                <div class="col-12 col-md-3 col-lg-2">
+                    <label class="form-label mb-1">Дата с</label>
+                    <input type="date" class="form-control" name="start_date" value="{{ filters.start_date }}">
+                </div>
+
+                <div class="col-12 col-md-3 col-lg-2">
+                    <label class="form-label mb-1">Дата по</label>
+                    <input type="date" class="form-control" name="end_date" value="{{ filters.end_date }}">
+                </div>
+
+                <div class="col-12 col-md-3 col-lg-3">
+                    <label class="form-label mb-1">Режим даты</label>
+                    <select class="form-select" name="date_mode">
+                        {% for date_mode in date_mode_choices %}
+                        <option value="{{ date_mode.value }}" {% if filters.date_mode == date_mode.value %}selected{% endif %}>{{ date_mode.label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-12 col-md-4 col-lg-3">
+                    <label class="form-label mb-1">Филиал</label>
+                    <select class="form-select" name="branch">
+                        <option value="">Все филиалы</option>
+                        {% for branch in available_filters.branches %}
+                        <option value="{{ branch }}" {% if filters.branch == branch %}selected{% endif %}>{{ branch }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-12 col-md-4 col-lg-3">
+                    <label class="form-label mb-1">Тип страхования</label>
+                    <select class="form-select" name="insurance_type">
+                        <option value="">Все типы</option>
+                        {% for insurance_type in available_filters.insurance_types %}
+                        <option value="{{ insurance_type }}" {% if filters.insurance_type == insurance_type %}selected{% endif %}>{{ insurance_type }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-12 col-md-4 col-lg-3">
+                    <label class="form-label mb-1">Менеджер Онлайна</label>
+                    <select class="form-select" name="manager_online">
+                        <option value="">Все менеджеры</option>
+                        {% for manager in available_filters.manager_online %}
+                        <option value="{{ manager.id }}" {% if filters.manager_online == manager.id %}selected{% endif %}>{{ manager.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-12 col-md-4 col-lg-3">
+                    <label class="form-label mb-1">Менеджер Альянса</label>
+                    <select class="form-select" name="manager_alliance">
+                        <option value="">Все менеджеры</option>
+                        {% for manager in available_filters.manager_alliance %}
+                        <option value="{{ manager }}" {% if filters.manager_alliance == manager %}selected{% endif %}>{{ manager }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-12 col-md-4 col-lg-3">
+                    <label class="form-label mb-1">Выбранная СК</label>
+                    <select class="form-select" name="selected_company">
+                        <option value="">Все СК</option>
+                        {% for company in available_filters.selected_companies %}
+                        <option value="{{ company }}" {% if filters.selected_company == company %}selected{% endif %}>{{ company }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-12 col-md-4 col-lg-3">
+                    <label class="form-label mb-1">Статус сделки</label>
+                    <select class="form-select" name="deal_status">
+                        <option value="">Все статусы</option>
+                        {% for status in available_filters.deal_statuses %}
+                        <option value="{{ status.value }}" {% if filters.deal_status == status.value %}selected{% endif %}>{{ status.label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-12 col-md-6 col-lg-3">
+                    <label class="form-label mb-1">Режим сравнения тарифа</label>
+                    <select class="form-select" name="comparison_mode">
+                        <option value="selected_variant" {% if filters.comparison_mode == 'selected_variant' %}selected{% endif %}>По выбранному варианту клиента</option>
+                        <option value="best_available" {% if filters.comparison_mode == 'best_available' %}selected{% endif %}>По лучшему доступному варианту</option>
+                    </select>
+                </div>
+
+                <div class="col-12 col-md-6 col-lg-3">
+                    <label class="form-label mb-1">Сопоставимость лет</label>
+                    <select class="form-select" name="full_coverage">
+                        <option value="1" {% if filters.require_full_coverage %}selected{% endif %}>Только полное совпадение лет</option>
+                        <option value="0" {% if not filters.require_full_coverage %}selected{% endif %}>Разрешить неполное покрытие</option>
+                    </select>
+                </div>
+
+                <div class="col-12 col-lg-6 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-funnel"></i> Применить
+                    </button>
+                    <a href="{% url 'summaries:analytics_insurance_companies' %}" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-counterclockwise"></i> Сбросить
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {% if kpi.insufficient_data %}
+    <div class="alert alert-warning d-flex justify-content-between align-items-start mb-4" role="alert">
+        <div>
+            <strong>Insufficient data:</strong> сопоставимых сделок меньше 5. Метрики ценовой конкурентности стоит трактовать с осторожностью.
+        </div>
+        <span class="badge bg-warning text-dark">{{ kpi.comparable_deals }} сделок</span>
+    </div>
+    {% endif %}
+
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-md-6 col-xl-3">
+            <div class="card company-kpi-card">
+                <div class="card-body">
+                    <div class="text-muted mb-2">Сделок в выборке</div>
+                    <div class="company-kpi-value text-primary">{{ kpi.total_deals }}</div>
+                    <small class="text-muted">Сопоставимых: {{ kpi.comparable_deals }}</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-md-6 col-xl-3">
+            <div class="card company-kpi-card">
+                <div class="card-body">
+                    <div class="text-muted mb-2">Выбран минимум</div>
+                    <div class="company-kpi-value text-success">{{ kpi.min_selected_rate|floatformat:1 }}%</div>
+                    <small class="text-muted">{{ kpi.min_selected_count }} из {{ kpi.comparable_deals }}</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-md-6 col-xl-3">
+            <div class="card company-kpi-card">
+                <div class="card-body">
+                    <div class="text-muted mb-2">Средний ранг выбора</div>
+                    <div class="company-kpi-value text-info">{{ kpi.avg_rank|floatformat:2 }}</div>
+                    <small class="text-muted">Среднее число конкурентов: {{ kpi.avg_competitors|floatformat:1 }}</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-md-6 col-xl-3">
+            <div class="card company-kpi-card">
+                <div class="card-body">
+                    <div class="text-muted mb-2">Средняя премия выбора</div>
+                    <div class="company-kpi-value text-warning">
+                        {% if kpi.avg_selected_premium %}
+                            {{ kpi.avg_selected_premium|format_currency_with_spaces }}
+                        {% else %}
+                            —
+                        {% endif %}
+                    </div>
+                    <small class="text-muted">
+                        Медиана Δ: {% if kpi.median_delta_abs %}{{ kpi.median_delta_abs|format_currency_with_spaces }}{% else %}—{% endif %}
+                    </small>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-md-6 col-xl-3">
+            <div class="card company-kpi-card">
+                <div class="card-body">
+                    <div class="text-muted mb-2">Уникальных СК (участвовали)</div>
+                    <div class="company-kpi-value text-primary">{{ kpi.distinct_companies_offered }}</div>
+                    <small class="text-muted">Выбраны: {{ kpi.distinct_companies_selected }}</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-md-6 col-xl-3">
+            <div class="card company-kpi-card">
+                <div class="card-body">
+                    <div class="text-muted mb-2">Многолетние сделки</div>
+                    <div class="company-kpi-value text-success">{{ kpi.multiyear_rate|floatformat:1 }}%</div>
+                    <small class="text-muted">С рассрочкой: {{ kpi.installment_rate|floatformat:1 }}%</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-md-6 col-xl-3">
+            <div class="card company-kpi-card">
+                <div class="card-body">
+                    <div class="text-muted mb-2">SLA до дедлайна</div>
+                    <div class="company-kpi-value text-info">{{ kpi.sla_before_deadline_rate|floatformat:1 }}%</div>
+                    <small class="text-muted">База SLA: {{ kpi.sla_eligible_deals }} сделок</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-md-6 col-xl-3">
+            <div class="card company-kpi-card">
+                <div class="card-body">
+                    <div class="text-muted mb-2">Время цикла (часы)</div>
+                    <div class="details-mini mb-1">request -> summary: <strong>{{ kpi.avg_hours_request_to_summary|floatformat:1 }}</strong></div>
+                    <div class="details-mini">summary -> close: <strong>{{ kpi.avg_hours_summary_to_close|floatformat:1 }}</strong></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-xxl-7">
+            <div class="card company-table-card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h2 class="h5 mb-0"><i class="bi bi-trophy"></i> Рейтинг страховых компаний</h2>
+                    <a href="{% url 'summaries:export_analytics_insurance_companies_widget' %}?widget=rating" class="btn btn-sm btn-outline-success js-export-xlsx" data-widget="rating">
+                        <i class="bi bi-file-earmark-spreadsheet"></i> XLSX
+                    </a>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>СК</th>
+                                    <th class="text-center">Участий</th>
+                                    <th class="text-center">Побед</th>
+                                    <th class="text-center">Win rate</th>
+                                    <th class="text-center">Доля побед</th>
+                                    <th class="text-center">Ср. ранг</th>
+                                    <th class="text-center">Доля min-selected</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in rating_rows|slice:":20" %}
+                                <tr>
+                                    <td>{{ row.position }}</td>
+                                    <td><strong>{{ row.company_name }}</strong></td>
+                                    <td class="text-center">{{ row.offered_in_deals_count }}</td>
+                                    <td class="text-center">{{ row.selected_wins_count }}</td>
+                                    <td class="text-center">{{ row.win_rate_when_offered_pct|floatformat:1 }}%</td>
+                                    <td class="text-center">{{ row.win_share_pct|floatformat:1 }}%</td>
+                                    <td class="text-center">{{ row.avg_rank_when_selected|floatformat:2 }}</td>
+                                    <td class="text-center">{{ row.min_selected_rate_when_selected|floatformat:1 }}%</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="8" class="text-center text-muted">Нет данных</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-xxl-5">
+            <div class="card company-chart-card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h2 class="h5 mb-0"><i class="bi bi-bar-chart"></i> Топ СК по победам</h2>
+                    <button type="button" class="btn btn-sm btn-outline-secondary js-export-png" data-chart-id="chartRating" data-filename="insurance_company_rating">
+                        <i class="bi bi-image"></i> PNG
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div class="company-chart-wrap">
+                        <canvas id="chartRating"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-xl-6">
+            <div class="card company-table-card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h2 class="h5 mb-0"><i class="bi bi-speedometer2"></i> Ценовая конкурентность</h2>
+                    <a href="{% url 'summaries:export_analytics_insurance_companies_widget' %}?widget=competitiveness" class="btn btn-sm btn-outline-success js-export-xlsx" data-widget="competitiveness">
+                        <i class="bi bi-file-earmark-spreadsheet"></i> XLSX
+                    </a>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>СК</th>
+                                    <th class="text-center">Сопоставимых</th>
+                                    <th class="text-center">Ср. ранг</th>
+                                    <th class="text-center">Медиана Δ, ₽</th>
+                                    <th class="text-center">Медиана Δ, %</th>
+                                    <th class="text-center">Выбран min, %</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in competitiveness_rows|slice:":20" %}
+                                <tr>
+                                    <td><strong>{{ row.company_name }}</strong></td>
+                                    <td class="text-center">{{ row.comparable_selected_deals_count }}</td>
+                                    <td class="text-center">{{ row.avg_rank|floatformat:2 }}</td>
+                                    <td class="text-center">
+                                        {% if row.median_delta_abs %}
+                                            {{ row.median_delta_abs|format_currency_with_spaces }}
+                                        {% else %}
+                                            —
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        {% if row.median_delta_pct %}
+                                            {{ row.median_delta_pct|floatformat:1 }}%
+                                        {% else %}
+                                            —
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">{{ row.min_selected_rate|floatformat:1 }}%</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted">Нет данных</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-xl-6">
+            <div class="card company-chart-card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h2 class="h5 mb-0"><i class="bi bi-arrow-up-right-circle"></i> Конверсия в выбор клиента</h2>
+                    <a href="{% url 'summaries:export_analytics_insurance_companies_widget' %}?widget=conversion" class="btn btn-sm btn-outline-success js-export-xlsx" data-widget="conversion">
+                        <i class="bi bi-file-earmark-spreadsheet"></i> XLSX
+                    </a>
+                </div>
+                <div class="card-body">
+                    <div class="company-chart-wrap mb-3">
+                        <canvas id="chartConversion"></canvas>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>СК</th>
+                                    <th class="text-center">Участвовала</th>
+                                    <th class="text-center">Выбрана</th>
+                                    <th class="text-center">Конверсия</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in conversion_rows|slice:":12" %}
+                                <tr>
+                                    <td>{{ row.company_name }}</td>
+                                    <td class="text-center">{{ row.offered_in_deals_count }}</td>
+                                    <td class="text-center">{{ row.selected_wins_count }}</td>
+                                    <td class="text-center">{{ row.conversion_pct|floatformat:1 }}%</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="4" class="text-center text-muted">Нет данных</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card company-table-card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h2 class="h5 mb-0"><i class="bi bi-diagram-3"></i> Разрезы по филиалам, менеджерам, типам и статусам</h2>
+        </div>
+        <div class="card-body">
+            <ul class="nav nav-tabs slice-tabs mb-3" id="sliceTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="slice-branch-tab" data-bs-toggle="tab" data-bs-target="#slice-branch" type="button" role="tab" aria-controls="slice-branch" aria-selected="true">СК x Филиал</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="slice-online-tab" data-bs-toggle="tab" data-bs-target="#slice-online" type="button" role="tab" aria-controls="slice-online" aria-selected="false">СК x Менеджер Онлайна</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="slice-alliance-tab" data-bs-toggle="tab" data-bs-target="#slice-alliance" type="button" role="tab" aria-controls="slice-alliance" aria-selected="false">СК x Менеджер Альянса</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="slice-type-tab" data-bs-toggle="tab" data-bs-target="#slice-type" type="button" role="tab" aria-controls="slice-type" aria-selected="false">СК x Тип страхования</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="slice-status-tab" data-bs-toggle="tab" data-bs-target="#slice-status" type="button" role="tab" aria-controls="slice-status" aria-selected="false">СК x Статус сделки</button>
+                </li>
+            </ul>
+
+            <div class="tab-content" id="sliceTabsContent">
+                <div class="tab-pane fade show active" id="slice-branch" role="tabpanel" aria-labelledby="slice-branch-tab">
+                    <div class="d-flex justify-content-end mb-2">
+                        <a href="{% url 'summaries:export_analytics_insurance_companies_widget' %}?widget=slice_branch" class="btn btn-sm btn-outline-success js-export-xlsx" data-widget="slice_branch">
+                            <i class="bi bi-file-earmark-spreadsheet"></i> XLSX
+                        </a>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle mb-0">
+                            <thead>
+                                <tr><th>СК</th><th>Филиал</th><th class="text-center">Участвовала</th><th class="text-center">Выбрана</th><th class="text-center">Win rate</th></tr>
+                            </thead>
+                            <tbody>
+                                {% for row in slices.branch|slice:":40" %}
+                                <tr>
+                                    <td>{{ row.company_name }}</td>
+                                    <td>{{ row.dimension_value }}</td>
+                                    <td class="text-center">{{ row.offered_in_deals_count }}</td>
+                                    <td class="text-center">{{ row.selected_wins_count }}</td>
+                                    <td class="text-center">{{ row.win_rate_when_offered_pct|floatformat:1 }}%</td>
+                                </tr>
+                                {% empty %}
+                                <tr><td colspan="5" class="text-center text-muted">Нет данных</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="tab-pane fade" id="slice-online" role="tabpanel" aria-labelledby="slice-online-tab">
+                    <div class="d-flex justify-content-end mb-2">
+                        <a href="{% url 'summaries:export_analytics_insurance_companies_widget' %}?widget=slice_manager_online" class="btn btn-sm btn-outline-success js-export-xlsx" data-widget="slice_manager_online">
+                            <i class="bi bi-file-earmark-spreadsheet"></i> XLSX
+                        </a>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle mb-0">
+                            <thead>
+                                <tr><th>СК</th><th>Менеджер Онлайна</th><th class="text-center">Участвовала</th><th class="text-center">Выбрана</th><th class="text-center">Win rate</th></tr>
+                            </thead>
+                            <tbody>
+                                {% for row in slices.manager_online|slice:":40" %}
+                                <tr>
+                                    <td>{{ row.company_name }}</td>
+                                    <td>{{ row.dimension_value }}</td>
+                                    <td class="text-center">{{ row.offered_in_deals_count }}</td>
+                                    <td class="text-center">{{ row.selected_wins_count }}</td>
+                                    <td class="text-center">{{ row.win_rate_when_offered_pct|floatformat:1 }}%</td>
+                                </tr>
+                                {% empty %}
+                                <tr><td colspan="5" class="text-center text-muted">Нет данных</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="tab-pane fade" id="slice-alliance" role="tabpanel" aria-labelledby="slice-alliance-tab">
+                    <div class="d-flex justify-content-end mb-2">
+                        <a href="{% url 'summaries:export_analytics_insurance_companies_widget' %}?widget=slice_manager_alliance" class="btn btn-sm btn-outline-success js-export-xlsx" data-widget="slice_manager_alliance">
+                            <i class="bi bi-file-earmark-spreadsheet"></i> XLSX
+                        </a>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle mb-0">
+                            <thead>
+                                <tr><th>СК</th><th>Менеджер Альянса</th><th class="text-center">Участвовала</th><th class="text-center">Выбрана</th><th class="text-center">Win rate</th></tr>
+                            </thead>
+                            <tbody>
+                                {% for row in slices.manager_alliance|slice:":40" %}
+                                <tr>
+                                    <td>{{ row.company_name }}</td>
+                                    <td>{{ row.dimension_value }}</td>
+                                    <td class="text-center">{{ row.offered_in_deals_count }}</td>
+                                    <td class="text-center">{{ row.selected_wins_count }}</td>
+                                    <td class="text-center">{{ row.win_rate_when_offered_pct|floatformat:1 }}%</td>
+                                </tr>
+                                {% empty %}
+                                <tr><td colspan="5" class="text-center text-muted">Нет данных</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="tab-pane fade" id="slice-type" role="tabpanel" aria-labelledby="slice-type-tab">
+                    <div class="d-flex justify-content-end mb-2">
+                        <a href="{% url 'summaries:export_analytics_insurance_companies_widget' %}?widget=slice_insurance_type" class="btn btn-sm btn-outline-success js-export-xlsx" data-widget="slice_insurance_type">
+                            <i class="bi bi-file-earmark-spreadsheet"></i> XLSX
+                        </a>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle mb-0">
+                            <thead>
+                                <tr><th>СК</th><th>Тип страхования</th><th class="text-center">Участвовала</th><th class="text-center">Выбрана</th><th class="text-center">Win rate</th></tr>
+                            </thead>
+                            <tbody>
+                                {% for row in slices.insurance_type|slice:":40" %}
+                                <tr>
+                                    <td>{{ row.company_name }}</td>
+                                    <td>{{ row.dimension_value }}</td>
+                                    <td class="text-center">{{ row.offered_in_deals_count }}</td>
+                                    <td class="text-center">{{ row.selected_wins_count }}</td>
+                                    <td class="text-center">{{ row.win_rate_when_offered_pct|floatformat:1 }}%</td>
+                                </tr>
+                                {% empty %}
+                                <tr><td colspan="5" class="text-center text-muted">Нет данных</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="tab-pane fade" id="slice-status" role="tabpanel" aria-labelledby="slice-status-tab">
+                    <div class="d-flex justify-content-end mb-2">
+                        <a href="{% url 'summaries:export_analytics_insurance_companies_widget' %}?widget=slice_deal_status" class="btn btn-sm btn-outline-success js-export-xlsx" data-widget="slice_deal_status">
+                            <i class="bi bi-file-earmark-spreadsheet"></i> XLSX
+                        </a>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle mb-0">
+                            <thead>
+                                <tr><th>СК</th><th>Статус сделки</th><th class="text-center">Участвовала</th><th class="text-center">Выбрана</th><th class="text-center">Win rate</th></tr>
+                            </thead>
+                            <tbody>
+                                {% for row in slices.deal_status|slice:":40" %}
+                                <tr>
+                                    <td>{{ row.company_name }}</td>
+                                    <td>{{ row.dimension_value }}</td>
+                                    <td class="text-center">{{ row.offered_in_deals_count }}</td>
+                                    <td class="text-center">{{ row.selected_wins_count }}</td>
+                                    <td class="text-center">{{ row.win_rate_when_offered_pct|floatformat:1 }}%</td>
+                                </tr>
+                                {% empty %}
+                                <tr><td colspan="5" class="text-center text-muted">Нет данных</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-xl-7">
+            <div class="card company-chart-card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h2 class="h5 mb-0"><i class="bi bi-graph-up"></i> Динамика по времени</h2>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary js-export-png" data-chart-id="chartDynamics" data-filename="insurance_company_dynamics">
+                            <i class="bi bi-image"></i> PNG
+                        </button>
+                        <a href="{% url 'summaries:export_analytics_insurance_companies_widget' %}?widget=dynamics" class="btn btn-sm btn-outline-success js-export-xlsx" data-widget="dynamics">
+                            <i class="bi bi-file-earmark-spreadsheet"></i> XLSX
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="company-chart-wrap">
+                        <canvas id="chartDynamics"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-xl-5">
+            <div class="card company-table-card h-100">
+                <div class="card-header">
+                    <h2 class="h5 mb-0"><i class="bi bi-calendar3"></i> Месячная таблица</h2>
+                </div>
+                <div class="card-body" style="max-height: 350px; overflow-y: auto;">
+                    <table class="table table-sm align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Месяц</th>
+                                <th class="text-center">Сделок</th>
+                                <th class="text-center">Сопост.</th>
+                                <th class="text-center">Min selected, %</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in dynamics_rows %}
+                            <tr>
+                                <td>{{ row.month_label }}</td>
+                                <td class="text-center">{{ row.total_deals }}</td>
+                                <td class="text-center">{{ row.comparable_deals }}</td>
+                                <td class="text-center">{{ row.min_selected_rate|floatformat:1 }}%</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="4" class="text-center text-muted">Нет данных</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card company-table-card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h2 class="h5 mb-0"><i class="bi bi-shield-check"></i> Data Quality</h2>
+            <a href="{% url 'summaries:export_analytics_insurance_companies_widget' %}?widget=data_quality" class="btn btn-sm btn-outline-success js-export-xlsx" data-widget="data_quality">
+                <i class="bi bi-file-earmark-spreadsheet"></i> XLSX
+            </a>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                {% for row in data_quality_rows %}
+                <div class="col-12 col-lg-6">
+                    <div class="p-3 rounded {% if row.count %}dq-critical{% else %}dq-ok{% endif %}">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="me-3">
+                                <div class="fw-semibold">{{ row.label }}</div>
+                                <div class="details-mini">Доля: {{ row.rate|floatformat:1 }}%</div>
+                            </div>
+                            <span class="badge {% if row.count %}bg-danger{% else %}bg-success{% endif %}">{{ row.count }}</span>
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="col-12">
+                    <div class="alert alert-light border mb-0">Нет данных по качеству.</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <div class="card company-table-card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h2 class="h5 mb-0"><i class="bi bi-table"></i> Детализация сделок</h2>
+            <a href="{% url 'summaries:export_analytics_insurance_companies_widget' %}?widget=deals" class="btn btn-sm btn-outline-success js-export-xlsx" data-widget="deals">
+                <i class="bi bi-file-earmark-spreadsheet"></i> XLSX
+            </a>
+        </div>
+        <div class="card-body">
+            {% if deals_page.object_list %}
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th>Сделка</th>
+                            <th>Выбор клиента</th>
+                            <th class="text-center">Ранг</th>
+                            <th class="text-center">Δ к min</th>
+                            <th class="text-center">Сопоставимость</th>
+                            <th>Разрезы</th>
+                            <th>Drilldown</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in deals_page %}
+                        <tr>
+                            <td>
+                                <div class="fw-semibold">{{ row.request.get_display_name }}</div>
+                                <div class="details-mini">{{ row.request.client_name }}</div>
+                                <div class="details-mini">
+                                    {% timezone "Europe/Moscow" %}{{ row.created_at|date:"d.m.Y H:i" }}{% endtimezone %}
+                                </div>
+                            </td>
+                            <td>
+                                <div><strong>{{ row.selected_company }}</strong></div>
+                                <div class="details-mini">
+                                    Вариант {{ row.selected_variant }}{% if row.selected_variant_fallback_used %} (fallback){% endif %}
+                                </div>
+                                <div class="details-mini">
+                                    {% if row.selected_total %}{{ row.selected_total|format_currency_with_spaces }}{% else %}—{% endif %}
+                                </div>
+                            </td>
+                            <td class="text-center">
+                                {% if row.selected_rank %}
+                                    {{ row.selected_rank }}
+                                {% else %}
+                                    —
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                {% if row.delta_to_min_abs %}
+                                    {{ row.delta_to_min_abs|format_currency_with_spaces }}
+                                    <div class="details-mini">
+                                        {% if row.delta_to_min_pct %}{{ row.delta_to_min_pct|floatformat:1 }}%{% endif %}
+                                    </div>
+                                {% else %}
+                                    —
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                {% if row.is_comparable %}
+                                    <span class="badge bg-success">Сопоставима</span>
+                                    <div class="details-mini">{{ row.comparable_companies_count }} СК</div>
+                                {% else %}
+                                    <span class="badge bg-secondary">Нет</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="details-mini">{{ row.branch }} • {{ row.insurance_type }}</div>
+                                <div class="details-mini">Онлайн: {{ row.manager_online }}</div>
+                                <div class="details-mini">Альянс: {{ row.manager_alliance }}</div>
+                                <div class="details-mini">Статус: {{ row.deal_status }}</div>
+                            </td>
+                            <td>
+                                <div class="d-flex flex-column gap-1">
+                                    <a href="{% url 'summaries:deal_summary' row.summary.pk %}" class="btn btn-sm btn-outline-primary">deal_summary</a>
+                                    <a href="{% url 'summaries:summary_detail' row.summary.pk %}" class="btn btn-sm btn-outline-secondary">summary_detail</a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% if deals_page.has_other_pages %}
+            <nav aria-label="Навигация по детализации" class="mt-3 d-flex justify-content-between align-items-center">
+                <div class="small text-muted">
+                    Страница {{ deals_page.number }} из {{ deals_page.paginator.num_pages }}
+                </div>
+                <div class="btn-group">
+                    {% if deals_page.has_previous %}
+                    <a class="btn btn-outline-secondary btn-sm" href="?{% if querystring_without_page %}{{ querystring_without_page }}&{% endif %}page={{ deals_page.previous_page_number }}">
+                        <i class="bi bi-chevron-left"></i> Назад
+                    </a>
+                    {% else %}
+                    <button class="btn btn-outline-secondary btn-sm" disabled><i class="bi bi-chevron-left"></i> Назад</button>
+                    {% endif %}
+
+                    {% if deals_page.has_next %}
+                    <a class="btn btn-outline-secondary btn-sm" href="?{% if querystring_without_page %}{{ querystring_without_page }}&{% endif %}page={{ deals_page.next_page_number }}">
+                        Вперед <i class="bi bi-chevron-right"></i>
+                    </a>
+                    {% else %}
+                    <button class="btn btn-outline-secondary btn-sm" disabled>Вперед <i class="bi bi-chevron-right"></i></button>
+                    {% endif %}
+                </div>
+            </nav>
+            {% endif %}
+            {% else %}
+            <div class="alert alert-light border mb-0">
+                По выбранным фильтрам нет сделок.
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{{ charts|json_script:"insurance-company-analytics-chart-data" }}
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const chartDataEl = document.getElementById('insurance-company-analytics-chart-data');
+        if (!chartDataEl) {
+            return;
+        }
+
+        const chartData = JSON.parse(chartDataEl.textContent);
+
+        const ratingCanvas = document.getElementById('chartRating');
+        if (ratingCanvas && chartData.rating && chartData.rating.labels.length) {
+            new Chart(ratingCanvas, {
+                type: 'bar',
+                data: {
+                    labels: chartData.rating.labels,
+                    datasets: [{
+                        label: 'Побед',
+                        data: chartData.rating.wins,
+                        backgroundColor: '#0b7a75',
+                        borderRadius: 6,
+                    }, {
+                        label: 'Участий',
+                        data: chartData.rating.offered,
+                        backgroundColor: 'rgba(11, 122, 117, 0.25)',
+                        borderRadius: 6,
+                    }],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { precision: 0 },
+                        },
+                    },
+                },
+            });
+        }
+
+        const conversionCanvas = document.getElementById('chartConversion');
+        if (conversionCanvas && chartData.conversion && chartData.conversion.labels.length) {
+            new Chart(conversionCanvas, {
+                type: 'bar',
+                data: {
+                    labels: chartData.conversion.labels,
+                    datasets: [{
+                        label: 'Конверсия в выбор, %',
+                        data: chartData.conversion.values,
+                        backgroundColor: '#2563eb',
+                        borderRadius: 6,
+                    }],
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            max: 100,
+                        },
+                    },
+                    plugins: {
+                        legend: { display: false },
+                    },
+                },
+            });
+        }
+
+        const dynamicsCanvas = document.getElementById('chartDynamics');
+        if (dynamicsCanvas && chartData.dynamics && chartData.dynamics.labels.length) {
+            new Chart(dynamicsCanvas, {
+                type: 'line',
+                data: {
+                    labels: chartData.dynamics.labels,
+                    datasets: [{
+                        label: 'Сделок',
+                        data: chartData.dynamics.total_deals,
+                        borderColor: '#0b7a75',
+                        backgroundColor: 'rgba(11, 122, 117, 0.16)',
+                        fill: true,
+                        yAxisID: 'y',
+                        tension: 0.35,
+                    }, {
+                        label: 'Min selected, %',
+                        data: chartData.dynamics.min_selected_rate,
+                        borderColor: '#d97706',
+                        backgroundColor: 'rgba(217, 119, 6, 0.1)',
+                        fill: false,
+                        yAxisID: 'y1',
+                        tension: 0.35,
+                    }],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            position: 'left',
+                            beginAtZero: true,
+                            ticks: { precision: 0 },
+                        },
+                        y1: {
+                            position: 'right',
+                            beginAtZero: true,
+                            max: 100,
+                            grid: {
+                                drawOnChartArea: false,
+                            },
+                        },
+                    },
+                },
+            });
+        }
+
+        const exportBaseUrl = "{% url 'summaries:export_analytics_insurance_companies_widget' %}";
+        const currentParams = new URLSearchParams(window.location.search);
+        document.querySelectorAll('.js-export-xlsx').forEach(function (link) {
+            const widget = link.dataset.widget || 'overview';
+            const params = new URLSearchParams(currentParams.toString());
+            params.set('widget', widget);
+            params.delete('page');
+            link.href = exportBaseUrl + '?' + params.toString();
+        });
+
+        document.querySelectorAll('.js-export-png').forEach(function (button) {
+            button.addEventListener('click', function () {
+                const chartId = button.dataset.chartId;
+                const canvas = document.getElementById(chartId);
+                if (!canvas) {
+                    return;
+                }
+
+                const filename = (button.dataset.filename || chartId) + '.png';
+                const exportCanvas = document.createElement('canvas');
+                exportCanvas.width = canvas.width;
+                exportCanvas.height = canvas.height;
+
+                const ctx = exportCanvas.getContext('2d');
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+                ctx.drawImage(canvas, 0, 0);
+
+                const link = document.createElement('a');
+                link.href = exportCanvas.toDataURL('image/png', 1.0);
+                link.download = filename;
+                link.click();
+            });
+        });
+    });
+</script>
+{% endblock %}

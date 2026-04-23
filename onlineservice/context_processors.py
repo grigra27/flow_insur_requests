@@ -32,7 +32,7 @@ MAIN_NAV_ITEMS = [
         'icon': 'bi-collection',
         'route': 'summaries:summary_list',
         'match_app': 'summaries',
-        'exclude_urls': {'analytics', 'analytics_insurance_offers', 'deal_list', 'deal_summary'},
+        'exclude_urls': {'analytics', 'analytics_insurance_offers', 'analytics_insurance_companies', 'deal_list', 'deal_summary'},
     },
     {
         'label': 'Сделки',
@@ -46,10 +46,11 @@ MAIN_NAV_ITEMS = [
         'icon': 'bi-bar-chart-line',
         'route': 'summaries:analytics',
         'match_app': 'summaries',
-        'include_urls': {'analytics', 'analytics_insurance_offers'},
+        'include_urls': {'analytics', 'analytics_insurance_offers', 'analytics_insurance_companies'},
         'children': [
             ('Обзор аналитики', 'summaries:analytics'),
             ('Аналитика по страховым предложениям', 'summaries:analytics_insurance_offers'),
+            ('Аналитика по страховым компаниям', 'summaries:analytics_insurance_companies'),
         ],
         'requires_admin': True,
     },
@@ -91,6 +92,7 @@ SECTION_CONFIG = {
         'links': [
             ('Обзор аналитики', 'summaries:analytics'),
             ('Страховые предложения', 'summaries:analytics_insurance_offers'),
+            ('Страховые компании', 'summaries:analytics_insurance_companies'),
         ],
     },
 }
@@ -99,6 +101,7 @@ SECTION_CONFIG = {
 ADMIN_ONLY_ROUTES = {
     'summaries:analytics',
     'summaries:analytics_insurance_offers',
+    'summaries:analytics_insurance_companies',
 }
 
 
@@ -107,6 +110,7 @@ SECTION_ROUTE_OVERRIDES = {
     ('summaries', 'deal_summary'): 'deals',
     ('summaries', 'analytics'): 'analytics',
     ('summaries', 'analytics_insurance_offers'): 'analytics',
+    ('summaries', 'analytics_insurance_companies'): 'analytics',
 }
 
 
@@ -127,6 +131,7 @@ PAGE_LABELS = {
     ('summaries', 'statistics'): 'Статистика',
     ('summaries', 'analytics'): 'Аналитика',
     ('summaries', 'analytics_insurance_offers'): 'Аналитика страховых предложений',
+    ('summaries', 'analytics_insurance_companies'): 'Аналитика страховых компаний',
     ('summaries', 'help'): 'Справка',
     ('summaries', 'offer_search'): 'Поиск предложений',
 }
@@ -190,6 +195,10 @@ BREADCRUMB_TEMPLATES = {
         ('Аналитика', 'summaries:analytics'),
         ('Страховые предложения', None),
     ],
+    ('summaries', 'analytics_insurance_companies'): [
+        ('Аналитика', 'summaries:analytics'),
+        ('Страховые компании', None),
+    ],
     ('summaries', 'help'): [
         ('Своды', 'summaries:summary_list'),
         ('Справка', None),
@@ -210,6 +219,7 @@ LAYOUT_MODE_BY_PAGE = {
     ('summaries', 'statistics'): 'wide',
     ('summaries', 'analytics'): 'wide',
     ('summaries', 'analytics_insurance_offers'): 'wide',
+    ('summaries', 'analytics_insurance_companies'): 'wide',
     ('summaries', 'deal_summary'): 'wide',
     ('summaries', 'summary_detail'): 'wide',
 }

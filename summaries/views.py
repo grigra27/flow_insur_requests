@@ -19,6 +19,11 @@ from insurance_requests.models import InsuranceRequest
 from insurance_requests.decorators import user_required, admin_required
 from .forms import OfferForm, SummaryForm, AddOfferToSummaryForm, DealListFilterForm
 from .exceptions import DuplicateOfferError
+from .services.analytics_insurance_companies import (
+    DATE_MODE_CHOICES,
+    DATE_MODE_SUMMARY_CREATED,
+    build_analytics_insurance_companies_payload,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -1849,6 +1854,36 @@ def _parse_statistics_filters(request):
     }
 
 
+def _parse_company_analytics_filters(request):
+    """Парсинг фильтров для аналитики по страховым компаниям."""
+    filters = _parse_statistics_filters(request)
+
+    date_mode = (request.GET.get('date_mode') or DATE_MODE_SUMMARY_CREATED).strip()
+    if date_mode not in DATE_MODE_CHOICES:
+        date_mode = DATE_MODE_SUMMARY_CREATED
+
+    comparison_mode = (request.GET.get('comparison_mode') or 'selected_variant').strip()
+    if comparison_mode not in {'selected_variant', 'best_available'}:
+        comparison_mode = 'selected_variant'
+
+    full_coverage_raw = (request.GET.get('full_coverage') or '1').strip().lower()
+    require_full_coverage = full_coverage_raw not in {'0', 'false', 'no'}
+
+    filters.update({
+        'date_mode': date_mode,
+        'branch': (request.GET.get('branch') or '').strip(),
+        'insurance_type': (request.GET.get('insurance_type') or '').strip(),
+        'manager_online': (request.GET.get('manager_online') or '').strip(),
+        'manager_alliance': (request.GET.get('manager_alliance') or '').strip(),
+        'selected_company': (request.GET.get('selected_company') or '').strip(),
+        'deal_status': (request.GET.get('deal_status') or '').strip(),
+        'comparison_mode': comparison_mode,
+        'require_full_coverage': require_full_coverage,
+        'page': request.GET.get('page'),
+    })
+    return filters
+
+
 def _apply_summary_date_filters(queryset, start_date=None, end_date=None):
     """Применяет фильтрацию периода к queryset сводов."""
     if start_date:
@@ -2300,9 +2335,12 @@ def _build_deal_price_row(summary, comparison_mode='selected_variant', require_f
     if selected_variant not in (1, 2):
         selected_variant = 1
 
+    prefetched_valid_offers = getattr(summary, 'valid_offers_prefetched', None)
+    offers_iterable = prefetched_valid_offers if prefetched_valid_offers is not None else summary.offers.all()
+
     offers_by_company = {}
-    for offer in summary.offers.all():
-        if not offer.is_valid:
+    for offer in offers_iterable:
+        if prefetched_valid_offers is None and not offer.is_valid:
             continue
         offers_by_company.setdefault(offer.company_name, []).append(offer)
 
@@ -2591,6 +2629,323 @@ def analytics_insurance_offers(request):
         'querystring_without_page': querystring_without_page,
     }
     return render(request, 'summaries/analytics_insurance_offers.html', context)
+
+
+@admin_required
+def analytics_insurance_companies(request):
+    """Аналитика по страховым компаниям."""
+    filters = _parse_company_analytics_filters(request)
+    for error_message in filters['errors']:
+        messages.warning(request, error_message)
+
+    payload = build_analytics_insurance_companies_payload(
+        start_date=filters['start_date'],
+        end_date=filters['end_date'],
+        date_mode=filters['date_mode'],
+        branch=filters['branch'],
+        insurance_type=filters['insurance_type'],
+        manager_online=filters['manager_online'],
+        manager_alliance=filters['manager_alliance'],
+        selected_company=filters['selected_company'],
+        deal_status=filters['deal_status'],
+        comparison_mode=filters['comparison_mode'],
+        require_full_coverage=filters['require_full_coverage'],
+        page=filters['page'],
+        per_page=25,
+        price_row_builder=_build_deal_price_row,
+    )
+    for error_message in payload.get('filter_errors', []):
+        messages.warning(request, error_message)
+
+    query_params = request.GET.copy()
+    query_params.pop('page', None)
+    querystring_without_page = query_params.urlencode()
+
+    context = {
+        **payload,
+        'filters': {
+            'period': filters['period'],
+            'start_date': filters['start_date_str'],
+            'end_date': filters['end_date_str'],
+            'date_mode': filters['date_mode'],
+            'branch': filters['branch'],
+            'insurance_type': filters['insurance_type'],
+            'manager_online': filters['manager_online'],
+            'manager_alliance': filters['manager_alliance'],
+            'selected_company': filters['selected_company'],
+            'deal_status': filters['deal_status'],
+            'comparison_mode': filters['comparison_mode'],
+            'require_full_coverage': filters['require_full_coverage'],
+        },
+        'date_mode_choices': [
+            {'value': value, 'label': label}
+            for value, label in DATE_MODE_CHOICES.items()
+        ],
+        'querystring_without_page': querystring_without_page,
+    }
+    return render(request, 'summaries/analytics_insurance_companies.html', context)
+
+
+@admin_required
+def export_analytics_insurance_companies_widget(request):
+    """Экспорт виджетов аналитики по страховым компаниям в XLSX."""
+    from io import BytesIO
+    from openpyxl import Workbook
+    from openpyxl.styles import Font
+
+    filters = _parse_company_analytics_filters(request)
+    payload = build_analytics_insurance_companies_payload(
+        start_date=filters['start_date'],
+        end_date=filters['end_date'],
+        date_mode=filters['date_mode'],
+        branch=filters['branch'],
+        insurance_type=filters['insurance_type'],
+        manager_online=filters['manager_online'],
+        manager_alliance=filters['manager_alliance'],
+        selected_company=filters['selected_company'],
+        deal_status=filters['deal_status'],
+        comparison_mode=filters['comparison_mode'],
+        require_full_coverage=filters['require_full_coverage'],
+        page='1',
+        per_page=5000,
+        price_row_builder=_build_deal_price_row,
+    )
+
+    export_payload = payload['export_payload']
+    widget = request.GET.get('widget', 'overview').strip().lower() or 'overview'
+
+    workbook = Workbook()
+    worksheet = workbook.active
+    worksheet.title = 'Аналитика СК'
+
+    title_map = {
+        'overview': 'Сводка KPI',
+        'rating': 'Рейтинг страховых компаний',
+        'competitiveness': 'Ценовая конкурентность',
+        'conversion': 'Конверсия в выбор',
+        'slice_branch': 'Разрез СК x Филиал',
+        'slice_manager_online': 'Разрез СК x Менеджер Онлайна',
+        'slice_manager_alliance': 'Разрез СК x Менеджер Альянса',
+        'slice_insurance_type': 'Разрез СК x Тип страхования',
+        'slice_deal_status': 'Разрез СК x Статус сделки',
+        'dynamics': 'Динамика по времени',
+        'data_quality': 'Data Quality',
+        'deals': 'Детализация сделок',
+    }
+    worksheet['A1'] = title_map.get(widget, title_map['overview'])
+    worksheet['A1'].font = Font(bold=True, size=14)
+
+    period_display = 'Все время'
+    if filters['start_date'] and filters['end_date']:
+        period_display = f"{filters['start_date_str']} - {filters['end_date_str']}"
+    elif filters['start_date']:
+        period_display = f"с {filters['start_date_str']}"
+    elif filters['end_date']:
+        period_display = f"по {filters['end_date_str']}"
+
+    worksheet['A2'] = f"Период: {period_display}"
+    worksheet['A3'] = f"Режим даты: {DATE_MODE_CHOICES.get(filters['date_mode'], DATE_MODE_CHOICES[DATE_MODE_SUMMARY_CREATED])}"
+    worksheet['A4'] = f"Сформировано: {timezone.localtime().strftime('%d.%m.%Y %H:%M')}"
+
+    row = 6
+
+    def write_headers(*headers):
+        nonlocal row
+        for idx, header in enumerate(headers, start=1):
+            cell = worksheet.cell(row=row, column=idx, value=header)
+            cell.font = Font(bold=True)
+        row += 1
+
+    def write_row(*values):
+        nonlocal row
+        for idx, value in enumerate(values, start=1):
+            worksheet.cell(row=row, column=idx, value=value)
+        row += 1
+
+    if widget == 'rating':
+        write_headers(
+            'Позиция',
+            'СК',
+            'Участвовала в сделках, шт.',
+            'Побед, шт.',
+            'Покрытие, %',
+            'Win rate при участии, %',
+            'Доля побед, %',
+            'Сумма премии побед, ₽',
+            'Средняя премия побед, ₽',
+            'Средний ранг при выборе',
+            'Медиана Δ к минимуму, ₽',
+            'Доля min-selected при выборе, %',
+        )
+        for rating_row in export_payload['rating_rows']:
+            write_row(
+                rating_row['position'],
+                rating_row['company_name'],
+                rating_row['offered_in_deals_count'],
+                rating_row['selected_wins_count'],
+                float(rating_row['coverage_pct']),
+                float(rating_row['win_rate_when_offered_pct']),
+                float(rating_row['win_share_pct']),
+                float(rating_row['selected_premium_sum']),
+                float(rating_row['selected_premium_avg']) if rating_row['selected_premium_avg'] is not None else None,
+                rating_row['avg_rank_when_selected'],
+                float(rating_row['median_delta_abs_when_selected']) if rating_row['median_delta_abs_when_selected'] is not None else None,
+                float(rating_row['min_selected_rate_when_selected']),
+            )
+    elif widget == 'competitiveness':
+        write_headers(
+            'СК',
+            'Выбрана в сделках, шт.',
+            'Сопоставимых сделок, шт.',
+            'Средний ранг',
+            'Медиана Δ к минимуму, ₽',
+            'Медиана Δ к минимуму, %',
+            'Доля выбора минимума, %',
+            'Среднее число конкурентов',
+        )
+        for row_data in export_payload['competitiveness_rows']:
+            write_row(
+                row_data['company_name'],
+                row_data['selected_deals_count'],
+                row_data['comparable_selected_deals_count'],
+                row_data['avg_rank'],
+                float(row_data['median_delta_abs']) if row_data['median_delta_abs'] is not None else None,
+                float(row_data['median_delta_pct']) if row_data['median_delta_pct'] is not None else None,
+                float(row_data['min_selected_rate']),
+                row_data['avg_competitors'],
+            )
+    elif widget == 'conversion':
+        write_headers('СК', 'Участвовала в сделках, шт.', 'Выбрана, шт.', 'Конверсия в выбор, %', 'Доля побед, %')
+        for row_data in export_payload['conversion_rows']:
+            write_row(
+                row_data['company_name'],
+                row_data['offered_in_deals_count'],
+                row_data['selected_wins_count'],
+                float(row_data['conversion_pct']),
+                float(row_data['win_share_pct']),
+            )
+    elif widget in {'slice_branch', 'slice_manager_online', 'slice_manager_alliance', 'slice_insurance_type', 'slice_deal_status'}:
+        slice_key_map = {
+            'slice_branch': 'branch',
+            'slice_manager_online': 'manager_online',
+            'slice_manager_alliance': 'manager_alliance',
+            'slice_insurance_type': 'insurance_type',
+            'slice_deal_status': 'deal_status',
+        }
+        slice_rows = export_payload['slices'][slice_key_map[widget]]
+        write_headers('СК', 'Значение разреза', 'Участвовала в сделках, шт.', 'Выбрана, шт.', 'Win rate при участии, %')
+        for row_data in slice_rows:
+            write_row(
+                row_data['company_name'],
+                row_data['dimension_value'],
+                row_data['offered_in_deals_count'],
+                row_data['selected_wins_count'],
+                float(row_data['win_rate_when_offered_pct']),
+            )
+    elif widget == 'dynamics':
+        write_headers(
+            'Месяц',
+            'Сделок, шт.',
+            'Сопоставимых сделок, шт.',
+            'Выбор минимума, шт.',
+            'Доля выбора минимума, %',
+            'Средняя премия выбора, ₽',
+            'Уникальных выбранных СК',
+        )
+        for row_data in export_payload['dynamics_rows']:
+            write_row(
+                row_data['month_label'],
+                row_data['total_deals'],
+                row_data['comparable_deals'],
+                row_data['min_selected_count'],
+                float(row_data['min_selected_rate']),
+                float(row_data['selected_premium_avg']) if row_data['selected_premium_avg'] is not None else None,
+                row_data['distinct_selected_companies'],
+            )
+    elif widget == 'data_quality':
+        write_headers('Индикатор', 'Количество', 'Доля, %')
+        for quality_row in export_payload['data_quality_rows']:
+            write_row(
+                quality_row['label'],
+                quality_row['count'],
+                float(quality_row['rate']),
+            )
+    elif widget == 'deals':
+        write_headers(
+            'ID свода',
+            'Сделка',
+            'Клиент',
+            'Выбранная СК',
+            'Премия выбора, ₽',
+            'Ранг',
+            'Δ к минимуму, ₽',
+            'Выбран минимум',
+            'Филиал',
+            'Менеджер Онлайна',
+            'Менеджер Альянса',
+            'Тип страхования',
+            'Статус сделки',
+            'Создано',
+            'Закрыто',
+        )
+        for deal_row in export_payload['deal_rows']:
+            write_row(
+                deal_row['summary'].pk,
+                deal_row['request'].get_display_name(),
+                deal_row['request'].client_name,
+                deal_row['selected_company'],
+                float(deal_row['selected_total']) if deal_row['selected_total'] is not None else None,
+                deal_row['selected_rank'],
+                float(deal_row['delta_to_min_abs']) if deal_row['delta_to_min_abs'] is not None else None,
+                'Да' if deal_row['is_min_selected'] else 'Нет',
+                deal_row['branch'],
+                deal_row['manager_online'],
+                deal_row['manager_alliance'],
+                deal_row['insurance_type'],
+                deal_row['deal_status'],
+                timezone.localtime(deal_row['created_at']).strftime('%d.%m.%Y %H:%M') if deal_row['created_at'] else '',
+                timezone.localtime(deal_row['closed_at']).strftime('%d.%m.%Y %H:%M') if deal_row['closed_at'] else '',
+            )
+    else:
+        kpi = export_payload['kpi']
+        write_headers('Метрика', 'Значение')
+        write_row('Сделок в выборке', kpi['total_deals'])
+        write_row('Сопоставимых сделок', kpi['comparable_deals'])
+        write_row('Уникальных СК (участвовали)', kpi['distinct_companies_offered'])
+        write_row('Уникальных СК (выбраны)', kpi['distinct_companies_selected'])
+        write_row('Выбран минимум, шт.', kpi['min_selected_count'])
+        write_row('Выбран минимум, %', float(kpi['min_selected_rate']))
+        write_row('Среднее число конкурентов', kpi['avg_competitors'])
+        write_row('Средняя выбранная премия, ₽', float(kpi['avg_selected_premium']) if kpi['avg_selected_premium'] is not None else None)
+        write_row('Медиана Δ к минимуму, ₽', float(kpi['median_delta_abs']) if kpi['median_delta_abs'] is not None else None)
+        write_row('Медиана Δ к минимуму, %', float(kpi['median_delta_pct']) if kpi['median_delta_pct'] is not None else None)
+        write_row('Средний ранг выбора', kpi['avg_rank'])
+        write_row('Доля многолетних сделок, %', float(kpi['multiyear_rate']))
+        write_row('Доля сделок с рассрочкой, %', float(kpi['installment_rate']))
+        write_row('SLA: закрыто до дедлайна, %', float(kpi['sla_before_deadline_rate']))
+        write_row('Среднее время request -> summary, ч', kpi['avg_hours_request_to_summary'])
+        write_row('Среднее время summary -> close, ч', kpi['avg_hours_summary_to_close'])
+
+    for column in worksheet.columns:
+        max_length = 0
+        column_letter = column[0].column_letter
+        for cell in column:
+            value = '' if cell.value is None else str(cell.value)
+            max_length = max(max_length, len(value))
+        worksheet.column_dimensions[column_letter].width = min(max_length + 2, 54)
+
+    output = BytesIO()
+    workbook.save(output)
+    output.seek(0)
+
+    today = timezone.localtime().strftime('%d_%m_%Y')
+    filename = f"analytics_companies_{widget}_{today}.xlsx"
+    response = HttpResponse(
+        output.getvalue(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = f'attachment; filename=\"{filename}\"'
+    return response
 
 
 @admin_required
