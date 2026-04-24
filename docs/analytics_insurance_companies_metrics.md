@@ -35,7 +35,9 @@
 - `avg_rank`: средний `selected_rank` по сопоставимым сделкам.
 - `multiyear_rate`: доля сделок, где выбранная СК имеет >1 года страхования.
 - `installment_rate`: доля сделок, где у выбранной СК есть рассрочка по выбранному варианту.
-- `sla_before_deadline_rate`: доля сделок, закрытых до `request.response_deadline`.
+- `competitive_deals_count`: число сделок, где участвовали 3 и более СК.
+- `competitive_deals_rate`: `competitive_deals_count / total_deals * 100`.
+- `avg_offered_companies_per_deal`: среднее число СК с валидными предложениями на одну сделку.
 - `avg_hours_request_to_summary`: среднее время между `request.created_at` и `summary.created_at`.
 - `avg_hours_summary_to_close`: среднее время между `summary.created_at` и датой закрытия (`completed_at` fallback `updated_at`).
 

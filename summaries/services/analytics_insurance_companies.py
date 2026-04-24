@@ -7,7 +7,6 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Callable, Dict, Iterable, List, Optional
 
-from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.db.models import Prefetch
 from django.db.models.functions import Coalesce
 
@@ -284,18 +283,6 @@ def _build_slice_rows(slice_counter, total_deals: int) -> List[Dict]:
     return rows
 
 
-def _paginate_rows(rows: List[Dict], page: Optional[str], per_page: int):
-    paginator = Paginator(rows, per_page)
-    try:
-        page_obj = paginator.page(page)
-    except PageNotAnInteger:
-        page_obj = paginator.page(1)
-    except EmptyPage:
-        page_obj = paginator.page(paginator.num_pages)
-
-    return paginator, page_obj
-
-
 def build_analytics_insurance_companies_payload(
     *,
     start_date: Optional[date],
@@ -309,8 +296,6 @@ def build_analytics_insurance_companies_payload(
     deal_status: str,
     comparison_mode: str,
     require_full_coverage: bool,
-    page: Optional[str],
-    per_page: int,
     price_row_builder: Callable,
 ):
     base_queryset = InsuranceSummary.objects.select_related('request', 'request__created_by').filter(
@@ -375,7 +360,6 @@ def build_analytics_insurance_companies_payload(
 
     slices_map = {
         'branch': defaultdict(lambda: {'offered': 0, 'selected': 0}),
-        'manager_online': defaultdict(lambda: {'offered': 0, 'selected': 0}),
         'manager_alliance': defaultdict(lambda: {'offered': 0, 'selected': 0}),
         'insurance_type': defaultdict(lambda: {'offered': 0, 'selected': 0}),
         'deal_status': defaultdict(lambda: {'offered': 0, 'selected': 0}),
@@ -484,21 +468,18 @@ def build_analytics_insurance_companies_payload(
             rating_selected_map[selected_company_name].append(deal_row)
 
         branch_slice_value = branch_name or 'Не указан'
-        manager_online_slice_value = manager_online_name or 'Не указан'
         manager_alliance_slice_value = manager_alliance_name or 'Не указан'
         insurance_type_slice_value = insurance_type_name or 'Не указан'
         deal_status_slice_value = deal_status_name or 'Не указан'
 
         for company_name in offered_companies:
             slices_map['branch'][(company_name, branch_slice_value)]['offered'] += 1
-            slices_map['manager_online'][(company_name, manager_online_slice_value)]['offered'] += 1
             slices_map['manager_alliance'][(company_name, manager_alliance_slice_value)]['offered'] += 1
             slices_map['insurance_type'][(company_name, insurance_type_slice_value)]['offered'] += 1
             slices_map['deal_status'][(company_name, deal_status_slice_value)]['offered'] += 1
 
         if selected_company_name:
             slices_map['branch'][(selected_company_name, branch_slice_value)]['selected'] += 1
-            slices_map['manager_online'][(selected_company_name, manager_online_slice_value)]['selected'] += 1
             slices_map['manager_alliance'][(selected_company_name, manager_alliance_slice_value)]['selected'] += 1
             slices_map['insurance_type'][(selected_company_name, insurance_type_slice_value)]['selected'] += 1
             slices_map['deal_status'][(selected_company_name, deal_status_slice_value)]['selected'] += 1
@@ -552,15 +533,8 @@ def build_analytics_insurance_companies_payload(
     selected_premiums = [row['selected_total'] for row in deal_rows if row['selected_total'] is not None]
     multiyear_count = sum(1 for row in deal_rows if row['selected_years_count'] > 1)
     installment_count = sum(1 for row in deal_rows if row['selected_has_installment'])
-
-    sla_eligible_rows = [
-        row for row in deal_rows
-        if row['closed_at'] and getattr(row['request'], 'response_deadline', None)
-    ]
-    sla_before_deadline_count = sum(
-        1 for row in sla_eligible_rows
-        if row['closed_at'] <= row['request'].response_deadline
-    )
+    competitive_deals_count = sum(1 for row in deal_rows if row['offered_companies_count'] >= 3)
+    offered_companies_counts = [row['offered_companies_count'] for row in deal_rows]
 
     kpi = {
         'total_deals': total_deals,
@@ -576,11 +550,12 @@ def build_analytics_insurance_companies_payload(
         'avg_rank': _avg_float([float(rank) for rank in comparable_ranks]),
         'multiyear_rate': _percent(multiyear_count, total_deals),
         'installment_rate': _percent(installment_count, total_deals),
-        'sla_before_deadline_rate': _percent(sla_before_deadline_count, len(sla_eligible_rows)),
+        'competitive_deals_count': competitive_deals_count,
+        'competitive_deals_rate': _percent(competitive_deals_count, total_deals),
+        'avg_offered_companies_per_deal': _avg_float(offered_companies_counts),
         'avg_hours_request_to_summary': _avg_float(request_to_summary_hours),
         'avg_hours_summary_to_close': _avg_float(summary_to_close_hours),
         'insufficient_data': comparable_deals < 5,
-        'sla_eligible_deals': len(sla_eligible_rows),
     }
 
     rating_rows = []
@@ -697,7 +672,6 @@ def build_analytics_insurance_companies_payload(
 
     slices = {
         'branch': _build_slice_rows(slices_map['branch'], total_deals),
-        'manager_online': _build_slice_rows(slices_map['manager_online'], total_deals),
         'manager_alliance': _build_slice_rows(slices_map['manager_alliance'], total_deals),
         'insurance_type': _build_slice_rows(slices_map['insurance_type'], total_deals),
         'deal_status': _build_slice_rows(slices_map['deal_status'], total_deals),
@@ -784,13 +758,11 @@ def build_analytics_insurance_companies_payload(
         },
         {
             'key': 'missing_response_deadline_count',
-            'label': 'Нет response_deadline для SLA',
+            'label': 'Нет дедлайна ответа СК (response_deadline)',
             'count': data_quality_metrics['missing_response_deadline_count'],
             'rate': _percent(data_quality_metrics['missing_response_deadline_count'], total_deals),
         },
     ]
-
-    paginator, deals_page = _paginate_rows(deal_rows, page, per_page)
 
     rating_chart_rows = rating_rows[:10]
     competitiveness_chart_rows = [
@@ -840,8 +812,6 @@ def build_analytics_insurance_companies_payload(
         'slices': slices,
         'dynamics_rows': dynamics_rows_desc,
         'data_quality_rows': data_quality_rows,
-        'deals_page': deals_page,
-        'paginator': paginator,
         'charts': charts,
         'export_payload': {
             'kpi': kpi,
@@ -851,6 +821,5 @@ def build_analytics_insurance_companies_payload(
             'slices': slices,
             'dynamics_rows': dynamics_rows_desc,
             'data_quality_rows': data_quality_rows,
-            'deal_rows': deal_rows,
         },
     }

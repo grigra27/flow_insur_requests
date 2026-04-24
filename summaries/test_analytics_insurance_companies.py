@@ -154,11 +154,19 @@ class InsuranceCompaniesAnalyticsTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Рейтинг страховых компаний')
         self.assertContains(response, 'Ценовая конкурентность')
+        self.assertContains(response, 'data-faq-target="faq-rating-columns"')
+        self.assertContains(response, 'data-faq-target="faq-competitiveness-columns"')
+        self.assertContains(response, 'Рейтинг страховых компаний: что означают столбцы')
+        self.assertContains(response, 'Ценовая конкурентность: что означают столбцы')
         self.assertContains(response, 'Конверсия в выбор клиента')
-        self.assertContains(response, 'Разрезы по филиалам, менеджерам, типам и статусам')
+        self.assertContains(response, 'Разрезы по филиалам, менеджеру Альянса, типам и статусам')
+        self.assertContains(response, 'Фильтр по СК (только этот блок)')
+        self.assertNotContains(response, 'СК x Менеджер Онлайна')
+        self.assertContains(response, 'Конкурентные сделки (>=3 СК)')
+        self.assertNotContains(response, 'SLA до дедлайна')
         self.assertContains(response, 'Динамика по времени')
         self.assertContains(response, 'Data Quality')
-        self.assertContains(response, 'Детализация сделок')
+        self.assertNotContains(response, 'Детализация сделок')
 
     def test_filters_by_branch(self):
         response = self.client.get(
@@ -167,12 +175,7 @@ class InsuranceCompaniesAnalyticsTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'DFA-COMP-001')
-        self.assertNotContains(response, 'DFA-COMP-002')
-
-        rows = list(response.context['deals_page'].object_list)
-        self.assertEqual(len(rows), 1)
-        self.assertEqual(rows[0]['summary'].pk, self.summary_moscow.pk)
+        self.assertEqual(response.context['kpi']['total_deals'], 1)
 
     def test_core_metrics_and_data_quality(self):
         response = self.client.get(reverse('summaries:analytics_insurance_companies'))
@@ -185,17 +188,20 @@ class InsuranceCompaniesAnalyticsTests(TestCase):
         self.assertEqual(kpi['min_selected_rate'], Decimal('50'))
         self.assertEqual(kpi['avg_rank'], 1.5)
         self.assertEqual(kpi['median_delta_abs'], Decimal('500.00'))
+        self.assertEqual(kpi['competitive_deals_count'], 1)
+        self.assertEqual(kpi['competitive_deals_rate'], Decimal('50'))
+        self.assertEqual(kpi['avg_offered_companies_per_deal'], 2.5)
 
         quality_rows = {row['key']: row for row in response.context['data_quality_rows']}
         self.assertEqual(quality_rows['missing_selected_variant_count']['count'], 1)
         self.assertEqual(quality_rows['missing_manager_alliance_count']['count'], 1)
 
-    def test_drilldown_links_exist_for_deals(self):
+    def test_drilldown_links_not_rendered_without_details_table(self):
         response = self.client.get(reverse('summaries:analytics_insurance_companies'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, reverse('summaries:deal_summary', args=[self.summary_moscow.pk]))
-        self.assertContains(response, reverse('summaries:summary_detail', args=[self.summary_moscow.pk]))
+        self.assertNotContains(response, reverse('summaries:deal_summary', args=[self.summary_moscow.pk]))
+        self.assertNotContains(response, reverse('summaries:summary_detail', args=[self.summary_moscow.pk]))
 
     def test_export_returns_valid_xlsx(self):
         response = self.client.get(
@@ -217,3 +223,18 @@ class InsuranceCompaniesAnalyticsTests(TestCase):
         self.assertEqual(worksheet['A6'].value, 'Позиция')
         self.assertEqual(worksheet['B6'].value, 'СК')
         self.assertEqual(worksheet['C6'].value, 'Участвовала в сделках, шт.')
+
+    def test_export_overview_uses_competition_kpi(self):
+        response = self.client.get(
+            reverse('summaries:export_analytics_insurance_companies_widget'),
+            {'widget': 'overview'}
+        )
+
+        self.assertEqual(response.status_code, 200)
+        workbook = load_workbook(BytesIO(response.content))
+        worksheet = workbook.active
+
+        metric_labels = [worksheet[f'A{row}'].value for row in range(6, worksheet.max_row + 1)]
+        self.assertIn('Конкурентные сделки (>=3 СК), %', metric_labels)
+        self.assertIn('Среднее число СК на сделку', metric_labels)
+        self.assertNotIn('SLA: закрыто до дедлайна, %', metric_labels)

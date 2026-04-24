@@ -1879,7 +1879,6 @@ def _parse_company_analytics_filters(request):
         'deal_status': (request.GET.get('deal_status') or '').strip(),
         'comparison_mode': comparison_mode,
         'require_full_coverage': require_full_coverage,
-        'page': request.GET.get('page'),
     })
     return filters
 
@@ -2650,16 +2649,10 @@ def analytics_insurance_companies(request):
         deal_status=filters['deal_status'],
         comparison_mode=filters['comparison_mode'],
         require_full_coverage=filters['require_full_coverage'],
-        page=filters['page'],
-        per_page=25,
         price_row_builder=_build_deal_price_row,
     )
     for error_message in payload.get('filter_errors', []):
         messages.warning(request, error_message)
-
-    query_params = request.GET.copy()
-    query_params.pop('page', None)
-    querystring_without_page = query_params.urlencode()
 
     context = {
         **payload,
@@ -2681,7 +2674,6 @@ def analytics_insurance_companies(request):
             {'value': value, 'label': label}
             for value, label in DATE_MODE_CHOICES.items()
         ],
-        'querystring_without_page': querystring_without_page,
     }
     return render(request, 'summaries/analytics_insurance_companies.html', context)
 
@@ -2706,8 +2698,6 @@ def export_analytics_insurance_companies_widget(request):
         deal_status=filters['deal_status'],
         comparison_mode=filters['comparison_mode'],
         require_full_coverage=filters['require_full_coverage'],
-        page='1',
-        per_page=5000,
         price_row_builder=_build_deal_price_row,
     )
 
@@ -2724,13 +2714,11 @@ def export_analytics_insurance_companies_widget(request):
         'competitiveness': 'Ценовая конкурентность',
         'conversion': 'Конверсия в выбор',
         'slice_branch': 'Разрез СК x Филиал',
-        'slice_manager_online': 'Разрез СК x Менеджер Онлайна',
         'slice_manager_alliance': 'Разрез СК x Менеджер Альянса',
         'slice_insurance_type': 'Разрез СК x Тип страхования',
         'slice_deal_status': 'Разрез СК x Статус сделки',
         'dynamics': 'Динамика по времени',
         'data_quality': 'Data Quality',
-        'deals': 'Детализация сделок',
     }
     worksheet['A1'] = title_map.get(widget, title_map['overview'])
     worksheet['A1'].font = Font(bold=True, size=14)
@@ -2824,10 +2812,9 @@ def export_analytics_insurance_companies_widget(request):
                 float(row_data['conversion_pct']),
                 float(row_data['win_share_pct']),
             )
-    elif widget in {'slice_branch', 'slice_manager_online', 'slice_manager_alliance', 'slice_insurance_type', 'slice_deal_status'}:
+    elif widget in {'slice_branch', 'slice_manager_alliance', 'slice_insurance_type', 'slice_deal_status'}:
         slice_key_map = {
             'slice_branch': 'branch',
-            'slice_manager_online': 'manager_online',
             'slice_manager_alliance': 'manager_alliance',
             'slice_insurance_type': 'insurance_type',
             'slice_deal_status': 'deal_status',
@@ -2870,42 +2857,6 @@ def export_analytics_insurance_companies_widget(request):
                 quality_row['count'],
                 float(quality_row['rate']),
             )
-    elif widget == 'deals':
-        write_headers(
-            'ID свода',
-            'Сделка',
-            'Клиент',
-            'Выбранная СК',
-            'Премия выбора, ₽',
-            'Ранг',
-            'Δ к минимуму, ₽',
-            'Выбран минимум',
-            'Филиал',
-            'Менеджер Онлайна',
-            'Менеджер Альянса',
-            'Тип страхования',
-            'Статус сделки',
-            'Создано',
-            'Закрыто',
-        )
-        for deal_row in export_payload['deal_rows']:
-            write_row(
-                deal_row['summary'].pk,
-                deal_row['request'].get_display_name(),
-                deal_row['request'].client_name,
-                deal_row['selected_company'],
-                float(deal_row['selected_total']) if deal_row['selected_total'] is not None else None,
-                deal_row['selected_rank'],
-                float(deal_row['delta_to_min_abs']) if deal_row['delta_to_min_abs'] is not None else None,
-                'Да' if deal_row['is_min_selected'] else 'Нет',
-                deal_row['branch'],
-                deal_row['manager_online'],
-                deal_row['manager_alliance'],
-                deal_row['insurance_type'],
-                deal_row['deal_status'],
-                timezone.localtime(deal_row['created_at']).strftime('%d.%m.%Y %H:%M') if deal_row['created_at'] else '',
-                timezone.localtime(deal_row['closed_at']).strftime('%d.%m.%Y %H:%M') if deal_row['closed_at'] else '',
-            )
     else:
         kpi = export_payload['kpi']
         write_headers('Метрика', 'Значение')
@@ -2922,7 +2873,9 @@ def export_analytics_insurance_companies_widget(request):
         write_row('Средний ранг выбора', kpi['avg_rank'])
         write_row('Доля многолетних сделок, %', float(kpi['multiyear_rate']))
         write_row('Доля сделок с рассрочкой, %', float(kpi['installment_rate']))
-        write_row('SLA: закрыто до дедлайна, %', float(kpi['sla_before_deadline_rate']))
+        write_row('Конкурентные сделки (>=3 СК), шт.', kpi['competitive_deals_count'])
+        write_row('Конкурентные сделки (>=3 СК), %', float(kpi['competitive_deals_rate']))
+        write_row('Среднее число СК на сделку', kpi['avg_offered_companies_per_deal'])
         write_row('Среднее время request -> summary, ч', kpi['avg_hours_request_to_summary'])
         write_row('Среднее время summary -> close, ч', kpi['avg_hours_summary_to_close'])
 
