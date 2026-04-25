@@ -43,6 +43,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'insurance_requests.middleware.AuthenticationMiddleware',
+    'summaries.middleware.CurrentUserMiddleware',
 ]
 
 ROOT_URLCONF = 'onlineservice.urls'

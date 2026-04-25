@@ -151,3 +151,6 @@ backups/
 DEPLOYMENT_GUIDE_TIMEWEB.md
 DEPLOYMENT_GUIDE.md
 DOMIAN_UPDATE_SUMMARY.md
+
+# Internal planning docs (not for public repo)
+docs/_internal/

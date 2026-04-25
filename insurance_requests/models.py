@@ -153,6 +153,10 @@ class InsuranceRequest(models.Model):
         verbose_name = 'Страховая заявка'
         verbose_name_plural = 'Страховые заявки'
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['created_by', 'created_at']),
+            models.Index(fields=['created_at']),
+        ]
     
     def get_display_name(self):
         """Возвращает отображаемое название заявки с использованием номера ДФА"""

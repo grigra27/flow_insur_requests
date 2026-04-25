@@ -18,6 +18,12 @@ urlpatterns = [
     path('analytics/insurance-offers/', views.analytics_insurance_offers, name='analytics_insurance_offers'),
     path('analytics/insurance-companies/', views.analytics_insurance_companies, name='analytics_insurance_companies'),
     path('analytics/insurance-companies/export/', views.export_analytics_insurance_companies_widget, name='export_analytics_insurance_companies_widget'),
+    path('analytics/managers/', views.analytics_managers, name='analytics_managers'),
+    path('analytics/managers/compare/', views.analytics_managers_compare, name='analytics_managers_compare'),
+    path('analytics/managers/leaderboard/', views.analytics_managers_leaderboard, name='analytics_managers_leaderboard'),
+    path('analytics/managers/export/', views.export_analytics_managers_widget, name='export_analytics_managers_widget'),
+    path('analytics/managers/<int:user_id>/', views.analytics_manager_detail, name='analytics_manager_detail'),
+    path('analytics/managers/<int:user_id>/export/', views.export_analytics_managers_widget, name='export_analytics_manager_detail'),
     path('help/', views.help_page, name='help'),
     
     # Создание и управление сводами

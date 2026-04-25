@@ -24,6 +24,7 @@ from .services.analytics_insurance_companies import (
     DATE_MODE_SUMMARY_CREATED,
     build_analytics_insurance_companies_payload,
 )
+from .services import analytics_managers as analytics_managers_service
 
 logger = logging.getLogger(__name__)
 
@@ -2905,6 +2906,63 @@ def export_analytics_insurance_companies_widget(request):
 def analytics_placeholder(request):
     """Индексный экран раздела аналитики со списком вложенных отчетов."""
     return render(request, 'summaries/analytics_placeholder.html')
+
+
+@admin_required
+def analytics_managers(request):
+    """Аналитика по сотрудникам — обзор."""
+    filters = analytics_managers_service.parse_filters(request.GET)
+    payload = analytics_managers_service.build_overview_payload(filters)
+    payload['alerts'] = analytics_managers_service.build_alerts(filters)
+    return render(request, 'summaries/analytics_managers.html', payload)
+
+
+@admin_required
+def analytics_manager_detail(request, user_id):
+    """Аналитика по сотрудникам — досье одного сотрудника."""
+    filters = analytics_managers_service.parse_filters(request.GET)
+    payload = analytics_managers_service.build_manager_profile_payload(user_id, filters)
+    return render(request, 'summaries/analytics_manager_detail.html', payload)
+
+
+@admin_required
+def analytics_managers_compare(request):
+    """Side-by-side сравнение нескольких сотрудников."""
+    filters = analytics_managers_service.parse_filters(request.GET)
+    raw_ids = request.GET.get('ids', '')
+    user_ids: list[int] = []
+    for token in raw_ids.split(','):
+        token = token.strip()
+        if not token:
+            continue
+        try:
+            user_ids.append(int(token))
+        except ValueError:
+            filters.errors.append(f'Некорректный id: {token!r}')
+    payload = analytics_managers_service.build_compare_payload(user_ids, filters)
+    return render(request, 'summaries/analytics_managers_compare.html', payload)
+
+
+@admin_required
+def analytics_managers_leaderboard(request):
+    """Леденборд сотрудников по composite efficiency-index (admin-only)."""
+    filters = analytics_managers_service.parse_filters(request.GET)
+    payload = analytics_managers_service.build_leaderboard_payload(filters)
+    return render(request, 'summaries/analytics_managers_leaderboard.html', payload)
+
+
+@admin_required
+def export_analytics_managers_widget(request, user_id=None):
+    """XLSX-экспорт обзорной аналитики или досье сотрудника.
+
+    Phase 0: возвращает 501 Not Implemented. Реализуется в Phase 4.
+    """
+    response = HttpResponse(
+        'Экспорт аналитики по сотрудникам появится в Phase 4.',
+        content_type='text/plain; charset=utf-8',
+        status=501,
+    )
+    return response
 
 
 @user_required

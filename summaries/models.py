@@ -1,5 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from insurance_requests.models import InsuranceRequest
 from decimal import Decimal
@@ -170,6 +172,10 @@ class InsuranceSummary(models.Model):
         verbose_name = 'Свод предложений'
         verbose_name_plural = 'Своды предложений'
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['status', 'completed_at']),
+            models.Index(fields=['sent_to_client_at']),
+        ]
     
     def __str__(self):
         return f"Свод к {self.request.get_display_name()} - {self.request.client_name}"
@@ -714,3 +720,50 @@ class SummaryTemplate(models.Model):
         if self.is_default:
             SummaryTemplate.objects.filter(is_default=True).update(is_default=False)
         super().save(*args, **kwargs)
+
+
+class StatusEvent(models.Model):
+    """Аудит смен статусов на InsuranceRequest и InsuranceSummary.
+
+    Запись создаётся pre_save-сигналом, когда у объекта меняется поле `status`.
+    Используется для аналитики time-to-* и ленты активности сотрудников.
+    """
+
+    content_type = models.ForeignKey(
+        ContentType,
+        on_delete=models.CASCADE,
+        verbose_name='Тип объекта',
+    )
+    object_id = models.PositiveIntegerField(verbose_name='ID объекта')
+    target = GenericForeignKey('content_type', 'object_id')
+
+    from_status = models.CharField(
+        max_length=32,
+        blank=True,
+        verbose_name='Прошлый статус',
+        help_text='Пусто, если событие — создание объекта',
+    )
+    to_status = models.CharField(max_length=32, verbose_name='Новый статус')
+
+    changed_at = models.DateTimeField(auto_now_add=True, verbose_name='Когда')
+    changed_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name='Кто изменил',
+    )
+    note = models.CharField(max_length=255, blank=True, verbose_name='Примечание')
+
+    class Meta:
+        verbose_name = 'Событие смены статуса'
+        verbose_name_plural = 'События смены статусов'
+        ordering = ['-changed_at']
+        indexes = [
+            models.Index(fields=['content_type', 'object_id', 'changed_at']),
+            models.Index(fields=['changed_at']),
+            models.Index(fields=['changed_by', 'changed_at']),
+        ]
+
+    def __str__(self):
+        return f'{self.content_type} #{self.object_id}: {self.from_status or "—"} → {self.to_status}'

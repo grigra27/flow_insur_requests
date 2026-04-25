@@ -75,18 +75,18 @@
     <div class="card analytics-index-card">
         <div class="card-body">
             <div class="d-flex justify-content-between align-items-start mb-2">
-                <h2 class="h5 mb-0">Следующий раздел</h2>
-                <span class="badge bg-secondary">Скоро</span>
+                <h2 class="h5 mb-0">Аналитика по сотрудникам</h2>
+                <span class="badge bg-warning text-dark">В разработке</span>
             </div>
             <p class="text-muted mb-3">
-                Здесь появится следующий аналитический модуль.
+                Объёмы загрузок, скорость закрытия сделок, качество вводимых данных и сравнение сотрудников между собой.
             </p>
             <div class="analytics-index-meta mb-3">
-                Место зарезервировано
+                Эффективность работы команды
             </div>
-            <button class="btn btn-outline-secondary" disabled>
-                В разработке
-            </button>
+            <a href="{% url 'summaries:analytics_managers' %}" class="btn btn-primary">
+                Открыть раздел
+            </a>
         </div>
     </div>
 </div>

@@ -605,9 +605,14 @@
                            title="<strong>Статистика по пользователям:</strong><br>Показывает данные в разбивке по пользователям Django,<br>которые загружали заявки или создавали своды.<br>Включает метрики: своды, предложения, акцепты, отказы.">
                         </i>
                     </h5>
-                    <a href="{% url 'summaries:export_statistics_widget' %}?widget=users" class="btn btn-sm btn-outline-success js-export-xlsx" data-widget="users">
-                        <i class="bi bi-file-earmark-spreadsheet"></i> XLSX
-                    </a>
+                    <div class="d-flex gap-2">
+                        <a href="{% url 'summaries:analytics_managers' %}" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-people"></i> Подробнее
+                        </a>
+                        <a href="{% url 'summaries:export_statistics_widget' %}?widget=users" class="btn btn-sm btn-outline-success js-export-xlsx" data-widget="users">
+                            <i class="bi bi-file-earmark-spreadsheet"></i> XLSX
+                        </a>
+                    </div>
                 </div>
                 <div class="card-body">
                     <div class="row mb-4">

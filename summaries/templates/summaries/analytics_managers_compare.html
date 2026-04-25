@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+
+{% block title %}Сравнение сотрудников - {{ block.super }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-1">
+            <i class="bi bi-people-fill"></i> Сравнение сотрудников
+        </h1>
+        <p class="text-muted mb-0">Side-by-side сравнение KPI выбранных сотрудников.</p>
+    </div>
+    <a href="{% url 'summaries:analytics_managers' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> К обзору
+    </a>
+</div>
+
+<div class="alert alert-warning">
+    <i class="bi bi-tools"></i>
+    Сравнение будет реализовано в Phase 3.
+</div>
+
+{% if filters.errors %}
+<div class="alert alert-danger">
+    <ul class="mb-0">
+        {% for err in filters.errors %}<li>{{ err }}</li>{% endfor %}
+    </ul>
+</div>
+{% endif %}
+{% endblock %}
