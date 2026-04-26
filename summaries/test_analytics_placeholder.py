@@ -96,3 +96,29 @@ class AnalyticsPlaceholderAccessTests(TestCase):
         self.assertNotIn('Статистика', section_labels)
         self.assertNotIn('Справка', section_labels)
         self.assertNotContains(response, 'Своды / Аналитика')
+
+    def test_manager_analytics_pages_do_not_activate_summaries_menu(self):
+        self.client.login(username='analytics_admin', password='testpass123')
+
+        urls = [
+            reverse('summaries:analytics_managers'),
+            reverse('summaries:analytics_managers_compare'),
+            reverse('summaries:analytics_managers_leaderboard'),
+            reverse('summaries:analytics_manager_detail', kwargs={'user_id': self.admin_user.pk}),
+        ]
+
+        for url in urls:
+            with self.subTest(url=url):
+                response = self.client.get(url)
+
+                self.assertEqual(response.status_code, 200)
+                main_items = {
+                    item['label']: item['active']
+                    for item in response.context['app_navigation']['main_items']
+                }
+                self.assertFalse(main_items['Своды'])
+                self.assertTrue(main_items['Аналитика'])
+                self.assertEqual(
+                    response.context['app_navigation']['current_section']['label'],
+                    'Аналитика',
+                )

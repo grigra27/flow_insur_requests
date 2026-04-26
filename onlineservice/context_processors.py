@@ -32,7 +32,17 @@ MAIN_NAV_ITEMS = [
         'icon': 'bi-collection',
         'route': 'summaries:summary_list',
         'match_app': 'summaries',
-        'exclude_urls': {'analytics', 'analytics_insurance_offers', 'analytics_insurance_companies', 'deal_list', 'deal_summary'},
+        'exclude_urls': {
+            'analytics',
+            'analytics_insurance_offers',
+            'analytics_insurance_companies',
+            'analytics_managers',
+            'analytics_manager_detail',
+            'analytics_managers_compare',
+            'analytics_managers_leaderboard',
+            'deal_list',
+            'deal_summary',
+        },
     },
     {
         'label': 'Сделки',
