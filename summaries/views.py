@@ -195,6 +195,214 @@ def _safe_decimal_or_none(value):
         return None
 
 
+def _get_summary_required_variants(summary):
+    """Определяет, какие варианты премии нужны для компактной аналитики свода."""
+    insurance_request = getattr(summary, 'request', None)
+    franchise_type = getattr(insurance_request, 'franchise_type', '') if insurance_request else ''
+
+    if franchise_type == 'both_variants':
+        return [1, 2], 'оба варианта'
+    if franchise_type == 'with_franchise':
+        return [1], 'с франшизой'
+    return [1], 'без франшизы'
+
+
+def _get_offer_premium_for_variant(offer, variant):
+    if variant == 2:
+        return _safe_decimal_or_none(offer.premium_with_franchise_2)
+    return _safe_decimal_or_none(offer.premium_with_franchise_1)
+
+
+def _summary_offer_has_premium(offer, variant):
+    premium = _get_offer_premium_for_variant(offer, variant)
+    return premium is not None and premium > 0
+
+
+def _summary_offer_supports_installment(offer, variant):
+    if variant == 2:
+        return offer.installment_variant_2 and offer.payments_per_year_variant_2 > 1
+    return offer.installment_variant_1 and offer.payments_per_year_variant_1 > 1
+
+
+def _summary_offer_payments_per_year(offer, variant):
+    if variant == 2:
+        return offer.payments_per_year_variant_2 if offer.installment_variant_2 else 1
+    return offer.payments_per_year_variant_1 if offer.installment_variant_1 else 1
+
+
+def _format_summary_years_label(years):
+    sorted_years = sorted(years)
+    if not sorted_years:
+        return '—'
+    if len(sorted_years) == 1:
+        return str(sorted_years[0])
+    if sorted_years == list(range(sorted_years[0], sorted_years[-1] + 1)):
+        return f'{sorted_years[0]}-{sorted_years[-1]}'
+    return ', '.join(str(year) for year in sorted_years)
+
+
+def _sum_summary_company_variant_total(company_offers, variant, years):
+    offers_by_year = {offer.insurance_year: offer for offer in company_offers}
+    total = Decimal('0')
+
+    for year in sorted(years):
+        offer = offers_by_year.get(year)
+        if offer is None:
+            return None
+        premium = _get_offer_premium_for_variant(offer, variant)
+        if premium is None or premium <= 0:
+            return None
+        total += premium
+
+    return total
+
+
+def _build_summary_variant_price_range(offers_by_company, variant, years):
+    company_totals = []
+    for company_name, company_offers in offers_by_company.items():
+        total = _sum_summary_company_variant_total(company_offers, variant, years)
+        if total is not None:
+            company_totals.append((company_name, total))
+
+    if not company_totals:
+        return None
+
+    company_totals.sort(key=lambda item: (item[1], item[0]))
+    min_total = company_totals[0][1]
+    max_total = company_totals[-1][1]
+    spread_abs = max_total - min_total
+    spread_pct = ((spread_abs / min_total) * Decimal('100')) if min_total > 0 else None
+    best_company_names = [
+        company_name for company_name, total in company_totals
+        if total == min_total
+    ]
+
+    return {
+        'variant': variant,
+        'label': f'Вариант {variant}',
+        'min_total': min_total,
+        'max_total': max_total,
+        'spread_abs': spread_abs,
+        'spread_pct': spread_pct,
+        'best_company_name': ', '.join(best_company_names),
+        'comparable_count': len(company_totals),
+    }
+
+
+def _build_summary_compact_analytics(summary, offers):
+    """Собирает компактную аналитику для блока сводной информации."""
+    offers_list = list(offers)
+    offers_by_company = {}
+    for offer in offers_list:
+        offers_by_company.setdefault(offer.company_name, []).append(offer)
+
+    sorted_companies = sorted(offers_by_company.keys())
+    years = {offer.insurance_year for offer in offers_list}
+    required_variants, required_variants_label = _get_summary_required_variants(summary)
+
+    complete_companies = []
+    incomplete_companies = []
+    for company_name, company_offers in offers_by_company.items():
+        offers_by_year = {offer.insurance_year: offer for offer in company_offers}
+        company_years = set(offers_by_year.keys())
+        has_all_years = bool(years) and company_years == years
+        has_required_premiums = has_all_years and all(
+            _summary_offer_has_premium(offers_by_year[year], variant)
+            for year in years
+            for variant in required_variants
+        )
+
+        if has_required_premiums:
+            complete_companies.append(company_name)
+        else:
+            incomplete_companies.append(company_name)
+
+    price_ranges = []
+    for variant in required_variants:
+        price_range = _build_summary_variant_price_range(offers_by_company, variant, years)
+        if price_range:
+            price_ranges.append(price_range)
+
+    installment_companies = set()
+    max_payments_per_year = 1
+    for company_name, company_offers in offers_by_company.items():
+        company_has_installment = False
+        for offer in company_offers:
+            for variant in required_variants:
+                if _summary_offer_supports_installment(offer, variant):
+                    company_has_installment = True
+                    max_payments_per_year = max(
+                        max_payments_per_year,
+                        _summary_offer_payments_per_year(offer, variant),
+                    )
+        if company_has_installment:
+            installment_companies.add(company_name)
+
+    insurance_request = getattr(summary, 'request', None)
+    show_installment = bool(
+        getattr(insurance_request, 'has_installment', False)
+        or installment_companies
+    )
+
+    selected = None
+    selected_company = (summary.selected_company or '').strip()
+    if selected_company:
+        selected_variant = summary.selected_franchise_variant
+        if selected_variant not in (1, 2):
+            selected_variant = required_variants[0] if len(required_variants) == 1 else 1
+
+        selected_offers = offers_by_company.get(selected_company, [])
+        selected_years = {offer.insurance_year for offer in selected_offers}
+        selected_total = _sum_summary_company_variant_total(
+            selected_offers,
+            selected_variant,
+            selected_years,
+        ) if selected_years else None
+
+        price_row = _build_deal_price_row(
+            summary,
+            comparison_mode='selected_variant',
+            require_full_coverage=True,
+        )
+        if price_row and selected_total is None:
+            selected_total = price_row.get('selected_total')
+
+        selected = {
+            'company_name': selected_company,
+            'variant': selected_variant,
+            'variant_label': f'Вариант {selected_variant}',
+            'total': selected_total,
+            'rank': price_row.get('selected_rank') if price_row else None,
+            'comparable_count': price_row.get('comparable_companies_count') if price_row else None,
+            'delta_to_min_abs': price_row.get('delta_to_min_abs') if price_row else None,
+            'delta_to_min_pct': price_row.get('delta_to_min_pct') if price_row else None,
+            'is_min_selected': price_row.get('is_min_selected') if price_row else False,
+        }
+
+    preview_limit = 3
+    return {
+        'has_offers': bool(offers_list),
+        'companies_count': len(sorted_companies),
+        'years_count': len(years),
+        'years_label': _format_summary_years_label(years),
+        'required_variants': required_variants,
+        'required_variants_label': required_variants_label,
+        'complete_companies_count': len(complete_companies),
+        'incomplete_companies_count': len(incomplete_companies),
+        'incomplete_companies': sorted(incomplete_companies),
+        'price_ranges': price_ranges,
+        'installment': {
+            'show': show_installment,
+            'companies_count': len(installment_companies),
+            'max_payments_per_year': max_payments_per_year,
+        },
+        'selected': selected,
+        'company_preview': sorted_companies[:preview_limit],
+        'company_preview_more_count': max(len(sorted_companies) - preview_limit, 0),
+        'companies_title': ', '.join(sorted_companies),
+    }
+
+
 def _build_deal_list_row(summary):
     """Готовит строку списка сделок на основе завершенного свода."""
     selected_company = (summary.selected_company or '').strip()
@@ -497,6 +705,9 @@ def summary_detail(request, pk):
     # Получаем комментарии, сгруппированные по компаниям
     company_notes = summary.get_company_notes()
 
+    # Компактная аналитика для бокового блока сводной информации
+    summary_analytics = _build_summary_compact_analytics(summary, offers)
+
     # Данные о доступных франшизных вариантах по компаниям для UI статусов
     company_variant_requirements = {}
     for company_name in sorted_companies:
@@ -516,6 +727,7 @@ def summary_detail(request, pk):
         'companies_with_year_counts': companies_with_year_counts,
         'company_totals': company_totals,
         'company_notes': company_notes,
+        'summary_analytics': summary_analytics,
         'company_variant_requirements': company_variant_requirements,
     })
 

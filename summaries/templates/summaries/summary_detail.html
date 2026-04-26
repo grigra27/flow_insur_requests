@@ -324,26 +324,129 @@
 
         <!-- Сводная информация -->
         <div class="card mb-4">
-            <div class="card-header">
+            <div class="card-header d-flex justify-content-between align-items-center">
                 <h6 class="mb-0"><i class="bi bi-graph-up"></i> Сводная информация</h6>
+                <button
+                    type="button"
+                    class="btn btn-link btn-sm summary-faq-link js-summary-analytics-faq"
+                    data-faq-target="summary-analytics-faq"
+                    data-bs-placement="left"
+                    aria-label="FAQ по сводной информации"
+                >
+                    <i class="bi bi-question-circle"></i> FAQ
+                </button>
             </div>
             <div class="card-body">
-                <dl class="row">
-                    {% if sorted_companies %}
-                        <dt class="col-6">Компаний:</dt>
-                        <dd class="col-6">
-                            <span class="badge bg-primary">{{ sorted_companies|length }}</span>
-                        </dd>
-                        
-                        <dt class="col-6">По компаниям:</dt>
-                        <dd class="col-6">
-                            {% for company_name in sorted_companies %}
-                                <span class="badge bg-secondary me-1 mb-1">{{ company_name }}</span>
-                                {% if not forloop.last %}<br>{% endif %}
-                            {% endfor %}
-                        </dd>
+                {% if summary_analytics.has_offers %}
+                    <div class="summary-mini-kpis mb-3">
+                        <div class="summary-mini-kpi">
+                            <span class="summary-mini-kpi__label">СК</span>
+                            <strong>{{ summary_analytics.companies_count }}</strong>
+                        </div>
+                        <div class="summary-mini-kpi">
+                            <span class="summary-mini-kpi__label">Лет</span>
+                            <strong>{{ summary_analytics.years_count }}</strong>
+                            <small>{{ summary_analytics.years_label }}</small>
+                        </div>
+                        <div class="summary-mini-kpi">
+                            <span class="summary-mini-kpi__label">Полных</span>
+                            <strong>{{ summary_analytics.complete_companies_count }}/{{ summary_analytics.companies_count }}</strong>
+                        </div>
+                    </div>
+
+                    <div class="summary-insights">
+                        <div class="summary-insight-row">
+                            <span class="summary-insight-row__label">Покрытие</span>
+                            <span class="summary-insight-row__value">
+                                {{ summary_analytics.complete_companies_count }}/{{ summary_analytics.companies_count }}
+                                <span class="text-muted">· {{ summary_analytics.required_variants_label }}</span>
+                            </span>
+                        </div>
+                        {% if summary_analytics.incomplete_companies_count %}
+                            <div class="summary-insight-row summary-insight-row--warning">
+                                <span class="summary-insight-row__label">Проверить</span>
+                                <span class="summary-insight-row__value" title="{{ summary_analytics.incomplete_companies|join:', ' }}">
+                                    {{ summary_analytics.incomplete_companies_count }} неполн.
+                                </span>
+                            </div>
+                        {% endif %}
+
+                        {% for price_range in summary_analytics.price_ranges %}
+                            <div class="summary-insight-row">
+                                <span class="summary-insight-row__label">{{ price_range.label }}</span>
+                                <span class="summary-insight-row__value">
+                                    {{ price_range.min_total|format_currency_with_spaces }} - {{ price_range.max_total|format_currency_with_spaces }}
+                                </span>
+                            </div>
+                            <div class="summary-insight-row summary-insight-row--muted">
+                                <span class="summary-insight-row__label">Лучшее</span>
+                                <span class="summary-insight-row__value">
+                                    {{ price_range.best_company_name }}
+                                    {% if price_range.spread_abs > 0 %}
+                                        <span class="text-muted">
+                                            +{{ price_range.spread_abs|format_currency_with_spaces }}
+                                            {% if price_range.spread_pct %}/ {{ price_range.spread_pct|floatformat:1 }}%{% endif %}
+                                        </span>
+                                    {% endif %}
+                                </span>
+                            </div>
+                        {% endfor %}
+
+                        {% if summary_analytics.installment.show %}
+                            <div class="summary-insight-row">
+                                <span class="summary-insight-row__label">Рассрочка</span>
+                                <span class="summary-insight-row__value">
+                                    {{ summary_analytics.installment.companies_count }}/{{ summary_analytics.companies_count }} СК
+                                    {% if summary_analytics.installment.max_payments_per_year > 1 %}
+                                        <span class="text-muted">· до {{ summary_analytics.installment.max_payments_per_year }} пл./год</span>
+                                    {% endif %}
+                                </span>
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    {% if summary_analytics.selected %}
+                        <div class="summary-selected-mini mt-3">
+                            <div class="summary-selected-mini__top">
+                                <span>Выбрана</span>
+                                {% if summary_analytics.selected.is_min_selected %}
+                                    <span class="badge bg-success">минимум</span>
+                                {% elif summary_analytics.selected.rank %}
+                                    <span class="badge bg-warning text-dark">есть дешевле</span>
+                                {% endif %}
+                            </div>
+                            <div class="summary-selected-mini__company">{{ summary_analytics.selected.company_name }}</div>
+                            <div class="summary-selected-mini__meta">
+                                {% if summary_analytics.selected.total %}
+                                    {{ summary_analytics.selected.total|format_currency_with_spaces }}
+                                {% endif %}
+                                {% if summary_analytics.selected.rank %}
+                                    · {{ summary_analytics.selected.rank }}/{{ summary_analytics.selected.comparable_count }}
+                                {% endif %}
+                                {% if summary_analytics.selected.delta_to_min_abs and not summary_analytics.selected.is_min_selected %}
+                                    · +{{ summary_analytics.selected.delta_to_min_abs|format_currency_with_spaces }}
+                                    {% if summary_analytics.selected.delta_to_min_pct %}
+                                        / {{ summary_analytics.selected.delta_to_min_pct|floatformat:1 }}%
+                                    {% endif %}
+                                {% endif %}
+                            </div>
+                        </div>
                     {% endif %}
-                </dl>
+
+                    <div class="summary-company-preview mt-3" title="{{ summary_analytics.companies_title }}">
+                        <span class="summary-company-preview__label">СК:</span>
+                        {% for company_name in summary_analytics.company_preview %}
+                            <span class="badge bg-secondary me-1">{{ company_name }}</span>
+                        {% endfor %}
+                        {% if summary_analytics.company_preview_more_count %}
+                            <span class="badge bg-light text-dark border">+{{ summary_analytics.company_preview_more_count }}</span>
+                        {% endif %}
+                    </div>
+                {% else %}
+                    <p class="text-muted mb-0">
+                        <i class="bi bi-inbox me-2"></i>Предложений пока нет
+                    </p>
+                {% endif %}
                 
                 {% if summary.status == 'ready' %}
                     <div class="d-grid gap-2">
@@ -510,6 +613,19 @@
         {% endif %}
     </div>
 </div>
+<div class="d-none" id="summary-analytics-faq">
+    <div class="mb-2"><strong>Как собирается сводная информация</strong></div>
+    <ul class="summary-faq-list">
+        <li><strong>СК</strong> - уникальные страховые компании с валидными предложениями в этом своде.</li>
+        <li><strong>Лет</strong> - сколько разных годов страхования есть в предложениях; ниже показан диапазон годов.</li>
+        <li><strong>Полных</strong> - компании, которые дали все годы и нужные премии по типу запроса.</li>
+        <li><strong>Покрытие</strong> - то же соотношение «полных» к общему числу СК плюс тип запроса: без франшизы, с франшизой или оба варианта.</li>
+        <li><strong>С франшизой</strong> - одиночный запрос с франшизой проверяется по варианту 1; вариант 2 нужен только когда клиент запросил оба варианта.</li>
+        <li><strong>Вариант 1/2</strong> - диапазон итоговой премии по сопоставимым компаниям за все годы. «Лучшее» - минимальная итоговая премия.</li>
+        <li><strong>Рассрочка</strong> - сколько СК дали рассрочку по нужным вариантам и максимальное число платежей в год.</li>
+        <li><strong>Выбрана</strong> - появляется у завершенного свода: итог выбранной СК, место по цене и разница с минимумом.</li>
+    </ul>
+</div>
 {{ company_variant_requirements|json_script:"company-variant-requirements-data" }}
 {% endblock %}
 
@@ -551,6 +667,157 @@
     font-size: 0.8rem;
     color: var(--app-muted);
     margin-top: 0.1rem;
+}
+
+.summary-faq-link {
+    padding: 0;
+    color: var(--app-muted);
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.summary-faq-link:hover,
+.summary-faq-link:focus {
+    color: #4f6ef7;
+    text-decoration: none;
+}
+
+.popover.summary-analytics-faq-popover {
+    max-width: 460px;
+}
+
+.summary-faq-list {
+    margin-bottom: 0;
+    padding-left: 1rem;
+}
+
+.summary-faq-list li {
+    margin-bottom: 0.35rem;
+}
+
+.summary-faq-list li:last-child {
+    margin-bottom: 0;
+}
+
+.summary-mini-kpis {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.5rem;
+}
+
+.summary-mini-kpi {
+    min-width: 0;
+    padding: 0.55rem 0.45rem;
+    border: 1px solid var(--app-border);
+    border-radius: 6px;
+    background: #f8f9fb;
+    text-align: center;
+}
+
+.summary-mini-kpi__label {
+    display: block;
+    font-size: 0.68rem;
+    line-height: 1.1;
+    color: var(--app-muted);
+    white-space: nowrap;
+}
+
+.summary-mini-kpi strong {
+    display: block;
+    margin-top: 0.1rem;
+    color: var(--app-text);
+    font-size: 1rem;
+    line-height: 1.15;
+}
+
+.summary-mini-kpi small {
+    display: block;
+    color: var(--app-muted);
+    font-size: 0.65rem;
+    line-height: 1;
+}
+
+.summary-insights {
+    display: grid;
+    gap: 0.35rem;
+}
+
+.summary-insight-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    align-items: baseline;
+    padding-bottom: 0.35rem;
+    border-bottom: 1px dashed #dfe3ea;
+    font-size: 0.86rem;
+}
+
+.summary-insight-row:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.summary-insight-row__label {
+    flex: 0 0 auto;
+    color: var(--app-muted);
+}
+
+.summary-insight-row__value {
+    min-width: 0;
+    color: var(--app-text);
+    font-weight: 600;
+    text-align: right;
+    overflow-wrap: anywhere;
+}
+
+.summary-insight-row--warning .summary-insight-row__value {
+    color: #8a5a00;
+}
+
+.summary-insight-row--muted {
+    font-size: 0.8rem;
+}
+
+.summary-selected-mini {
+    border: 1px solid #c7e7cf;
+    border-left: 4px solid #198754;
+    border-radius: 6px;
+    background: #f4fbf6;
+    padding: 0.65rem 0.75rem;
+}
+
+.summary-selected-mini__top,
+.summary-selected-mini__meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    color: var(--app-muted);
+    font-size: 0.78rem;
+}
+
+.summary-selected-mini__company {
+    margin: 0.2rem 0;
+    color: var(--app-text);
+    font-weight: 800;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+}
+
+.summary-selected-mini__meta {
+    display: block;
+    color: var(--app-text);
+}
+
+.summary-company-preview {
+    font-size: 0.82rem;
+    line-height: 1.8;
+}
+
+.summary-company-preview__label {
+    color: var(--app-muted);
+    margin-right: 0.25rem;
 }
 
 /* req-hero inside status-card: override gradient to respect status border */
@@ -640,6 +907,15 @@
 }
 
 @media (max-width: 576px) {
+    .summary-mini-kpis {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .summary-insight-row {
+        align-items: flex-start;
+        font-size: 0.82rem;
+    }
+
     .company-block {
         padding: 0.5rem;
     }
@@ -1097,6 +1373,30 @@ function formatPaymentsInfo(paymentsPerYear, premium) {
                        paymentsPerYear <= 4 ? 'платежа' : 'платежей';
     
     return `${paymentsPerYear} ${paymentText}/год`;
+}
+
+function initializeSummaryAnalyticsFaq() {
+    document.querySelectorAll('.js-summary-analytics-faq').forEach(function(button) {
+        const targetId = button.dataset.faqTarget;
+        const contentEl = targetId ? document.getElementById(targetId) : null;
+        if (!contentEl) {
+            return;
+        }
+
+        if (window.bootstrap && window.bootstrap.Popover) {
+            new bootstrap.Popover(button, {
+                trigger: 'hover focus',
+                placement: button.dataset.bsPlacement || 'left',
+                html: true,
+                container: 'body',
+                customClass: 'summary-analytics-faq-popover',
+                content: contentEl.innerHTML,
+            });
+            return;
+        }
+
+        button.setAttribute('title', contentEl.textContent.replace(/\s+/g, ' ').trim());
+    });
 }
 
 // Функция для обновления отображения данных в реальном времени
@@ -3011,6 +3311,7 @@ document.addEventListener('DOMContentLoaded', function() {
     enhanceTableInteractivity();
     initializeCompanyResponseUpload();
     initializeNotesForm(); // Добавляем инициализацию формы примечания
+    initializeSummaryAnalyticsFaq();
     
     // Устанавливаем текущий статус в селекте
     const statusSelect = document.getElementById('status-select');

@@ -124,6 +124,89 @@ class BasicIntegrationTest(TestCase):
         self.assertContains(response, 'company-notes')
         self.assertContains(response, 'Тестовое примечание')
 
+    def test_summary_detail_displays_compact_analytics(self):
+        """Тест компактной аналитики в блоке сводной информации"""
+        self.insurance_request.franchise_type = 'both_variants'
+        self.insurance_request.has_installment = True
+        self.insurance_request.save(update_fields=['franchise_type', 'has_installment'])
+
+        self.summary.status = 'completed_accepted'
+        self.summary.selected_company = 'ВСК'
+        self.summary.selected_franchise_variant = 1
+        self.summary.save(update_fields=['status', 'selected_company', 'selected_franchise_variant'])
+
+        InsuranceOffer.objects.create(
+            summary=self.summary,
+            company_name='Абсолют',
+            insurance_year=2,
+            insurance_sum=Decimal('1000000.00'),
+            franchise_1=Decimal('0.00'),
+            premium_with_franchise_1=Decimal('48000.00'),
+            franchise_2=Decimal('25000.00'),
+            premium_with_franchise_2=Decimal('43000.00'),
+        )
+        InsuranceOffer.objects.create(
+            summary=self.summary,
+            company_name='ВСК',
+            insurance_year=1,
+            insurance_sum=Decimal('1000000.00'),
+            franchise_1=Decimal('0.00'),
+            premium_with_franchise_1=Decimal('60000.00'),
+            franchise_2=Decimal('25000.00'),
+            premium_with_franchise_2=Decimal('54000.00'),
+            installment_variant_1=True,
+            payments_per_year_variant_1=4,
+        )
+        InsuranceOffer.objects.create(
+            summary=self.summary,
+            company_name='ВСК',
+            insurance_year=2,
+            insurance_sum=Decimal('1000000.00'),
+            franchise_1=Decimal('0.00'),
+            premium_with_franchise_1=Decimal('62000.00'),
+            franchise_2=Decimal('25000.00'),
+            premium_with_franchise_2=Decimal('55000.00'),
+            installment_variant_1=True,
+            payments_per_year_variant_1=4,
+        )
+        InsuranceOffer.objects.create(
+            summary=self.summary,
+            company_name='Согаз',
+            insurance_year=1,
+            insurance_sum=Decimal('1000000.00'),
+            franchise_1=Decimal('0.00'),
+            premium_with_franchise_1=Decimal('70000.00'),
+            franchise_2=Decimal('25000.00'),
+            premium_with_franchise_2=Decimal('63000.00'),
+        )
+
+        response = self.client.get(reverse('summaries:summary_detail', args=[self.summary.pk]))
+        self.assertEqual(response.status_code, 200)
+
+        self.assertContains(response, 'summary-mini-kpis')
+        self.assertContains(response, 'js-summary-analytics-faq')
+        self.assertContains(response, 'Как собирается сводная информация')
+        self.assertContains(response, '2/3')
+        self.assertContains(response, 'оба варианта')
+        self.assertContains(response, '98 000 ₽ - 122 000 ₽')
+        self.assertContains(response, '88 000 ₽ - 109 000 ₽')
+        self.assertContains(response, '1/3 СК')
+        self.assertContains(response, 'до 4 пл./год')
+        self.assertContains(response, 'есть дешевле')
+        self.assertContains(response, '+24 000 ₽')
+
+    def test_summary_compact_analytics_uses_first_variant_for_single_franchise_request(self):
+        """Тест трактовки одиночного запроса с франшизой как первого варианта"""
+        self.insurance_request.franchise_type = 'with_franchise'
+        self.insurance_request.save(update_fields=['franchise_type'])
+
+        response = self.client.get(reverse('summaries:summary_detail', args=[self.summary.pk]))
+        self.assertEqual(response.status_code, 200)
+
+        analytics = response.context['summary_analytics']
+        self.assertEqual(analytics['required_variants'], [1])
+        self.assertEqual(analytics['required_variants_label'], 'с франшизой')
+
     def test_model_methods_integration(self):
         """Тест интеграции методов модели"""
         # Тестируем get_company_notes
