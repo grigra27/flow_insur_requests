@@ -1,22 +1,360 @@
 {% extends 'base.html' %}
+{% load summary_extras %}
 
-{% block title %}Досье сотрудника - {{ block.super }}{% endblock %}
+{% block title %}Досье — {{ row.display|default:user.username }} - {{ block.super }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .det-card { border: 0; box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08); }
+    .det-kpi-card { border: 0; box-shadow: 0 8px 16px rgba(15, 23, 42, 0.05); height: 100%; }
+    .det-kpi-value { font-size: 1.5rem; font-weight: 700; line-height: 1.1; }
+    .det-radar-wrap { position: relative; height: 380px; }
+    .det-list { max-height: 360px; overflow-y: auto; }
+    .det-timeline-item {
+        padding: 0.5rem 0.75rem;
+        border-left: 3px solid #2563eb;
+        background: #f8fafc;
+        margin-bottom: 0.4rem;
+        border-radius: 0 4px 4px 0;
+    }
+    .det-timeline-item.kind-summary { border-left-color: #16a34a; }
+    .det-status-pill {
+        display: inline-block;
+        background: #eef2ff; color: #4338ca;
+        padding: 0.05rem 0.5rem;
+        border-radius: 0.4rem;
+        font-size: 0.78rem;
+    }
+    .det-bench {
+        font-size: 0.92rem;
+        background: #eef2ff;
+        padding: 0.6rem 0.8rem;
+        border-radius: 0.4rem;
+    }
+    .det-bench .delta-up { color: #16a34a; }
+    .det-bench .delta-down { color: #dc2626; }
+</style>
+{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
         <h1 class="h3 mb-1">
-            <i class="bi bi-person-badge"></i> Досье сотрудника #{{ user_id }}
+            <i class="bi bi-person-badge"></i>
+            {% if user %}{{ row.display|default:user.username }}{% else %}Сотрудник #{{ user_id }}{% endif %}
         </h1>
-        <p class="text-muted mb-0">Карточка сотрудника, KPI и активность.</p>
+        <p class="text-muted mb-0">
+            {% if user %}@{{ user.username }} · {{ user.email|default:'—' }}{% endif %}
+        </p>
     </div>
-    <a href="{% url 'summaries:analytics_managers' %}" class="btn btn-outline-secondary">
-        <i class="bi bi-arrow-left"></i> К обзору
-    </a>
+    <div class="d-flex gap-2">
+        <a href="{% url 'summaries:export_analytics_manager_detail' user_id %}{% if filters.start_date_str %}?start_date={{ filters.start_date_str }}&end_date={{ filters.end_date_str }}{% endif %}"
+           class="btn btn-outline-success">
+            <i class="bi bi-file-earmark-spreadsheet"></i> XLSX досье
+        </a>
+        <a href="{% url 'summaries:analytics_managers' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> К обзору
+        </a>
+    </div>
 </div>
 
+{% if not_found %}
 <div class="alert alert-warning">
-    <i class="bi bi-tools"></i>
-    Досье будет реализовано в Phase 4.
+    Сотрудник не найден или нет данных за выбранный период.
 </div>
+{% else %}
+
+<!-- KPI cards -->
+<div class="row g-3 mb-4">
+    <div class="col-12 col-md-6 col-xl-3">
+        <div class="card det-kpi-card">
+            <div class="card-body">
+                <div class="text-muted mb-1">Загружено заявок</div>
+                <div class="det-kpi-value text-primary">{{ row.requests_total }}</div>
+                <small class="text-muted">Сводов: {{ row.summaries_total }}</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-6 col-xl-3">
+        <div class="card det-kpi-card">
+            <div class="card-body">
+                <div class="text-muted mb-1">Акцепт</div>
+                <div class="det-kpi-value text-success">{{ row.accepted }}</div>
+                <small class="text-muted">
+                    Win-rate: {% if row.win_rate is not None %}{{ row.win_rate|floatformat:1 }}%{% else %}—{% endif %}
+                </small>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-6 col-xl-3">
+        <div class="card det-kpi-card">
+            <div class="card-body">
+                <div class="text-muted mb-1">Σ премии</div>
+                <div class="det-kpi-value text-warning">{{ row.premium_total|format_currency_with_spaces }}</div>
+                <small class="text-muted">Чек: {{ row.avg_ticket|format_currency_with_spaces }}</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-6 col-xl-3">
+        <div class="card det-kpi-card">
+            <div class="card-body">
+                <div class="text-muted mb-1">Активно</div>
+                <div class="det-kpi-value text-info">{{ row.active_total }}</div>
+                <small class="text-muted">
+                    Просрочек:
+                    <span class="{% if row.overdue_count %}text-danger fw-semibold{% endif %}">{{ row.overdue_count }}</span>
+                </small>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-6 col-xl-3">
+        <div class="card det-kpi-card">
+            <div class="card-body">
+                <div class="text-muted mb-1">Quality-score</div>
+                <div class="det-kpi-value">
+                    {% if row.quality_score is not None %}{{ row.quality_score|floatformat:1 }}{% else %}—{% endif %}
+                </div>
+                <small class="text-muted">Команда: {% if team.quality_score is not None %}{{ team.quality_score|floatformat:1 }}{% else %}—{% endif %}</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-6 col-xl-3">
+        <div class="card det-kpi-card">
+            <div class="card-body">
+                <div class="text-muted mb-1">Avg цикл, ч</div>
+                <div class="det-kpi-value">
+                    {% if row.time_to.avg_cycle_h %}{{ row.time_to.avg_cycle_h|floatformat:1 }}{% else %}—{% endif %}
+                </div>
+                <small class="text-muted">P50: {% if row.time_to.p50_cycle_h %}{{ row.time_to.p50_cycle_h|floatformat:1 }}{% else %}—{% endif %} · P90: {% if row.time_to.p90_cycle_h %}{{ row.time_to.p90_cycle_h|floatformat:1 }}{% else %}—{% endif %}</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-6 col-xl-3">
+        <div class="card det-kpi-card">
+            <div class="card-body">
+                <div class="text-muted mb-1">Cadence</div>
+                <div class="det-kpi-value">
+                    {% if row.patterns.cadence_hours is not None %}{{ row.patterns.cadence_hours|floatformat:1 }} ч{% else %}—{% endif %}
+                </div>
+                <small class="text-muted">
+                    Поздние {{ row.patterns.late_pct|default:0|floatformat:0 }}% · Выходные {{ row.patterns.weekend_pct|default:0|floatformat:0 }}%
+                </small>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-6 col-xl-3">
+        <div class="card det-kpi-card">
+            <div class="card-body">
+                <div class="text-muted mb-1">Заполненность</div>
+                <div class="det-kpi-value">
+                    {% if row.completeness.overall_pct is not None %}{{ row.completeness.overall_pct|floatformat:1 }}%{% else %}—{% endif %}
+                </div>
+                <small class="text-muted">
+                    Битых ИНН: {{ row.completeness.inn_invalid_count }} · «другое»: {{ row.completeness.other_type_count }}
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if self_benchmark %}
+<div class="det-bench mb-4">
+    <strong>Динамика к предыдущему окну
+        ({{ self_benchmark.previous_window.start|date:"d.m.Y" }} — {{ self_benchmark.previous_window.end|date:"d.m.Y" }}):</strong>
+    {{ self_benchmark.previous_count }} → {{ self_benchmark.current_count }}
+    {% if self_benchmark.change_pct is not None %}
+    <span class="{% if self_benchmark.change_pct > 0 %}delta-up{% elif self_benchmark.change_pct < 0 %}delta-down{% endif %}">
+        ({{ self_benchmark.change_pct }}%)
+    </span>
+    {% endif %}
+</div>
+{% endif %}
+
+<div class="row g-3 mb-4">
+    <div class="col-12 col-lg-6">
+        <div class="card det-card">
+            <div class="card-header"><h5 class="mb-0"><i class="bi bi-radar"></i> Радар (vs команда)</h5></div>
+            <div class="card-body">
+                <div class="det-radar-wrap"><canvas id="det-radar"></canvas></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-lg-6">
+        <div class="row g-3">
+            <div class="col-12">
+                <div class="card det-card">
+                    <div class="card-header"><h5 class="mb-0"><i class="bi bi-building"></i> Любимые СК (топ-5 по accepted)</h5></div>
+                    <div class="card-body">
+                        {% if top_companies %}
+                        <ol class="mb-0">
+                            {% for c in top_companies %}
+                            <li>{{ c.name }} <span class="text-muted">— {{ c.count }}</span></li>
+                            {% endfor %}
+                        </ol>
+                        {% else %}<p class="text-muted mb-0">Нет accepted-сделок за период.</p>{% endif %}
+                    </div>
+                </div>
+            </div>
+            <div class="col-12">
+                <div class="card det-card">
+                    <div class="card-header"><h5 class="mb-0"><i class="bi bi-geo"></i> Любимые филиалы (топ-5)</h5></div>
+                    <div class="card-body">
+                        {% if top_branches %}
+                        <ol class="mb-0">
+                            {% for b in top_branches %}
+                            <li>{{ b.name }} <span class="text-muted">— {{ b.count }}</span></li>
+                            {% endfor %}
+                        </ol>
+                        {% else %}<p class="text-muted mb-0">Нет данных.</p>{% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-12 col-lg-6">
+        <div class="card det-card">
+            <div class="card-header"><h5 class="mb-0"><i class="bi bi-list-task"></i> Активные сделки ({{ active_items|length }})</h5></div>
+            <div class="card-body p-0">
+                <div class="det-list">
+                    {% for item in active_items %}
+                    <div class="px-3 py-2 border-bottom">
+                        <strong>
+                            {% if item.kind == 'summary' %}
+                            <a href="{% url 'summaries:summary_detail' item.id %}">{{ item.dfa_number }}</a>
+                            {% else %}
+                            <a href="{% url 'insurance_requests:request_detail' item.id %}">{{ item.dfa_number }}</a>
+                            {% endif %}
+                        </strong>
+                        — {{ item.client_name|truncatechars:50 }}
+                        <small class="d-block text-muted">
+                            <span class="det-status-pill">{{ item.status }}</span>
+                            · {% if item.kind == 'summary' %}свод{% else %}заявка{% endif %}
+                            · {{ item.age_days }} дн.
+                        </small>
+                    </div>
+                    {% empty %}
+                    <p class="text-muted px-3 py-3 mb-0">Активных дел нет.</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12 col-lg-6">
+        <div class="card det-card">
+            <div class="card-header"><h5 class="mb-0"><i class="bi bi-exclamation-octagon"></i> Просроченные ({{ overdue|length }}) · Зависшие ({{ stuck|length }})</h5></div>
+            <div class="card-body p-0">
+                <div class="det-list">
+                    {% if overdue %}
+                    <h6 class="text-danger px-3 pt-3 mb-2">Просроченный deadline</h6>
+                    {% for o in overdue %}
+                    <div class="px-3 py-2 border-bottom">
+                        <a href="{% url 'insurance_requests:request_detail' o.request_id %}">{{ o.dfa_number }}</a>
+                        — {{ o.client_name|truncatechars:50 }}
+                        <small class="d-block text-muted">
+                            {{ o.status }} · просрочка {{ o.overdue_hours|floatformat:1 }} ч
+                        </small>
+                    </div>
+                    {% endfor %}
+                    {% endif %}
+                    {% if stuck %}
+                    <h6 class="text-warning px-3 pt-3 mb-2">Зависшие сделки</h6>
+                    {% for s in stuck %}
+                    <div class="px-3 py-2 border-bottom">
+                        <a href="{% url 'summaries:summary_detail' s.summary_id %}">{{ s.dfa_number }}</a>
+                        — {{ s.client_name|truncatechars:50 }}
+                        <small class="d-block text-muted">{{ s.status }} · {{ s.days_inactive }} дн.</small>
+                    </div>
+                    {% endfor %}
+                    {% endif %}
+                    {% if not overdue and not stuck %}
+                    <p class="text-muted px-3 py-3 mb-0">Просроченных и зависших нет.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Activity timeline -->
+<div class="card det-card mb-4">
+    <div class="card-header"><h5 class="mb-0"><i class="bi bi-clock-history"></i> Лента активности</h5></div>
+    <div class="card-body">
+        {% if timeline %}
+        <div class="det-list">
+            {% for evt in timeline %}
+            <div class="det-timeline-item kind-{{ evt.kind }}">
+                <div>
+                    <strong>{{ evt.changed_at|date:"d.m.Y H:i" }}</strong> ·
+                    {% if evt.kind == 'summary' %}
+                    <a href="{% url 'summaries:summary_detail' evt.target_id %}">{{ evt.target_label }}</a>
+                    {% else %}
+                    <a href="{% url 'insurance_requests:request_detail' evt.target_id %}">{{ evt.target_label }}</a>
+                    {% endif %}
+                </div>
+                <small class="text-muted">
+                    {% if evt.kind == 'summary' %}свод{% else %}заявка{% endif %}:
+                    «{{ evt.from_status|default:'создан' }}» → «{{ evt.to_status }}»
+                    {% if evt.client_name %} · {{ evt.client_name|truncatechars:50 }}{% endif %}
+                </small>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-muted mb-0">Нет событий в ленте (StatusEvent начали записывать недавно).</p>
+        {% endif %}
+    </div>
+</div>
+
+{{ radar_json|json_script:"det-radar-data" }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+    var raw = document.getElementById('det-radar-data');
+    if (!raw) return;
+    var data;
+    try { data = JSON.parse(raw.textContent); } catch (e) { return; }
+    if (!data.manager) return;
+    var canvas = document.getElementById('det-radar');
+    if (!canvas) return;
+    var keys = ['volume', 'speed', 'win_rate', 'quality', 'money', 'activity'];
+    var managerVals = keys.map(function (k) { return data.manager[k] || 0; });
+    var teamVals = keys.map(function (k) { return (data.team || {})[k] || 0; });
+    new Chart(canvas, {
+        type: 'radar',
+        data: {
+            labels: data.axes,
+            datasets: [
+                {
+                    label: data.display,
+                    data: managerVals,
+                    backgroundColor: 'rgba(37, 99, 235, 0.2)',
+                    borderColor: '#2563eb',
+                    pointBackgroundColor: '#2563eb',
+                    borderWidth: 2,
+                },
+                {
+                    label: 'Команда',
+                    data: teamVals,
+                    backgroundColor: 'rgba(15, 23, 42, 0.05)',
+                    borderColor: 'rgba(15, 23, 42, 0.6)',
+                    borderDash: [4, 4],
+                    pointRadius: 0,
+                    borderWidth: 2,
+                },
+            ],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: { r: { suggestedMin: 0, suggestedMax: 100, ticks: { stepSize: 25 } } },
+        },
+    });
+})();
+</script>
+
+{% endif %}
 {% endblock %}

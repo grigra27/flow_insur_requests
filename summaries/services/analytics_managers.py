@@ -1402,13 +1402,261 @@ def _team_radar(rows: list[dict]) -> dict[str, float]:
     return out
 
 
+def _personal_status_events(user_id: int, *, limit: int = 50) -> list[dict[str, Any]]:
+    """Возвращает события смены статуса заявок и сводов сотрудника.
+
+    События сразу обогащаем display-данными цели (DFA, клиент), чтобы
+    не дёргать БД из шаблона.
+    """
+    from django.contrib.contenttypes.models import ContentType
+    from ..models import StatusEvent
+
+    request_ct = ContentType.objects.get_for_model(InsuranceRequest)
+    summary_ct = ContentType.objects.get_for_model(InsuranceSummary)
+
+    request_ids = list(InsuranceRequest.objects.filter(created_by_id=user_id).values_list('id', flat=True))
+    summary_ids = list(
+        InsuranceSummary.objects.filter(request__created_by_id=user_id).values_list('id', flat=True)
+    )
+
+    events = StatusEvent.objects.filter(
+        Q(content_type=request_ct, object_id__in=request_ids)
+        | Q(content_type=summary_ct, object_id__in=summary_ids)
+    ).order_by('-changed_at')[:limit]
+
+    request_map = {
+        r.id: r
+        for r in InsuranceRequest.objects.filter(id__in=request_ids).only(
+            'id', 'dfa_number', 'client_name', 'status'
+        )
+    }
+    summary_map = {
+        s.id: s
+        for s in InsuranceSummary.objects.filter(id__in=summary_ids).select_related('request').only(
+            'id', 'request_id', 'request__dfa_number', 'request__client_name', 'status'
+        )
+    }
+
+    out: list[dict[str, Any]] = []
+    for evt in events:
+        kind: str
+        target_label: str
+        target_id: int | None = None
+        request_id: int | None = None
+        if evt.content_type_id == request_ct.id:
+            kind = 'request'
+            req = request_map.get(evt.object_id)
+            if req:
+                target_id = req.id
+                request_id = req.id
+                target_label = req.dfa_number or f'#{req.id}'
+                client_name = req.client_name
+            else:
+                target_label = f'#{evt.object_id}'
+                client_name = ''
+        elif evt.content_type_id == summary_ct.id:
+            kind = 'summary'
+            sm = summary_map.get(evt.object_id)
+            if sm:
+                target_id = sm.id
+                request_id = sm.request_id
+                target_label = (sm.request.dfa_number if sm.request else None) or f'#{sm.id}'
+                client_name = sm.request.client_name if sm.request else ''
+            else:
+                target_label = f'#{evt.object_id}'
+                client_name = ''
+        else:
+            continue
+
+        out.append({
+            'changed_at': evt.changed_at,
+            'kind': kind,
+            'target_id': target_id,
+            'request_id': request_id,
+            'target_label': target_label,
+            'client_name': client_name,
+            'from_status': evt.from_status,
+            'to_status': evt.to_status,
+        })
+    return out
+
+
 def build_manager_profile_payload(user_id: int, filters: dict) -> dict[str, Any]:
-    """Phase 0 stub. Заполняется в Phase 4."""
+    """Полное досье сотрудника.
+
+    Возвращает: profile (User-данные), kpi (включая радар + сравнение с командой),
+    активные/просроченные/зависшие, топ-5 СК и филиалов, timeline.
+    """
+    overview = build_overview_payload(filters)
+
+    user = User.objects.filter(pk=user_id).first()
+    row = next(
+        (r for r in overview['rows'] if not r['is_unassigned'] and r['user_id'] == user_id),
+        None,
+    )
+    if user is None and row is None:
+        return {
+            'filters': filters,
+            'user_id': user_id,
+            'user': None,
+            'row': None,
+            'team': overview['team'],
+            'available_filters': overview['available_filters'],
+            'not_found': True,
+        }
+
+    now = timezone.now()
+    request_qs = InsuranceRequest.objects.filter(created_by_id=user_id)
+    if filters['start_date']:
+        request_qs = request_qs.filter(created_at__date__gte=filters['start_date'])
+    if filters['end_date']:
+        request_qs = request_qs.filter(created_at__date__lte=filters['end_date'])
+
+    summary_qs = (
+        InsuranceSummary.objects
+        .filter(request__created_by_id=user_id)
+        .select_related('request')
+        .prefetch_related('offers')
+    )
+    if filters['start_date']:
+        summary_qs = summary_qs.filter(request__created_at__date__gte=filters['start_date'])
+    if filters['end_date']:
+        summary_qs = summary_qs.filter(request__created_at__date__lte=filters['end_date'])
+
+    # Активные сделки
+    active_summaries = summary_qs.filter(status__in=list(ACTIVE_SUMMARY_STATUSES)).order_by('-updated_at')
+    active_requests = request_qs.filter(status__in=list(ACTIVE_REQUEST_STATUSES)).order_by('-created_at')
+
+    active_list = []
+    for r in active_requests[:25]:
+        active_list.append({
+            'kind': 'request',
+            'id': r.id,
+            'dfa_number': r.dfa_number or f'#{r.id}',
+            'client_name': r.client_name,
+            'status': r.get_status_display(),
+            'updated_at': r.updated_at,
+            'age_days': (now - r.created_at).days if r.created_at else None,
+        })
+    for s in active_summaries[:25]:
+        active_list.append({
+            'kind': 'summary',
+            'id': s.id,
+            'request_id': s.request_id,
+            'dfa_number': (s.request.dfa_number if s.request else None) or f'#{s.id}',
+            'client_name': s.request.client_name if s.request else '',
+            'status': s.get_status_display(),
+            'updated_at': s.updated_at,
+            'age_days': (now - (s.updated_at or s.created_at)).days,
+        })
+
+    # Просроченные (response_deadline < now & status != emails_sent)
+    overdue_qs = (
+        request_qs.filter(response_deadline__lt=now)
+        .exclude(status='emails_sent')
+        .order_by('response_deadline')
+    )
+    overdue = [
+        {
+            'request_id': r.id,
+            'dfa_number': r.dfa_number or f'#{r.id}',
+            'client_name': r.client_name,
+            'deadline': r.response_deadline,
+            'overdue_hours': round((now - r.response_deadline).total_seconds() / 3600, 1),
+            'status': r.get_status_display(),
+        }
+        for r in overdue_qs[:25]
+    ]
+
+    # Зависшие
+    stuck_threshold = now - timedelta(days=STUCK_SUMMARY_DAYS_DEFAULT)
+    stuck_qs = (
+        summary_qs.filter(status__in=list(ACTIVE_SUMMARY_STATUSES))
+        .filter(updated_at__lt=stuck_threshold)
+        .order_by('updated_at')
+    )
+    stuck = [
+        {
+            'summary_id': s.id,
+            'request_id': s.request_id,
+            'dfa_number': (s.request.dfa_number if s.request else None) or f'#{s.id}',
+            'client_name': s.request.client_name if s.request else '',
+            'days_inactive': (now - s.updated_at).days,
+            'status': s.get_status_display(),
+        }
+        for s in stuck_qs[:25]
+    ]
+
+    # Топ-5 СК (по accepted)
+    company_counts: dict[str, int] = defaultdict(int)
+    for s in summary_qs.filter(status='completed_accepted'):
+        if s.selected_company:
+            company_counts[s.selected_company] += 1
+    top_companies = [
+        {'name': name, 'count': cnt}
+        for name, cnt in sorted(company_counts.items(), key=lambda x: -x[1])[:5]
+    ]
+
+    # Топ-5 филиалов (по всем заявкам)
+    branch_counts: dict[str, int] = defaultdict(int)
+    for r in request_qs:
+        branch_counts[r.branch or 'не указан'] += 1
+    top_branches = [
+        {'name': name, 'count': cnt}
+        for name, cnt in sorted(branch_counts.items(), key=lambda x: -x[1])[:5]
+    ]
+
+    timeline = _personal_status_events(user_id, limit=50)
+
+    # Self-benchmark vs предыдущий период
+    self_benchmark = None
+    if filters['start_date'] and filters['end_date']:
+        span_days = (filters['end_date'] - filters['start_date']).days + 1
+        prev_end = filters['start_date'] - timedelta(days=1)
+        prev_start = prev_end - timedelta(days=span_days - 1)
+        prev_qs = InsuranceRequest.objects.filter(
+            created_by_id=user_id,
+            created_at__date__gte=prev_start,
+            created_at__date__lte=prev_end,
+        )
+        prev_count = prev_qs.count()
+        cur_count = request_qs.count()
+        if prev_count:
+            change_pct = round((cur_count - prev_count) / prev_count * 100, 1)
+        else:
+            change_pct = None
+        self_benchmark = {
+            'previous_window': {'start': prev_start, 'end': prev_end},
+            'previous_count': prev_count,
+            'current_count': cur_count,
+            'change_pct': change_pct,
+        }
+
     return {
         'filters': filters,
         'user_id': user_id,
-        'profile': None,
-        'phase': 0,
+        'user': user,
+        'row': row,
+        'team': overview['team'],
+        'team_radar': overview['team_radar'],
+        'active_items': active_list,
+        'overdue': overdue,
+        'stuck': stuck,
+        'top_companies': top_companies,
+        'top_branches': top_branches,
+        'timeline': timeline,
+        'self_benchmark': self_benchmark,
+        'available_filters': overview['available_filters'],
+        'radar_json': json.dumps(
+            {
+                'axes': [label for _, label in RADAR_AXES],
+                'team': overview['team_radar'],
+                'manager': row['radar'] if row else None,
+                'display': row['display'] if row else (user.get_full_name() if user else f'#{user_id}'),
+            },
+            ensure_ascii=False,
+            default=str,
+        ),
     }
 
 
@@ -1447,6 +1695,213 @@ def build_compare_payload(user_ids: list[int], filters: dict) -> dict[str, Any]:
         'radar': radar_data,
         'radar_json': json.dumps(radar_data, ensure_ascii=False, default=str),
     }
+
+
+def export_overview_xlsx(filters: dict):
+    """Многолистовой XLSX обзора. Возвращает BytesIO."""
+    from io import BytesIO
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font, PatternFill
+
+    payload = build_overview_payload(filters)
+    wb = Workbook()
+    header_font = Font(bold=True, color='FFFFFF')
+    header_fill = PatternFill('solid', fgColor='2563EB')
+
+    def _set_header(ws, headers: list[str]):
+        for col_idx, label in enumerate(headers, start=1):
+            cell = ws.cell(row=1, column=col_idx, value=label)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal='left')
+
+    # Sheet 1: KPI
+    ws_kpi = wb.active
+    ws_kpi.title = 'KPI'
+    ws_kpi.append(['Метрика', 'Значение'])
+    for cell in ws_kpi[1]:
+        cell.font = header_font
+        cell.fill = header_fill
+    kpi = payload['kpi']
+    rows = [
+        ('Заявок', kpi['total_requests']),
+        ('Сводов', kpi['total_summaries']),
+        ('Акцепт', kpi['accepted']),
+        ('Win-rate, %', kpi['win_rate']),
+        ('Σ премии', float(kpi['premium_total'] or 0)),
+        ('Средний чек', float(kpi['avg_ticket'] or 0)),
+        ('Активно сейчас', kpi['active_total']),
+        ('Просрочек', kpi['overdue_count']),
+        ('Активных сотрудников', kpi['managers_count']),
+        ('Среднее заявок/день', kpi['avg_per_day']),
+        ('Среднее заявок/неделя', kpi['avg_per_week']),
+        ('Среднее заявок/месяц', kpi['avg_per_month']),
+        ('Quality-score команды', kpi.get('team_quality_score')),
+    ]
+    for label, value in rows:
+        ws_kpi.append([label, value])
+
+    # Sheet 2: Сотрудники
+    ws_mgr = wb.create_sheet('Сотрудники')
+    _set_header(ws_mgr, [
+        'Сотрудник', 'Заявок', 'Сводов', 'Акцепт', 'Не будет',
+        'Win-rate, %', 'Σ премии', 'Средний чек', 'Avg цикл, ч',
+        'Активно', 'Просрочек', 'Quality',
+    ])
+    for r in payload['rows']:
+        ws_mgr.append([
+            r['display'],
+            r['requests_total'],
+            r['summaries_total'],
+            r['accepted'],
+            r['rejected'],
+            r['win_rate'],
+            float(r['premium_total'] or 0),
+            float(r.get('avg_ticket') or 0),
+            r['time_to'].get('avg_cycle_h'),
+            r['active_total'],
+            r['overdue_count'],
+            r.get('quality_score'),
+        ])
+
+    # Sheet 3: Качество данных
+    ws_q = wb.create_sheet('Качество данных')
+    _set_header(ws_q, [
+        'Сотрудник', 'База, %', 'КАСКО-доп, %', 'Имущ.-доп, %',
+        'Общая, %', 'Битый ИНН', 'Тип «другое»', 'Отредактировано',
+    ])
+    for r in payload['rows']:
+        c = r['completeness']
+        ws_q.append([
+            r['display'],
+            c['base_pct'], c['casco_pct'], c['property_pct'], c['overall_pct'],
+            c['inn_invalid_count'], c['other_type_count'], c['edited_count'],
+        ])
+
+    # Sheet 4: Funnel
+    ws_f = wb.create_sheet('Funnel')
+    _set_header(ws_f, ['Стадия', 'Количество', '% от загрузок', 'Drop-off'])
+    for stage in payload['funnel']['stages']:
+        ws_f.append([stage['label'], stage['count'], stage['pct_of_top'], stage['drop_off']])
+
+    # Sheet 5: Heatmap branch
+    for hm_key, hm_label in [
+        ('branch', 'Heatmap - Филиалы'),
+        ('insurance_type', 'Heatmap - Типы'),
+        ('alliance_manager', 'Heatmap - Менеджер Альянса'),
+        ('selected_company', 'Heatmap - Выбранная СК'),
+    ]:
+        hm = payload['heatmaps'].get(hm_key) or {}
+        ws_h = wb.create_sheet(hm_label[:31])  # Excel sheet name limit
+        if not hm.get('rows'):
+            ws_h.append(['Нет данных'])
+            continue
+        _set_header(ws_h, ['Сотрудник'] + list(hm['columns']) + ['Σ'])
+        for hrow in hm['rows']:
+            ws_h.append([hrow['label']] + list(hrow['cells']) + [hrow['total']])
+
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return output
+
+
+def export_manager_dossier_xlsx(user_id: int, filters: dict):
+    """XLSX-досье одного сотрудника."""
+    from io import BytesIO
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font, PatternFill
+
+    profile = build_manager_profile_payload(user_id, filters)
+
+    wb = Workbook()
+    header_font = Font(bold=True, color='FFFFFF')
+    header_fill = PatternFill('solid', fgColor='2563EB')
+
+    def _set_header(ws, headers: list[str]):
+        for col_idx, label in enumerate(headers, start=1):
+            cell = ws.cell(row=1, column=col_idx, value=label)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal='left')
+
+    row = profile.get('row')
+    user = profile.get('user')
+    display = (row['display'] if row else
+               (user.get_full_name() if user else f'user#{user_id}'))
+
+    ws_kpi = wb.active
+    ws_kpi.title = 'KPI'
+    ws_kpi.append(['Сотрудник', display])
+    if user:
+        ws_kpi.append(['Username', user.username])
+        ws_kpi.append(['Email', user.email])
+    if row:
+        ws_kpi.append(['Заявок', row['requests_total']])
+        ws_kpi.append(['Сводов', row['summaries_total']])
+        ws_kpi.append(['Акцепт', row['accepted']])
+        ws_kpi.append(['Не будет', row['rejected']])
+        ws_kpi.append(['Win-rate, %', row['win_rate']])
+        ws_kpi.append(['Σ премии', float(row['premium_total'] or 0)])
+        ws_kpi.append(['Σ страховой суммы', float(row['sum_total'] or 0)])
+        ws_kpi.append(['Средний чек', float(row['avg_ticket'] or 0)])
+        ws_kpi.append(['Avg цикл, ч', row['time_to'].get('avg_cycle_h')])
+        ws_kpi.append(['P50 цикла, ч', row['time_to'].get('p50_cycle_h')])
+        ws_kpi.append(['P90 цикла, ч', row['time_to'].get('p90_cycle_h')])
+        ws_kpi.append(['Активно сейчас', row['active_total']])
+        ws_kpi.append(['Просрочек', row['overdue_count']])
+        ws_kpi.append(['Quality-score', row.get('quality_score')])
+
+    ws_active = wb.create_sheet('Активные')
+    _set_header(ws_active, ['Тип', 'ID', 'DFA', 'Клиент', 'Статус', 'Возраст, дн.'])
+    for item in profile.get('active_items') or []:
+        ws_active.append([
+            'Заявка' if item['kind'] == 'request' else 'Свод',
+            item['id'], item['dfa_number'], item['client_name'],
+            item['status'], item.get('age_days'),
+        ])
+
+    ws_over = wb.create_sheet('Просроченные')
+    _set_header(ws_over, ['DFA', 'Клиент', 'Статус', 'Дедлайн', 'Просрочка, ч'])
+    for item in profile.get('overdue') or []:
+        ws_over.append([
+            item['dfa_number'], item['client_name'], item['status'],
+            item['deadline'], item['overdue_hours'],
+        ])
+
+    ws_stuck = wb.create_sheet('Зависшие')
+    _set_header(ws_stuck, ['DFA', 'Клиент', 'Статус', 'Дней без движения'])
+    for item in profile.get('stuck') or []:
+        ws_stuck.append([
+            item['dfa_number'], item['client_name'], item['status'], item['days_inactive'],
+        ])
+
+    ws_top = wb.create_sheet('Топ СК и Филиалы')
+    ws_top.append(['Топ СК (accepted)', '', 'Топ Филиалы'])
+    for cell in ws_top[1]:
+        cell.font = header_font
+    top_companies = profile.get('top_companies') or []
+    top_branches = profile.get('top_branches') or []
+    for i in range(max(len(top_companies), len(top_branches), 1)):
+        c = top_companies[i] if i < len(top_companies) else {'name': '', 'count': ''}
+        b = top_branches[i] if i < len(top_branches) else {'name': '', 'count': ''}
+        ws_top.append([f'{c["name"]} ({c["count"]})' if c['name'] else '', '',
+                       f'{b["name"]} ({b["count"]})' if b['name'] else ''])
+
+    ws_tl = wb.create_sheet('Активность')
+    _set_header(ws_tl, ['Когда', 'Тип', 'DFA', 'Клиент', 'Изменение'])
+    for evt in profile.get('timeline') or []:
+        ws_tl.append([
+            evt['changed_at'].strftime('%d.%m.%Y %H:%M') if evt.get('changed_at') else '',
+            'Заявка' if evt['kind'] == 'request' else 'Свод',
+            evt['target_label'], evt['client_name'],
+            f'{evt["from_status"] or "—"} → {evt["to_status"]}',
+        ])
+
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return output
 
 
 def build_leaderboard_payload(filters: dict) -> dict[str, Any]:

@@ -2953,15 +2953,20 @@ def analytics_managers_leaderboard(request):
 
 @admin_required
 def export_analytics_managers_widget(request, user_id=None):
-    """XLSX-экспорт обзорной аналитики или досье сотрудника.
-
-    Phase 0: возвращает 501 Not Implemented. Реализуется в Phase 4.
-    """
+    """XLSX-экспорт: общий обзор или досье одного сотрудника."""
+    filters = analytics_managers_service.parse_filters(request.GET)
+    today = timezone.localdate().strftime('%Y-%m-%d')
+    if user_id is None:
+        output = analytics_managers_service.export_overview_xlsx(filters)
+        filename = f'employee_analytics_{today}.xlsx'
+    else:
+        output = analytics_managers_service.export_manager_dossier_xlsx(user_id, filters)
+        filename = f'employee_dossier_{user_id}_{today}.xlsx'
     response = HttpResponse(
-        'Экспорт аналитики по сотрудникам появится в Phase 4.',
-        content_type='text/plain; charset=utf-8',
-        status=501,
+        output.getvalue(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     )
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
     return response
 
 

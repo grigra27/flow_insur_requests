@@ -37,11 +37,10 @@ class ManagerAnalyticsAccessTests(TestCase):
                 reverse('summaries:analytics_manager_detail', kwargs={'user_id': self.admin.pk}),
                 200,
             ),
-            # Экспорт в Phase 0 возвращает 501 — это тоже admin-only ответ, не 403.
-            (reverse('summaries:export_analytics_managers_widget'), 501),
+            (reverse('summaries:export_analytics_managers_widget'), 200),
             (
                 reverse('summaries:export_analytics_manager_detail', kwargs={'user_id': self.admin.pk}),
-                501,
+                200,
             ),
         ]
 

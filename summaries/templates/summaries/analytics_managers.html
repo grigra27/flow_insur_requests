@@ -182,6 +182,10 @@
             </p>
         </div>
         <div class="d-flex gap-2">
+            <a href="{% url 'summaries:export_analytics_managers_widget' %}{% if filters.start_date_str %}?start_date={{ filters.start_date_str }}&end_date={{ filters.end_date_str }}{% endif %}"
+               class="btn btn-outline-success">
+                <i class="bi bi-file-earmark-spreadsheet"></i> XLSX
+            </a>
             <a href="{% url 'summaries:analytics_managers_compare' %}" class="btn btn-outline-secondary">
                 <i class="bi bi-people-fill"></i> Сравнение
             </a>
