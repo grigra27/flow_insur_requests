@@ -18,6 +18,10 @@ python manage.py migrate --noinput
 echo "Collecting static files..."
 python manage.py collectstatic --noinput
 
+# Run Django deployment checks (logs warnings/errors but does not block boot)
+echo "Running Django deployment checks..."
+python manage.py check --deploy || echo "WARNING: deploy checks reported issues — review output above"
+
 # Optionally create superuser or run other management commands here
 
 # Execute the main command (gunicorn)
