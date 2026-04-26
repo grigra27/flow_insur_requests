@@ -17,7 +17,25 @@
         margin-bottom: 0.4rem;
         border-radius: 0 4px 4px 0;
     }
-    .det-timeline-item.kind-summary { border-left-color: #16a34a; }
+    .det-timeline-item.kind-status { border-left-color: #2563eb; }
+    .det-timeline-item.kind-edit { border-left-color: #f59e0b; }
+    .det-timeline-item.kind-create { border-left-color: #16a34a; }
+    .det-timeline-item.kind-delete { border-left-color: #dc2626; }
+    .det-timeline-item .field-diff {
+        font-size: 0.82rem;
+        color: #475569;
+        margin-top: 0.25rem;
+    }
+    .det-timeline-item .field-diff .field-label { color: #1e293b; font-weight: 600; }
+    .det-timeline-item .field-diff .old { color: #94a3b8; text-decoration: line-through; }
+    .det-timeline-item .field-diff .new { color: #16a34a; }
+    .det-timeline-toggle {
+        display: inline-flex; align-items: center;
+        background: transparent; border: 0; color: #2563eb;
+        padding: 0; font-size: 0.82rem; cursor: pointer;
+    }
+    .det-timeline-toggle:hover { text-decoration: underline; }
+    .det-timeline-filters .form-check-inline { margin-right: 1rem; }
     .det-status-pill {
         display: inline-block;
         background: #eef2ff; color: #4338ca;
@@ -281,33 +299,103 @@
 
 <!-- Activity timeline -->
 <div class="card det-card mb-4">
-    <div class="card-header"><h5 class="mb-0"><i class="bi bi-clock-history"></i> Лента активности</h5></div>
+    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <h5 class="mb-0"><i class="bi bi-clock-history"></i> Лента активности</h5>
+        <div class="det-timeline-filters">
+            <div class="form-check form-check-inline">
+                <input class="form-check-input js-tl-filter" type="checkbox" value="status" id="tl-f-status" checked>
+                <label class="form-check-label" for="tl-f-status"><i class="bi bi-arrow-right text-primary"></i> Статусы</label>
+            </div>
+            <div class="form-check form-check-inline">
+                <input class="form-check-input js-tl-filter" type="checkbox" value="edit" id="tl-f-edit" checked>
+                <label class="form-check-label" for="tl-f-edit"><i class="bi bi-pencil text-warning"></i> Правки</label>
+            </div>
+            <div class="form-check form-check-inline">
+                <input class="form-check-input js-tl-filter" type="checkbox" value="create" id="tl-f-create" checked>
+                <label class="form-check-label" for="tl-f-create"><i class="bi bi-plus-circle text-success"></i> Создание</label>
+            </div>
+            <div class="form-check form-check-inline">
+                <input class="form-check-input js-tl-filter" type="checkbox" value="delete" id="tl-f-delete" checked>
+                <label class="form-check-label" for="tl-f-delete"><i class="bi bi-trash text-danger"></i> Удаление</label>
+            </div>
+        </div>
+    </div>
     <div class="card-body">
         {% if timeline %}
-        <div class="det-list">
+        <div class="det-list" id="det-timeline-list">
             {% for evt in timeline %}
-            <div class="det-timeline-item kind-{{ evt.kind }}">
+            <div class="det-timeline-item kind-{{ evt.kind }}" data-kind="{{ evt.kind }}">
                 <div>
+                    {% if evt.kind == 'status' %}<i class="bi bi-arrow-right text-primary"></i>
+                    {% elif evt.kind == 'edit' %}<i class="bi bi-pencil text-warning"></i>
+                    {% elif evt.kind == 'create' %}<i class="bi bi-plus-circle text-success"></i>
+                    {% elif evt.kind == 'delete' %}<i class="bi bi-trash text-danger"></i>
+                    {% endif %}
                     <strong>{{ evt.changed_at|date:"d.m.Y H:i" }}</strong> ·
-                    {% if evt.kind == 'summary' %}
-                    <a href="{% url 'summaries:summary_detail' evt.target_id %}">{{ evt.target_label }}</a>
+                    {% if evt.target_kind == 'summary' and evt.target_id %}
+                        <a href="{% url 'summaries:summary_detail' evt.target_id %}">{{ evt.target_label }}</a>
+                        <span class="text-muted">· свод</span>
+                    {% elif evt.target_kind == 'request' and evt.target_id %}
+                        <a href="{% url 'insurance_requests:request_detail' evt.target_id %}">{{ evt.target_label }}</a>
+                        <span class="text-muted">· заявка</span>
+                    {% elif evt.target_kind == 'offer' and evt.request_id %}
+                        <a href="{% url 'summaries:summary_detail' evt.target_id %}">{{ evt.target_label }}</a>
+                        <span class="text-muted">· предложение</span>
                     {% else %}
-                    <a href="{% url 'insurance_requests:request_detail' evt.target_id %}">{{ evt.target_label }}</a>
+                        {{ evt.target_label }}
+                    {% endif %}
+                    <span class="text-muted">— {{ evt.kind_label }}</span>
+                </div>
+
+                {% if evt.kind == 'status' %}
+                <small class="text-muted">«{{ evt.from_status|default:'создан' }}» → «{{ evt.to_status }}»{% if evt.client_name %} · {{ evt.client_name|truncatechars:50 }}{% endif %}</small>
+                {% elif evt.kind == 'edit' and evt.changes %}
+                {% with first=evt.changes|first %}
+                <div class="field-diff">
+                    <span class="field-label">{{ first.label }}:</span>
+                    <span class="old">{{ first.old }}</span> → <span class="new">{{ first.new }}</span>
+                    {% if evt.changes|length > 1 %}
+                    <button type="button" class="det-timeline-toggle ms-2" data-bs-toggle="collapse" data-bs-target="#tl-edit-{{ forloop.counter }}">
+                        + ещё {{ evt.changes|length|add:"-1" }} полей
+                    </button>
+                    <div class="collapse mt-1" id="tl-edit-{{ forloop.counter }}">
+                        {% for ch in evt.changes|slice:"1:" %}
+                        <div class="ms-2">
+                            <span class="field-label">{{ ch.label }}:</span>
+                            <span class="old">{{ ch.old }}</span> → <span class="new">{{ ch.new }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
                     {% endif %}
                 </div>
-                <small class="text-muted">
-                    {% if evt.kind == 'summary' %}свод{% else %}заявка{% endif %}:
-                    «{{ evt.from_status|default:'создан' }}» → «{{ evt.to_status }}»
-                    {% if evt.client_name %} · {{ evt.client_name|truncatechars:50 }}{% endif %}
-                </small>
+                {% endwith %}
+                {% elif evt.client_name %}
+                <small class="text-muted">{{ evt.client_name|truncatechars:50 }}</small>
+                {% endif %}
             </div>
             {% endfor %}
         </div>
         {% else %}
-        <p class="text-muted mb-0">Нет событий в ленте (StatusEvent начали записывать недавно).</p>
+        <p class="text-muted mb-0">Нет событий в ленте (аудит начали записывать недавно).</p>
         {% endif %}
     </div>
 </div>
+
+<script>
+(function () {
+    var filters = document.querySelectorAll('.js-tl-filter');
+    var list = document.getElementById('det-timeline-list');
+    if (!filters.length || !list) return;
+    function applyFilters() {
+        var allowed = new Set();
+        filters.forEach(function (f) { if (f.checked) allowed.add(f.value); });
+        list.querySelectorAll('.det-timeline-item').forEach(function (item) {
+            item.style.display = allowed.has(item.dataset.kind) ? '' : 'none';
+        });
+    }
+    filters.forEach(function (f) { f.addEventListener('change', applyFilters); });
+})();
+</script>
 
 {{ radar_json|json_script:"det-radar-data" }}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
