@@ -1,40 +1,608 @@
 {% extends 'base.html' %}
+{% load summary_extras %}
 
 {% block title %}Аналитика по сотрудникам - {{ block.super }}{% endblock %}
 
+{% block extra_css %}
+<style>
+    .mgr-page { --mgr-primary: var(--app-primary); }
+
+    .mgr-filter-card {
+        border: 0;
+        box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+        background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%);
+    }
+
+    .mgr-kpi-card,
+    .mgr-table-card,
+    .mgr-chart-card,
+    .mgr-alerts-card {
+        border: 0;
+        box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+        height: 100%;
+    }
+
+    .mgr-kpi-value {
+        font-size: 1.55rem;
+        line-height: 1.1;
+        font-weight: 700;
+    }
+
+    .mgr-chart-wrap {
+        position: relative;
+        height: 280px;
+    }
+
+    .mgr-chart-wrap--tall { height: 360px; }
+
+    .mgr-funnel-stage {
+        background: #f8fafc;
+        padding: 0.75rem 1rem;
+        border-left: 4px solid var(--mgr-primary, #2563eb);
+        margin-bottom: 0.5rem;
+        position: relative;
+    }
+
+    .mgr-funnel-bar {
+        position: absolute;
+        left: 0; top: 0; bottom: 0;
+        background: rgba(37, 99, 235, 0.1);
+        z-index: 0;
+    }
+
+    .mgr-funnel-stage .mgr-funnel-content {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+
+    .mgr-stage-label {
+        font-weight: 600;
+        color: #1e293b;
+    }
+
+    .mgr-stage-meta {
+        color: #64748b;
+        font-size: 0.86rem;
+    }
+
+    .mgr-table thead th {
+        font-size: 0.82rem;
+        text-transform: uppercase;
+        color: #64748b;
+        letter-spacing: 0.02em;
+    }
+
+    .mgr-table tbody td.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+    .mgr-row-total {
+        background: #f1f5f9;
+        font-weight: 600;
+    }
+
+    .mgr-row-unassigned td {
+        color: #94a3b8;
+        font-style: italic;
+    }
+
+    .mgr-alerts-card .alert-list {
+        max-height: 280px;
+        overflow-y: auto;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <div>
-        <h1 class="h3 mb-1">
-            <i class="bi bi-people"></i> Аналитика по сотрудникам
-        </h1>
-        <p class="text-muted mb-0">
-            Эффективность работы менеджеров Онлайна, загрузки заявок, скорость и качество.
-        </p>
+<div class="mgr-page">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">
+                <i class="bi bi-people"></i> Аналитика по сотрудникам
+            </h1>
+            <p class="text-muted mb-0">
+                Объёмы загрузок, скорость закрытия сделок и backlog — по каждому менеджеру Онлайна.
+            </p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{% url 'summaries:analytics_managers_compare' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-people-fill"></i> Сравнение
+            </a>
+            <a href="{% url 'summaries:analytics_managers_leaderboard' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-trophy"></i> Леденборд
+            </a>
+            <a href="{% url 'summaries:analytics' %}" class="btn btn-outline-primary">
+                <i class="bi bi-arrow-left"></i> К аналитике
+            </a>
+        </div>
     </div>
-    <div>
-        <a href="{% url 'summaries:analytics_managers_compare' %}" class="btn btn-outline-secondary">
-            <i class="bi bi-people-fill"></i> Сравнение
-        </a>
-        <a href="{% url 'summaries:analytics_managers_leaderboard' %}" class="btn btn-outline-secondary">
-            <i class="bi bi-trophy"></i> Леденборд
-        </a>
+
+    {% if filters.errors %}
+    <div class="alert alert-danger">
+        <ul class="mb-0">
+            {% for err in filters.errors %}<li>{{ err }}</li>{% endfor %}
+        </ul>
     </div>
+    {% endif %}
+
+    <div class="card mgr-filter-card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3 align-items-end">
+                <div class="col-12 col-md-3 col-lg-2">
+                    <label class="form-label mb-1">Период</label>
+                    <select class="form-select" name="period">
+                        <option value="all" {% if filters.period == 'all' %}selected{% endif %}>Все время</option>
+                        <option value="30" {% if filters.period == '30' %}selected{% endif %}>30 дней</option>
+                        <option value="90" {% if filters.period == '90' %}selected{% endif %}>90 дней</option>
+                        <option value="365" {% if filters.period == '365' %}selected{% endif %}>365 дней</option>
+                    </select>
+                </div>
+
+                <div class="col-12 col-md-3 col-lg-2">
+                    <label class="form-label mb-1">Дата с</label>
+                    <input type="date" class="form-control" name="start_date" value="{{ filters.start_date_str }}">
+                </div>
+
+                <div class="col-12 col-md-3 col-lg-2">
+                    <label class="form-label mb-1">Дата по</label>
+                    <input type="date" class="form-control" name="end_date" value="{{ filters.end_date_str }}">
+                </div>
+
+                <div class="col-12 col-md-4 col-lg-3">
+                    <label class="form-label mb-1">Филиал</label>
+                    <select class="form-select" name="branch">
+                        <option value="">Все филиалы</option>
+                        {% for branch in available_filters.branches %}
+                        <option value="{{ branch }}" {% if filters.branch == branch %}selected{% endif %}>{{ branch }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-12 col-md-4 col-lg-3">
+                    <label class="form-label mb-1">Тип страхования</label>
+                    <select class="form-select" name="insurance_type">
+                        <option value="">Все типы</option>
+                        {% for itype in available_filters.insurance_types %}
+                        <option value="{{ itype }}" {% if filters.insurance_type == itype %}selected{% endif %}>{{ itype }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-12 col-md-4 col-lg-3">
+                    <label class="form-label mb-1">Статус сделки</label>
+                    <select class="form-select" name="deal_status">
+                        <option value="">Все статусы</option>
+                        {% for st in available_filters.deal_statuses %}
+                        <option value="{{ st.value }}" {% if filters.deal_status == st.value %}selected{% endif %}>{{ st.label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-12 col-md-6 col-lg-4">
+                    <label class="form-label mb-1">Сотрудники</label>
+                    <select class="form-select" name="user_ids" multiple size="3">
+                        {% for u in available_filters.users %}
+                        <option value="{{ u.id }}" {% if u.id in filters.user_ids %}selected{% endif %}>{{ u.display }}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="form-text">Ctrl/⌘ для мультивыбора</div>
+                </div>
+
+                <div class="col-12 col-md-6 col-lg-3 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-funnel"></i> Применить
+                    </button>
+                    <a href="{% url 'summaries:analytics_managers' %}" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-counterclockwise"></i> Сбросить
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- KPI cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-md-6 col-xl-3">
+            <div class="card mgr-kpi-card">
+                <div class="card-body">
+                    <div class="text-muted mb-2">Загружено заявок</div>
+                    <div class="mgr-kpi-value text-primary">{{ kpi.total_requests }}</div>
+                    <small class="text-muted">Сводов: {{ kpi.total_summaries }}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-6 col-xl-3">
+            <div class="card mgr-kpi-card">
+                <div class="card-body">
+                    <div class="text-muted mb-2">Закрыто акцептом</div>
+                    <div class="mgr-kpi-value text-success">{{ kpi.accepted }}</div>
+                    <small class="text-muted">
+                        Win-rate: {% if kpi.win_rate is not None %}{{ kpi.win_rate|floatformat:1 }}%{% else %}—{% endif %}
+                    </small>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-6 col-xl-3">
+            <div class="card mgr-kpi-card">
+                <div class="card-body">
+                    <div class="text-muted mb-2">Σ премии (accepted)</div>
+                    <div class="mgr-kpi-value text-warning">{{ kpi.premium_total|format_currency_with_spaces }}</div>
+                    <small class="text-muted">
+                        Средний чек: {{ kpi.avg_ticket|format_currency_with_spaces }}
+                    </small>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-6 col-xl-3">
+            <div class="card mgr-kpi-card">
+                <div class="card-body">
+                    <div class="text-muted mb-2">Активно сейчас</div>
+                    <div class="mgr-kpi-value text-info">{{ kpi.active_total }}</div>
+                    <small class="text-muted">Просрочек: <span class="{% if kpi.overdue_count %}text-danger fw-semibold{% endif %}">{{ kpi.overdue_count }}</span></small>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-6 col-xl-3">
+            <div class="card mgr-kpi-card">
+                <div class="card-body">
+                    <div class="text-muted mb-2">Активных сотрудников</div>
+                    <div class="mgr-kpi-value text-primary">{{ kpi.managers_count }}</div>
+                    <small class="text-muted">
+                        Среднее: {{ kpi.avg_per_day }}/день · {{ kpi.avg_per_week }}/нед · {{ kpi.avg_per_month }}/мес
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Managers table -->
+    <div class="card mgr-table-card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="bi bi-table"></i> Сотрудники</h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mgr-table mb-0">
+                    <thead>
+                        <tr>
+                            <th>Сотрудник</th>
+                            <th class="num">Заявок</th>
+                            <th class="num">Сводов</th>
+                            <th class="num">Акцепт</th>
+                            <th class="num">Не будет</th>
+                            <th class="num">Win-rate</th>
+                            <th class="num">Σ премии</th>
+                            <th class="num">Avg цикл, ч</th>
+                            <th class="num">Активно</th>
+                            <th class="num">Просрочка</th>
+                            <th>Последняя активность</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in rows %}
+                        <tr class="{% if row.is_unassigned %}mgr-row-unassigned{% endif %}">
+                            <td>
+                                {% if row.is_unassigned %}
+                                    {{ row.display }}
+                                {% else %}
+                                    <a href="{% url 'summaries:analytics_manager_detail' row.user_id %}">{{ row.display }}</a>
+                                    {% if row.username %}<small class="text-muted d-block">@{{ row.username }}</small>{% endif %}
+                                {% endif %}
+                            </td>
+                            <td class="num">{{ row.requests_total }}</td>
+                            <td class="num">{{ row.summaries_total }}</td>
+                            <td class="num text-success">{{ row.accepted }}</td>
+                            <td class="num text-secondary">{{ row.rejected }}</td>
+                            <td class="num">
+                                {% if row.win_rate is not None %}{{ row.win_rate|floatformat:1 }}%{% else %}—{% endif %}
+                            </td>
+                            <td class="num">{{ row.premium_total|format_currency_with_spaces }}</td>
+                            <td class="num">
+                                {% if row.time_to.avg_cycle_h %}{{ row.time_to.avg_cycle_h|floatformat:1 }}{% else %}—{% endif %}
+                            </td>
+                            <td class="num">{{ row.active_total }}</td>
+                            <td class="num {% if row.overdue_count %}text-danger fw-semibold{% endif %}">{{ row.overdue_count }}</td>
+                            <td>{% if row.last_activity %}{{ row.last_activity|date:"d.m.Y H:i" }}{% else %}—{% endif %}</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="11" class="text-center text-muted py-4">Нет данных за выбранный период.</td></tr>
+                        {% endfor %}
+                        {% if rows %}
+                        <tr class="mgr-row-total">
+                            <td>Команда</td>
+                            <td class="num">{{ team.requests_total }}</td>
+                            <td class="num">{{ team.summaries_total }}</td>
+                            <td class="num">{{ team.accepted }}</td>
+                            <td class="num">{{ team.rejected }}</td>
+                            <td class="num">{% if team.win_rate is not None %}{{ team.win_rate|floatformat:1 }}%{% else %}—{% endif %}</td>
+                            <td class="num">{{ team.premium_total|format_currency_with_spaces }}</td>
+                            <td class="num">—</td>
+                            <td class="num">{{ team.active_total }}</td>
+                            <td class="num {% if team.overdue_count %}text-danger fw-semibold{% endif %}">{{ team.overdue_count }}</td>
+                            <td>—</td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Time-to-* breakdown -->
+    <div class="row g-3 mb-4">
+        <div class="col-12">
+            <div class="card mgr-table-card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-stopwatch"></i> Скорость работы (среднее, часов)</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mgr-table mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Сотрудник</th>
+                                    <th class="num">Загрузка → Свод</th>
+                                    <th class="num">Свод → 1-е предложение</th>
+                                    <th class="num">Свод → Отправка клиенту</th>
+                                    <th class="num">Отправка → Акцепт</th>
+                                    <th class="num">P50 цикла</th>
+                                    <th class="num">P90 цикла</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in rows %}
+                                <tr class="{% if row.is_unassigned %}mgr-row-unassigned{% endif %}">
+                                    <td>{{ row.display }}</td>
+                                    <td class="num">{% if row.time_to.upload_to_summary_h %}{{ row.time_to.upload_to_summary_h|floatformat:1 }}{% else %}—{% endif %}</td>
+                                    <td class="num">{% if row.time_to.summary_to_first_offer_h %}{{ row.time_to.summary_to_first_offer_h|floatformat:1 }}{% else %}—{% endif %}</td>
+                                    <td class="num">{% if row.time_to.summary_to_sent_h %}{{ row.time_to.summary_to_sent_h|floatformat:1 }}{% else %}—{% endif %}</td>
+                                    <td class="num">{% if row.time_to.sent_to_completed_h %}{{ row.time_to.sent_to_completed_h|floatformat:1 }}{% else %}—{% endif %}</td>
+                                    <td class="num">{% if row.time_to.p50_cycle_h %}{{ row.time_to.p50_cycle_h|floatformat:1 }}{% else %}—{% endif %}</td>
+                                    <td class="num">{% if row.time_to.p90_cycle_h %}{{ row.time_to.p90_cycle_h|floatformat:1 }}{% else %}—{% endif %}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-xl-6">
+            <div class="card mgr-chart-card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-bar-chart"></i> Заявки по сотрудникам</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mgr-chart-wrap">
+                        <canvas id="mgr-bar-volume"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-xl-6">
+            <div class="card mgr-chart-card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-graph-up"></i> Загрузки по дням</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mgr-chart-wrap">
+                        <canvas id="mgr-line-daily"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12">
+            <div class="card mgr-chart-card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-bar-chart-steps"></i> Загрузки по неделям (stacked)</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mgr-chart-wrap mgr-chart-wrap--tall">
+                        <canvas id="mgr-stacked-weeks"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Funnel -->
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-lg-7">
+            <div class="card mgr-table-card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-filter-circle"></i> Funnel — команда</h5>
+                </div>
+                <div class="card-body">
+                    {% for stage in funnel.stages %}
+                    <div class="mgr-funnel-stage">
+                        <div class="mgr-funnel-bar" style="width: {{ stage.pct_of_top }}%;"></div>
+                        <div class="mgr-funnel-content">
+                            <span class="mgr-stage-label">{{ stage.label }}</span>
+                            <span class="mgr-stage-meta">
+                                <strong>{{ stage.count }}</strong>
+                                ({{ stage.pct_of_top|floatformat:1 }}% от загруженных
+                                {% if not forloop.first %}· drop-off {{ stage.drop_off }}{% endif %})
+                            </span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-lg-5">
+            <div class="card mgr-alerts-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Алерты</h5>
+                    {% if alerts.overdue_total or alerts.stuck_total or alerts.inactive_users %}
+                    <span class="badge bg-danger">{{ alerts.overdue_total|add:alerts.stuck_total }}</span>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    {% if alerts.overdue %}
+                    <div class="mb-3">
+                        <h6 class="text-danger mb-2"><i class="bi bi-clock-history"></i> Просроченные заявки ({{ alerts.overdue_total }})</h6>
+                        <ul class="alert-list list-unstyled small mb-0">
+                            {% for a in alerts.overdue %}
+                            <li class="border-bottom py-1">
+                                <a href="{% url 'insurance_requests:request_detail' a.request_id %}">{{ a.dfa_number }}</a>
+                                — {{ a.client_name|truncatechars:40 }}
+                                <small class="text-muted d-block">{{ a.manager }} · просрочка {{ a.overdue_hours|floatformat:1 }} ч</small>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
+
+                    {% if alerts.stuck %}
+                    <div class="mb-3">
+                        <h6 class="text-warning mb-2"><i class="bi bi-hourglass-split"></i> Зависшие сделки ({{ alerts.stuck_total }})</h6>
+                        <ul class="alert-list list-unstyled small mb-0">
+                            {% for a in alerts.stuck %}
+                            <li class="border-bottom py-1">
+                                <a href="{% url 'summaries:summary_detail' a.summary_id %}">{{ a.dfa_number }}</a>
+                                — {{ a.client_name|truncatechars:40 }}
+                                <small class="text-muted d-block">{{ a.manager }} · {{ a.status }} {{ a.days_inactive }} дн.</small>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
+
+                    {% if alerts.inactive_users %}
+                    <div class="mb-0">
+                        <h6 class="text-secondary mb-2"><i class="bi bi-person-x"></i> Без активности (>{{ alerts.no_activity_days }} дн.)</h6>
+                        <ul class="list-unstyled small mb-0">
+                            {% for a in alerts.inactive_users %}
+                            <li class="py-1">
+                                {{ a.display }}
+                                — последняя активность
+                                {% if a.last_activity %}{{ a.last_activity|date:"d.m.Y" }}{% else %}—{% endif %}
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
+
+                    {% if not alerts.overdue and not alerts.stuck and not alerts.inactive_users %}
+                    <p class="text-muted mb-0">Алертов нет — команда чиста.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
 </div>
 
-<div class="alert alert-info">
-    <i class="bi bi-info-circle"></i>
-    Раздел в разработке (Phase 0). Следующий шаг — Phase 1: KPI-карточки, таблица сотрудников, базовые time-to-* и funnel.
-    Полный план — см. <code>docs/_internal/employee_analytics_plan.md</code>.
-</div>
+{{ charts_json|json_script:"mgr-charts-data" }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+    var raw = document.getElementById('mgr-charts-data');
+    if (!raw) return;
+    var data;
+    try { data = JSON.parse(raw.textContent); } catch (e) { return; }
 
-<div class="card">
-    <div class="card-body">
-        <h2 class="h5">Окно отчёта</h2>
-        <p class="text-muted mb-0">
-            Период: {{ window.start|date:"d.m.Y" }} — {{ window.end|date:"d.m.Y" }}
-            ({{ filters.period_days }} дней).
-        </p>
-    </div>
-</div>
+    var palette = ['#2563eb', '#16a34a', '#f59e0b', '#dc2626', '#7c3aed', '#0891b2', '#94a3b8'];
+
+    // Bar по сотрудникам — собираем из daily.series (сумма по дням)
+    if (data.daily && data.daily.series && data.daily.series.length) {
+        var barLabels = data.daily.series.map(function (s) { return s.label; });
+        var barValues = data.daily.series.map(function (s) {
+            return s.data.reduce(function (a, b) { return a + b; }, 0);
+        });
+        var barCanvas = document.getElementById('mgr-bar-volume');
+        if (barCanvas) {
+            new Chart(barCanvas, {
+                type: 'bar',
+                data: {
+                    labels: barLabels,
+                    datasets: [{
+                        label: 'Заявок за период',
+                        data: barValues,
+                        backgroundColor: palette.slice(0, barLabels.length),
+                    }],
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { x: { beginAtZero: true, ticks: { precision: 0 } } },
+                },
+            });
+        }
+
+        // Line по дням
+        var lineCanvas = document.getElementById('mgr-line-daily');
+        if (lineCanvas) {
+            var datasets = data.daily.series.map(function (s, i) {
+                return {
+                    label: s.label,
+                    data: s.data,
+                    borderColor: palette[i % palette.length],
+                    backgroundColor: palette[i % palette.length],
+                    tension: 0.25,
+                    fill: false,
+                };
+            });
+            datasets.push({
+                label: 'Накопительно',
+                data: data.daily.cumulative_total,
+                borderColor: '#0f172a',
+                borderDash: [4, 4],
+                backgroundColor: 'transparent',
+                tension: 0.1,
+                fill: false,
+                yAxisID: 'y1',
+            });
+            new Chart(lineCanvas, {
+                type: 'line',
+                data: { labels: data.daily.labels, datasets: datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    scales: {
+                        y: { beginAtZero: true, ticks: { precision: 0 } },
+                        y1: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false } },
+                    },
+                },
+            });
+        }
+    }
+
+    // Stacked weekly
+    if (data.weekly && data.weekly.series && data.weekly.series.length) {
+        var stackedCanvas = document.getElementById('mgr-stacked-weeks');
+        if (stackedCanvas) {
+            var datasets = data.weekly.series.map(function (s, i) {
+                return {
+                    label: s.label,
+                    data: s.data,
+                    backgroundColor: palette[i % palette.length],
+                };
+            });
+            new Chart(stackedCanvas, {
+                type: 'bar',
+                data: { labels: data.weekly.labels, datasets: datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { stacked: true },
+                        y: { stacked: true, beginAtZero: true, ticks: { precision: 0 } },
+                    },
+                },
+            });
+        }
+    }
+})();
+</script>
 {% endblock %}
