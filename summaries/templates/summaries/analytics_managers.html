@@ -134,6 +134,39 @@
         border-radius: 0.6rem;
         margin: 0 0.2rem 0.2rem 0;
     }
+
+    .mgr-day-hour { font-size: 0.74rem; }
+    .mgr-day-hour td.dh-cell {
+        width: 18px; height: 18px; padding: 0;
+        background-color: rgba(34, 197, 94, var(--alpha, 0));
+        border: 1px solid rgba(15, 23, 42, 0.05);
+    }
+    .mgr-day-hour td.dh-label { padding: 0 6px; color: #64748b; }
+    .mgr-day-hour th { font-weight: 500; color: #94a3b8; padding: 0 4px; text-align: center; }
+
+    .mgr-trend-card .delta-up { color: #16a34a; }
+    .mgr-trend-card .delta-down { color: #dc2626; }
+    .mgr-trend-card .delta-flat { color: #94a3b8; }
+
+    .mgr-backlog-bar {
+        display: flex; gap: 4px; align-items: end;
+        height: 80px;
+    }
+    .mgr-backlog-bar > div {
+        flex: 1; min-width: 16px;
+        background: linear-gradient(180deg, #6366f1, #4338ca);
+        position: relative;
+        border-radius: 3px 3px 0 0;
+    }
+    .mgr-backlog-bar > div span.bv {
+        position: absolute; top: -1.1rem; left: 0; right: 0; text-align: center;
+        font-size: 0.74rem; color: #475569;
+    }
+    .mgr-backlog-labels {
+        display: flex; gap: 4px; margin-top: 4px;
+        font-size: 0.74rem; color: #64748b;
+    }
+    .mgr-backlog-labels > div { flex: 1; text-align: center; min-width: 16px; }
 </style>
 {% endblock %}
 
@@ -525,6 +558,176 @@
         </div>
     </div>
 
+    <!-- Patterns: ритм работы -->
+    <div class="card mgr-table-card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="bi bi-clock"></i> Ритм работы</h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mgr-table mb-0">
+                    <thead>
+                        <tr>
+                            <th>Сотрудник</th>
+                            <th class="num" title="Среднее время между загрузками">Cadence, ч</th>
+                            <th class="num" title="Загрузки после 22:00">Поздние</th>
+                            <th class="num" title="Загрузки в субботу/воскресенье">Выходные</th>
+                            <th class="num">Дней без активности</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in rows %}
+                        <tr class="{% if row.is_unassigned %}mgr-row-unassigned{% endif %}">
+                            <td>{{ row.display }}</td>
+                            <td class="num">{% if row.patterns.cadence_hours is not None %}{{ row.patterns.cadence_hours|floatformat:1 }}{% else %}—{% endif %}</td>
+                            <td class="num">{% if row.patterns.late_pct is not None %}{{ row.patterns.late_pct|floatformat:0 }}%{% else %}—{% endif %}</td>
+                            <td class="num">{% if row.patterns.weekend_pct is not None %}{{ row.patterns.weekend_pct|floatformat:0 }}%{% else %}—{% endif %}</td>
+                            <td class="num">{% if row.patterns.days_since_last is not None %}{{ row.patterns.days_since_last|floatformat:1 }}{% else %}—{% endif %}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Day × Hour heatmap + Backlog -->
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-xl-8">
+            <div class="card mgr-chart-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-calendar3"></i> Активность: день недели × час</h5>
+                    <small class="text-muted">всего загрузок: {{ day_hour.total }}</small>
+                </div>
+                <div class="card-body">
+                    {% if day_hour.total %}
+                    <table class="mgr-day-hour mb-0">
+                        <thead>
+                            <tr>
+                                <th></th>
+                                {% for hour in day_hour.hours %}
+                                <th>{% if hour in day_hour.header_marks %}{{ hour }}{% endif %}</th>
+                                {% endfor %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for dh_row in day_hour.rows %}
+                            <tr>
+                                <td class="dh-label">{{ dh_row.label }}</td>
+                                {% for cnt in dh_row.cells %}
+                                <td class="dh-cell" data-value="{{ cnt }}" data-max="{{ day_hour.max_value }}" title="{{ dh_row.label }} {{ forloop.counter0 }}:00 — {{ cnt }}"></td>
+                                {% endfor %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <p class="text-muted mb-0">Нет данных за период.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-xl-4">
+            <div class="card mgr-table-card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-archive"></i> Возраст backlog’а</h5>
+                </div>
+                <div class="card-body">
+                    {% if backlog.total %}
+                    <p class="text-muted mb-2">
+                        Всего активных: <strong>{{ backlog.total }}</strong>
+                        (заявок {{ backlog.request_count }}, сводов {{ backlog.summary_count }})
+                    </p>
+                    <div class="mgr-backlog-bar">
+                        {% for b in backlog.buckets %}
+                        <div style="height: {% widthratio b.count backlog.total 100 %}%;" title="{{ b.label }}: {{ b.count }}">
+                            <span class="bv">{{ b.count }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <div class="mgr-backlog-labels">
+                        {% for b in backlog.buckets %}
+                        <div>{{ b.label }}</div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-muted mb-0">Backlog пуст — все сделки закрыты.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Trend WoW / MoM + Radar -->
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-lg-6">
+            <div class="card mgr-trend-card mgr-table-card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-arrow-down-up"></i> Динамика к прошлому периоду</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Период</th>
+                                    <th class="num">Заявок</th>
+                                    <th class="num">Акцепт</th>
+                                    <th class="num">Премия ₽</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for label, span in trend.items %}
+                                <tr>
+                                    <td><strong>{% if label == 'week' %}Неделя{% else %}Месяц{% endif %}</strong></td>
+                                    <td class="num">
+                                        {{ span.current.requests }}
+                                        {% if span.delta_pct.requests is not None %}
+                                        <small class="{% if span.delta_pct.requests > 0 %}delta-up{% elif span.delta_pct.requests < 0 %}delta-down{% else %}delta-flat{% endif %}">
+                                            ({{ span.delta_pct.requests|floatformat:0 }}%)
+                                        </small>
+                                        {% endif %}
+                                    </td>
+                                    <td class="num">
+                                        {{ span.current.accepted }}
+                                        {% if span.delta_pct.accepted is not None %}
+                                        <small class="{% if span.delta_pct.accepted > 0 %}delta-up{% elif span.delta_pct.accepted < 0 %}delta-down{% else %}delta-flat{% endif %}">
+                                            ({{ span.delta_pct.accepted|floatformat:0 }}%)
+                                        </small>
+                                        {% endif %}
+                                    </td>
+                                    <td class="num">
+                                        {{ span.current.premium|format_currency_with_spaces }}
+                                        {% if span.delta_pct.premium is not None %}
+                                        <small class="{% if span.delta_pct.premium > 0 %}delta-up{% elif span.delta_pct.premium < 0 %}delta-down{% else %}delta-flat{% endif %}">
+                                            ({{ span.delta_pct.premium|floatformat:0 }}%)
+                                        </small>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-lg-6">
+            <div class="card mgr-chart-card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-radar"></i> Радар сотрудников</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mgr-chart-wrap mgr-chart-wrap--tall">
+                        <canvas id="mgr-radar"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Heatmaps: связи -->
     <div class="row g-3 mb-4">
         {% for hm_key, hm in heatmaps.items %}
@@ -802,6 +1005,18 @@
                 fill: false,
                 yAxisID: 'y1',
             });
+            if (data.daily.moving_average_28d) {
+                datasets.push({
+                    label: 'MA 4 нед.',
+                    data: data.daily.moving_average_28d,
+                    borderColor: '#dc2626',
+                    backgroundColor: 'transparent',
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    tension: 0.2,
+                    fill: false,
+                });
+            }
             new Chart(lineCanvas, {
                 type: 'line',
                 data: { labels: data.daily.labels, datasets: datasets },
@@ -853,10 +1068,65 @@
             var alpha = Math.min(0.85, value / max * 0.85 + 0.1);
             var bg = cell.querySelector('.hm-bg');
             if (bg) bg.style.setProperty('--alpha', alpha);
-            // Также прокидываем в стиль через атрибут, иначе custom property через JS не подхватится
             if (bg) bg.style.backgroundColor = 'rgba(37, 99, 235, ' + alpha.toFixed(2) + ')';
         }
     });
+
+    // Day-hour heatmap intensity
+    document.querySelectorAll('td.dh-cell').forEach(function (cell) {
+        var value = parseFloat(cell.dataset.value || '0');
+        var max = parseFloat(cell.dataset.max || '0');
+        if (max > 0 && value > 0) {
+            var alpha = Math.min(0.85, value / max * 0.85 + 0.1);
+            cell.style.backgroundColor = 'rgba(34, 197, 94, ' + alpha.toFixed(2) + ')';
+        }
+    });
+
+    // Radar chart
+    if (data.radar && data.radar.managers && data.radar.managers.length) {
+        var radarCanvas = document.getElementById('mgr-radar');
+        if (radarCanvas) {
+            var datasets = data.radar.managers.map(function (m, i) {
+                var color = palette[i % palette.length];
+                return {
+                    label: m.display,
+                    data: m.values,
+                    backgroundColor: color + '33',
+                    borderColor: color,
+                    pointBackgroundColor: color,
+                    borderWidth: 2,
+                };
+            });
+            // Команда — пунктирный overlay
+            if (data.radar.team) {
+                var teamValues = data.radar.axes.map(function (axis, idx) {
+                    // axes order = volume, speed, win_rate, quality, money, activity
+                    var keys = ['volume', 'speed', 'win_rate', 'quality', 'money', 'activity'];
+                    return data.radar.team[keys[idx]] || 0;
+                });
+                datasets.push({
+                    label: 'Команда',
+                    data: teamValues,
+                    backgroundColor: 'rgba(15, 23, 42, 0.05)',
+                    borderColor: 'rgba(15, 23, 42, 0.6)',
+                    borderDash: [4, 4],
+                    pointRadius: 0,
+                    borderWidth: 2,
+                });
+            }
+            new Chart(radarCanvas, {
+                type: 'radar',
+                data: { labels: data.radar.axes, datasets: datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        r: { suggestedMin: 0, suggestedMax: 100, ticks: { stepSize: 25 } },
+                    },
+                },
+            });
+        }
+    }
 })();
 </script>
 {% endblock %}

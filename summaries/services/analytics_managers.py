@@ -371,6 +371,224 @@ def _portfolio_for_user(requests: list[InsuranceRequest]) -> dict[str, Any]:
     }
 
 
+LATE_HOUR_THRESHOLD = 22  # «поздняя» загрузка с 22:00
+WEEKEND_DAYS = (5, 6)  # суббота, воскресенье
+
+# Корзины возраста backlog’а в днях
+BACKLOG_AGE_BUCKETS = [
+    (0, 3, '0-3 дн.'),
+    (4, 7, '4-7 дн.'),
+    (8, 14, '8-14 дн.'),
+    (15, 30, '15-30 дн.'),
+    (31, None, '>30 дн.'),
+]
+
+
+def _pattern_metrics_for_user(
+    requests: list[InsuranceRequest],
+    *,
+    now=None,
+) -> dict[str, Any]:
+    """Поведенческие метрики: cadence, late/weekend, days_since_last."""
+    if not requests:
+        return {
+            'cadence_hours': None,
+            'late_pct': None,
+            'weekend_pct': None,
+            'days_since_last': None,
+        }
+    now = now or timezone.now()
+
+    sorted_dts = sorted((r.created_at for r in requests if r.created_at))
+    if len(sorted_dts) >= 2:
+        deltas = [
+            (sorted_dts[i + 1] - sorted_dts[i]).total_seconds() / 3600.0
+            for i in range(len(sorted_dts) - 1)
+        ]
+        cadence_hours = sum(deltas) / len(deltas)
+    else:
+        cadence_hours = None
+
+    n = len(requests)
+    late = sum(1 for r in requests if r.created_at and _is_late(r.created_at))
+    weekend = sum(1 for r in requests if r.created_at and r.created_at.weekday() in WEEKEND_DAYS)
+
+    last_dt = sorted_dts[-1] if sorted_dts else None
+    days_since_last = (now - last_dt).total_seconds() / 86400.0 if last_dt else None
+
+    return {
+        'cadence_hours': cadence_hours,
+        'late_pct': late / n * 100,
+        'weekend_pct': weekend / n * 100,
+        'days_since_last': days_since_last,
+    }
+
+
+def _is_late(dt) -> bool:
+    """Загрузка после 22:00 в локальной таймзоне."""
+    try:
+        local = timezone.localtime(dt)
+    except (ValueError, TypeError):
+        local = dt
+    return local.hour >= LATE_HOUR_THRESHOLD
+
+
+def _backlog_age_buckets(filters: dict, *, now=None) -> dict[str, Any]:
+    """Распределение возрастов активных заявок и сводов по корзинам."""
+    now = now or timezone.now()
+
+    request_qs = _build_request_qs(filters).filter(status__in=list(ACTIVE_REQUEST_STATUSES))
+    summary_qs = _build_summary_qs(filters).filter(status__in=list(ACTIVE_SUMMARY_STATUSES))
+
+    items = []
+    for r in request_qs:
+        if r.created_at:
+            age_days = (now - r.created_at).total_seconds() / 86400.0
+            items.append({'kind': 'request', 'age_days': age_days})
+    for s in summary_qs:
+        anchor = s.updated_at or s.created_at
+        if anchor:
+            age_days = (now - anchor).total_seconds() / 86400.0
+            items.append({'kind': 'summary', 'age_days': age_days})
+
+    buckets = []
+    for low, high, label in BACKLOG_AGE_BUCKETS:
+        if high is None:
+            count = sum(1 for it in items if it['age_days'] >= low)
+        else:
+            count = sum(1 for it in items if low <= it['age_days'] <= high)
+        buckets.append({'label': label, 'count': count})
+
+    return {
+        'buckets': buckets,
+        'total': len(items),
+        'request_count': sum(1 for it in items if it['kind'] == 'request'),
+        'summary_count': sum(1 for it in items if it['kind'] == 'summary'),
+    }
+
+
+def _team_trend(filters: dict) -> dict[str, Any]:
+    """WoW/MoM: сравнение последних 7/30 дней с предыдущими 7/30.
+
+    Считается всегда от «сегодня», независимо от выбранного периода фильтра —
+    даёт быстрый sense check состояния «прямо сейчас».
+    """
+    now = timezone.now()
+    today = timezone.localdate()
+
+    def _stats(start: date, end: date) -> dict[str, Any]:
+        qs = InsuranceRequest.objects.filter(
+            created_at__date__gte=start, created_at__date__lte=end
+        )
+        # фильтры user_ids/branch/insurance_type/deal_status тоже применяем
+        if filters['user_ids']:
+            qs = qs.filter(created_by_id__in=filters['user_ids'])
+        if filters['branch']:
+            qs = qs.filter(branch=filters['branch'])
+        if filters['insurance_type']:
+            qs = qs.filter(insurance_type=filters['insurance_type'])
+        if filters['deal_status']:
+            qs = qs.filter(deal_status=filters['deal_status'])
+
+        requests_count = qs.count()
+        summary_qs = InsuranceSummary.objects.filter(request_id__in=qs.values('id'))
+        accepted_qs = summary_qs.filter(status='completed_accepted')
+        accepted_count = accepted_qs.count()
+
+        premium_total = Decimal('0')
+        for s in accepted_qs.prefetch_related('offers'):
+            premium_total += _accepted_premium(s)
+
+        return {
+            'requests': requests_count,
+            'accepted': accepted_count,
+            'premium': premium_total,
+        }
+
+    def _delta_pct(cur: float | int | Decimal, prev: float | int | Decimal) -> float | None:
+        if not prev:
+            return None
+        return float((cur - prev) / prev * 100)
+
+    week_cur = _stats(today - timedelta(days=6), today)
+    week_prev = _stats(today - timedelta(days=13), today - timedelta(days=7))
+    month_cur = _stats(today - timedelta(days=29), today)
+    month_prev = _stats(today - timedelta(days=59), today - timedelta(days=30))
+
+    return {
+        'week': {
+            'current': week_cur,
+            'previous': week_prev,
+            'delta_pct': {
+                'requests': _delta_pct(week_cur['requests'], week_prev['requests']),
+                'accepted': _delta_pct(week_cur['accepted'], week_prev['accepted']),
+                'premium': _delta_pct(week_cur['premium'], week_prev['premium']),
+            },
+        },
+        'month': {
+            'current': month_cur,
+            'previous': month_prev,
+            'delta_pct': {
+                'requests': _delta_pct(month_cur['requests'], month_prev['requests']),
+                'accepted': _delta_pct(month_cur['accepted'], month_prev['accepted']),
+                'premium': _delta_pct(month_cur['premium'], month_prev['premium']),
+            },
+        },
+    }
+
+
+def _moving_average(values: list[int | float], window: int) -> list[float | None]:
+    """Скользящее среднее. Левая граница (меньше окна) — None."""
+    if window <= 1:
+        return [float(v) for v in values]
+    out: list[float | None] = []
+    acc = 0.0
+    queue: list[float] = []
+    for v in values:
+        queue.append(float(v))
+        acc += float(v)
+        if len(queue) > window:
+            acc -= queue.pop(0)
+        out.append(acc / len(queue) if len(queue) >= window else None)
+    return out
+
+
+def _day_hour_heatmap(filters: dict) -> dict[str, Any]:
+    """Heatmap 7×24: количество загрузок по дням недели и часам (локальное время)."""
+    request_qs = _build_request_qs(filters).values_list('created_at', flat=True)
+    grid = [[0] * 24 for _ in range(7)]
+    max_value = 0
+    total = 0
+    for created_at in request_qs:
+        if not created_at:
+            continue
+        try:
+            local = timezone.localtime(created_at)
+        except (ValueError, TypeError):
+            local = created_at
+        d = local.weekday()
+        h = local.hour
+        grid[d][h] += 1
+        total += 1
+        if grid[d][h] > max_value:
+            max_value = grid[d][h]
+    day_labels = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
+    rows = [
+        {'label': day_labels[i], 'cells': grid[i]}
+        for i in range(7)
+    ]
+    return {
+        'rows': rows,
+        'max_value': max_value,
+        'total': total,
+        'hours': list(range(24)),
+        'header_marks': [0, 3, 6, 9, 12, 15, 18, 21],
+        # для обратной совместимости (старый ключ тестов и т.п.):
+        'grid': grid,
+        'day_labels': day_labels,
+    }
+
+
 def _accepted_premium(summary: InsuranceSummary) -> Decimal:
     """Σ премии accepted-свода по выбранной СК и варианту франшизы."""
     if summary.status != 'completed_accepted' or not summary.selected_company:
@@ -476,14 +694,18 @@ def _daily_counts(request_qs: QuerySet, filters: dict) -> dict[str, list]:
 
     cumulative_total = []
     running = 0
+    daily_total = []
     for d in days:
-        running += sum(series_data[k].get(d, 0) for k in series_data)
+        day_sum = sum(series_data[k].get(d, 0) for k in series_data)
+        running += day_sum
         cumulative_total.append(running)
+        daily_total.append(day_sum)
 
     return {
         'labels': [d.isoformat() for d in days],
         'series': series,
         'cumulative_total': cumulative_total,
+        'moving_average_28d': _moving_average(daily_total, window=28),
     }
 
 
@@ -587,6 +809,7 @@ def _build_manager_rows(filters: dict) -> tuple[list[dict], dict]:
 
         completeness = _aggregate_completeness(requests)
         portfolio = _portfolio_for_user(requests)
+        patterns = _pattern_metrics_for_user(requests, now=now)
 
         rows.append({
             'user_id': user_id,
@@ -609,6 +832,7 @@ def _build_manager_rows(filters: dict) -> tuple[list[dict], dict]:
             'last_activity': last_activity,
             'completeness': completeness,
             'portfolio': portfolio,
+            'patterns': patterns,
         })
 
     # Сортируем: сначала реальные сотрудники по объёму, в конце «Без автора»
@@ -647,6 +871,10 @@ def _build_manager_rows(filters: dict) -> tuple[list[dict], dict]:
         team['quality_score'] = sum(scores) / len(scores) if scores else None
     else:
         team['quality_score'] = None
+
+    # Радар-координаты на каждую строку
+    for row in rows:
+        row['radar'] = _radar_axes_for_row(row, team)
 
     return rows, team
 
@@ -1052,6 +1280,10 @@ def build_overview_payload(filters: dict) -> dict[str, Any]:
     avg_per_month = round(avg_per_day * 30, 2)
 
     heatmaps = _compute_heatmaps(filters)
+    backlog = _backlog_age_buckets(filters)
+    day_hour = _day_hour_heatmap(filters)
+    trend = _team_trend(filters)
+    team_radar = _team_radar(rows)
 
     payload = {
         'filters': filters,
@@ -1078,14 +1310,96 @@ def build_overview_payload(filters: dict) -> dict[str, Any]:
             'weekly': weekly,
         },
         'heatmaps': heatmaps,
+        'backlog': backlog,
+        'day_hour': day_hour,
+        'trend': trend,
+        'team_radar': team_radar,
         'available_filters': _available_filters(),
     }
+    radar_payload = {
+        'axes': [label for _, label in RADAR_AXES],
+        'team': team_radar,
+        'managers': [
+            {
+                'user_id': r['user_id'],
+                'display': r['display'],
+                'values': [r['radar'][k] for k, _ in RADAR_AXES],
+            }
+            for r in rows if not r['is_unassigned']
+        ],
+    }
+    payload['radar'] = radar_payload
     payload['charts_json'] = json.dumps(
-        {'daily': daily, 'weekly': weekly},
+        {
+            'daily': daily,
+            'weekly': weekly,
+            'day_hour': day_hour,
+            'radar': radar_payload,
+        },
         ensure_ascii=False,
         default=str,
     )
     return payload
+
+
+RADAR_AXES = (
+    ('volume', 'Volume'),
+    ('speed', 'Speed'),
+    ('win_rate', 'Win-rate'),
+    ('quality', 'Quality'),
+    ('money', 'Money'),
+    ('activity', 'Activity'),
+)
+
+
+def _radar_axes_for_row(row: dict, team: dict) -> dict[str, float]:
+    """Нормализованные оси радара 0..100."""
+    real_max_volume = max((team['requests_total'], 1), key=lambda x: x)
+    if isinstance(real_max_volume, tuple):
+        real_max_volume = team['requests_total'] or 1
+    volume = (row['requests_total'] / real_max_volume * 100) if real_max_volume else 0.0
+    win_rate = row.get('win_rate') or 0.0
+
+    avg_cycle = row['time_to'].get('avg_cycle_h')
+    # speed: чем меньше cycle, тем больше score. Базис — 24 часа = 100 баллов.
+    if avg_cycle and avg_cycle > 0:
+        speed = min(100.0, 24.0 / avg_cycle * 100.0)
+    else:
+        speed = 0.0
+
+    quality = row.get('quality_score') or 0.0
+
+    team_premium = float(team.get('premium_total') or 0)
+    row_premium = float(row.get('premium_total') or 0)
+    money = (row_premium / team_premium * 100) if team_premium else 0.0
+
+    days_since_last = (row.get('patterns') or {}).get('days_since_last')
+    if days_since_last is None:
+        activity = 0.0
+    else:
+        # Чем меньше дней без активности, тем выше. 0 дней → 100, 14 дней → 0.
+        activity = max(0.0, min(100.0, 100.0 - (days_since_last / 14.0 * 100.0)))
+
+    return {
+        'volume': round(min(100.0, volume), 1),
+        'speed': round(speed, 1),
+        'win_rate': round(min(100.0, win_rate), 1),
+        'quality': round(quality, 1),
+        'money': round(min(100.0, money), 1),
+        'activity': round(activity, 1),
+    }
+
+
+def _team_radar(rows: list[dict]) -> dict[str, float]:
+    """Среднее по реальным сотрудникам — для overlay-фигуры на радаре."""
+    real = [r for r in rows if not r['is_unassigned'] and r.get('radar')]
+    if not real:
+        return {axis_key: 0.0 for axis_key, _ in RADAR_AXES}
+    out = {}
+    for axis_key, _ in RADAR_AXES:
+        vals = [r['radar'][axis_key] for r in real]
+        out[axis_key] = round(sum(vals) / len(vals), 1)
+    return out
 
 
 def build_manager_profile_payload(user_id: int, filters: dict) -> dict[str, Any]:
@@ -1099,19 +1413,72 @@ def build_manager_profile_payload(user_id: int, filters: dict) -> dict[str, Any]
 
 
 def build_compare_payload(user_ids: list[int], filters: dict) -> dict[str, Any]:
-    """Phase 0 stub. Заполняется в Phase 3."""
+    """Side-by-side сравнение нескольких сотрудников.
+
+    Если user_ids пуст — берём всех активных сотрудников за период.
+    """
+    overview = build_overview_payload(filters)
+    rows = overview['rows']
+    real_rows = [r for r in rows if not r['is_unassigned']]
+
+    if user_ids:
+        selected = [r for r in real_rows if r['user_id'] in user_ids]
+    else:
+        selected = real_rows
+
+    radar_data = {
+        'axes': [label for _, label in RADAR_AXES],
+        'team': overview.get('team_radar', {}),
+        'managers': [
+            {
+                'user_id': r['user_id'],
+                'display': r['display'],
+                'values': [r['radar'][k] for k, _ in RADAR_AXES],
+            }
+            for r in selected
+        ],
+    }
     return {
         'filters': filters,
         'user_ids': user_ids,
-        'managers': [],
-        'phase': 0,
+        'managers': selected,
+        'available_users': overview['available_filters']['users'],
+        'team': overview['team'],
+        'radar': radar_data,
+        'radar_json': json.dumps(radar_data, ensure_ascii=False, default=str),
     }
 
 
 def build_leaderboard_payload(filters: dict) -> dict[str, Any]:
-    """Phase 0 stub. Заполняется в Phase 3."""
+    """Рейтинг по composite quality-score. Только реальные сотрудники."""
+    overview = build_overview_payload(filters)
+    real = [r for r in overview['rows'] if not r['is_unassigned']]
+
+    ranked = sorted(
+        real,
+        key=lambda r: (r.get('quality_score') is None, -(r.get('quality_score') or 0)),
+    )
+    rows = []
+    for idx, r in enumerate(ranked, start=1):
+        rows.append({
+            'rank': idx,
+            'user_id': r['user_id'],
+            'display': r['display'],
+            'username': r.get('username'),
+            'quality_score': r.get('quality_score'),
+            'breakdown': {
+                'completeness': (r.get('completeness') or {}).get('overall_pct'),
+                'win_rate': r.get('win_rate'),
+                'avg_cycle_h': (r.get('time_to') or {}).get('avg_cycle_h'),
+                'requests_total': r['requests_total'],
+                'premium_total': r.get('premium_total'),
+                'accepted': r.get('accepted'),
+            },
+        })
+
     return {
         'filters': filters,
-        'rows': [],
-        'phase': 0,
+        'rows': rows,
+        'team_score': overview['team'].get('quality_score'),
+        'weights': QUALITY_SCORE_WEIGHTS,
     }

@@ -1,6 +1,17 @@
 {% extends 'base.html' %}
+{% load summary_extras %}
 
 {% block title %}Сравнение сотрудников - {{ block.super }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .cmp-card { border: 0; box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08); }
+    .cmp-radar-wrap { position: relative; height: 420px; }
+    .cmp-stat-row td { vertical-align: middle; }
+    .cmp-empty { color: #94a3b8; font-style: italic; }
+    .cmp-stat-row td.metric-label { color: #64748b; font-weight: 600; }
+</style>
+{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -8,16 +19,11 @@
         <h1 class="h3 mb-1">
             <i class="bi bi-people-fill"></i> Сравнение сотрудников
         </h1>
-        <p class="text-muted mb-0">Side-by-side сравнение KPI выбранных сотрудников.</p>
+        <p class="text-muted mb-0">Side-by-side KPI и радар. По умолчанию — все активные.</p>
     </div>
     <a href="{% url 'summaries:analytics_managers' %}" class="btn btn-outline-secondary">
         <i class="bi bi-arrow-left"></i> К обзору
     </a>
-</div>
-
-<div class="alert alert-warning">
-    <i class="bi bi-tools"></i>
-    Сравнение будет реализовано в Phase 3.
 </div>
 
 {% if filters.errors %}
@@ -27,4 +33,195 @@
     </ul>
 </div>
 {% endif %}
+
+<form method="get" class="card cmp-card mb-4">
+    <div class="card-body row g-3 align-items-end">
+        <div class="col-12 col-md-4">
+            <label class="form-label mb-1">Период</label>
+            <select class="form-select" name="period">
+                <option value="all" {% if filters.period == 'all' %}selected{% endif %}>Все время</option>
+                <option value="30" {% if filters.period == '30' %}selected{% endif %}>30 дней</option>
+                <option value="90" {% if filters.period == '90' %}selected{% endif %}>90 дней</option>
+                <option value="365" {% if filters.period == '365' %}selected{% endif %}>365 дней</option>
+            </select>
+        </div>
+        <div class="col-12 col-md-6">
+            <label class="form-label mb-1">Сотрудники</label>
+            <select class="form-select" name="ids" multiple size="3">
+                {% for u in available_users %}
+                <option value="{{ u.id }}" {% if u.id in user_ids %}selected{% endif %}>{{ u.display }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-12 col-md-2 d-flex">
+            <button type="submit" class="btn btn-primary w-100">
+                <i class="bi bi-funnel"></i> Применить
+            </button>
+        </div>
+    </div>
+</form>
+
+{% if not managers %}
+<div class="alert alert-info">Нет данных за выбранный период / для выбранных сотрудников.</div>
+{% else %}
+<div class="row g-3 mb-4">
+    <div class="col-12">
+        <div class="card cmp-card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-radar"></i> Радар</h5>
+            </div>
+            <div class="card-body">
+                <div class="cmp-radar-wrap"><canvas id="cmp-radar"></canvas></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card cmp-card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-table"></i> KPI side-by-side</h5>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Метрика</th>
+                        {% for m in managers %}
+                        <th>
+                            <a href="{% url 'summaries:analytics_manager_detail' m.user_id %}">{{ m.display }}</a>
+                        </th>
+                        {% endfor %}
+                        <th class="text-muted">Команда</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr class="cmp-stat-row">
+                        <td class="metric-label">Загружено заявок</td>
+                        {% for m in managers %}<td>{{ m.requests_total }}</td>{% endfor %}
+                        <td class="text-muted">{{ team.requests_total }}</td>
+                    </tr>
+                    <tr class="cmp-stat-row">
+                        <td class="metric-label">Сводов создано</td>
+                        {% for m in managers %}<td>{{ m.summaries_total }}</td>{% endfor %}
+                        <td class="text-muted">{{ team.summaries_total }}</td>
+                    </tr>
+                    <tr class="cmp-stat-row">
+                        <td class="metric-label">Акцепт</td>
+                        {% for m in managers %}<td class="text-success">{{ m.accepted }}</td>{% endfor %}
+                        <td class="text-muted">{{ team.accepted }}</td>
+                    </tr>
+                    <tr class="cmp-stat-row">
+                        <td class="metric-label">Не будет</td>
+                        {% for m in managers %}<td class="text-secondary">{{ m.rejected }}</td>{% endfor %}
+                        <td class="text-muted">{{ team.rejected }}</td>
+                    </tr>
+                    <tr class="cmp-stat-row">
+                        <td class="metric-label">Win-rate</td>
+                        {% for m in managers %}<td>{% if m.win_rate is not None %}{{ m.win_rate|floatformat:1 }}%{% else %}<span class="cmp-empty">—</span>{% endif %}</td>{% endfor %}
+                        <td class="text-muted">{% if team.win_rate is not None %}{{ team.win_rate|floatformat:1 }}%{% else %}—{% endif %}</td>
+                    </tr>
+                    <tr class="cmp-stat-row">
+                        <td class="metric-label">Σ премии (accepted)</td>
+                        {% for m in managers %}<td>{{ m.premium_total|format_currency_with_spaces }}</td>{% endfor %}
+                        <td class="text-muted">{{ team.premium_total|format_currency_with_spaces }}</td>
+                    </tr>
+                    <tr class="cmp-stat-row">
+                        <td class="metric-label">Avg цикл, ч</td>
+                        {% for m in managers %}<td>{% if m.time_to.avg_cycle_h %}{{ m.time_to.avg_cycle_h|floatformat:1 }}{% else %}<span class="cmp-empty">—</span>{% endif %}</td>{% endfor %}
+                        <td class="text-muted">—</td>
+                    </tr>
+                    <tr class="cmp-stat-row">
+                        <td class="metric-label">P50 цикла</td>
+                        {% for m in managers %}<td>{% if m.time_to.p50_cycle_h %}{{ m.time_to.p50_cycle_h|floatformat:1 }}{% else %}<span class="cmp-empty">—</span>{% endif %}</td>{% endfor %}
+                        <td class="text-muted">—</td>
+                    </tr>
+                    <tr class="cmp-stat-row">
+                        <td class="metric-label">Активно сейчас</td>
+                        {% for m in managers %}<td>{{ m.active_total }}</td>{% endfor %}
+                        <td class="text-muted">{{ team.active_total }}</td>
+                    </tr>
+                    <tr class="cmp-stat-row">
+                        <td class="metric-label">Просрочки</td>
+                        {% for m in managers %}<td class="{% if m.overdue_count %}text-danger fw-semibold{% endif %}">{{ m.overdue_count }}</td>{% endfor %}
+                        <td class="text-muted">{{ team.overdue_count }}</td>
+                    </tr>
+                    <tr class="cmp-stat-row">
+                        <td class="metric-label">Quality-score</td>
+                        {% for m in managers %}<td><strong>{% if m.quality_score is not None %}{{ m.quality_score|floatformat:1 }}{% else %}—{% endif %}</strong></td>{% endfor %}
+                        <td class="text-muted">{% if team.quality_score is not None %}{{ team.quality_score|floatformat:1 }}{% else %}—{% endif %}</td>
+                    </tr>
+                    <tr class="cmp-stat-row">
+                        <td class="metric-label">Cadence, ч</td>
+                        {% for m in managers %}<td>{% if m.patterns.cadence_hours is not None %}{{ m.patterns.cadence_hours|floatformat:1 }}{% else %}<span class="cmp-empty">—</span>{% endif %}</td>{% endfor %}
+                        <td class="text-muted">—</td>
+                    </tr>
+                    <tr class="cmp-stat-row">
+                        <td class="metric-label">% поздних</td>
+                        {% for m in managers %}<td>{% if m.patterns.late_pct is not None %}{{ m.patterns.late_pct|floatformat:0 }}%{% else %}<span class="cmp-empty">—</span>{% endif %}</td>{% endfor %}
+                        <td class="text-muted">—</td>
+                    </tr>
+                    <tr class="cmp-stat-row">
+                        <td class="metric-label">% выходных</td>
+                        {% for m in managers %}<td>{% if m.patterns.weekend_pct is not None %}{{ m.patterns.weekend_pct|floatformat:0 }}%{% else %}<span class="cmp-empty">—</span>{% endif %}</td>{% endfor %}
+                        <td class="text-muted">—</td>
+                    </tr>
+                    <tr class="cmp-stat-row">
+                        <td class="metric-label">Заполненность</td>
+                        {% for m in managers %}<td>{% if m.completeness.overall_pct is not None %}{{ m.completeness.overall_pct|floatformat:1 }}%{% else %}<span class="cmp-empty">—</span>{% endif %}</td>{% endfor %}
+                        <td class="text-muted">{% if team.completeness.overall_pct is not None %}{{ team.completeness.overall_pct|floatformat:1 }}%{% else %}—{% endif %}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{{ radar_json|json_script:"cmp-radar-data" }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+    var raw = document.getElementById('cmp-radar-data');
+    if (!raw) return;
+    var data;
+    try { data = JSON.parse(raw.textContent); } catch (e) { return; }
+    if (!data.managers || !data.managers.length) return;
+    var canvas = document.getElementById('cmp-radar');
+    if (!canvas) return;
+    var palette = ['#2563eb', '#16a34a', '#f59e0b', '#dc2626', '#7c3aed', '#0891b2'];
+    var datasets = data.managers.map(function (m, i) {
+        var color = palette[i % palette.length];
+        return {
+            label: m.display,
+            data: m.values,
+            backgroundColor: color + '33',
+            borderColor: color,
+            pointBackgroundColor: color,
+            borderWidth: 2,
+        };
+    });
+    if (data.team) {
+        var keys = ['volume', 'speed', 'win_rate', 'quality', 'money', 'activity'];
+        datasets.push({
+            label: 'Команда',
+            data: data.axes.map(function (_, i) { return data.team[keys[i]] || 0; }),
+            backgroundColor: 'rgba(15, 23, 42, 0.05)',
+            borderColor: 'rgba(15, 23, 42, 0.6)',
+            borderDash: [4, 4],
+            pointRadius: 0,
+            borderWidth: 2,
+        });
+    }
+    new Chart(canvas, {
+        type: 'radar',
+        data: { labels: data.axes, datasets: datasets },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: { r: { suggestedMin: 0, suggestedMax: 100, ticks: { stepSize: 25 } } },
+        },
+    });
+})();
+</script>
 {% endblock %}
