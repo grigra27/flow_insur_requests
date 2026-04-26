@@ -266,6 +266,12 @@ LOGGING = {
             'filename': BASE_DIR / 'logs' / 'https.log',
             'formatter': 'domain_format',
         },
+        'backup_file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': BASE_DIR / 'logs' / 'backup.log',
+            'formatter': 'verbose',
+        },
     },
     'root': {
         'handlers': ['console', 'file'],
@@ -317,6 +323,11 @@ LOGGING = {
             'level': 'WARNING',
             'propagate': False,
         },
+        'backup.send_backup_to_vk': {
+            'handlers': ['console', 'backup_file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
     },
 }
 
@@ -326,6 +337,11 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB
 
 # Excel export settings
 SUMMARY_TEMPLATE_PATH = BASE_DIR / 'templates' / 'summary_template.xlsx'
+
+# VK backup delivery (daily DB dump sent to a personal chat via community token)
+VK_BACKUP_TOKEN = config('VK_BACKUP_TOKEN', default='')
+VK_BACKUP_PEER_ID = config('VK_BACKUP_PEER_ID', default='')
+VK_API_VERSION = config('VK_API_VERSION', default='5.199')
 
 # Domain configuration for multi-domain support
 MAIN_DOMAINS = config('MAIN_DOMAINS', default='insflow.tw1.su', cast=lambda v: [s.strip() for s in v.split(',')])

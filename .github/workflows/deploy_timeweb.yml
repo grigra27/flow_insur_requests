@@ -100,6 +100,11 @@ jobs:
           # SSL Certificate settings
           SSL_ENABLED=True
           SSL_EMAIL=${{ env.SSL_EMAIL }}
+
+          # VK backup delivery (daily pg_dump → VK community → user DM)
+          VK_BACKUP_TOKEN=${{ secrets.VK_BACKUP_TOKEN }}
+          VK_BACKUP_PEER_ID=${{ secrets.VK_BACKUP_PEER_ID }}
+          VK_API_VERSION=5.199
           EOF
           
           echo "➡️ Логинимся в GitHub Container Registry..."
@@ -285,6 +290,18 @@ jobs:
             echo "❌ Ошибка при сборе статических файлов"
             docker-compose -f docker-compose.yml logs --tail=50 web
             exit 1
+          fi
+
+          echo "➡️ Настраиваем cron для ежедневной отправки бэкапа в VK..."
+          if [ -n "${{ secrets.VK_BACKUP_TOKEN }}" ] && [ -n "${{ secrets.VK_BACKUP_PEER_ID }}" ]; then
+            chmod +x scripts/backup-cron-setup.sh
+            if bash scripts/backup-cron-setup.sh; then
+              echo "✅ Cron задача для бэкапа в VK установлена"
+            else
+              echo "⚠️ Не удалось установить cron задачу для бэкапа в VK"
+            fi
+          else
+            echo "⚠️ VK_BACKUP_TOKEN/VK_BACKUP_PEER_ID не заданы — пропускаем установку cron"
           fi
           
           echo "➡️ Проверяем состояние контейнеров..."

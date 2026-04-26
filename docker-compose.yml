@@ -38,6 +38,10 @@ services:
       # Domain configuration
       - MAIN_DOMAINS=${MAIN_DOMAINS:-insflow.tw1.su,insflow.ru}
       - SUBDOMAINS=${SUBDOMAINS:-zs.insflow.tw1.su,zs.insflow.ru}
+      # VK backup delivery
+      - VK_BACKUP_TOKEN=${VK_BACKUP_TOKEN:-}
+      - VK_BACKUP_PEER_ID=${VK_BACKUP_PEER_ID:-}
+      - VK_API_VERSION=${VK_API_VERSION:-5.199}
     volumes:
       - media_data_timeweb:/app/media
       - logs_data_timeweb:/app/logs
