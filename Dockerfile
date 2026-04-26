@@ -1,12 +1,22 @@
 # Используем официальный Python образ
 FROM python:3.11-slim
 
-# Устанавливаем системные зависимости
-RUN apt-get update && apt-get install -y \
-    gcc \
-    postgresql-client \
-    wget \
-    curl \
+# Устанавливаем системные зависимости.
+# postgresql-client пиним до 15, чтобы pg_dump писал формат, совместимый
+# с pg_restore в db-контейнере (postgres:15). Без пина apt тянет последнюю
+# доступную версию клиента, и формат дампа становится несовместим со старым
+# сервером. Версия 15 ставится из официального PostgreSQL APT репозитория.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates gnupg lsb-release wget curl \
+    && install -d /usr/share/keyrings \
+    && wget -qO- https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+        | gpg --dearmor -o /usr/share/keyrings/pgdg-keyring.gpg \
+    && echo "deb [signed-by=/usr/share/keyrings/pgdg-keyring.gpg] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+        > /etc/apt/sources.list.d/pgdg.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+        gcc \
+        postgresql-client-15 \
     && rm -rf /var/lib/apt/lists/*
 
 # Создаем пользователя для приложения
