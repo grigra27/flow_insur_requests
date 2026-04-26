@@ -25,7 +25,10 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    
+
+    # Third-party
+    'easyaudit',
+
     # Local apps
     'insurance_requests',
     'summaries',
@@ -44,6 +47,8 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'insurance_requests.middleware.AuthenticationMiddleware',
     'summaries.middleware.CurrentUserMiddleware',
+    # easy-audit middleware должна стоять после auth — иначе не увидит request.user
+    'easyaudit.middleware.easyaudit.EasyAuditMiddleware',
 ]
 
 ROOT_URLCONF = 'onlineservice.urls'
@@ -328,6 +333,11 @@ LOGGING = {
             'level': 'INFO',
             'propagate': False,
         },
+        'backup.purge_audit_log': {
+            'handlers': ['console', 'backup_file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
     },
 }
 
@@ -342,6 +352,38 @@ SUMMARY_TEMPLATE_PATH = BASE_DIR / 'templates' / 'summary_template.xlsx'
 VK_BACKUP_TOKEN = config('VK_BACKUP_TOKEN', default='')
 VK_BACKUP_PEER_ID = config('VK_BACKUP_PEER_ID', default='')
 VK_API_VERSION = config('VK_API_VERSION', default='5.199')
+
+# ---------------------------------------------------------------------------
+# django-easy-audit: журнал действий пользователей в Django admin
+# ---------------------------------------------------------------------------
+# Логин/логаут — пишутся в LoginEvent.
+# Создание/изменение/удаление любых моделей — в CRUDEvent (с diff'ом полей).
+# HTTP-запросы — в RequestEvent (объёмно, чистится ежедневно через cron).
+DJANGO_EASY_AUDIT_WATCH_LOGIN_EVENTS = True
+DJANGO_EASY_AUDIT_WATCH_MODEL_EVENTS = True
+DJANGO_EASY_AUDIT_WATCH_REQUEST_EVENTS = True
+
+# Не логируем системные модели и наш собственный StatusEvent
+# (StatusEvent уже сам пишет аудит смен статусов через сигналы — иначе будет
+# дублирование. easy-audit'овские модели исключены пакетом по умолчанию).
+DJANGO_EASY_AUDIT_UNREGISTERED_CLASSES_EXTRA = [
+    'sessions.Session',
+    'admin.LogEntry',
+    'contenttypes.ContentType',
+    'auth.Permission',
+    'summaries.StatusEvent',
+]
+
+# Не пишем RequestEvent на статику, healthcheck и landing-health,
+# иначе RequestEvent растёт со скоростью прометеевских скрейпов.
+DJANGO_EASY_AUDIT_UNREGISTERED_URLS_EXTRA = [
+    r'^/static/',
+    r'^/media/',
+    r'^/healthz/',
+    r'^/landing/health/',
+    r'^/admin/jsi18n/',
+    r'^/favicon\.ico$',
+]
 
 # Domain configuration for multi-domain support
 MAIN_DOMAINS = config('MAIN_DOMAINS', default='insflow.tw1.su', cast=lambda v: [s.strip() for s in v.split(',')])

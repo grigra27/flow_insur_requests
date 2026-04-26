@@ -3,7 +3,7 @@ from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.http import HttpResponseRedirect
 from django.urls import reverse
-from .models import InsuranceCompany, InsuranceSummary, InsuranceOffer, SummaryTemplate
+from .models import InsuranceCompany, InsuranceSummary, InsuranceOffer, StatusEvent, SummaryTemplate
 
 
 @admin.register(InsuranceCompany)
@@ -175,3 +175,23 @@ class SummaryTemplateAdmin(admin.ModelAdmin):
     list_filter = ['is_active', 'is_default', 'created_at']
     search_fields = ['name', 'description']
     readonly_fields = ['created_at', 'updated_at']
+
+
+@admin.register(StatusEvent)
+class StatusEventAdmin(admin.ModelAdmin):
+    """Read-only лента смен статусов на InsuranceRequest и InsuranceSummary."""
+
+    list_display = ['changed_at', 'content_type', 'object_id', 'from_status', 'to_status', 'changed_by']
+    list_filter = ['content_type', 'changed_by', 'changed_at']
+    search_fields = ['object_id', 'changed_by__username']
+    date_hierarchy = 'changed_at'
+    readonly_fields = [f.name for f in StatusEvent._meta.fields]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
