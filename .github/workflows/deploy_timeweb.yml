@@ -286,14 +286,7 @@ jobs:
             docker-compose -f docker-compose.yml logs --tail=50 db
             exit 1
           fi
-
-          echo "➡️ Синхронизируем группы и права (новые модели → группа Администраторы)..."
-          if docker-compose -f docker-compose.yml exec -T web python manage.py setup_user_groups; then
-            echo "✅ setup_user_groups выполнен"
-          else
-            echo "⚠️ setup_user_groups завершился с ошибкой, продолжаем"
-          fi
-
+          
           echo "➡️ Собираем статические файлы..."
           if docker-compose -f docker-compose.yml exec -T web python manage.py collectstatic --noinput; then
             echo "✅ Статические файлы собраны успешно"
@@ -313,14 +306,6 @@ jobs:
             fi
           else
             echo "⚠️ VK_BACKUP_TOKEN/VK_BACKUP_PEER_ID не заданы — пропускаем установку cron"
-          fi
-
-          echo "➡️ Настраиваем cron для ежедневной чистки журналов аудита..."
-          chmod +x scripts/audit-cron-setup.sh
-          if bash scripts/audit-cron-setup.sh; then
-            echo "✅ Cron задача чистки аудита установлена"
-          else
-            echo "⚠️ Не удалось установить cron задачу чистки аудита"
           fi
           
           echo "➡️ Проверяем состояние контейнеров..."
@@ -514,6 +499,28 @@ jobs:
             echo "  - http://insflow.tw1.su (лендинг-страница)"
             echo "  - http://zs.insflow.tw1.su (Django приложение)"
           fi
+
+    # 5️⃣.5 Post-deploy hooks: sync permissions + install audit cron.
+    # Отдельный шаг, чтобы не упереться в лимит GitHub Actions на длину
+    # шаблона script: (21000 символов с раскрытыми ${{ secrets.* }}).
+    - name: Post-deploy hooks (groups + audit cron)
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.TIMEWEB_HOST }}
+        username: ${{ secrets.TIMEWEB_USERNAME }}
+        key: ${{ secrets.TIMEWEB_SSH_KEY }}
+        port: ${{ secrets.TIMEWEB_PORT }}
+        script: |
+          set -e
+          cd ${{ env.PROJECT_PATH }}
+
+          echo "Sync user groups and permissions..."
+          docker-compose -f docker-compose.yml exec -T web python manage.py setup_user_groups || \
+            echo "setup_user_groups failed, continuing"
+
+          echo "Install audit log purge cron..."
+          chmod +x scripts/audit-cron-setup.sh
+          bash scripts/audit-cron-setup.sh || echo "audit-cron-setup.sh failed"
 
     # 6️⃣ Post-deployment notification and cleanup
     - name: Post-deployment notification
