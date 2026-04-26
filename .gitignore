@@ -147,6 +147,9 @@ backups/
 # kiro files
 .kiro
 
+# Claude Code
+.claude/
+
 # deployment guide
 DEPLOYMENT_GUIDE_TIMEWEB.md
 DEPLOYMENT_GUIDE.md
