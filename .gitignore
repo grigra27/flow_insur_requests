@@ -154,3 +154,4 @@ DOMIAN_UPDATE_SUMMARY.md
 
 # Internal planning docs (not for public repo)
 docs/_internal/
+*.local.md
