@@ -93,6 +93,47 @@
         max-height: 280px;
         overflow-y: auto;
     }
+
+    .mgr-heatmap td.heatmap-cell {
+        text-align: center;
+        font-variant-numeric: tabular-nums;
+        min-width: 56px;
+        position: relative;
+    }
+    .mgr-heatmap td.heatmap-cell .hm-bg {
+        position: absolute; inset: 0;
+        background-color: rgba(37, 99, 235, var(--alpha, 0));
+        z-index: 0;
+    }
+    .mgr-heatmap td.heatmap-cell .hm-val {
+        position: relative; z-index: 1;
+        font-weight: 600;
+    }
+    .mgr-heatmap td.heatmap-cell.zero .hm-val {
+        color: #cbd5e1;
+        font-weight: 400;
+    }
+    .mgr-quality-bar {
+        height: 6px;
+        background: #e2e8f0;
+        border-radius: 3px;
+        overflow: hidden;
+        position: relative;
+    }
+    .mgr-quality-bar > span {
+        display: block;
+        height: 100%;
+        background: linear-gradient(90deg, #ef4444 0%, #f59e0b 50%, #16a34a 100%);
+    }
+    .mgr-flag-badge {
+        display: inline-block;
+        font-size: 0.78rem;
+        background: #eef2ff;
+        color: #4338ca;
+        padding: 0.15rem 0.5rem;
+        border-radius: 0.6rem;
+        margin: 0 0.2rem 0.2rem 0;
+    }
 </style>
 {% endblock %}
 
@@ -278,6 +319,7 @@
                             <th class="num">Avg цикл, ч</th>
                             <th class="num">Активно</th>
                             <th class="num">Просрочка</th>
+                            <th class="num" title="Composite quality-score: completeness 40% + win-rate 30% + speed 20% + volume 10%">Quality</th>
                             <th>Последняя активность</th>
                         </tr>
                     </thead>
@@ -305,10 +347,16 @@
                             </td>
                             <td class="num">{{ row.active_total }}</td>
                             <td class="num {% if row.overdue_count %}text-danger fw-semibold{% endif %}">{{ row.overdue_count }}</td>
+                            <td class="num">
+                                {% if row.quality_score is not None %}
+                                    <div>{{ row.quality_score|floatformat:1 }}</div>
+                                    <div class="mgr-quality-bar"><span style="width: {{ row.quality_score|floatformat:0 }}%"></span></div>
+                                {% else %}—{% endif %}
+                            </td>
                             <td>{% if row.last_activity %}{{ row.last_activity|date:"d.m.Y H:i" }}{% else %}—{% endif %}</td>
                         </tr>
                         {% empty %}
-                        <tr><td colspan="11" class="text-center text-muted py-4">Нет данных за выбранный период.</td></tr>
+                        <tr><td colspan="12" class="text-center text-muted py-4">Нет данных за выбранный период.</td></tr>
                         {% endfor %}
                         {% if rows %}
                         <tr class="mgr-row-total">
@@ -322,6 +370,7 @@
                             <td class="num">—</td>
                             <td class="num">{{ team.active_total }}</td>
                             <td class="num {% if team.overdue_count %}text-danger fw-semibold{% endif %}">{{ team.overdue_count }}</td>
+                            <td class="num">{% if team.quality_score is not None %}{{ team.quality_score|floatformat:1 }}{% else %}—{% endif %}</td>
                             <td>—</td>
                         </tr>
                         {% endif %}
@@ -370,6 +419,162 @@
                 </div>
             </div>
         </div>
+    </div>
+
+    <!-- Quality & data integrity -->
+    <div class="card mgr-table-card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="bi bi-clipboard-check"></i> Качество данных</h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mgr-table mb-0">
+                    <thead>
+                        <tr>
+                            <th>Сотрудник</th>
+                            <th class="num" title="% заполненности базовых полей">База</th>
+                            <th class="num" title="КАСКО/спецтехника: % заполненности доп. полей">КАСКО-доп</th>
+                            <th class="num" title="Имущество: % заполненности доп. полей">Имущ.-доп</th>
+                            <th class="num">Общая</th>
+                            <th class="num" title="ИНН ≠ 10/12 цифр или пуст">Битый ИНН</th>
+                            <th class="num">Тип «другое»</th>
+                            <th class="num" title="Заявки, отредактированные после создания (updated_at &gt; created_at + 60s)">Отредактировано</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in rows %}
+                        <tr class="{% if row.is_unassigned %}mgr-row-unassigned{% endif %}">
+                            <td>{{ row.display }}</td>
+                            <td class="num">{% if row.completeness.base_pct is not None %}{{ row.completeness.base_pct|floatformat:1 }}%{% else %}—{% endif %}</td>
+                            <td class="num">{% if row.completeness.casco_pct is not None %}{{ row.completeness.casco_pct|floatformat:1 }}%{% else %}—{% endif %}</td>
+                            <td class="num">{% if row.completeness.property_pct is not None %}{{ row.completeness.property_pct|floatformat:1 }}%{% else %}—{% endif %}</td>
+                            <td class="num"><strong>{% if row.completeness.overall_pct is not None %}{{ row.completeness.overall_pct|floatformat:1 }}%{% else %}—{% endif %}</strong></td>
+                            <td class="num {% if row.completeness.inn_invalid_count %}text-danger fw-semibold{% endif %}">
+                                {{ row.completeness.inn_invalid_count }}
+                                <small class="text-muted">({{ row.completeness.inn_invalid_pct|floatformat:0 }}%)</small>
+                            </td>
+                            <td class="num">
+                                {{ row.completeness.other_type_count }}
+                                <small class="text-muted">({{ row.completeness.other_type_pct|floatformat:0 }}%)</small>
+                            </td>
+                            <td class="num">
+                                {{ row.completeness.edited_count }}
+                                <small class="text-muted">({{ row.completeness.edited_pct|floatformat:0 }}%)</small>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        {% if rows %}
+                        <tr class="mgr-row-total">
+                            <td>Команда</td>
+                            <td class="num">{% if team.completeness.base_pct is not None %}{{ team.completeness.base_pct|floatformat:1 }}%{% else %}—{% endif %}</td>
+                            <td class="num">{% if team.completeness.casco_pct is not None %}{{ team.completeness.casco_pct|floatformat:1 }}%{% else %}—{% endif %}</td>
+                            <td class="num">{% if team.completeness.property_pct is not None %}{{ team.completeness.property_pct|floatformat:1 }}%{% else %}—{% endif %}</td>
+                            <td class="num"><strong>{% if team.completeness.overall_pct is not None %}{{ team.completeness.overall_pct|floatformat:1 }}%{% else %}—{% endif %}</strong></td>
+                            <td class="num">{{ team.completeness.inn_invalid_count }}</td>
+                            <td class="num">{{ team.completeness.other_type_count }}</td>
+                            <td class="num">{{ team.completeness.edited_count }}</td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Portfolio breakdown -->
+    <div class="card mgr-table-card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="bi bi-pie-chart"></i> Портфель сотрудника</h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mgr-table mb-0">
+                    <thead>
+                        <tr>
+                            <th>Сотрудник</th>
+                            <th>Типы страхования</th>
+                            <th class="num">Новая</th>
+                            <th class="num">Пролонг.</th>
+                            <th>Флаги (доля заявок)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in rows %}
+                        <tr class="{% if row.is_unassigned %}mgr-row-unassigned{% endif %}">
+                            <td>{{ row.display }}</td>
+                            <td>
+                                {% for t, cnt in row.portfolio.by_insurance_type.items %}
+                                <span class="mgr-flag-badge">{{ t }}: {{ cnt }}</span>
+                                {% endfor %}
+                            </td>
+                            <td class="num">{% if row.portfolio.new_deal_pct is not None %}{{ row.portfolio.new_deal_pct|floatformat:0 }}%{% else %}—{% endif %}</td>
+                            <td class="num">{% if row.portfolio.prolongation_pct is not None %}{{ row.portfolio.prolongation_pct|floatformat:0 }}%{% else %}—{% endif %}</td>
+                            <td>
+                                {% if row.portfolio.flag_pct.has_franchise %}<span class="mgr-flag-badge">франшиза {{ row.portfolio.flag_pct.has_franchise|floatformat:0 }}%</span>{% endif %}
+                                {% if row.portfolio.flag_pct.has_installment %}<span class="mgr-flag-badge">рассрочка {{ row.portfolio.flag_pct.has_installment|floatformat:0 }}%</span>{% endif %}
+                                {% if row.portfolio.flag_pct.has_autostart %}<span class="mgr-flag-badge">автозапуск {{ row.portfolio.flag_pct.has_autostart|floatformat:0 }}%</span>{% endif %}
+                                {% if row.portfolio.flag_pct.has_casco_ce %}<span class="mgr-flag-badge">КАСКО C/E {{ row.portfolio.flag_pct.has_casco_ce|floatformat:0 }}%</span>{% endif %}
+                                {% if row.portfolio.flag_pct.has_transportation %}<span class="mgr-flag-badge">перевозка {{ row.portfolio.flag_pct.has_transportation|floatformat:0 }}%</span>{% endif %}
+                                {% if row.portfolio.flag_pct.has_construction_work %}<span class="mgr-flag-badge">СМР {{ row.portfolio.flag_pct.has_construction_work|floatformat:0 }}%</span>{% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Heatmaps: связи -->
+    <div class="row g-3 mb-4">
+        {% for hm_key, hm in heatmaps.items %}
+        <div class="col-12 col-xl-6">
+            <div class="card mgr-table-card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-grid-3x3"></i>
+                        {% if hm_key == 'branch' %}Сотрудник × Филиал
+                        {% elif hm_key == 'insurance_type' %}Сотрудник × Тип страхования
+                        {% elif hm_key == 'alliance_manager' %}Сотрудник × Менеджер Альянса
+                        {% elif hm_key == 'selected_company' %}Сотрудник × Выбранная СК (accepted)
+                        {% endif %}
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    {% if hm.rows %}
+                    <div class="table-responsive">
+                        <table class="table table-sm mgr-heatmap mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Сотрудник</th>
+                                    {% for col in hm.columns %}
+                                    <th class="num">{{ col }}</th>
+                                    {% endfor %}
+                                    <th class="num">Σ</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for hrow in hm.rows %}
+                                <tr>
+                                    <td>{{ hrow.label }}</td>
+                                    {% for v in hrow.cells %}
+                                    <td class="heatmap-cell {% if v == 0 %}zero{% endif %}" data-value="{{ v }}" data-max="{{ hm.max_value }}">
+                                        <span class="hm-bg"></span><span class="hm-val">{{ v }}</span>
+                                    </td>
+                                    {% endfor %}
+                                    <td class="num"><strong>{{ hrow.total }}</strong></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-muted p-3 mb-0">Нет данных за период.</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
     </div>
 
     <!-- Charts -->
@@ -475,6 +680,41 @@
                     </div>
                     {% endif %}
 
+                    {% if alerts.volume_drop.flagged %}
+                    <div class="mb-3">
+                        <h6 class="text-danger mb-2"><i class="bi bi-arrow-down-circle"></i> Просадка объёма ({{ alerts.volume_drop.flagged|length }})</h6>
+                        <ul class="alert-list list-unstyled small mb-0">
+                            {% for a in alerts.volume_drop.flagged %}
+                            <li class="border-bottom py-1">
+                                <a href="{% url 'summaries:analytics_manager_detail' a.user_id %}">{{ a.display }}</a>
+                                <small class="text-muted d-block">
+                                    {{ a.previous_count }} → {{ a.current_count }} ({{ a.change_pct }}%)
+                                </small>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
+
+                    {% if alerts.cycle_outliers.outliers %}
+                    <div class="mb-3">
+                        <h6 class="text-warning mb-2">
+                            <i class="bi bi-exclamation-octagon"></i>
+                            Аномальный цикл ({{ alerts.cycle_outliers.outliers|length }})
+                            <small class="text-muted">{{ alerts.cycle_outliers.threshold_h|floatformat:0 }}+ ч</small>
+                        </h6>
+                        <ul class="alert-list list-unstyled small mb-0">
+                            {% for a in alerts.cycle_outliers.outliers %}
+                            <li class="border-bottom py-1">
+                                <a href="{% url 'summaries:summary_detail' a.summary_id %}">{{ a.dfa_number }}</a>
+                                — {{ a.client_name|truncatechars:40 }}
+                                <small class="text-muted d-block">{{ a.manager }} · {{ a.cycle_days }} дн.</small>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
+
                     {% if alerts.inactive_users %}
                     <div class="mb-0">
                         <h6 class="text-secondary mb-2"><i class="bi bi-person-x"></i> Без активности (>{{ alerts.no_activity_days }} дн.)</h6>
@@ -490,7 +730,7 @@
                     </div>
                     {% endif %}
 
-                    {% if not alerts.overdue and not alerts.stuck and not alerts.inactive_users %}
+                    {% if not alerts.overdue and not alerts.stuck and not alerts.inactive_users and not alerts.volume_drop.flagged and not alerts.cycle_outliers.outliers %}
                     <p class="text-muted mb-0">Алертов нет — команда чиста.</p>
                     {% endif %}
                 </div>
@@ -603,6 +843,20 @@
             });
         }
     }
+
+    // Heatmap cell intensity (alpha by value/max)
+    var cells = document.querySelectorAll('.mgr-heatmap td.heatmap-cell');
+    cells.forEach(function (cell) {
+        var value = parseFloat(cell.dataset.value || '0');
+        var max = parseFloat(cell.dataset.max || '0');
+        if (max > 0 && value > 0) {
+            var alpha = Math.min(0.85, value / max * 0.85 + 0.1);
+            var bg = cell.querySelector('.hm-bg');
+            if (bg) bg.style.setProperty('--alpha', alpha);
+            // Также прокидываем в стиль через атрибут, иначе custom property через JS не подхватится
+            if (bg) bg.style.backgroundColor = 'rgba(37, 99, 235, ' + alpha.toFixed(2) + ')';
+        }
+    });
 })();
 </script>
 {% endblock %}

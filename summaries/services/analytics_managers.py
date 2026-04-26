@@ -1,11 +1,8 @@
 """Сервис аналитики по сотрудникам (Django-юзерам, загружающим заявки).
 
-Phase 1:
-- parse_filters: период, явные даты, фильтры (филиал/тип/deal_status), мультиселект сотрудников.
-- build_overview_payload: KPI команды, таблица всех сотрудников с метриками
-  (объём, win-rate, premium, time-to-*, активные, просроченные), ряды для графиков
-  (по дням, по неделям, funnel).
-- build_alerts: просрочки и зависшие сделки.
+Phase 1: filters, KPI, табличные метрики, time-to-*, charts, funnel, базовые алерты.
+Phase 2: качество данных, портфель, heatmap-связи, аномалии цикла, просадка объёма,
+композитный quality-score.
 
 Реализация компромиссная: для прошлых данных нет точного таймстемпа смены статуса,
 поэтому стадии funnel считаются по снимку (current status + наличие summary).
@@ -47,6 +44,27 @@ TERMINAL_SUMMARY_STATUSES = {'completed_accepted', 'completed_rejected'}
 # Пороги алертов
 NO_ACTIVITY_DAYS_DEFAULT = 14
 STUCK_SUMMARY_DAYS_DEFAULT = 30
+VOLUME_DROP_THRESHOLD_PCT = -30.0  # % изменения объёма к прошлому окну: алерт ≤ −30%
+CYCLE_OUTLIER_FACTOR = 1.5  # threshold = factor * team_p75 (устойчиво к малым выборкам)
+CYCLE_OUTLIER_FLOOR_HOURS = 7 * 24  # пол threshold’а — 7 дней, чтобы не ловить мелочёвку
+EDIT_THRESHOLD_SECONDS = 60  # updated_at - created_at > порог → заявка считается отредактированной
+
+# Группы полей для completeness-score
+FIELDS_BASE = (
+    'dfa_number', 'branch', 'manager_name', 'vehicle_info',
+    'notes', 'insurance_period', 'response_deadline',
+)
+FIELDS_CASCO = (
+    'key_completeness', 'pts_psm', 'creditor_bank',
+    'usage_purposes', 'telematics_complex',
+    'manufacturing_year', 'asset_status',
+)
+FIELDS_PROPERTY = ('insurance_territory',)
+CASCO_INSURANCE_TYPES = {'КАСКО', 'страхование спецтехники'}
+PROPERTY_INSURANCE_TYPES = {'страхование имущества'}
+
+HEATMAP_TOP_LIMIT = 8  # сколько значений измерения показывать в heatmap’е
+HEATMAP_OUTLIER_LIMIT = 50
 
 
 # --- Парсер фильтров --------------------------------------------------------
@@ -197,6 +215,160 @@ def _percentile(values: list[float], q: float) -> float | None:
     hi = min(lo + 1, len(sorted_v) - 1)
     frac = pos - lo
     return float(sorted_v[lo] + (sorted_v[hi] - sorted_v[lo]) * frac)
+
+
+def _is_field_filled(value) -> bool:
+    """Поле считается заполненным, если есть непустое значение (без учёта пробелов)."""
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, bool):
+        # Булевы поля «заполнены» всегда — это часть схемы.
+        return True
+    return True
+
+
+def _is_inn_valid(inn: str) -> bool:
+    """Проверка длины ИНН: 10 (юрлицо) или 12 (ИП/физлицо)."""
+    if not inn:
+        return False
+    cleaned = inn.strip()
+    return len(cleaned) in (10, 12) and cleaned.isdigit()
+
+
+def _completeness_for_request(req: InsuranceRequest) -> dict[str, Any]:
+    """Возвращает заполненность полей для одной заявки.
+
+    Возвращает:
+        {
+            'base_filled': int, 'base_total': int,
+            'casco_filled': int|None, 'casco_total': int|None,  # None если не КАСКО
+            'property_filled': int|None, 'property_total': int|None,
+            'inn_valid': bool,
+            'is_other_type': bool,
+            'edited_after_create': bool,
+        }
+    """
+    base_filled = sum(1 for f in FIELDS_BASE if _is_field_filled(getattr(req, f, None)))
+    casco_filled = casco_total = None
+    property_filled = property_total = None
+    if req.insurance_type in CASCO_INSURANCE_TYPES:
+        casco_filled = sum(1 for f in FIELDS_CASCO if _is_field_filled(getattr(req, f, None)))
+        casco_total = len(FIELDS_CASCO)
+    if req.insurance_type in PROPERTY_INSURANCE_TYPES:
+        property_filled = sum(1 for f in FIELDS_PROPERTY if _is_field_filled(getattr(req, f, None)))
+        property_total = len(FIELDS_PROPERTY)
+
+    edited = False
+    if req.created_at and req.updated_at:
+        delta = (req.updated_at - req.created_at).total_seconds()
+        edited = delta > EDIT_THRESHOLD_SECONDS
+
+    return {
+        'base_filled': base_filled,
+        'base_total': len(FIELDS_BASE),
+        'casco_filled': casco_filled,
+        'casco_total': casco_total,
+        'property_filled': property_filled,
+        'property_total': property_total,
+        'inn_valid': _is_inn_valid(req.inn),
+        'is_other_type': req.insurance_type == 'другое',
+        'edited_after_create': edited,
+    }
+
+
+def _aggregate_completeness(requests: list[InsuranceRequest]) -> dict[str, Any]:
+    """Агрегирует completeness-метрики по списку заявок одного сотрудника."""
+    if not requests:
+        return {
+            'base_pct': None, 'casco_pct': None, 'property_pct': None,
+            'overall_pct': None,
+            'inn_invalid_count': 0, 'inn_invalid_pct': None,
+            'other_type_count': 0, 'other_type_pct': None,
+            'edited_count': 0, 'edited_pct': None,
+        }
+
+    base_filled = base_total = 0
+    casco_filled = casco_total = 0
+    property_filled = property_total = 0
+    inn_invalid = 0
+    other_type = 0
+    edited = 0
+
+    for req in requests:
+        c = _completeness_for_request(req)
+        base_filled += c['base_filled']
+        base_total += c['base_total']
+        if c['casco_total']:
+            casco_filled += c['casco_filled']
+            casco_total += c['casco_total']
+        if c['property_total']:
+            property_filled += c['property_filled']
+            property_total += c['property_total']
+        if not c['inn_valid']:
+            inn_invalid += 1
+        if c['is_other_type']:
+            other_type += 1
+        if c['edited_after_create']:
+            edited += 1
+
+    base_pct = base_filled / base_total * 100 if base_total else None
+    casco_pct = casco_filled / casco_total * 100 if casco_total else None
+    property_pct = property_filled / property_total * 100 if property_total else None
+
+    # Общий процент — среднее по доступным группам
+    available = [pct for pct in (base_pct, casco_pct, property_pct) if pct is not None]
+    overall_pct = sum(available) / len(available) if available else None
+
+    n = len(requests)
+    return {
+        'base_pct': base_pct,
+        'casco_pct': casco_pct,
+        'property_pct': property_pct,
+        'overall_pct': overall_pct,
+        'inn_invalid_count': inn_invalid,
+        'inn_invalid_pct': inn_invalid / n * 100,
+        'other_type_count': other_type,
+        'other_type_pct': other_type / n * 100,
+        'edited_count': edited,
+        'edited_pct': edited / n * 100,
+    }
+
+
+def _portfolio_for_user(requests: list[InsuranceRequest]) -> dict[str, Any]:
+    """Распределение по типу страхования, deal_status и булевым флагам."""
+    if not requests:
+        return {
+            'by_insurance_type': {},
+            'prolongation_pct': None, 'new_deal_pct': None,
+            'flag_pct': {},
+        }
+
+    by_type: dict[str, int] = defaultdict(int)
+    new_count = prolong_count = 0
+    flag_counters = {
+        'has_franchise': 0, 'has_installment': 0,
+        'has_autostart': 0, 'has_casco_ce': 0,
+        'has_transportation': 0, 'has_construction_work': 0,
+    }
+    n = len(requests)
+    for req in requests:
+        by_type[req.insurance_type or 'не указан'] += 1
+        if req.deal_status == 'prolongation':
+            prolong_count += 1
+        else:
+            new_count += 1
+        for flag in flag_counters:
+            if getattr(req, flag, False):
+                flag_counters[flag] += 1
+
+    return {
+        'by_insurance_type': dict(by_type),
+        'new_deal_pct': new_count / n * 100,
+        'prolongation_pct': prolong_count / n * 100,
+        'flag_pct': {k: v / n * 100 for k, v in flag_counters.items()},
+    }
 
 
 def _accepted_premium(summary: InsuranceSummary) -> Decimal:
@@ -413,6 +585,9 @@ def _build_manager_rows(filters: dict) -> tuple[list[dict], dict]:
 
         last_activity = max((r.created_at for r in requests), default=None)
 
+        completeness = _aggregate_completeness(requests)
+        portfolio = _portfolio_for_user(requests)
+
         rows.append({
             'user_id': user_id,
             'display': _user_display(user),
@@ -432,12 +607,17 @@ def _build_manager_rows(filters: dict) -> tuple[list[dict], dict]:
             'active_total': len(active_requests) + len(active_summaries),
             'overdue_count': overdue_count,
             'last_activity': last_activity,
+            'completeness': completeness,
+            'portfolio': portfolio,
         })
 
     # Сортируем: сначала реальные сотрудники по объёму, в конце «Без автора»
     rows.sort(key=lambda r: (r['is_unassigned'], -r['requests_total'], r['display']))
 
     # Команда (агрегация)
+    real_rows = [r for r in rows if not r['is_unassigned']]
+    all_requests = [req for reqs in requests_by_user.values() for req in reqs]
+
     team = {
         'requests_total': sum(r['requests_total'] for r in rows),
         'summaries_total': sum(r['summaries_total'] for r in rows),
@@ -448,12 +628,52 @@ def _build_manager_rows(filters: dict) -> tuple[list[dict], dict]:
         'active_total': sum(r['active_total'] for r in rows),
         'overdue_count': sum(r['overdue_count'] for r in rows),
         'managers_count': sum(1 for r in rows if not r['is_unassigned']),
+        'completeness': _aggregate_completeness(all_requests),
+        'portfolio': _portfolio_for_user(all_requests),
     }
     completed = team['accepted'] + team['rejected']
     team['win_rate'] = (team['accepted'] / completed * 100) if completed else None
     team['avg_ticket'] = (team['premium_total'] / team['accepted']) if team['accepted'] else Decimal('0')
 
+    # Composite quality-score (нужны командные ориентиры)
+    team_max_volume = max((r['requests_total'] for r in real_rows), default=0)
+    cycle_values = [r['time_to']['avg_cycle_h'] for r in real_rows if r['time_to']['avg_cycle_h']]
+    team_best_cycle = min(cycle_values) if cycle_values else None
+    for row in rows:
+        row['quality_score'] = _compute_quality_score(row, team_max_volume, team_best_cycle)
+    if team_max_volume > 0:
+        # Команда — невзвешенное среднее по реальным сотрудникам
+        scores = [r['quality_score'] for r in real_rows if r['quality_score'] is not None]
+        team['quality_score'] = sum(scores) / len(scores) if scores else None
+    else:
+        team['quality_score'] = None
+
     return rows, team
+
+
+def _compute_quality_score(row: dict, team_max_volume: int, team_best_cycle: float | None) -> float | None:
+    """Composite-score 0..100 по 4 компонентам (см. план §«Решения», п.4)."""
+    completeness = row['completeness']['overall_pct']
+    if completeness is None:
+        completeness = 0.0
+    win_rate = row['win_rate'] or 0.0
+    avg_cycle = row['time_to']['avg_cycle_h']
+    if avg_cycle and team_best_cycle and avg_cycle > 0:
+        speed = min(100.0, 100.0 * team_best_cycle / avg_cycle)
+    else:
+        speed = 0.0
+    if team_max_volume > 0:
+        volume = min(100.0, 100.0 * row['requests_total'] / team_max_volume)
+    else:
+        volume = 0.0
+
+    score = (
+        QUALITY_SCORE_WEIGHTS['completeness'] * completeness
+        + QUALITY_SCORE_WEIGHTS['win_rate'] * win_rate
+        + QUALITY_SCORE_WEIGHTS['speed'] * speed
+        + QUALITY_SCORE_WEIGHTS['volume'] * volume
+    )
+    return round(max(0.0, min(100.0, score)), 1)
 
 
 # --- Funnel -----------------------------------------------------------------
@@ -493,6 +713,96 @@ def _build_funnel(filters: dict) -> dict[str, Any]:
     return {
         'stages': stages,
         'win_rate': round(summaries_accepted / summaries_completed * 100, 1) if summaries_completed else None,
+    }
+
+
+# --- Heatmaps ---------------------------------------------------------------
+
+
+def _build_heatmap(
+    pairs: Iterable[tuple[str, str]],
+    *,
+    top_limit: int = HEATMAP_TOP_LIMIT,
+) -> dict[str, Any]:
+    """Принимает итератор пар (manager_label, dim_value) и собирает heatmap.
+
+    Возвращает {rows, columns, cells, max_value}.
+    rows: [{'label': str, 'total': int, 'cells': [int, ...]}],
+    columns: [str, ...] (топ-N по сумме, остальное в «Прочее»).
+    """
+    grid: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    column_totals: dict[str, int] = defaultdict(int)
+    row_labels: set[str] = set()
+
+    for manager_label, dim_value in pairs:
+        if not dim_value:
+            dim_value = 'не указано'
+        grid[manager_label][dim_value] += 1
+        column_totals[dim_value] += 1
+        row_labels.add(manager_label)
+
+    if not grid:
+        return {'rows': [], 'columns': [], 'cells': [], 'max_value': 0}
+
+    sorted_cols = sorted(column_totals.items(), key=lambda kv: (-kv[1], kv[0]))
+    head = [c for c, _ in sorted_cols[:top_limit]]
+    tail = [c for c, _ in sorted_cols[top_limit:]]
+
+    columns = list(head)
+    has_other = bool(tail)
+    if has_other:
+        columns.append('Прочее')
+
+    rows = []
+    max_value = 0
+    for label in sorted(row_labels, key=str.lower):
+        cells = []
+        for col in head:
+            value = grid[label].get(col, 0)
+            cells.append(value)
+            if value > max_value:
+                max_value = value
+        if has_other:
+            other_sum = sum(grid[label].get(c, 0) for c in tail)
+            cells.append(other_sum)
+            if other_sum > max_value:
+                max_value = other_sum
+        rows.append({'label': label, 'total': sum(cells), 'cells': cells})
+
+    return {'rows': rows, 'columns': columns, 'cells': len(rows) * len(columns), 'max_value': max_value}
+
+
+def _compute_heatmaps(filters: dict) -> dict[str, dict]:
+    """4 heatmap’а: manager × branch / insurance_type / alliance / selected_company."""
+    request_qs = _build_request_qs(filters).select_related('created_by')
+    summary_qs = _build_summary_qs(filters).select_related('request', 'request__created_by')
+
+    pairs_branch = (
+        (_user_display(r.created_by), r.branch)
+        for r in request_qs
+    )
+    pairs_type = (
+        (_user_display(r.created_by), r.insurance_type)
+        for r in request_qs
+    )
+    pairs_alliance = (
+        (_user_display(r.created_by), r.manager_name)
+        for r in request_qs if r.manager_name
+    )
+    pairs_company = (
+        (
+            _user_display(s.request.created_by) if s.request else 'Без автора',
+            s.selected_company,
+        )
+        for s in summary_qs
+        if s.status == 'completed_accepted' and s.selected_company
+    )
+
+    return {
+        'branch': _build_heatmap(pairs_branch),
+        'insurance_type': _build_heatmap(pairs_type),
+        'alliance_manager': _build_heatmap(pairs_alliance),
+        'selected_company': _build_heatmap(pairs_company),
     }
 
 
@@ -574,6 +884,9 @@ def build_alerts(filters: dict, *,
             'last_activity': last_req.created_at if last_req else None,
         })
 
+    volume_drop = _volume_drop_alert(filters)
+    cycle_outliers = _cycle_outlier_alert(filters)
+
     return {
         'overdue': overdue,
         'overdue_total': overdue_qs.count(),
@@ -582,6 +895,118 @@ def build_alerts(filters: dict, *,
         'inactive_users': inactive_users,
         'no_activity_days': no_activity_days,
         'stuck_days': stuck_days,
+        'volume_drop': volume_drop,
+        'cycle_outliers': cycle_outliers,
+    }
+
+
+def _volume_drop_alert(filters: dict) -> dict[str, Any]:
+    """Сравнивает объём текущего окна с предыдущим равной длины.
+
+    Алерт срабатывает на сотрудника, если падение ≤ VOLUME_DROP_THRESHOLD_PCT.
+    Не работает для period='all' (нет смысла сравнивать с «прошлым всем временем»).
+    """
+    if not (filters['start_date'] and filters['end_date']):
+        return {'enabled': False, 'reason': 'Период «всё время» — сравнение недоступно', 'flagged': []}
+
+    span_days = (filters['end_date'] - filters['start_date']).days + 1
+    prev_end = filters['start_date'] - timedelta(days=1)
+    prev_start = prev_end - timedelta(days=span_days - 1)
+
+    prev_filters = dict(filters)
+    prev_filters['start_date'] = prev_start
+    prev_filters['end_date'] = prev_end
+
+    cur_qs = _build_request_qs(filters)
+    prev_qs = _build_request_qs(prev_filters)
+
+    cur_counts: dict[int | None, int] = defaultdict(int)
+    for uid, c in cur_qs.values_list('created_by_id').annotate(c=Count('id')):
+        cur_counts[uid] = c
+    prev_counts: dict[int | None, int] = defaultdict(int)
+    for uid, c in prev_qs.values_list('created_by_id').annotate(c=Count('id')):
+        prev_counts[uid] = c
+
+    flagged = []
+    for uid in set(list(cur_counts.keys()) + list(prev_counts.keys())):
+        if uid is None:
+            continue
+        prev = prev_counts.get(uid, 0)
+        cur = cur_counts.get(uid, 0)
+        if prev < 3:  # слишком мало данных для сравнения
+            continue
+        change_pct = (cur - prev) / prev * 100
+        if change_pct <= VOLUME_DROP_THRESHOLD_PCT:
+            user = User.objects.filter(pk=uid).first()
+            flagged.append({
+                'user_id': uid,
+                'display': _user_display(user),
+                'previous_count': prev,
+                'current_count': cur,
+                'change_pct': round(change_pct, 1),
+            })
+
+    flagged.sort(key=lambda x: x['change_pct'])
+    return {
+        'enabled': True,
+        'threshold_pct': VOLUME_DROP_THRESHOLD_PCT,
+        'previous_window': {'start': prev_start, 'end': prev_end},
+        'flagged': flagged,
+    }
+
+
+def _cycle_outlier_alert(filters: dict) -> dict[str, Any]:
+    """Аномально длинные сделки. Threshold = max(p75 × factor, 7 дней).
+
+    p75 устойчив к одиночным выбросам, в отличие от p90. Floor — чтобы при
+    очень коротких циклах не ловить тривиальные отклонения.
+    """
+    summary_qs = (
+        _build_summary_qs(filters)
+        .filter(status='completed_accepted')
+        .select_related('request', 'request__created_by')
+        .prefetch_related('offers')
+    )
+
+    cycles = []
+    per_summary = []
+    for s in summary_qs:
+        cycle = _hours_between(
+            s.request.created_at if s.request else None,
+            s.completed_at,
+        )
+        if cycle is None:
+            continue
+        cycles.append(cycle)
+        per_summary.append((s, cycle))
+
+    if not cycles:
+        return {'threshold_h': None, 'team_baseline_h': None, 'outliers': []}
+
+    team_p75 = _percentile(cycles, 0.75)
+    if team_p75 is None or team_p75 <= 0:
+        return {'threshold_h': None, 'team_baseline_h': None, 'outliers': []}
+
+    threshold = max(team_p75 * CYCLE_OUTLIER_FACTOR, CYCLE_OUTLIER_FLOOR_HOURS)
+    outliers = []
+    for s, cycle in per_summary:
+        if cycle <= threshold:
+            continue
+        outliers.append({
+            'summary_id': s.id,
+            'request_id': s.request_id,
+            'dfa_number': (s.request.dfa_number if s.request else None) or f'#{s.id}',
+            'client_name': s.request.client_name if s.request else '',
+            'manager': _user_display(s.request.created_by) if s.request else 'Без автора',
+            'manager_id': s.request.created_by_id if s.request else None,
+            'cycle_hours': round(cycle, 1),
+            'cycle_days': round(cycle / 24, 1),
+        })
+    outliers.sort(key=lambda x: -x['cycle_hours'])
+    return {
+        'threshold_h': round(threshold, 1),
+        'team_baseline_h': round(team_p75, 1),
+        'outliers': outliers[:HEATMAP_OUTLIER_LIMIT],
     }
 
 
@@ -626,6 +1051,8 @@ def build_overview_payload(filters: dict) -> dict[str, Any]:
     avg_per_week = round(avg_per_day * 7, 2)
     avg_per_month = round(avg_per_day * 30, 2)
 
+    heatmaps = _compute_heatmaps(filters)
+
     payload = {
         'filters': filters,
         'kpi': {
@@ -641,6 +1068,7 @@ def build_overview_payload(filters: dict) -> dict[str, Any]:
             'avg_per_day': avg_per_day,
             'avg_per_week': avg_per_week,
             'avg_per_month': avg_per_month,
+            'team_quality_score': team.get('quality_score'),
         },
         'rows': rows,
         'team': team,
@@ -649,6 +1077,7 @@ def build_overview_payload(filters: dict) -> dict[str, Any]:
             'daily': daily,
             'weekly': weekly,
         },
+        'heatmaps': heatmaps,
         'available_filters': _available_filters(),
     }
     payload['charts_json'] = json.dumps(
