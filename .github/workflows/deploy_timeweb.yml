@@ -264,6 +264,10 @@ jobs:
           echo "➡️ Проверяем логи web контейнера..."
           docker-compose -f docker-compose.yml logs --tail=50 web
           
+          echo "➡️ Чиним права на /app/backups (named volume по умолчанию создаётся под root)..."
+          docker-compose -f docker-compose.yml exec -T -u 0 web chown -R app:app /app/backups || \
+            echo "⚠️ Не удалось chown /app/backups (продолжаем)"
+
           echo "➡️ Создаём бекап БД перед миграциями..."
           mkdir -p backups
           if docker-compose -f docker-compose.yml exec -T web python manage.py backup_db --format pgdump --output-dir /app/backups --keep 10; then

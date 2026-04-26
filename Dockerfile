@@ -23,8 +23,9 @@ RUN pip install gunicorn psycopg2-binary
 # Копируем код приложения
 COPY . .
 
-# Создаем необходимые директории
-RUN mkdir -p logs media staticfiles
+# Создаем необходимые директории (включая backups — volume маунтится сюда,
+# и без существующей в образе директории Docker создаст её под root)
+RUN mkdir -p logs media staticfiles backups
 
 # Копируем и делаем исполняемым entrypoint скрипт
 COPY entrypoint.sh /entrypoint.sh
