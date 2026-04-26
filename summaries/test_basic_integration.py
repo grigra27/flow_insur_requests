@@ -192,6 +192,7 @@ class BasicIntegrationTest(TestCase):
         self.assertContains(response, '88 000 ₽ - 109 000 ₽')
         self.assertContains(response, '1/3 СК')
         self.assertContains(response, 'до 4 пл./год')
+        self.assertContains(response, 'Разброс')
         self.assertContains(response, 'есть дешевле')
         self.assertContains(response, '+24 000 ₽')
 
