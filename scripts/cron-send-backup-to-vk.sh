@@ -17,7 +17,14 @@ cd "$PROJECT_DIR"
 echo "$(date '+%Y-%m-%d %H:%M:%S') - START send_backup_to_vk (USE_DOCKER=$USE_DOCKER)" >> "$LOG_FILE"
 
 if [ "$USE_DOCKER" = "1" ]; then
-  CMD=(docker compose exec -T web python manage.py send_backup_to_vk)
+  if command -v docker-compose >/dev/null 2>&1; then
+    CMD=(docker-compose -f docker-compose.yml exec -T web python manage.py send_backup_to_vk)
+  elif docker compose version >/dev/null 2>&1; then
+    CMD=(docker compose -f docker-compose.yml exec -T web python manage.py send_backup_to_vk)
+  else
+    echo "Neither docker-compose nor docker compose is available" >> "$LOG_FILE"
+    exit 127
+  fi
 else
   CMD=("$PYTHON_BIN" manage.py send_backup_to_vk)
 fi
