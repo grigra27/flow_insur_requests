@@ -162,18 +162,69 @@
                         </div>
                     </div>
 
-                    <div class="mb-3">
-                        <label for="{{ form.vehicle_info.id_for_label }}" class="form-label">
-                            {{ form.vehicle_info.label }}
-                        </label>
-                        {{ form.vehicle_info }}
-                        {% if form.vehicle_info.errors %}
-                        <div class="text-danger">
-                            {% for error in form.vehicle_info.errors %}
-                            <small>{{ error }}</small>
+                    <div class="mb-4">
+                        <h6 class="text-muted mb-3">Объекты страхования</h6>
+                        {{ object_formset.management_form }}
+                        {% if object_formset.non_form_errors %}
+                        <div class="alert alert-danger py-2">
+                            {% for error in object_formset.non_form_errors %}
+                            <div>{{ error }}</div>
                             {% endfor %}
                         </div>
                         {% endif %}
+
+                        {% for object_form in object_formset.forms %}
+                        <div class="border rounded p-3 mb-3">
+                            {% for hidden in object_form.hidden_fields %}
+                                {{ hidden }}
+                            {% endfor %}
+                            <div class="row g-3 align-items-start">
+                                <div class="col-md-1">
+                                    <label for="{{ object_form.position.id_for_label }}" class="form-label">#</label>
+                                    {{ object_form.position }}
+                                    {% for error in object_form.position.errors %}
+                                    <div class="text-danger"><small>{{ error }}</small></div>
+                                    {% endfor %}
+                                </div>
+                                <div class="col-md-5">
+                                    <label for="{{ object_form.description.id_for_label }}" class="form-label">Объект</label>
+                                    {{ object_form.description }}
+                                    {% for error in object_form.description.errors %}
+                                    <div class="text-danger"><small>{{ error }}</small></div>
+                                    {% endfor %}
+                                </div>
+                                <div class="col-md-2">
+                                    <label for="{{ object_form.manufacturing_year.id_for_label }}" class="form-label">Год выпуска</label>
+                                    {{ object_form.manufacturing_year }}
+                                    {% for error in object_form.manufacturing_year.errors %}
+                                    <div class="text-danger"><small>{{ error }}</small></div>
+                                    {% endfor %}
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="{{ object_form.asset_status.id_for_label }}" class="form-label">Статус имущества</label>
+                                    {{ object_form.asset_status }}
+                                    {% for error in object_form.asset_status.errors %}
+                                    <div class="text-danger"><small>{{ error }}</small></div>
+                                    {% endfor %}
+                                </div>
+                                <div class="col-md-1 pt-md-4">
+                                    {% if object_form.DELETE %}
+                                    <div class="form-check mt-md-2">
+                                        {{ object_form.DELETE }}
+                                        <label class="form-check-label" for="{{ object_form.DELETE.id_for_label }}">Удалить</label>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% if object_form.non_field_errors %}
+                            <div class="text-danger mt-2">
+                                {% for error in object_form.non_field_errors %}
+                                <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
                     </div>
 
                     <!-- Общие дополнительные параметры -->
@@ -218,22 +269,6 @@
                         <h6 class="text-muted mb-3">Дополнительные параметры КАСКО/спецтехника</h6>
                         
                         <div class="row">
-                            <div class="col-md-6 casco-specific">
-                                <div class="mb-3">
-                                    <label for="{{ form.manufacturing_year.id_for_label }}" class="form-label">
-                                        {{ form.manufacturing_year.label }}
-                                    </label>
-                                    {{ form.manufacturing_year }}
-                                    <div class="form-text">Год выпуска предмета лизинга</div>
-                                    {% if form.manufacturing_year.errors %}
-                                    <div class="text-danger">
-                                        {% for error in form.manufacturing_year.errors %}
-                                        <small>{{ error }}</small>
-                                        {% endfor %}
-                                    </div>
-                                    {% endif %}
-                                </div>
-                            </div>
                             <div class="col-md-6 casco-specific">
                                 <div class="mb-3">
                                     <label for="{{ form.key_completeness.id_for_label }}" class="form-label">
@@ -284,27 +319,6 @@
                             </div>
                         </div>
 
-                        <div class="row">
-                            <div class="col-md-6 casco-specific">
-                                <div class="mb-3">
-                                    <label for="{{ form.asset_status.id_for_label }}" class="form-label">
-                                        {{ form.asset_status.label }}
-                                    </label>
-                                    {{ form.asset_status }}
-                                    <div class="form-text">Статус имущества предмета лизинга</div>
-                                    {% if form.asset_status.errors %}
-                                    <div class="text-danger">
-                                        {% for error in form.asset_status.errors %}
-                                        <small>{{ error }}</small>
-                                        {% endfor %}
-                                    </div>
-                                    {% endif %}
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <!-- Пустая колонка для симметрии -->
-                            </div>
-                        </div>
                     </div>
 
                     <!-- Дополнительные параметры для страхования имущества -->

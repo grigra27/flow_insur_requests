@@ -66,14 +66,41 @@
                         <i class="bi bi-truck-front-fill req-object-block__icon"></i>
                         <span class="req-object-block__title">Объект страхования</span>
                     </div>
-                    <div class="req-object-block__vehicle">{{ summary.request.vehicle_info|default:"Не указано" }}</div>
+                    {% with objects=summary.request.insurance_objects_for_display %}
+                    {% if objects %}
+                    <div class="table-responsive">
+                        <table class="table table-sm req-object-table mb-0">
+                            <thead>
+                                <tr>
+                                    <th style="width: 52px;">#</th>
+                                    <th>Объект</th>
+                                    <th style="width: 130px;">Год выпуска:</th>
+                                    <th style="width: 160px;">Статус имущества:</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for object in objects %}
+                                <tr>
+                                    <td class="text-muted">{{ object.position }}</td>
+                                    <td class="req-object-block__vehicle">{{ object.description|default:"Не указано" }}</td>
+                                    <td>{{ object.manufacturing_year|default:"Не указано" }}</td>
+                                    <td>{{ object.asset_status|default:"Не указано" }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="req-object-block__vehicle">Не указано</div>
                     <dl class="row mb-0 mt-2">
                         <dt class="col-sm-4">Год выпуска:</dt>
-                        <dd class="col-sm-8">{{ summary.request.manufacturing_year|default:"Не указано" }}</dd>
+                        <dd class="col-sm-8">Не указано</dd>
 
                         <dt class="col-sm-4">Статус имущества:</dt>
-                        <dd class="col-sm-8">{{ summary.request.asset_status|default:"Не указано" }}</dd>
+                        <dd class="col-sm-8">Не указано</dd>
                     </dl>
+                    {% endif %}
+                    {% endwith %}
                 </div>
             </div>
             <div class="card-footer req-dates-footer">

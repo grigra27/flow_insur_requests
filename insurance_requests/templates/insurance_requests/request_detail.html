@@ -101,14 +101,42 @@
                                     <i class="bi bi-truck-front-fill req-object-block__icon"></i>
                                     <span class="req-object-block__title">Объект страхования</span>
                                 </div>
-                                <div class="req-object-block__vehicle">{{ request.vehicle_info|default:"Не указано" }}</div>
+                                {% with objects=request.insurance_objects_for_display %}
+                                {% if objects %}
+                                <div class="table-responsive">
+                                    <table class="table table-sm req-object-table mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th style="width: 52px;">#</th>
+                                                <th>Объект</th>
+                                                <th style="width: 130px;">Год выпуска:</th>
+                                                <th style="width: 160px;">Статус имущества:</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for object in objects %}
+                                            <tr>
+                                                <td class="text-muted">{{ object.position }}</td>
+                                                <td class="req-object-block__vehicle">{{ object.description|default:"Не указано" }}</td>
+                                                <td>{{ object.manufacturing_year|default:"Не указан" }}</td>
+                                                <td>{{ object.asset_status|default:"Не указан" }}</td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                {% else %}
+                                <div class="req-object-block__vehicle">Не указано</div>
                                 <dl class="row mb-0 mt-2">
                                     <dt class="col-sm-5">Год выпуска:</dt>
-                                    <dd class="col-sm-7">{{ request.manufacturing_year|default:"Не указан" }}</dd>
+                                    <dd class="col-sm-7">Не указан</dd>
 
                                     <dt class="col-sm-5">Статус имущества:</dt>
-                                    <dd class="col-sm-7">{{ request.asset_status|default:"Не указан" }}</dd>
-
+                                    <dd class="col-sm-7">Не указан</dd>
+                                </dl>
+                                {% endif %}
+                                {% endwith %}
+                                <dl class="row mb-0 mt-2">
                                     <dt class="col-sm-5">Цели использования:</dt>
                                     <dd class="col-sm-7">{{ request.usage_purposes|default:"Не указано" }}</dd>
                                 </dl>

@@ -164,8 +164,101 @@ class InsuranceRequest(models.Model):
             return f"{self.dfa_number}"
         return f"#{self.id}"
     
+    @property
+    def insurance_objects_for_display(self):
+        """
+        Возвращает структурированные объекты страхования для интерфейса.
 
-    
+        Для старых заявок без связанных объектов строит один объект из legacy-полей,
+        чтобы существующие данные оставались доступными в прежнем формате.
+        """
+        related_objects = []
+        if self.pk:
+            related_objects = list(self.insurance_objects.all())
+
+        if related_objects:
+            return [
+                {
+                    'position': insurance_object.position,
+                    'description': insurance_object.description,
+                    'manufacturing_year': insurance_object.manufacturing_year,
+                    'asset_status': insurance_object.asset_status,
+                    'source_row': insurance_object.source_row,
+                    'is_legacy': False,
+                }
+                for insurance_object in related_objects
+            ]
+
+        has_legacy_object = any([
+            self.vehicle_info and self.vehicle_info.strip(),
+            self.manufacturing_year and self.manufacturing_year.strip(),
+            self.asset_status and self.asset_status.strip(),
+        ])
+        if not has_legacy_object:
+            return []
+
+        return [
+            {
+                'position': 1,
+                'description': self.vehicle_info,
+                'manufacturing_year': self.manufacturing_year,
+                'asset_status': self.asset_status,
+                'source_row': None,
+                'is_legacy': True,
+            }
+        ]
+
+    @property
+    def insurance_objects_count_for_display(self):
+        """Количество объектов страхования с учетом fallback для старых заявок."""
+        return len(self.insurance_objects_for_display)
+
+    @property
+    def has_multiple_insurance_objects(self):
+        """Показывает, содержит ли заявка несколько объектов страхования."""
+        return self.insurance_objects_count_for_display > 1
+
+    @property
+    def primary_insurance_object_description(self):
+        """Описание первого объекта для компактных списков."""
+        objects = self.insurance_objects_for_display
+        if objects:
+            return objects[0].get('description') or ''
+        return ''
+
+    def sync_legacy_object_fields_from_related(self, save=True):
+        """
+        Обновляет legacy-поля из связанных объектов страхования.
+
+        Старые поля остаются источником совместимости для писем, сводов,
+        экспортов и уже существующего кода.
+        """
+        if not self.pk:
+            return
+
+        objects = list(self.insurance_objects.all())
+        if not objects:
+            return
+
+        self.vehicle_info = '; '.join(
+            obj.description.strip()
+            for obj in objects
+            if obj.description and obj.description.strip()
+        )
+        self.manufacturing_year = '; '.join(
+            obj.manufacturing_year.strip()
+            for obj in objects
+            if obj.manufacturing_year and obj.manufacturing_year.strip()
+        )
+        self.asset_status = '; '.join(
+            obj.asset_status.strip()
+            for obj in objects
+            if obj.asset_status and obj.asset_status.strip()
+        )
+
+        if save:
+            self.save(update_fields=['vehicle_info', 'manufacturing_year', 'asset_status', 'updated_at'])
+
     def __str__(self):
         return f"{self.get_display_name()} - {self.client_name} ({self.get_status_display()})"
     
@@ -203,12 +296,14 @@ class InsuranceRequest(models.Model):
     def to_dict(self) -> Dict[str, Any]:
         """Преобразует модель в словарь для использования в шаблонах с московским временем"""
         moscow_deadline = self.get_moscow_time('response_deadline')
+        display_vehicle_info = self.vehicle_info or self.primary_insurance_object_description
         return {
             'client_name': self.client_name,
             'inn': self.inn,
             'insurance_type': self.insurance_type,
             'insurance_period': self.insurance_period or 'не указан',
-            'vehicle_info': self.vehicle_info,
+            'vehicle_info': display_vehicle_info,
+            'insurance_objects': self.insurance_objects_for_display,
             'dfa_number': self.dfa_number,
             'branch': self.branch,
             'franchise_type': self.franchise_type,
@@ -255,6 +350,35 @@ class InsuranceRequest(models.Model):
             return 'Свод недоступен'
 
 
+class InsuranceRequestObject(models.Model):
+    """Структурированный объект страхования внутри одной заявки."""
+
+    request = models.ForeignKey(
+        InsuranceRequest,
+        on_delete=models.CASCADE,
+        related_name='insurance_objects',
+        verbose_name='Заявка'
+    )
+    position = models.PositiveIntegerField(default=1, verbose_name='Порядок')
+    description = models.TextField(verbose_name='Описание объекта страхования')
+    manufacturing_year = models.CharField(max_length=255, blank=True, verbose_name='Год выпуска')
+    asset_status = models.CharField(max_length=255, blank=True, verbose_name='Статус имущества')
+    source_row = models.PositiveIntegerField(null=True, blank=True, verbose_name='Строка источника')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Дата создания')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Дата обновления')
+
+    class Meta:
+        verbose_name = 'Объект страхования'
+        verbose_name_plural = 'Объекты страхования'
+        ordering = ['position', 'id']
+        indexes = [
+            models.Index(fields=['request', 'position']),
+        ]
+
+    def __str__(self):
+        return f"{self.position}. {self.description}"
+
+
 class RequestAttachment(models.Model):
     """Модель вложений к заявке"""
     
@@ -270,5 +394,3 @@ class RequestAttachment(models.Model):
     
     def __str__(self):
         return f"{self.original_filename} (Заявка {self.request.get_display_name()})"
-
-

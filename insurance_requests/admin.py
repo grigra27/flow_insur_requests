@@ -4,11 +4,19 @@ from django.urls import reverse
 from django.utils import timezone
 from datetime import timedelta
 import pytz
-from .models import InsuranceRequest, RequestAttachment
+from .models import InsuranceRequest, InsuranceRequestObject, RequestAttachment
+
+
+class InsuranceRequestObjectInline(admin.TabularInline):
+    model = InsuranceRequestObject
+    extra = 0
+    fields = ['position', 'description', 'manufacturing_year', 'asset_status', 'source_row']
 
 
 @admin.register(InsuranceRequest)
 class InsuranceRequestAdmin(admin.ModelAdmin):
+    inlines = [InsuranceRequestObjectInline]
+
     # Расширенный список отображения с ключевыми полями
     list_display = [
         'get_display_name', 'client_name', 'inn', 'branch', 
@@ -26,7 +34,7 @@ class InsuranceRequestAdmin(admin.ModelAdmin):
     # Расширенный поиск по ключевым полям
     search_fields = [
         'dfa_number', 'client_name', 'inn', 'branch', 
-        'email_subject', 'vehicle_info'
+        'email_subject', 'vehicle_info', 'insurance_objects__description'
     ]
     
     # Поля только для чтения
@@ -158,5 +166,4 @@ class RequestAttachmentAdmin(admin.ModelAdmin):
         return moscow_time.strftime('%d.%m.%Y %H:%M')
     uploaded_at_moscow.short_description = 'Загружено (МСК)'
     uploaded_at_moscow.admin_order_field = 'uploaded_at'
-
 

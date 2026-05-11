@@ -1932,6 +1932,22 @@ a:hover {
     line-height: 1.3;
 }
 
+.req-object-table {
+    vertical-align: middle;
+}
+
+.req-object-table th {
+    color: var(--app-muted);
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0;
+}
+
+.req-object-table .req-object-block__vehicle {
+    font-size: 0.95rem;
+}
+
 /* ============================================================
    Параметры заявки — бейджи доп. параметров
    ============================================================ */

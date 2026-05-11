@@ -180,8 +180,11 @@
                         <td>{{ request.client_name }}</td>
                         <td>
                             <i class="bi bi-box-seam text-muted"></i>
-                            <span class="d-none d-lg-inline">{{ request.vehicle_info|default:"Не указан" }}</span>
-                            <span class="d-lg-none">{{ request.vehicle_info|default:"Не указан"|truncatechars:15 }}</span>
+                            <span class="d-none d-lg-inline">{{ request.primary_insurance_object_description|default:request.vehicle_info|default:"Не указан" }}</span>
+                            <span class="d-lg-none">{{ request.primary_insurance_object_description|default:request.vehicle_info|default:"Не указан"|truncatechars:15 }}</span>
+                            {% if request.has_multiple_insurance_objects %}
+                                <span class="badge bg-secondary ms-1">{{ request.insurance_objects_count_for_display }} объекта</span>
+                            {% endif %}
                         </td>
                         <td>
                             <i class="bi bi-building text-muted"></i>

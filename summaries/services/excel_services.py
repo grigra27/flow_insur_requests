@@ -208,7 +208,8 @@ class ExcelExportService:
             if not request.dfa_number or request.dfa_number.strip() == '':
                 missing_fields.append("номер заявки (dfa_number)")
             
-            if not request.vehicle_info or request.vehicle_info.strip() == '':
+            vehicle_info = request.vehicle_info or request.primary_insurance_object_description
+            if not vehicle_info or vehicle_info.strip() == '':
                 missing_fields.append("информация о предмете лизинга (vehicle_info)")
             
             if not request.client_name or request.client_name.strip() == '':
@@ -276,9 +277,10 @@ class ExcelExportService:
             logger.debug(f"Записан номер заявки в C1: {request.dfa_number}")
             
             # CDE2 - информация о предмете лизинга с годом выпуска
-            vehicle_info_with_year = request.vehicle_info
+            vehicle_info = request.vehicle_info or request.primary_insurance_object_description
+            vehicle_info_with_year = vehicle_info
             if request.manufacturing_year and request.manufacturing_year.strip():
-                vehicle_info_with_year = f"{request.vehicle_info}, {request.manufacturing_year}"
+                vehicle_info_with_year = f"{vehicle_info}, {request.manufacturing_year}"
             self._set_merged_cell_value(worksheet, 'C2', vehicle_info_with_year)
             logger.debug(f"Записана информация о предмете лизинга в C2: {vehicle_info_with_year[:50]}...")
             
@@ -675,8 +677,9 @@ class ExcelExportService:
             self._fill_tech_cell(tech_sheet, self.TECH_INFO_CELLS['insurance_type'], 
                                request.get_insurance_type_display(), 'тип страхования')
             
+            vehicle_info = request.vehicle_info or request.primary_insurance_object_description
             self._fill_tech_cell(tech_sheet, self.TECH_INFO_CELLS['vehicle_info'], 
-                               request.vehicle_info, 'информация о предмете лизинга')
+                               vehicle_info, 'информация о предмете лизинга')
             
             # Заполняем описание страхования (вместо полного текста письма)
             insurance_description = self._get_insurance_description_for_tech_info(request)
