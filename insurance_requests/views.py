@@ -802,7 +802,7 @@ def upload_excel_v2(request):
                 draft.get('original_filename', ''),
                 request.user.username,
             )
-            return redirect('insurance_requests:edit_request', pk=insurance_request.pk)
+            return redirect('insurance_requests:request_detail', pk=insurance_request.pk)
 
         messages.error(request, 'Проверьте значения на странице предварительной проверки.')
         return _render_parser_v2_preview(request, draft_id, draft, preview_form=form)

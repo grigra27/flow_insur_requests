@@ -8,6 +8,7 @@ from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from openpyxl import Workbook
 
+from .forms import DEFAULT_BRANCH, ParserV2PreviewForm
 from .models import InsuranceRequest, RequestAttachment
 
 
@@ -99,6 +100,51 @@ class ParserV2UploadTests(TestCase):
             content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         )
 
+    def _xlsx_upload_with_unknown_branch(self):
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet['C4'] = 'Неизвестный филиал'
+        sheet['C5'] = 'Иванов Иван'
+        sheet['D7'] = 'ООО Ромашка'
+        sheet['D9'] = '1234567890'
+        sheet['D21'] = 'КАСКО'
+        sheet['N17'] = '1 год'
+        sheet['B24'] = 'Предмет лизинга'
+        sheet['B25'] = 'Мини-погрузчик Sunward SWL 4028, 2024 г.в.'
+
+        buffer = BytesIO()
+        workbook.save(buffer)
+        buffer.seek(0)
+        return SimpleUploadedFile(
+            'заявка unknown-branch.xlsx',
+            buffer.read(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        )
+
+    def _xlsx_upload_with_telematics_template_header(self):
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet['C4'] = 'Казанский филиал'
+        sheet['C5'] = 'Иванов Иван'
+        sheet['D7'] = 'ООО Ромашка'
+        sheet['D9'] = '1234567890'
+        sheet['D21'] = 'КАСКО'
+        sheet['N17'] = '1 год'
+        sheet['B24'] = 'Предмет лизинга'
+        sheet['B25'] = 'Мини-погрузчик Sunward SWL 4028, 2024 г.в.'
+        sheet['A53'] = 'Телематический комплекс'
+        sheet['B53'] = 'Наименование'
+        sheet['C53'] = 'StarLine M96'
+
+        buffer = BytesIO()
+        workbook.save(buffer)
+        buffer.seek(0)
+        return SimpleUploadedFile(
+            'заявка telematics-template.xlsx',
+            buffer.read(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        )
+
     def _post_data_from_preview(self, form):
         data = {}
         checkbox_fields = {
@@ -164,6 +210,24 @@ class ParserV2UploadTests(TestCase):
         self.assertEqual(response.context['form'].initial['client_name'], 'ООО Ромашка')
         self.assertEqual(response.context['form'].initial['manager_name'], 'Иванов Иван')
 
+    def test_parser_v2_branch_defaults_to_spb_when_not_recognized(self):
+        self.client.login(username='parser_v2_root', password='pwd')
+
+        response = self.client.post(
+            reverse('insurance_requests:upload_excel_v2'),
+            {'excel_file': self._xlsx_upload_with_unknown_branch()},
+        )
+
+        form = response.context['form']
+        self.assertEqual(form.initial['branch'], DEFAULT_BRANCH)
+        self.assertEqual(form.fields['branch'].widget.__class__.__name__, 'Select')
+
+    def test_parser_v2_branch_accepts_only_known_choices(self):
+        form = ParserV2PreviewForm(data={'draft_id': 'draft', 'branch': 'Неизвестный филиал'})
+
+        self.assertFalse(form.is_valid())
+        self.assertIn('branch', form.errors)
+
     def test_parser_v2_does_not_take_template_rows_as_vehicle_info(self):
         self.client.login(username='parser_v2_root', password='pwd')
 
@@ -177,6 +241,18 @@ class ParserV2UploadTests(TestCase):
         self.assertNotIn('Транспортные средства категории B', vehicle_info)
         self.assertNotIn('Противоугонные системы', vehicle_info)
         self.assertNotIn('Сигнализация', vehicle_info)
+
+    def test_parser_v2_does_not_take_name_header_as_telematics_complex(self):
+        self.client.login(username='parser_v2_root', password='pwd')
+
+        response = self.client.post(
+            reverse('insurance_requests:upload_excel_v2'),
+            {'excel_file': self._xlsx_upload_with_telematics_template_header()},
+        )
+
+        telematics_complex = response.context['form'].initial['telematics_complex']
+        self.assertEqual(telematics_complex, 'StarLine M96')
+        self.assertNotEqual(telematics_complex, 'Наименование')
 
     def test_parser_v2_creates_request_from_preview_and_keeps_original_attachment(self):
         self.client.login(username='parser_v2_root', password='pwd')
@@ -193,7 +269,7 @@ class ParserV2UploadTests(TestCase):
         created_request = InsuranceRequest.objects.get()
         self.assertRedirects(
             create_response,
-            reverse('insurance_requests:edit_request', kwargs={'pk': created_request.pk}),
+            reverse('insurance_requests:request_detail', kwargs={'pk': created_request.pk}),
         )
         self.assertEqual(created_request.client_name, 'ООО Ромашка Проверено')
         self.assertEqual(created_request.manager_name, 'Иванов Иван')
@@ -224,7 +300,7 @@ class ParserV2UploadTests(TestCase):
         created_request = InsuranceRequest.objects.get()
         self.assertRedirects(
             create_response,
-            reverse('insurance_requests:edit_request', kwargs={'pk': created_request.pk}),
+            reverse('insurance_requests:request_detail', kwargs={'pk': created_request.pk}),
         )
         self.assertEqual(created_request.client_name, 'Клиент не указан')
         self.assertEqual(created_request.dfa_number, 'Номер ДФА не указан')

@@ -17,6 +17,25 @@ from datetime import datetime
 logger = logging.getLogger(__name__)
 
 
+DEFAULT_BRANCH = 'Санкт-Петербург'
+
+AVAILABLE_BRANCH_CHOICES = [
+    ('Казань', 'Казань'),
+    ('Нижний Новгород', 'Нижний Новгород'),
+    ('Краснодар', 'Краснодар'),
+    ('Санкт-Петербург', 'Санкт-Петербург'),
+    ('Мурманск', 'Мурманск'),
+    ('Псков', 'Псков'),
+    ('Челябинск', 'Челябинск'),
+    ('Москва', 'Москва'),
+    ('Великий Новгород', 'Великий Новгород'),
+    ('Архангельск', 'Архангельск'),
+]
+
+
+EDIT_BRANCH_CHOICES = [('', '-- Выберите филиал --')] + AVAILABLE_BRANCH_CHOICES
+
+
 class CustomAuthenticationForm(AuthenticationForm):
     """Кастомная форма аутентификации с улучшенной валидацией"""
     
@@ -330,7 +349,13 @@ class ParserV2PreviewForm(forms.Form):
         widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 4})
     )
     dfa_number = forms.CharField(label='Номер ДФА', required=False, widget=forms.TextInput(attrs={'class': 'form-control'}))
-    branch = forms.CharField(label='Филиал', required=False, widget=forms.TextInput(attrs={'class': 'form-control'}))
+    branch = forms.ChoiceField(
+        label='Филиал',
+        required=False,
+        choices=AVAILABLE_BRANCH_CHOICES,
+        initial=DEFAULT_BRANCH,
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
     manager_name = forms.CharField(label='ФИО менеджера', required=False, widget=forms.TextInput(attrs={'class': 'form-control'}))
     deal_status = forms.ChoiceField(
         label='Статус сделки',
@@ -369,6 +394,13 @@ class ParserV2PreviewForm(forms.Form):
         widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 4})
     )
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        valid_branches = {choice[0] for choice in AVAILABLE_BRANCH_CHOICES}
+        initial_branch = self.initial.get('branch')
+        if not self.is_bound and initial_branch not in valid_branches:
+            self.initial['branch'] = DEFAULT_BRANCH
+
     def to_request_fields(self):
         """Return model-safe values without blocking request creation."""
         cleaned = self.cleaned_data
@@ -394,7 +426,7 @@ class ParserV2PreviewForm(forms.Form):
             'insurance_period': cleaned.get('insurance_period') or '',
             'vehicle_info': cleaned.get('vehicle_info') or 'Предмет лизинга не указан',
             'dfa_number': self._limit(cleaned.get('dfa_number') or 'Номер ДФА не указан', 100),
-            'branch': self._limit(cleaned.get('branch') or '', 255),
+            'branch': self._normalize_branch(cleaned.get('branch')),
             'manager_name': self._limit(cleaned.get('manager_name') or '', 255),
             'deal_status': deal_status,
             'franchise_type': franchise_type,
@@ -431,6 +463,10 @@ class ParserV2PreviewForm(forms.Form):
     def _limit(self, value, max_length):
         value = str(value).strip()
         return value[:max_length]
+
+    def _normalize_branch(self, value):
+        valid_branches = {choice[0] for choice in AVAILABLE_BRANCH_CHOICES}
+        return value if value in valid_branches else DEFAULT_BRANCH
 
 
 class DateTimeLocalWidget(forms.DateTimeInput):
@@ -480,19 +516,7 @@ class InsuranceRequestForm(forms.ModelForm):
     """Улучшенная форма для редактирования заявок"""
     
     # Предопределенные варианты филиалов
-    BRANCH_CHOICES = [
-        ('', '-- Выберите филиал --'),
-        ('Казань', 'Казань'),
-        ('Нижний Новгород', 'Нижний Новгород'),
-        ('Краснодар', 'Краснодар'),
-        ('Санкт-Петербург', 'Санкт-Петербург'),
-        ('Мурманск', 'Мурманск'),
-        ('Псков', 'Псков'),
-        ('Челябинск', 'Челябинск'),
-        ('Москва', 'Москва'),
-        ('Великий Новгород', 'Великий Новгород'),
-        ('Архангельск', 'Архангельск'),
-    ]
+    BRANCH_CHOICES = EDIT_BRANCH_CHOICES
     
     # Варианты периода страхования
     INSURANCE_PERIOD_CHOICES = [

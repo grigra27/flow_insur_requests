@@ -639,7 +639,16 @@ class ExcelRequestParserV2:
         normalized = normalize_text(value)
         if not normalized:
             return True
-        label_words = ["страхователь", "лизингополучатель", "менеджер", "инн", "филиал", "объект", "предмет"]
+        label_words = [
+            "страхователь",
+            "лизингополучатель",
+            "менеджер",
+            "инн",
+            "филиал",
+            "объект",
+            "предмет",
+            "наименование",
+        ]
         return normalized in label_words
 
     def _looks_like_client_name(self, value: str) -> bool:
