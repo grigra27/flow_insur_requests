@@ -245,8 +245,8 @@
                     </div>
                     <div class="col-md-6">
                         <div class="d-flex flex-wrap gap-2 pt-1">
-                            <span class="badge deal-param-badge {% if has_franchise %}deal-param-badge--yes{% else %}deal-param-badge--no{% endif %}">
-                                <i class="bi bi-shield-check me-1"></i>Франшиза: {{ franchise_type }}
+                            <span class="badge deal-param-badge {% if franchise_required %}deal-param-badge--yes{% else %}deal-param-badge--no{% endif %}">
+                                <i class="bi bi-shield-check me-1"></i>Франшиза: {{ franchise_type_display }}
                             </span>
                             <span class="badge deal-param-badge {% if has_installment %}deal-param-badge--yes{% else %}deal-param-badge--no{% endif %}">
                                 <i class="bi bi-credit-card me-1"></i>Рассрочка: {% if has_installment %}Да{% else %}Нет{% endif %}

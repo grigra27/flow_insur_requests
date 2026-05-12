@@ -369,7 +369,6 @@ class ParserV2PreviewForm(forms.Form):
         choices=InsuranceRequest.FRANCHISE_TYPE_CHOICES,
         widget=forms.Select(attrs={'class': 'form-control'})
     )
-    has_franchise = forms.BooleanField(label='Требуется франшиза', required=False, widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}))
     has_installment = forms.BooleanField(label='Требуется рассрочка', required=False, widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}))
     has_autostart = forms.BooleanField(label='Есть автозапуск', required=False, widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}))
     has_casco_ce = forms.BooleanField(label='КАСКО кат. C/E', required=False, widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}))
@@ -430,7 +429,6 @@ class ParserV2PreviewForm(forms.Form):
             'manager_name': self._limit(cleaned.get('manager_name') or '', 255),
             'deal_status': deal_status,
             'franchise_type': franchise_type,
-            'has_franchise': bool(cleaned.get('has_franchise')) or franchise_type in ['with_franchise', 'both_variants'],
             'has_installment': bool(cleaned.get('has_installment')),
             'has_autostart': bool(cleaned.get('has_autostart')),
             'has_casco_ce': bool(cleaned.get('has_casco_ce')),
@@ -545,7 +543,7 @@ class InsuranceRequestForm(forms.ModelForm):
         model = InsuranceRequest
         fields = [
             'client_name', 'inn', 'insurance_type', 'insurance_period',
-            'vehicle_info', 'dfa_number', 'branch', 'manager_name', 'deal_status', 'has_franchise', 
+            'vehicle_info', 'dfa_number', 'branch', 'manager_name', 'deal_status', 'franchise_type',
             'has_installment', 'has_autostart', 'has_casco_ce', 'has_transportation',
             'has_construction_work', 'manufacturing_year', 'asset_status', 'response_deadline', 'notes',
             # Дополнительные параметры КАСКО/спецтехника
@@ -572,6 +570,10 @@ class InsuranceRequestForm(forms.ModelForm):
                 choices=InsuranceRequest.DEAL_STATUS_CHOICES,
                 attrs={'class': 'form-control'}
             ),
+            'franchise_type': forms.Select(
+                choices=InsuranceRequest.FRANCHISE_TYPE_CHOICES,
+                attrs={'class': 'form-control'}
+            ),
             'manufacturing_year': forms.TextInput(attrs={
                 'class': 'form-control',
                 'placeholder': 'Год выпуска предмета лизинга',
@@ -588,7 +590,6 @@ class InsuranceRequestForm(forms.ModelForm):
                 'placeholder': 'Введите дополнительные примечания к заявке...',
                 'maxlength': '2000'
             }),
-            'has_franchise': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'has_installment': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'has_autostart': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'has_casco_ce': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
@@ -675,7 +676,7 @@ class InsuranceRequestForm(forms.ModelForm):
                 self.fields['response_deadline'].initial = self.instance.response_deadline
             
             # Ensure all boolean fields are properly set
-            for field_name in ['has_franchise', 'has_installment', 'has_autostart', 'has_casco_ce', 'has_transportation', 'has_construction_work']:
+            for field_name in ['has_installment', 'has_autostart', 'has_casco_ce', 'has_transportation', 'has_construction_work']:
                 if hasattr(self.instance, field_name):
                     self.fields[field_name].initial = getattr(self.instance, field_name)
             

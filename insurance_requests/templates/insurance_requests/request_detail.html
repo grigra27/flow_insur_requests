@@ -161,8 +161,8 @@
                 <div class="mt-4 pt-3 border-top">
                     <h6 class="text-uppercase text-muted mb-3">Дополнительные параметры</h6>
                     <div class="d-flex flex-wrap gap-2">
-                        <span class="badge req-param-badge {% if request.has_franchise %}bg-warning text-dark{% else %}req-param-badge--off{% endif %}">
-                            <i class="bi {% if request.has_franchise %}bi-check-lg{% else %}bi-x-lg{% endif %} me-1"></i>Франшиза
+                        <span class="badge req-param-badge {% if request.franchise_type != 'none' %}bg-warning text-dark{% else %}req-param-badge--off{% endif %}">
+                            <i class="bi {% if request.franchise_type != 'none' %}bi-check-lg{% else %}bi-x-lg{% endif %} me-1"></i>Франшиза: {{ request.get_franchise_type_display }}
                         </span>
                         <span class="badge req-param-badge {% if request.has_installment %}bg-info text-dark{% else %}req-param-badge--off{% endif %}">
                             <i class="bi {% if request.has_installment %}bi-check-lg{% else %}bi-x-lg{% endif %} me-1"></i>Рассрочка

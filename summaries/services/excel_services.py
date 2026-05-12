@@ -684,14 +684,7 @@ class ExcelExportService:
                                insurance_description, 'описание страхования')
             
             # Заполняем информацию о франшизе (B15)
-            # Используем has_franchise как основной источник правды (может быть изменён вручную)
-            if request.has_franchise:
-                if request.franchise_type == 'both_variants':
-                    franchise_text = self._get_franchise_text_for_tech_info('both_variants')
-                else:
-                    franchise_text = self._get_franchise_text_for_tech_info('with_franchise')
-            else:
-                franchise_text = self._get_franchise_text_for_tech_info('none')
+            franchise_text = self._get_franchise_text_for_tech_info(request.franchise_type or 'none')
             self._fill_tech_cell(tech_sheet, self.TECH_INFO_CELLS['franchise_info'], 
                                franchise_text, 'информация о франшизе')
             

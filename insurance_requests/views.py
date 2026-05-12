@@ -508,8 +508,7 @@ def upload_excel(request):
                     
                     # Дополнительная проверка и логирование для типа франшизы
                     franchise_type_from_excel = excel_data.get('franchise_type', 'none')
-                    has_franchise_from_excel = excel_data.get('has_franchise', False)
-                    logger.info(f"Franchise processing for file: {excel_file.name} ({detailed_context}) - franchise_type: '{franchise_type_from_excel}', has_franchise: {has_franchise_from_excel} | {format_context}")
+                    logger.info(f"Franchise processing for file: {excel_file.name} ({detailed_context}) - franchise_type: '{franchise_type_from_excel}' | {format_context}")
                     
                     # Обрабатываем дату ответа
                     response_deadline = None
@@ -576,7 +575,6 @@ def upload_excel(request):
                         branch=excel_data.get('branch', ''),
                         manager_name=manager_name_value,
                         franchise_type=franchise_type,
-                        has_franchise=bool(excel_data.get('has_franchise')),
                         has_installment=bool(excel_data.get('has_installment')),
                         has_autostart=bool(excel_data.get('has_autostart')),
                         has_casco_ce=bool(excel_data.get('has_casco_ce', False)),
@@ -632,7 +630,7 @@ def upload_excel(request):
                     )
                     
                     # Логируем успешное создание заявки с полной информацией о формате и франшизе
-                    logger.info(f"Successfully created request #{insurance_request.id} from file '{excel_file.name}' ({detailed_context}) by user {request.user.username} - franchise_type: '{franchise_type}', has_franchise: {insurance_request.has_franchise} | {format_context}")
+                    logger.info(f"Successfully created request #{insurance_request.id} from file '{excel_file.name}' ({detailed_context}) by user {request.user.username} - franchise_type: '{franchise_type}' | {format_context}")
                     
                     # Улучшенное сообщение об успехе с информацией о формате
                     app_type_display = "заявка от ИП" if application_type == 'individual_entrepreneur' else "заявка от юр.лица"
@@ -758,7 +756,6 @@ def upload_excel_v2(request):
                 manager_name=request_fields['manager_name'],
                 deal_status=request_fields['deal_status'],
                 franchise_type=request_fields['franchise_type'],
-                has_franchise=request_fields['has_franchise'],
                 has_installment=request_fields['has_installment'],
                 has_autostart=request_fields['has_autostart'],
                 has_casco_ce=request_fields['has_casco_ce'],

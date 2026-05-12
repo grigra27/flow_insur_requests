@@ -310,10 +310,7 @@ class ExcelReader:
         # Определяем тип франшизы на основе анализа ячеек D29/D30, E29/E30, F29/F30
         logger.info(f"Starting franchise type determination (openpyxl) ({detailed_context}) | {format_context}")
         franchise_type = self._determine_franchise_type(sheet, is_openpyxl=True)
-        
-        # Обновляем has_franchise для обратной совместимости
-        has_franchise = franchise_type in ['with_franchise', 'both_variants']
-        logger.info(f"Franchise processing completed (openpyxl) ({detailed_context}): franchise_type='{franchise_type}', has_franchise={has_franchise} (backward compatibility) | {format_context}")
+        logger.info(f"Franchise processing completed (openpyxl) ({detailed_context}): franchise_type='{franchise_type}' | {format_context}")
         
         # Получаем детальную информацию о франшизе для сохранения в additional_data
         franchise_details = self._get_franchise_details_openpyxl(sheet)
@@ -395,7 +392,6 @@ class ExcelReader:
             'branch': branch,
             'manager_name': manager_name,
             'franchise_type': franchise_type,
-            'has_franchise': has_franchise,
             'has_installment': has_installment,
             'has_autostart': has_autostart,
             'has_casco_ce': has_casco_ce,
@@ -417,7 +413,7 @@ class ExcelReader:
         
         # Логируем успешное извлечение данных с информацией о формате и новых параметрах
         additional_params_summary = f"additional_params: {len([v for v in additional_parameters.values() if v])} non-empty"
-        logger.info(f"Successfully extracted data with openpyxl ({detailed_context}): client='{client_name}', manager_name='{manager_name}', insurance_type='{insurance_type}', dfa_number='{dfa_number}', branch='{branch}', franchise_type='{franchise_type}', has_franchise={has_franchise}, has_autostart={has_autostart}, has_casco_ce={has_casco_ce}, has_transportation={has_transportation}, has_construction_work={has_construction_work}, {additional_params_summary} | {format_context}")
+        logger.info(f"Successfully extracted data with openpyxl ({detailed_context}): client='{client_name}', manager_name='{manager_name}', insurance_type='{insurance_type}', dfa_number='{dfa_number}', branch='{branch}', franchise_type='{franchise_type}', has_autostart={has_autostart}, has_casco_ce={has_casco_ce}, has_transportation={has_transportation}, has_construction_work={has_construction_work}, {additional_params_summary} | {format_context}")
         
         return extracted_data
     
@@ -458,10 +454,7 @@ class ExcelReader:
         # Определяем тип франшизы на основе анализа ячеек D29/D30, E29/E30, F29/F30
         logger.info(f"Starting franchise type determination (pandas) ({detailed_context}) | {format_context}")
         franchise_type = self._determine_franchise_type(sheet=None, is_openpyxl=False, df=df)
-        
-        # Обновляем has_franchise для обратной совместимости
-        has_franchise = franchise_type in ['with_franchise', 'both_variants']
-        logger.info(f"Franchise processing completed (pandas) ({detailed_context}): franchise_type='{franchise_type}', has_franchise={has_franchise} (backward compatibility) | {format_context}")
+        logger.info(f"Franchise processing completed (pandas) ({detailed_context}): franchise_type='{franchise_type}' | {format_context}")
         
         # Получаем детальную информацию о франшизе для сохранения в additional_data
         franchise_details = self._get_franchise_details_pandas(df)
@@ -543,7 +536,6 @@ class ExcelReader:
             'branch': branch,
             'manager_name': manager_name,
             'franchise_type': franchise_type,
-            'has_franchise': has_franchise,
             'has_installment': has_installment,
             'has_autostart': has_autostart,
             'has_casco_ce': has_casco_ce,
@@ -565,7 +557,7 @@ class ExcelReader:
         
         # Логируем успешное извлечение данных с информацией о формате и новых параметрах
         additional_params_summary = f"additional_params: {len([v for v in additional_parameters.values() if v])} non-empty"
-        logger.info(f"Successfully extracted data with pandas ({detailed_context}): client='{client_name}', manager_name='{manager_name}', insurance_type='{insurance_type}', dfa_number='{dfa_number}', branch='{branch}', franchise_type='{franchise_type}', has_franchise={has_franchise}, has_autostart={has_autostart}, has_casco_ce={has_casco_ce}, has_transportation={has_transportation}, has_construction_work={has_construction_work}, {additional_params_summary} | {format_context}")
+        logger.info(f"Successfully extracted data with pandas ({detailed_context}): client='{client_name}', manager_name='{manager_name}', insurance_type='{insurance_type}', dfa_number='{dfa_number}', branch='{branch}', franchise_type='{franchise_type}', has_autostart={has_autostart}, has_casco_ce={has_casco_ce}, has_transportation={has_transportation}, has_construction_work={has_construction_work}, {additional_params_summary} | {format_context}")
         
         return extracted_data
     
@@ -995,7 +987,6 @@ class ExcelReader:
             'dfa_number': f'Номер ДФА не указан ({app_type_display}, {format_display})',
             'branch': f'Филиал не указан ({app_type_display}, {format_display})',
             'franchise_type': 'none',
-            'has_franchise': False,
             'has_installment': False,
             'has_autostart': False,
             'has_casco_ce': False,

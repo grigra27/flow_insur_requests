@@ -547,7 +547,7 @@
                             <td class="num">{% if row.portfolio.new_deal_pct is not None %}{{ row.portfolio.new_deal_pct|floatformat:0 }}%{% else %}—{% endif %}</td>
                             <td class="num">{% if row.portfolio.prolongation_pct is not None %}{{ row.portfolio.prolongation_pct|floatformat:0 }}%{% else %}—{% endif %}</td>
                             <td>
-                                {% if row.portfolio.flag_pct.has_franchise %}<span class="mgr-flag-badge">франшиза {{ row.portfolio.flag_pct.has_franchise|floatformat:0 }}%</span>{% endif %}
+                                {% if row.portfolio.flag_pct.franchise %}<span class="mgr-flag-badge">франшиза {{ row.portfolio.flag_pct.franchise|floatformat:0 }}%</span>{% endif %}
                                 {% if row.portfolio.flag_pct.has_installment %}<span class="mgr-flag-badge">рассрочка {{ row.portfolio.flag_pct.has_installment|floatformat:0 }}%</span>{% endif %}
                                 {% if row.portfolio.flag_pct.has_autostart %}<span class="mgr-flag-badge">автозапуск {{ row.portfolio.flag_pct.has_autostart|floatformat:0 }}%</span>{% endif %}
                                 {% if row.portfolio.flag_pct.has_casco_ce %}<span class="mgr-flag-badge">КАСКО C/E {{ row.portfolio.flag_pct.has_casco_ce|floatformat:0 }}%</span>{% endif %}

@@ -196,7 +196,6 @@ class ExcelRequestParserV2:
             )
 
         data["franchise_type"] = self._extract_franchise_type(cells)
-        data["has_franchise"] = data["franchise_type"] in {"with_franchise", "both_variants"}
         data["has_installment"] = self._contains_any(cells, ["рассроч", "ежекварт", "ежемесяч", "покварт"])
         data["has_autostart"] = self._extract_autostart(cells, rows)
         data["has_casco_ce"] = self._contains_any(cells, ["категори c", "категории c", "кат с", "кат. c", "c/e"])
@@ -308,7 +307,6 @@ class ExcelRequestParserV2:
             "manager_name": "",
             "deal_status": "new",
             "franchise_type": "none",
-            "has_franchise": False,
             "has_installment": False,
             "has_autostart": False,
             "has_casco_ce": False,

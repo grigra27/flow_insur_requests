@@ -148,7 +148,6 @@ class ParserV2UploadTests(TestCase):
     def _post_data_from_preview(self, form):
         data = {}
         checkbox_fields = {
-            'has_franchise',
             'has_installment',
             'has_autostart',
             'has_casco_ce',

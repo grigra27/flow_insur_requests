@@ -18,7 +18,7 @@ class InsuranceRequestAdmin(admin.ModelAdmin):
     
     # Улучшенные фильтры по ключевым полям
     list_filter = [
-        'status', 'insurance_type', 'branch', 'franchise_type', 'has_franchise', 
+        'status', 'insurance_type', 'branch', 'franchise_type',
         'has_installment', 'has_autostart', 'has_casco_ce', 'has_transportation',
         'has_construction_work', 'created_at'
     ]
@@ -57,7 +57,7 @@ class InsuranceRequestAdmin(admin.ModelAdmin):
         }),
         ('Параметры', {
             'fields': (
-                'franchise_type', 'has_franchise', 'has_installment', 'has_autostart',
+                'franchise_type', 'has_installment', 'has_autostart',
                 'has_casco_ce', 'has_transportation', 'has_construction_work',
                 'response_deadline'
             )
@@ -158,5 +158,4 @@ class RequestAttachmentAdmin(admin.ModelAdmin):
         return moscow_time.strftime('%d.%m.%Y %H:%M')
     uploaded_at_moscow.short_description = 'Загружено (МСК)'
     uploaded_at_moscow.admin_order_field = 'uploaded_at'
-
 

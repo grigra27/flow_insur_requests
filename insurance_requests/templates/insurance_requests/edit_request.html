@@ -367,7 +367,7 @@
 
                     <!-- Дополнительные параметры -->
                     <div class="mb-4">
-                        <h6 class="text-muted mb-3">Дополнительные параметры "с галочками" - <i>влияет на текст письма</i></h6>
+                        <h6 class="text-muted mb-3">Дополнительные параметры - <i>влияет на текст письма</i></h6>
                         
                         <!-- Общие параметры -->
                         <div class="card border-0 bg-light mb-3">
@@ -375,12 +375,17 @@
                                 <h6 class="card-subtitle mb-2 text-muted small">Общие</h6>
                                 <div class="row">
                                     <div class="col-md-6">
-                                        <div class="form-check">
-                                            {{ form.has_franchise }}
-                                            <label class="form-check-label" for="{{ form.has_franchise.id_for_label }}">
-                                                {{ form.has_franchise.label }}
-                                            </label>
+                                        <label class="form-label" for="{{ form.franchise_type.id_for_label }}">
+                                            {{ form.franchise_type.label }}
+                                        </label>
+                                        {{ form.franchise_type }}
+                                        {% if form.franchise_type.errors %}
+                                        <div class="text-danger">
+                                            {% for error in form.franchise_type.errors %}
+                                            <small>{{ error }}</small>
+                                            {% endfor %}
                                         </div>
+                                        {% endif %}
                                     </div>
                                     <div class="col-md-6">
                                         <div class="form-check">

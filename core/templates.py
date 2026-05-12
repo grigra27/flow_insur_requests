@@ -161,14 +161,12 @@ ${franshiza_text}${installment_text}${avtozapusk_text}${transportation_text}${co
             'response_time': response_time,
         }
         
-        # Условные блоки текста - используем has_franchise как основной источник правды
-        has_franchise = data.get('has_franchise', False)
+        # Условные блоки текста
         franchise_type = data.get('franchise_type', 'none')
-        if has_franchise:
-            if franchise_type == 'both_variants':
-                template_data['franshiza_text'] = self._get_franchise_text('both_variants')
-            else:
-                template_data['franshiza_text'] = self._get_franchise_text('with_franchise')
+        if franchise_type == 'both_variants':
+            template_data['franshiza_text'] = self._get_franchise_text('both_variants')
+        elif franchise_type == 'with_franchise':
+            template_data['franshiza_text'] = self._get_franchise_text('with_franchise')
         else:
             template_data['franshiza_text'] = self._get_franchise_text('none')
         

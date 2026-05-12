@@ -71,7 +71,6 @@ class InsuranceRequest(models.Model):
         default='none',
         verbose_name='Тип франшизы'
     )
-    has_franchise = models.BooleanField(default=False, verbose_name='Требуется франшиза')
     has_installment = models.BooleanField(default=False, verbose_name='Требуется рассрочка')
     has_autostart = models.BooleanField(default=False, verbose_name='Есть автозапуск')
     has_casco_ce = models.BooleanField(default=False, verbose_name='КАСКО кат. C/E')
@@ -170,7 +169,7 @@ class InsuranceRequest(models.Model):
         return f"{self.get_display_name()} - {self.client_name} ({self.get_status_display()})"
     
     def save(self, *args, **kwargs):
-        """Override save method to set automatic response deadline in Moscow timezone and update has_franchise"""
+        """Override save method to set automatic response deadline in Moscow timezone."""
         if not self.response_deadline:
             # Получаем текущее время в московском часовом поясе
             moscow_tz = pytz.timezone('Europe/Moscow')
@@ -212,7 +211,6 @@ class InsuranceRequest(models.Model):
             'dfa_number': self.dfa_number,
             'branch': self.branch,
             'franchise_type': self.franchise_type,
-            'has_franchise': self.has_franchise,
             'has_installment': self.has_installment,
             'has_autostart': self.has_autostart,
             'has_casco_ce': self.has_casco_ce,
@@ -270,5 +268,4 @@ class RequestAttachment(models.Model):
     
     def __str__(self):
         return f"{self.original_filename} (Заявка {self.request.get_display_name()})"
-
 

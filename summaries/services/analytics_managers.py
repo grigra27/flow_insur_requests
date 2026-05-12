@@ -348,7 +348,7 @@ def _portfolio_for_user(requests: list[InsuranceRequest]) -> dict[str, Any]:
     by_type: dict[str, int] = defaultdict(int)
     new_count = prolong_count = 0
     flag_counters = {
-        'has_franchise': 0, 'has_installment': 0,
+        'franchise': 0, 'has_installment': 0,
         'has_autostart': 0, 'has_casco_ce': 0,
         'has_transportation': 0, 'has_construction_work': 0,
     }
@@ -359,8 +359,10 @@ def _portfolio_for_user(requests: list[InsuranceRequest]) -> dict[str, Any]:
             prolong_count += 1
         else:
             new_count += 1
+        if req.franchise_type != 'none':
+            flag_counters['franchise'] += 1
         for flag in flag_counters:
-            if getattr(req, flag, False):
+            if flag != 'franchise' and getattr(req, flag, False):
                 flag_counters[flag] += 1
 
     return {
