@@ -1,0 +1,144 @@
+{
+  "schema_version": "alliance.insurance_request.v1",
+  "request": {
+    "request_number": "ТС-20213-ЛТ-КЗ",
+    "submission_date": "2025-08-18",
+    "source_system": "customer_export",
+    "applicant_type": "legal_entity",
+    "application_format": "casco_equipment",
+    "branch": {
+      "name": "Казанский филиал"
+    },
+    "manager": {
+      "full_name": "Иванов Иван"
+    }
+  },
+  "customer": {
+    "type": "legal_entity",
+    "name": "ООО \"АльфаТехГрупп\"",
+    "inn": "1633005311",
+    "birth_date": null,
+    "legal_address": "422772, Татарстан (Татарстан) респ, Пестречинский р-н, Кощаково с, Комсомольская ул, дом № 46",
+    "postal_address": "420015, Татарстан Респ, Казань г, Карла Маркса ул, дом № 50/8, оф.1",
+    "business_activity": "Работы строительные специализированные прочие, не включенные в другие группировки. У компании имеется ряд техники, которую она сдает в аренду своей связанной компании ООО СК Альфа-Групп. также оказывает услуги и сторонним организациям. На балансе: 2 автокрана, экскаватор Коматсу, экскаватор-погрузчик Коматсу."
+  },
+  "lease": {
+    "contract_start_date": "2025-08-20",
+    "contract_end_date": "2027-08-20",
+    "creditor_bank": "Собственные средства",
+    "insured_party": "lessee"
+  },
+  "insurance": {
+    "product": "equipment",
+    "period": {
+      "kind": "full_lease",
+      "text": "на весь срок лизинга",
+      "start_date": null,
+      "end_date": null,
+      "months": null
+    },
+    "territory": "Россия",
+    "coverage_terms": {
+      "insured_sum_type": "non_aggregate",
+      "indemnity_basis": "without_depreciation",
+      "guard_conditions": "без ограничений",
+      "property_location_right_holder": null,
+      "property_location_right_holder_text": null
+    },
+    "franchise": {
+      "mode": "both_variants",
+      "options": [
+        {
+          "kind": "none",
+          "percent": null,
+          "amount": null
+        },
+        {
+          "kind": "absolute",
+          "percent": null,
+          "amount": {
+            "value": 100000,
+            "currency": "RUB"
+          }
+        }
+      ]
+    },
+    "premium_payment": {
+      "mode": "installment",
+      "frequency": "annual",
+      "comment": "В исходном Excel отмечена строка \"ежегодно\"."
+    }
+  },
+  "insured_objects": [
+    {
+      "item_no": 1,
+      "object_type": "special_equipment",
+      "category": "Специальная техника",
+      "description": "Мини-погрузчик Sunward SWL 4028 с доп.оборудованием",
+      "brand": "Sunward",
+      "model": "SWL 4028",
+      "vin": null,
+      "serial_number": null,
+      "manufacturing_year": 2025,
+      "condition": "new",
+      "equipment_type": "колесная",
+      "power_or_capacity": null,
+      "quantity": 1,
+      "acquisition_cost": {
+        "value": 4991500,
+        "currency": "RUB"
+      },
+      "comment": null
+    }
+  ],
+  "underwriting": {
+    "usage_purposes": "производственные (строительство)",
+    "autostart": false,
+    "casco_category_ce": false,
+    "transportation": false,
+    "construction_work": false,
+    "key_completeness": {
+      "keys_count": 2,
+      "text": "2"
+    },
+    "title_document": "оригинал/ЭПТС",
+    "telematics": {
+      "required": false,
+      "complex_name": null
+    },
+    "anti_theft_systems": {
+      "alarm": {
+        "factory": false,
+        "additional": false,
+        "name_or_model": null
+      },
+      "immobilizer": {
+        "factory": false,
+        "additional": false,
+        "name_or_model": null
+      },
+      "mechanical_devices": [],
+      "satellite_system": {
+        "required": false,
+        "brand": null,
+        "model": null,
+        "configuration": null
+      }
+    },
+    "additional_coverages": {
+      "transportation": {
+        "required": false,
+        "origin": null,
+        "destination": null,
+        "estimated_days": null
+      },
+      "construction_work": {
+        "required": false,
+        "description": null
+      }
+    }
+  },
+  "notes": [
+    "Пример сформирован на основе файла avtozayavka/real_requests/заявка 20213-ЛТ-КЗ - Мини-погрузчик Sunward SWL 4028 с доп. обор-ем (с фр. 100 тыс и без) - на 2 года.xls"
+  ]
+}

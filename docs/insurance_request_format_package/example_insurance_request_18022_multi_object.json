@@ -1,0 +1,417 @@
+{
+  "schema_version": "alliance.insurance_request.v1",
+  "request": {
+    "request_number": "ТС-18022-2-ГА-МН",
+    "submission_date": "2025-05-16",
+    "source_system": "customer_export",
+    "applicant_type": "legal_entity",
+    "application_format": "casco_equipment",
+    "branch": {
+      "name": "Мурманский филиал"
+    },
+    "manager": {
+      "full_name": "Иванов Иван"
+    }
+  },
+  "customer": {
+    "type": "legal_entity",
+    "name": "ООО Ромашка",
+    "inn": "5190040618",
+    "birth_date": null,
+    "legal_address": "183034, Мурманская обл., Мурманск г.,",
+    "postal_address": null,
+    "business_activity": "Торговля оптовая твердым, жидким и газообразным топливом и подобными продуктами. Пассажироперевозки."
+  },
+  "lease": {
+    "contract_start_date": "2023-05-20",
+    "contract_end_date": "2026-05-15",
+    "creditor_bank": null,
+    "insured_party": "lessee"
+  },
+  "insurance": {
+    "product": "casco",
+    "period": {
+      "kind": "one_year",
+      "text": "1 год",
+      "start_date": null,
+      "end_date": null,
+      "months": 12
+    },
+    "territory": "Россия",
+    "coverage_terms": {
+      "insured_sum_type": "non_aggregate",
+      "indemnity_basis": "without_depreciation",
+      "guard_conditions": "без ограничений",
+      "property_location_right_holder": null,
+      "property_location_right_holder_text": null
+    },
+    "franchise": {
+      "mode": "none",
+      "options": [
+        {
+          "kind": "none",
+          "percent": null,
+          "amount": null
+        }
+      ]
+    },
+    "premium_payment": {
+      "mode": "single",
+      "frequency": null,
+      "comment": "В исходном Excel отмечено единовременно."
+    }
+  },
+  "insured_objects": [
+    {
+      "item_no": 1,
+      "object_type": "vehicle",
+      "category": "Транспортные средства категории D",
+      "description": "автобус ГАЗ A64R42",
+      "brand": "ГАЗ",
+      "model": "A64R42",
+      "vin": null,
+      "serial_number": null,
+      "manufacturing_year": 2023,
+      "condition": "used",
+      "equipment_type": null,
+      "power_or_capacity": "120,6",
+      "quantity": 1,
+      "acquisition_cost": {
+        "value": 3605000,
+        "currency": "RUB"
+      },
+      "comment": "по ДКП 2023г"
+    },
+    {
+      "item_no": 2,
+      "object_type": "vehicle",
+      "category": "Транспортные средства категории D",
+      "description": "автобус ГАЗ A64R42",
+      "brand": "ГАЗ",
+      "model": "A64R42",
+      "vin": null,
+      "serial_number": null,
+      "manufacturing_year": 2023,
+      "condition": "used",
+      "equipment_type": null,
+      "power_or_capacity": "120,6",
+      "quantity": 1,
+      "acquisition_cost": {
+        "value": 3605000,
+        "currency": "RUB"
+      },
+      "comment": "по ДКП 2023г"
+    },
+    {
+      "item_no": 3,
+      "object_type": "vehicle",
+      "category": "Транспортные средства категории D",
+      "description": "автобус ГАЗ A64R42",
+      "brand": "ГАЗ",
+      "model": "A64R42",
+      "vin": null,
+      "serial_number": null,
+      "manufacturing_year": 2023,
+      "condition": "used",
+      "equipment_type": null,
+      "power_or_capacity": "120,6",
+      "quantity": 1,
+      "acquisition_cost": {
+        "value": 3605000,
+        "currency": "RUB"
+      },
+      "comment": "по ДКП 2023г"
+    },
+    {
+      "item_no": 4,
+      "object_type": "vehicle",
+      "category": "Транспортные средства категории D",
+      "description": "автобус ГАЗ A64R42",
+      "brand": "ГАЗ",
+      "model": "A64R42",
+      "vin": null,
+      "serial_number": null,
+      "manufacturing_year": 2023,
+      "condition": "used",
+      "equipment_type": null,
+      "power_or_capacity": "120,6",
+      "quantity": 1,
+      "acquisition_cost": {
+        "value": 3605000,
+        "currency": "RUB"
+      },
+      "comment": "по ДКП 2023г"
+    },
+    {
+      "item_no": 5,
+      "object_type": "vehicle",
+      "category": "Транспортные средства категории D",
+      "description": "автобус ГАЗ A64R42",
+      "brand": "ГАЗ",
+      "model": "A64R42",
+      "vin": null,
+      "serial_number": null,
+      "manufacturing_year": 2023,
+      "condition": "used",
+      "equipment_type": null,
+      "power_or_capacity": "120,6",
+      "quantity": 1,
+      "acquisition_cost": {
+        "value": 3605000,
+        "currency": "RUB"
+      },
+      "comment": "по ДКП 2023г"
+    },
+    {
+      "item_no": 6,
+      "object_type": "vehicle",
+      "category": "Транспортные средства категории D",
+      "description": "автобус ГАЗ A64R42",
+      "brand": "ГАЗ",
+      "model": "A64R42",
+      "vin": null,
+      "serial_number": null,
+      "manufacturing_year": 2023,
+      "condition": "used",
+      "equipment_type": null,
+      "power_or_capacity": "120,6",
+      "quantity": 1,
+      "acquisition_cost": {
+        "value": 3605000,
+        "currency": "RUB"
+      },
+      "comment": "по ДКП 2023г"
+    },
+    {
+      "item_no": 7,
+      "object_type": "vehicle",
+      "category": "Транспортные средства категории D",
+      "description": "автобус ГАЗ A64R42",
+      "brand": "ГАЗ",
+      "model": "A64R42",
+      "vin": null,
+      "serial_number": null,
+      "manufacturing_year": 2023,
+      "condition": "used",
+      "equipment_type": null,
+      "power_or_capacity": "120,6",
+      "quantity": 1,
+      "acquisition_cost": {
+        "value": 3605000,
+        "currency": "RUB"
+      },
+      "comment": "по ДКП 2023г"
+    },
+    {
+      "item_no": 8,
+      "object_type": "vehicle",
+      "category": "Транспортные средства категории D",
+      "description": "автобус ГАЗ A64R42",
+      "brand": "ГАЗ",
+      "model": "A64R42",
+      "vin": null,
+      "serial_number": null,
+      "manufacturing_year": 2023,
+      "condition": "used",
+      "equipment_type": null,
+      "power_or_capacity": "120,6",
+      "quantity": 1,
+      "acquisition_cost": {
+        "value": 3605000,
+        "currency": "RUB"
+      },
+      "comment": "по ДКП 2023г"
+    },
+    {
+      "item_no": 9,
+      "object_type": "vehicle",
+      "category": "Транспортные средства категории D",
+      "description": "автобус ГАЗ A64R42",
+      "brand": "ГАЗ",
+      "model": "A64R42",
+      "vin": null,
+      "serial_number": null,
+      "manufacturing_year": 2023,
+      "condition": "used",
+      "equipment_type": null,
+      "power_or_capacity": "120,6",
+      "quantity": 1,
+      "acquisition_cost": {
+        "value": 3605000,
+        "currency": "RUB"
+      },
+      "comment": "по ДКП 2023г"
+    },
+    {
+      "item_no": 10,
+      "object_type": "vehicle",
+      "category": "Транспортные средства категории D",
+      "description": "автобус ГАЗ A64R42",
+      "brand": "ГАЗ",
+      "model": "A64R42",
+      "vin": null,
+      "serial_number": null,
+      "manufacturing_year": 2023,
+      "condition": "used",
+      "equipment_type": null,
+      "power_or_capacity": "120,6",
+      "quantity": 1,
+      "acquisition_cost": {
+        "value": 3605000,
+        "currency": "RUB"
+      },
+      "comment": "по ДКП 2023г"
+    },
+    {
+      "item_no": 11,
+      "object_type": "vehicle",
+      "category": "Транспортные средства категории D",
+      "description": "автобус ГАЗ A64R42",
+      "brand": "ГАЗ",
+      "model": "A64R42",
+      "vin": null,
+      "serial_number": null,
+      "manufacturing_year": 2023,
+      "condition": "used",
+      "equipment_type": null,
+      "power_or_capacity": "120,6",
+      "quantity": 1,
+      "acquisition_cost": {
+        "value": 3605000,
+        "currency": "RUB"
+      },
+      "comment": "по ДКП 2023г"
+    },
+    {
+      "item_no": 12,
+      "object_type": "vehicle",
+      "category": "Транспортные средства категории D",
+      "description": "автобус ГАЗ A64R42",
+      "brand": "ГАЗ",
+      "model": "A64R42",
+      "vin": null,
+      "serial_number": null,
+      "manufacturing_year": 2023,
+      "condition": "used",
+      "equipment_type": null,
+      "power_or_capacity": "120,6",
+      "quantity": 1,
+      "acquisition_cost": {
+        "value": 3605000,
+        "currency": "RUB"
+      },
+      "comment": "по ДКП 2023г"
+    },
+    {
+      "item_no": 13,
+      "object_type": "vehicle",
+      "category": "Транспортные средства категории D",
+      "description": "автобус ГАЗ A64R42",
+      "brand": "ГАЗ",
+      "model": "A64R42",
+      "vin": null,
+      "serial_number": null,
+      "manufacturing_year": 2023,
+      "condition": "used",
+      "equipment_type": null,
+      "power_or_capacity": "120,6",
+      "quantity": 1,
+      "acquisition_cost": {
+        "value": 3605000,
+        "currency": "RUB"
+      },
+      "comment": "по ДКП 2023г"
+    },
+    {
+      "item_no": 14,
+      "object_type": "vehicle",
+      "category": "Транспортные средства категории D",
+      "description": "автобус ГАЗ A64R42",
+      "brand": "ГАЗ",
+      "model": "A64R42",
+      "vin": null,
+      "serial_number": null,
+      "manufacturing_year": 2023,
+      "condition": "used",
+      "equipment_type": null,
+      "power_or_capacity": "120,6",
+      "quantity": 1,
+      "acquisition_cost": {
+        "value": 3605000,
+        "currency": "RUB"
+      },
+      "comment": "по ДКП 2023г"
+    },
+    {
+      "item_no": 15,
+      "object_type": "vehicle",
+      "category": "Транспортные средства категории D",
+      "description": "автобус ГАЗ A64R42",
+      "brand": "ГАЗ",
+      "model": "A64R42",
+      "vin": null,
+      "serial_number": null,
+      "manufacturing_year": 2023,
+      "condition": "used",
+      "equipment_type": null,
+      "power_or_capacity": "120,6",
+      "quantity": 1,
+      "acquisition_cost": {
+        "value": 3605000,
+        "currency": "RUB"
+      },
+      "comment": "по ДКП 2023г"
+    }
+  ],
+  "underwriting": {
+    "usage_purposes": "регулярные пассажирские и рейсовые перевозки в т.ч. междугородние",
+    "autostart": false,
+    "casco_category_ce": false,
+    "transportation": false,
+    "construction_work": false,
+    "key_completeness": {
+      "keys_count": 2,
+      "text": "2"
+    },
+    "title_document": "оригинал/ЭПТС",
+    "telematics": {
+      "required": false,
+      "complex_name": null
+    },
+    "anti_theft_systems": {
+      "alarm": {
+        "factory": false,
+        "additional": false,
+        "name_or_model": null
+      },
+      "immobilizer": {
+        "factory": false,
+        "additional": false,
+        "name_or_model": null
+      },
+      "mechanical_devices": [],
+      "satellite_system": {
+        "required": false,
+        "brand": null,
+        "model": null,
+        "configuration": null
+      }
+    },
+    "additional_coverages": {
+      "transportation": {
+        "required": false,
+        "origin": null,
+        "destination": null,
+        "estimated_days": null
+      },
+      "construction_work": {
+        "required": false,
+        "description": null
+      }
+    }
+  },
+  "notes": [
+    "Пример сформирован на основе файла avtozayavka/real_requests/Мурманск/Заявка  18022-2-3-автобус ГАЗ A64R42 ( БУ 2023гв) - 15 шт.xls",
+    "В исходном файле наименование клиента заполнено как \"ООО\" без полного названия."
+  ]
+}
