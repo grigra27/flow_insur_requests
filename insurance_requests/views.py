@@ -12,15 +12,8 @@ import os
 import tempfile
 import logging
 
-from .models import InsuranceRequest, InsuranceRequestObject, RequestAttachment
-from .forms import (
-    ExcelUploadForm,
-    InsuranceRequestForm,
-    InsuranceRequestObjectFormSet,
-    EmailPreviewForm,
-    CustomAuthenticationForm,
-    RequestStatusForm,
-)
+from .models import InsuranceRequest, RequestAttachment
+from .forms import ExcelUploadForm, InsuranceRequestForm, EmailPreviewForm, CustomAuthenticationForm, RequestStatusForm
 from .decorators import user_required, admin_required
 from .security import (
     clear_login_failures,
@@ -70,85 +63,6 @@ def _get_detailed_format_context_for_logging(application_type=None, application_
         return "application_type: unknown, application_format: unknown"
     
     return f"application_type: {application_type}, application_format: {application_format}"
-
-
-def _normalize_insurance_object_payloads(source_data):
-    """Готовит объекты страхования из данных загрузчика с fallback на legacy-поля."""
-    raw_objects = source_data.get('insurance_objects') or []
-    normalized_objects = []
-
-    for index, raw_object in enumerate(raw_objects, start=1):
-        description = str(raw_object.get('description') or '').strip()
-        manufacturing_year = str(raw_object.get('manufacturing_year') or '').strip()
-        asset_status = str(raw_object.get('asset_status') or '').strip()
-
-        if not any([description, manufacturing_year, asset_status]):
-            continue
-
-        normalized_objects.append({
-            'position': raw_object.get('position') or index,
-            'description': description or 'Информация о предмете лизинга не указана',
-            'manufacturing_year': manufacturing_year,
-            'asset_status': asset_status,
-            'source_row': raw_object.get('source_row'),
-        })
-
-    if normalized_objects:
-        return normalized_objects
-
-    fallback_description = str(source_data.get('vehicle_info') or '').strip()
-    fallback_year = str(source_data.get('manufacturing_year') or '').strip()
-    fallback_status = str(source_data.get('asset_status') or '').strip()
-
-    if any([fallback_description, fallback_year, fallback_status]):
-        return [{
-            'position': 1,
-            'description': fallback_description or 'Информация о предмете лизинга не указана',
-            'manufacturing_year': fallback_year,
-            'asset_status': fallback_status,
-            'source_row': None,
-        }]
-
-    return []
-
-
-def _create_insurance_objects_for_request(insurance_request, source_data):
-    """Создает структурированные объекты и синхронизирует legacy-поля заявки."""
-    object_payloads = _normalize_insurance_object_payloads(source_data)
-    if not object_payloads:
-        return []
-
-    created_objects = InsuranceRequestObject.objects.bulk_create([
-        InsuranceRequestObject(
-            request=insurance_request,
-            position=payload['position'],
-            description=payload['description'],
-            manufacturing_year=payload['manufacturing_year'],
-            asset_status=payload['asset_status'],
-            source_row=payload['source_row'],
-        )
-        for payload in object_payloads
-    ])
-    insurance_request.sync_legacy_object_fields_from_related(save=True)
-    return created_objects
-
-
-def _get_legacy_insurance_object_initial(insurance_request):
-    """Начальные данные для формы объектов у старых заявок без связанных строк."""
-    if insurance_request.insurance_objects.exists():
-        return None
-
-    objects_for_display = insurance_request.insurance_objects_for_display
-    if not objects_for_display:
-        return None
-
-    legacy_object = objects_for_display[0]
-    return {
-        'position': legacy_object.get('position') or 1,
-        'description': legacy_object.get('description') or '',
-        'manufacturing_year': legacy_object.get('manufacturing_year') or '',
-        'asset_status': legacy_object.get('asset_status') or '',
-    }
 
 
 def login_view(request):
@@ -261,7 +175,7 @@ def request_list(request):
     dfa_filter = request.GET.get('dfa_filter', '').strip()
     
     # Начинаем с базового QuerySet
-    queryset = InsuranceRequest.objects.prefetch_related('insurance_objects')
+    queryset = InsuranceRequest.objects.all()
     
     # Применяем фильтр по номеру ДФА с улучшенной обработкой ошибок
     dfa_filter_error = None
@@ -531,15 +445,6 @@ def upload_excel(request):
                         additional_data=additional_data,
                         created_by=request.user
                     )
-
-                    created_objects = _create_insurance_objects_for_request(insurance_request, excel_data)
-                    if created_objects:
-                        logger.info(
-                            "Created %s structured insurance object(s) for request #%s | %s",
-                            len(created_objects),
-                            insurance_request.id,
-                            format_context,
-                        )
                     
                     # Логируем дополнительные параметры в зависимости от формата заявки
                     if application_format == 'casco_equipment':
@@ -679,10 +584,7 @@ def upload_excel(request):
 @user_required
 def request_detail(request, pk):
     """Детальная информация о заявке"""
-    insurance_request = get_object_or_404(
-        InsuranceRequest.objects.prefetch_related('insurance_objects'),
-        pk=pk
-    )
+    insurance_request = get_object_or_404(InsuranceRequest, pk=pk)
     
     # Создаем форму для изменения статуса
     status_form = RequestStatusForm(initial={'status': insurance_request.status})
@@ -696,41 +598,12 @@ def request_detail(request, pk):
 @user_required
 def edit_request(request, pk):
     """Редактирование заявки с улучшенной предзаполнением формы"""
-    insurance_request = get_object_or_404(
-        InsuranceRequest.objects.prefetch_related('insurance_objects'),
-        pk=pk
-    )
+    insurance_request = get_object_or_404(InsuranceRequest, pk=pk)
     
     if request.method == 'POST':
-        had_structured_objects = insurance_request.insurance_objects.exists()
         form = InsuranceRequestForm(request.POST, instance=insurance_request)
-        object_formset = InsuranceRequestObjectFormSet(
-            request.POST,
-            instance=insurance_request,
-            prefix='objects'
-        )
-        if form.is_valid() and object_formset.is_valid():
+        if form.is_valid():
             updated_request = form.save()
-            object_formset.instance = updated_request
-            object_formset.save()
-            if hasattr(updated_request, '_prefetched_objects_cache'):
-                updated_request._prefetched_objects_cache.pop('insurance_objects', None)
-
-            for index, insurance_object in enumerate(
-                updated_request.insurance_objects.all().order_by('position', 'id'),
-                start=1
-            ):
-                if insurance_object.position != index:
-                    insurance_object.position = index
-                    insurance_object.save(update_fields=['position', 'updated_at'])
-
-            if updated_request.insurance_objects.exists():
-                updated_request.sync_legacy_object_fields_from_related(save=True)
-            elif had_structured_objects:
-                updated_request.vehicle_info = ''
-                updated_request.manufacturing_year = ''
-                updated_request.asset_status = ''
-                updated_request.save(update_fields=['vehicle_info', 'manufacturing_year', 'asset_status', 'updated_at'])
             
             # Получаем информацию о формате для логирования
             format_info = ""
@@ -761,19 +634,10 @@ def edit_request(request, pk):
                 type_display = insurance_request.additional_data.get('application_type_display', 'неизвестно')
                 format_info = f" (формат: {format_display}, тип: {type_display})"
             
-            logger.warning(
-                f"Form validation errors for request {pk}{format_info}: "
-                f"form={form.errors}, objects={object_formset.errors} | {format_context}"
-            )
+            logger.warning(f"Form validation errors for request {pk}{format_info}: {form.errors} | {format_context}")
     else:
         # Initialize form with instance data
         form = InsuranceRequestForm(instance=insurance_request)
-        legacy_initial = _get_legacy_insurance_object_initial(insurance_request)
-        object_formset = InsuranceRequestObjectFormSet(
-            instance=insurance_request,
-            prefix='objects',
-            initial=[legacy_initial] if legacy_initial else None,
-        )
         
         # Log successful form initialization for debugging with format context
         format_context = "Format: unknown, Type: unknown"
@@ -786,8 +650,7 @@ def edit_request(request, pk):
     
     return render(request, 'insurance_requests/edit_request.html', {
         'form': form,
-        'request': insurance_request,
-        'object_formset': object_formset,
+        'request': insurance_request
     })
 
 

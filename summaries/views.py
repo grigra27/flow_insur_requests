@@ -677,7 +677,7 @@ def deal_list(request):
 def summary_detail(request, pk):
     """Детальная информация о своде"""
     summary = get_object_or_404(
-        InsuranceSummary.objects.select_related('request').prefetch_related('offers', 'request__insurance_objects'),
+        InsuranceSummary.objects.select_related('request').prefetch_related('offers'), 
         pk=pk
     )
     
@@ -736,7 +736,7 @@ def summary_detail(request, pk):
 def deal_summary(request, summary_id):
     """Страница резюме по страховой сделке (технический лист)"""
     summary = get_object_or_404(
-        InsuranceSummary.objects.select_related('request').prefetch_related('offers', 'request__insurance_objects'),
+        InsuranceSummary.objects.select_related('request').prefetch_related('offers'), 
         pk=summary_id
     )
     
@@ -798,8 +798,7 @@ def deal_summary(request, summary_id):
         'client_inn': insurance_request.inn,
         'branch': insurance_request.get_branch_display() if hasattr(insurance_request, 'get_branch_display') else insurance_request.branch,
         'insurance_type': insurance_request.get_insurance_type_display(),
-        'vehicle_info': insurance_request.vehicle_info or insurance_request.primary_insurance_object_description,
-        'insurance_objects': insurance_request.insurance_objects_for_display,
+        'vehicle_info': insurance_request.vehicle_info,
         'manufacturing_year': insurance_request.manufacturing_year,
         'asset_status': insurance_request.asset_status,
         'insurance_period': getattr(insurance_request, 'insurance_period', ''),

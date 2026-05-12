@@ -266,14 +266,7 @@ ${franshiza_text}${installment_text}${avtozapusk_text}${transportation_text}${co
         # Получаем значения с fallback для пустых/None значений
         dfa_number = data.get('dfa_number') or 'ДФА не указан'
         branch = data.get('branch') or 'Филиал не указан'
-        vehicle_info = data.get('vehicle_info')
-        if not vehicle_info and data.get('insurance_objects'):
-            vehicle_info = '; '.join(
-                str(obj.get('description', '')).strip()
-                for obj in data.get('insurance_objects', [])
-                if obj.get('description')
-            )
-        vehicle_info = vehicle_info or 'Предмет лизинга не указан'
+        vehicle_info = data.get('vehicle_info') or 'Предмет лизинга не указан'
         
         # Получаем срок страхования с fallback значением
         insurance_period = data.get('insurance_period')

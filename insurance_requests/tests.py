@@ -1,17 +1,11 @@
 """
 Tests for insurance_requests app
 """
-import os
-import tempfile
-
 from django.test import TestCase, Client, override_settings
 from django.contrib.auth.models import User, Group
 from django.core.cache import cache
 from django.urls import reverse
-from openpyxl import Workbook
-
-from core.excel_utils import ExcelReader
-from .models import InsuranceRequest, InsuranceRequestObject
+from .models import InsuranceRequest
 
 
 class RequestDetailViewTest(TestCase):
@@ -95,104 +89,6 @@ class RequestDetailViewTest(TestCase):
         self.assertEqual(response.status_code, 200)
         # With the new logic, emails_sent status should show create summary button
         self.assertContains(response, 'Создать свод')
-
-
-class InsuranceRequestObjectCompatibilityTest(TestCase):
-    """Проверяет совместимость старых полей и новой структуры объектов."""
-
-    def test_legacy_request_exposes_display_object_without_related_rows(self):
-        insurance_request = InsuranceRequest.objects.create(
-            client_name='Legacy Client',
-            inn='1234567890',
-            insurance_type='КАСКО',
-            vehicle_info='Тягач SCANIA',
-            manufacturing_year='2020',
-            asset_status='б/у',
-        )
-
-        self.assertEqual(insurance_request.insurance_objects.count(), 0)
-
-        display_objects = insurance_request.insurance_objects_for_display
-        self.assertEqual(len(display_objects), 1)
-        self.assertEqual(display_objects[0]['description'], 'Тягач SCANIA')
-        self.assertEqual(display_objects[0]['manufacturing_year'], '2020')
-        self.assertEqual(display_objects[0]['asset_status'], 'б/у')
-        self.assertTrue(display_objects[0]['is_legacy'])
-        self.assertEqual(insurance_request.primary_insurance_object_description, 'Тягач SCANIA')
-
-    def test_structured_objects_sync_legacy_fields(self):
-        insurance_request = InsuranceRequest.objects.create(
-            client_name='Structured Client',
-            inn='1234567890',
-            insurance_type='КАСКО',
-        )
-        InsuranceRequestObject.objects.create(
-            request=insurance_request,
-            position=1,
-            description='Тягач SCANIA',
-            manufacturing_year='2020',
-            asset_status='б/у',
-            source_row=43,
-        )
-        InsuranceRequestObject.objects.create(
-            request=insurance_request,
-            position=2,
-            description='Прицеп SCHMITZ',
-            manufacturing_year='2021',
-            asset_status='новое',
-            source_row=45,
-        )
-
-        insurance_request.sync_legacy_object_fields_from_related(save=True)
-        insurance_request.refresh_from_db()
-
-        self.assertEqual(insurance_request.vehicle_info, 'Тягач SCANIA; Прицеп SCHMITZ')
-        self.assertEqual(insurance_request.manufacturing_year, '2020; 2021')
-        self.assertEqual(insurance_request.asset_status, 'б/у; новое')
-
-
-class ExcelReaderInsuranceObjectsTest(TestCase):
-    """Проверяет структурированное распознавание нескольких объектов из Excel."""
-
-    def test_casco_reader_returns_structured_objects_and_legacy_aggregates(self):
-        temp_file = tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False)
-        temp_file.close()
-
-        try:
-            workbook = Workbook()
-            sheet = workbook.active
-            sheet['D7'] = 'ООО "Тест"'
-            sheet['D9'] = '1234567890'
-            sheet['D21'] = 'КАСКО'
-            sheet['C43'] = 'Тягач'
-            sheet['D43'] = 'SCANIA R440'
-            sheet['J43'] = '2020'
-            sheet['K43'] = 'б/у'
-            sheet['C45'] = 'Прицеп'
-            sheet['D45'] = 'SCHMITZ'
-            sheet['J45'] = '2021'
-            sheet['K45'] = 'новое'
-            workbook.save(temp_file.name)
-            workbook.close()
-
-            reader = ExcelReader(
-                temp_file.name,
-                application_type='legal_entity',
-                application_format='casco_equipment'
-            )
-            data = reader.read_insurance_request()
-
-            self.assertEqual(len(data['insurance_objects']), 2)
-            self.assertEqual(data['insurance_objects'][0]['description'], 'Тягач SCANIA R440')
-            self.assertEqual(data['insurance_objects'][0]['manufacturing_year'], '2020')
-            self.assertEqual(data['insurance_objects'][0]['asset_status'], 'б/у')
-            self.assertEqual(data['insurance_objects'][1]['description'], 'Прицеп SCHMITZ')
-            self.assertEqual(data['vehicle_info'], 'Тягач SCANIA R440; Прицеп SCHMITZ')
-            self.assertEqual(data['manufacturing_year'], '2020; 2021')
-            self.assertEqual(data['asset_status'], 'б/у; новое')
-        finally:
-            if os.path.exists(temp_file.name):
-                os.unlink(temp_file.name)
 
 
 @override_settings(

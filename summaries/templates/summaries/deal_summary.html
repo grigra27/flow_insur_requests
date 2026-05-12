@@ -194,26 +194,19 @@
                             <dt>Тип страхования</dt>
                             <dd>{{ insurance_type }}</dd>
 
-                            {% if insurance_objects %}
-                            <dt>Предмет лизинга</dt>
-                            <dd>
-                                {% for object in insurance_objects %}
-                                <div class="mb-2">
-                                    <strong>{{ object.position }}. {{ object.description }}</strong>
-                                    {% if object.manufacturing_year or object.asset_status %}
-                                    <br>
-                                    <small class="text-muted">
-                                        {% if object.manufacturing_year %}Год: {{ object.manufacturing_year }}{% endif %}
-                                        {% if object.manufacturing_year and object.asset_status %} · {% endif %}
-                                        {% if object.asset_status %}Статус: {{ object.asset_status }}{% endif %}
-                                    </small>
-                                    {% endif %}
-                                </div>
-                                {% endfor %}
-                            </dd>
-                            {% elif vehicle_info %}
+                            {% if vehicle_info %}
                             <dt>Предмет лизинга</dt>
                             <dd>{{ vehicle_info }}</dd>
+                            {% endif %}
+
+                            {% if manufacturing_year %}
+                            <dt>Год выпуска</dt>
+                            <dd>{{ manufacturing_year }}</dd>
+                            {% endif %}
+
+                            {% if asset_status %}
+                            <dt>Статус имущества</dt>
+                            <dd>{{ asset_status }}</dd>
                             {% endif %}
                         </dl>
                     </div>

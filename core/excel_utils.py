@@ -285,11 +285,7 @@ class ExcelReader:
             # Для формата имущества используем специальную логику
             logger.info(f"Using property insurance processing logic | {format_context}")
             insurance_type = self._determine_insurance_type_property_openpyxl(sheet)
-            insurance_objects = self._find_property_insurance_objects_openpyxl(sheet)
-            vehicle_info = (
-                self._format_insurance_object_field(insurance_objects, 'description')
-                or self._find_leasing_object_info_property_openpyxl(sheet)
-            )
+            vehicle_info = self._find_leasing_object_info_property_openpyxl(sheet)
             has_autostart = False  # Всегда False для страхования имущества
             has_casco_ce = False  # Всегда False для страхования имущества (не извлекается)
             logger.debug(f"Property insurance processing: autostart set to False, casco_ce set to False | {format_context}")
@@ -297,11 +293,7 @@ class ExcelReader:
             # Для формата КАСКО/спецтехника используем существующую логику
             logger.info(f"Using CASCO/equipment insurance processing logic | {format_context}")
             insurance_type = self._determine_insurance_type_openpyxl(sheet)
-            insurance_objects = self._find_insurance_objects_openpyxl(sheet)
-            vehicle_info = (
-                self._format_insurance_object_field(insurance_objects, 'description')
-                or self._find_leasing_object_info_openpyxl(sheet)
-            )
+            vehicle_info = self._find_leasing_object_info_openpyxl(sheet)
             # Определяем автозапуск (если M24 = "нет", то автозапуска нет)
             autostart_value = self._get_cell_with_adjustment_openpyxl(sheet, 'M', 24)
             has_autostart = bool(autostart_value) and str(autostart_value).lower().strip() != 'нет'
@@ -380,14 +372,8 @@ class ExcelReader:
         manufacturing_year = ''
         asset_status = ''
         if self.application_format == 'casco_equipment':
-            manufacturing_year = (
-                self._format_insurance_object_field(insurance_objects, 'manufacturing_year')
-                or self._find_manufacturing_year_openpyxl(sheet)
-            )
-            asset_status = (
-                self._format_insurance_object_field(insurance_objects, 'asset_status')
-                or self._find_asset_status_openpyxl(sheet)
-            )
+            manufacturing_year = self._find_manufacturing_year_openpyxl(sheet)
+            asset_status = self._find_asset_status_openpyxl(sheet)
             logger.debug(f"Manufacturing year extracted (openpyxl): '{manufacturing_year}' | {format_context}")
             logger.debug(f"Asset status extracted (openpyxl): '{asset_status}' | {format_context}")
         
@@ -415,7 +401,6 @@ class ExcelReader:
             'has_casco_ce': has_casco_ce,
             'has_transportation': has_transportation,
             'has_construction_work': has_construction_work,
-            'insurance_objects': insurance_objects,
             'manufacturing_year': manufacturing_year,
             'asset_status': asset_status,
             'response_deadline': response_deadline,
@@ -448,11 +433,7 @@ class ExcelReader:
             # Для формата имущества используем специальную логику
             logger.info(f"Using property insurance processing logic | {format_context}")
             insurance_type = self._determine_insurance_type_property_pandas(df)
-            insurance_objects = self._find_property_insurance_objects_pandas(df)
-            vehicle_info = (
-                self._format_insurance_object_field(insurance_objects, 'description')
-                or self._find_leasing_object_info_property_pandas(df)
-            )
+            vehicle_info = self._find_leasing_object_info_property_pandas(df)
             has_autostart = False  # Всегда False для страхования имущества
             has_casco_ce = False  # Всегда False для страхования имущества (не извлекается)
             logger.debug(f"Property insurance processing: autostart set to False, casco_ce set to False | {format_context}")
@@ -460,11 +441,7 @@ class ExcelReader:
             # Для формата КАСКО/спецтехника используем существующую логику
             logger.info(f"Using CASCO/equipment insurance processing logic | {format_context}")
             insurance_type = self._determine_insurance_type_pandas(df)
-            insurance_objects = self._find_insurance_objects_pandas(df)
-            vehicle_info = (
-                self._format_insurance_object_field(insurance_objects, 'description')
-                or self._find_leasing_object_info_pandas(df)
-            )
+            vehicle_info = self._find_leasing_object_info_pandas(df)
             # Определяем автозапуск (если M24 = "нет", то автозапуска нет)
             autostart_value = self._get_cell_with_adjustment_pandas(df, 24, 12)  # M24
             has_autostart = bool(autostart_value) and str(autostart_value).lower().strip() != 'нет'
@@ -543,14 +520,8 @@ class ExcelReader:
         manufacturing_year = ''
         asset_status = ''
         if self.application_format == 'casco_equipment':
-            manufacturing_year = (
-                self._format_insurance_object_field(insurance_objects, 'manufacturing_year')
-                or self._find_manufacturing_year_pandas(df)
-            )
-            asset_status = (
-                self._format_insurance_object_field(insurance_objects, 'asset_status')
-                or self._find_asset_status_pandas(df)
-            )
+            manufacturing_year = self._find_manufacturing_year_pandas(df)
+            asset_status = self._find_asset_status_pandas(df)
             logger.debug(f"Manufacturing year extracted (pandas): '{manufacturing_year}' | {format_context}")
             logger.debug(f"Asset status extracted (pandas): '{asset_status}' | {format_context}")
         
@@ -578,7 +549,6 @@ class ExcelReader:
             'has_casco_ce': has_casco_ce,
             'has_transportation': has_transportation,
             'has_construction_work': has_construction_work,
-            'insurance_objects': insurance_objects,
             'manufacturing_year': manufacturing_year,
             'asset_status': asset_status,
             'response_deadline': response_deadline,
@@ -1031,13 +1001,6 @@ class ExcelReader:
             'has_casco_ce': False,
             'has_transportation': False,
             'has_construction_work': False,
-            'insurance_objects': [{
-                'position': 1,
-                'description': f'Информация о предмете лизинга не указана ({app_type_display}, {format_display})',
-                'manufacturing_year': '',
-                'asset_status': '',
-                'source_row': None,
-            }],
             'manufacturing_year': '',
             'asset_status': '',
             'response_deadline': timezone.now() + timedelta(hours=3),
@@ -1296,142 +1259,7 @@ class ExcelReader:
             logger.error(f"Error extracting property insurance additional parameters (pandas): {str(e)} | {format_context}")
             return self._get_empty_additional_parameters()
 
-    def _format_insurance_object_field(self, insurance_objects, field_name: str) -> str:
-        """Формирует legacy-строку из структурированных объектов."""
-        values = []
-        for insurance_object in insurance_objects or []:
-            value = insurance_object.get(field_name)
-            if self._has_value(value):
-                values.append(str(value).strip())
-        return '; '.join(values)
-
-    def _find_insurance_objects_openpyxl(self, sheet):
-        """Извлекает структурированные объекты КАСКО/спецтехники из строк заявки."""
-        format_context = self._get_format_context()
-        rows_to_check = [43, 45, 47, 49]
-        description_columns = ['C', 'D', 'E', 'F', 'G', 'H', 'I']
-        insurance_objects = []
-
-        for row in rows_to_check:
-            adjusted_row = self._get_adjusted_row(row)
-            description_parts = []
-
-            for column in description_columns:
-                value = self._get_cell_value(sheet, f"{column}{adjusted_row}")
-                if self._has_value(value):
-                    description_parts.append(str(value).strip())
-
-            manufacturing_year = self._get_cell_value(sheet, f"J{adjusted_row}")
-            asset_status = self._get_cell_value(sheet, f"K{adjusted_row}")
-
-            if not any([
-                description_parts,
-                self._has_value(manufacturing_year),
-                self._has_value(asset_status),
-            ]):
-                continue
-
-            insurance_objects.append({
-                'position': len(insurance_objects) + 1,
-                'description': ' '.join(description_parts),
-                'manufacturing_year': str(manufacturing_year).strip() if self._has_value(manufacturing_year) else '',
-                'asset_status': str(asset_status).strip() if self._has_value(asset_status) else '',
-                'source_row': adjusted_row,
-            })
-
-        logger.info(f"Extracted {len(insurance_objects)} structured CASCO/equipment object(s) | {format_context}")
-        return insurance_objects
-
-    def _find_insurance_objects_pandas(self, df):
-        """Извлекает структурированные объекты КАСКО/спецтехники из pandas DataFrame."""
-        format_context = self._get_format_context()
-        rows_to_check = [43, 45, 47, 49]
-        description_columns = [2, 3, 4, 5, 6, 7, 8]
-        insurance_objects = []
-
-        for row in rows_to_check:
-            adjusted_row = self._get_adjusted_row(row)
-            pandas_row_index = adjusted_row - 1
-            description_parts = []
-
-            for col in description_columns:
-                value = self._safe_get_cell(df, pandas_row_index, col)
-                if self._has_value(value):
-                    description_parts.append(str(value).strip())
-
-            manufacturing_year = self._safe_get_cell(df, pandas_row_index, 9)
-            asset_status = self._safe_get_cell(df, pandas_row_index, 10)
-
-            if not any([
-                description_parts,
-                self._has_value(manufacturing_year),
-                self._has_value(asset_status),
-            ]):
-                continue
-
-            insurance_objects.append({
-                'position': len(insurance_objects) + 1,
-                'description': ' '.join(description_parts),
-                'manufacturing_year': str(manufacturing_year).strip() if self._has_value(manufacturing_year) else '',
-                'asset_status': str(asset_status).strip() if self._has_value(asset_status) else '',
-                'source_row': adjusted_row,
-            })
-
-        logger.info(f"Extracted {len(insurance_objects)} structured CASCO/equipment object(s) | {format_context}")
-        return insurance_objects
-
-    def _find_property_insurance_objects_openpyxl(self, sheet):
-        """Извлекает структурированный объект для формата страхования имущества."""
-        format_context = self._get_format_context()
-        row_to_check = 43 if self.application_type == 'individual_entrepreneur' else 42
-        description_columns = ['C', 'D', 'E', 'F', 'G', 'H', 'I', 'J']
-        description_parts = []
-
-        for column in description_columns:
-            value = self._get_cell_value(sheet, f"{column}{row_to_check}")
-            if self._has_value(value):
-                description_parts.append(str(value).strip())
-
-        if not description_parts:
-            logger.info(f"No structured property object found in row {row_to_check} | {format_context}")
-            return []
-
-        logger.info(f"Extracted structured property object from row {row_to_check} | {format_context}")
-        return [{
-            'position': 1,
-            'description': ' '.join(description_parts),
-            'manufacturing_year': '',
-            'asset_status': '',
-            'source_row': row_to_check,
-        }]
-
-    def _find_property_insurance_objects_pandas(self, df):
-        """Извлекает структурированный объект имущества из pandas DataFrame."""
-        format_context = self._get_format_context()
-        row_to_check = 43 if self.application_type == 'individual_entrepreneur' else 42
-        pandas_row_index = row_to_check - 1
-        description_columns = [2, 3, 4, 5, 6, 7, 8, 9]
-        description_parts = []
-
-        for col in description_columns:
-            value = self._safe_get_cell(df, pandas_row_index, col)
-            if self._has_value(value):
-                description_parts.append(str(value).strip())
-
-        if not description_parts:
-            logger.info(f"No structured property object found in row {row_to_check} | {format_context}")
-            return []
-
-        logger.info(f"Extracted structured property object from row {row_to_check} | {format_context}")
-        return [{
-            'position': 1,
-            'description': ' '.join(description_parts),
-            'manufacturing_year': '',
-            'asset_status': '',
-            'source_row': row_to_check,
-        }]
-
-
+    
     def _find_leasing_object_info_pandas(self, df) -> str:
         """Ищет информацию о предмете лизинга в указанных ячейках"""
         # Строки и столбцы для поиска: CDEFGHI43, CDEFGHI45, CDEFGHI47, CDEFGHI49
