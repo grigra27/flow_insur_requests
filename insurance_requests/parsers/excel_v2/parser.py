@@ -195,7 +195,12 @@ class ExcelRequestParserV2:
                 obj["source"] for obj in insured_objects[:10] if obj.get("source")
             )
 
-        data["franchise_type"] = self._extract_franchise_type(cells)
+        application_type = self._detect_application_type(cells)
+
+        franchise_type, franchise_details = self._extract_franchise_type(cells, application_type)
+        data["franchise_type"] = franchise_type
+        if franchise_details.get("source"):
+            source_map["franchise_type"] = franchise_details["source"]
         data["has_installment"] = self._contains_any(cells, ["рассроч", "ежекварт", "ежемесяч", "покварт"])
         data["has_autostart"] = self._extract_autostart(cells, rows)
         data["has_casco_ce"] = self._contains_any(cells, ["категори c", "категории c", "кат с", "кат. c", "c/e"])
@@ -225,7 +230,8 @@ class ExcelRequestParserV2:
             "insured_objects": insured_objects,
             "raw_branch": branch_raw,
             "application_format": self._detect_application_format(data),
-            "application_type": self._detect_application_type(cells),
+            "application_type": application_type,
+            "franchise_details": franchise_details,
         }
         data["parser_v2_payload"] = parser_payload
 
@@ -496,15 +502,115 @@ class ExcelRequestParserV2:
 
         return objects[:50]
 
-    def _extract_franchise_type(self, cells: List[GridCell]) -> str:
-        full_text = " ".join(cell.normalized for cell in cells)
-        has_without = "без франшиз" in full_text
-        has_with = bool(re.search(r"(с франшиз|франшиз\w*\s+\d|безусловн\w+\s+франшиз)", full_text))
+    def _extract_franchise_type(self, cells: List[GridCell], application_type: str) -> Tuple[str, Dict[str, Any]]:
+        cell_map = {(cell.row, cell.col): cell for cell in cells}
+        value_rows = [30, 29] if application_type == "individual_entrepreneur" else [29, 30]
+
+        for index, value_row in enumerate(value_rows):
+            row_details = self._franchise_row_details(cell_map, value_row)
+            if not row_details["selected_columns"]:
+                continue
+            if row_details["selection_row_looks_like_header"]:
+                continue
+            if index > 0 and not row_details["label_row_looks_like_franchise_options"]:
+                continue
+            return row_details["franchise_type"], row_details
+
+        return "none", {
+            "value_row": value_rows[0],
+            "label_row": value_rows[0] - 1,
+            "selected_columns": [],
+            "source": "",
+            "selection_row_looks_like_header": False,
+            "label_row_looks_like_franchise_options": False,
+        }
+
+    def _franchise_row_details(self, cell_map: Dict[Tuple[int, int], GridCell], value_row: int) -> Dict[str, Any]:
+        label_row = value_row - 1
+        selected_columns = []
+        for column_letter, col, variant in [
+            ("D", 4, "without_franchise"),
+            ("E", 5, "percent_franchise"),
+            ("F", 6, "absolute_franchise"),
+        ]:
+            value_cell = cell_map.get((value_row, col))
+            if not self._franchise_cell_has_selection(value_cell.value if value_cell else ""):
+                continue
+
+            label_cell = cell_map.get((label_row, col))
+            selected_columns.append(
+                {
+                    "column": column_letter,
+                    "variant": variant,
+                    "value_coordinate": value_cell.coordinate,
+                    "value": value_cell.value,
+                    "label_coordinate": label_cell.coordinate if label_cell else f"{column_letter}{label_row}",
+                    "label": label_cell.value if label_cell else "",
+                }
+            )
+
+        selected_variants = {item["variant"] for item in selected_columns}
+        has_without = "without_franchise" in selected_variants
+        has_with = bool({"percent_franchise", "absolute_franchise"} & selected_variants)
+        selection_row_looks_like_header = self._franchise_row_looks_like_option_labels(
+            [item["value"] for item in selected_columns]
+        )
+        label_row_looks_like_franchise_options = self._franchise_row_looks_like_option_labels(
+            [item["label"] for item in selected_columns]
+        )
+
         if has_without and has_with:
-            return "both_variants"
-        if has_with:
-            return "with_franchise"
-        return "none"
+            franchise_type = "both_variants"
+        elif has_with:
+            franchise_type = "with_franchise"
+        else:
+            franchise_type = "none"
+
+        source_parts = [
+            f"{item['value_coordinate']}={item['value']}"
+            + (f" ({item['label_coordinate']}: {item['label']})" if item["label"] else "")
+            for item in selected_columns
+        ]
+
+        return {
+            "value_row": value_row,
+            "label_row": label_row,
+            "selected_columns": selected_columns,
+            "franchise_type": franchise_type,
+            "source": "; ".join(source_parts),
+            "selection_row_looks_like_header": selection_row_looks_like_header,
+            "label_row_looks_like_franchise_options": label_row_looks_like_franchise_options,
+        }
+
+    def _franchise_cell_has_selection(self, value: Any) -> bool:
+        value = clean_value(value)
+        return bool(value) and normalize_text(value) not in {"none", "nan", "null", "false"}
+
+    def _franchise_row_looks_like_option_labels(self, values: Iterable[Any]) -> bool:
+        label_like_count = sum(
+            1 for value in values
+            if self._franchise_text_looks_like_option_label(value)
+        )
+        return label_like_count >= 2
+
+    def _franchise_text_looks_like_option_label(self, value: Any) -> bool:
+        text = normalize_text(value)
+        if not text:
+            return False
+        return any(
+            marker in text
+            for marker in [
+                "без франшиз",
+                "с франшиз",
+                "франшиз",
+                "страхов",
+                "абсолют",
+                "процент",
+                "сумм",
+                "руб",
+                "%",
+            ]
+        )
 
     def _extract_autostart(self, cells: List[GridCell], rows: Dict[int, List[GridCell]]) -> bool:
         for cell in cells:

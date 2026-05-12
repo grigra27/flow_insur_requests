@@ -1,4 +1,5 @@
 from io import BytesIO
+import os
 import shutil
 import tempfile
 
@@ -10,6 +11,7 @@ from openpyxl import Workbook
 
 from .forms import DEFAULT_BRANCH, ParserV2PreviewForm
 from .models import InsuranceRequest, RequestAttachment
+from .parsers.excel_v2 import ExcelRequestParserV2
 
 
 class ParserV2UploadTests(TestCase):
@@ -145,6 +147,15 @@ class ParserV2UploadTests(TestCase):
             content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         )
 
+    def _parse_workbook_v2(self, workbook):
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx')
+        try:
+            temp_file.close()
+            workbook.save(temp_file.name)
+            return ExcelRequestParserV2().parse(temp_file.name, original_filename='franchise-test.xlsx')
+        finally:
+            os.unlink(temp_file.name)
+
     def _post_data_from_preview(self, form):
         data = {}
         checkbox_fields = {
@@ -252,6 +263,80 @@ class ParserV2UploadTests(TestCase):
         telematics_complex = response.context['form'].initial['telematics_complex']
         self.assertEqual(telematics_complex, 'StarLine M96')
         self.assertNotEqual(telematics_complex, 'Наименование')
+
+    def test_parser_v2_franchise_uses_marked_column_not_all_template_labels(self):
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet['D28'] = 'Без франшизы'
+        sheet['E28'] = 'Франшиза в процентах от страховой суммы'
+        sheet['F28'] = 'Абсолютная сумма'
+        sheet['D29'] = 'X'
+
+        result = self._parse_workbook_v2(workbook)
+
+        self.assertEqual(result.data['franchise_type'], 'none')
+        self.assertIn('D29', result.source_map['franchise_type'])
+        self.assertNotEqual(result.data['franchise_type'], 'both_variants')
+
+    def test_parser_v2_franchise_ignores_unmarked_template_labels(self):
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet['D28'] = 'Без франшизы'
+        sheet['E28'] = 'Франшиза в процентах от страховой суммы'
+        sheet['F28'] = 'Абсолютная сумма'
+
+        result = self._parse_workbook_v2(workbook)
+
+        self.assertEqual(result.data['franchise_type'], 'none')
+        self.assertNotIn('franchise_type', result.source_map)
+
+    def test_parser_v2_franchise_detects_percent_and_absolute_columns(self):
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet['D28'] = 'Без франшизы'
+        sheet['E28'] = 'Франшиза в процентах от страховой суммы'
+        sheet['F28'] = 'Абсолютная сумма'
+        sheet['E29'] = 'X'
+
+        percent_result = self._parse_workbook_v2(workbook)
+        self.assertEqual(percent_result.data['franchise_type'], 'with_franchise')
+        self.assertIn('E29', percent_result.source_map['franchise_type'])
+
+        sheet['E29'] = None
+        sheet['F29'] = '50 000'
+
+        absolute_result = self._parse_workbook_v2(workbook)
+        self.assertEqual(absolute_result.data['franchise_type'], 'with_franchise')
+        self.assertIn('F29', absolute_result.source_map['franchise_type'])
+
+    def test_parser_v2_franchise_detects_both_variants(self):
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet['D28'] = 'Без франшизы'
+        sheet['F28'] = 'Абсолютная сумма'
+        sheet['D29'] = 'X'
+        sheet['F29'] = '50 000'
+
+        result = self._parse_workbook_v2(workbook)
+
+        self.assertEqual(result.data['franchise_type'], 'both_variants')
+        self.assertIn('D29', result.source_map['franchise_type'])
+        self.assertIn('F29', result.source_map['franchise_type'])
+
+    def test_parser_v2_franchise_uses_shifted_row_for_individual_entrepreneur(self):
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet['A1'] = 'Заявка от ИП Иванов И.И.'
+        sheet['D29'] = 'Без франшизы'
+        sheet['E29'] = 'Франшиза в процентах от страховой суммы'
+        sheet['F29'] = 'Абсолютная сумма'
+        sheet['E30'] = 'X'
+
+        result = self._parse_workbook_v2(workbook)
+
+        self.assertEqual(result.data['franchise_type'], 'with_franchise')
+        self.assertIn('E30', result.source_map['franchise_type'])
+        self.assertEqual(result.data['parser_v2_payload']['franchise_details']['value_row'], 30)
 
     def test_parser_v2_creates_request_from_preview_and_keeps_original_attachment(self):
         self.client.login(username='parser_v2_root', password='pwd')

@@ -11,6 +11,33 @@
     max-height: 260px;
     overflow: auto;
 }
+.parser-v2-section {
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.5rem;
+    padding: 1rem;
+}
+.parser-v2-section + .parser-v2-section {
+    margin-top: 1rem;
+}
+.parser-v2-section-title {
+    align-items: center;
+    display: flex;
+    gap: 0.45rem;
+    margin-bottom: 0.9rem;
+}
+.parser-v2-check-grid {
+    display: grid;
+    gap: 0.75rem;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+}
+.parser-v2-check-grid .form-check {
+    background: var(--bs-light);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.375rem;
+    margin: 0;
+    min-height: 2.65rem;
+    padding: 0.65rem 0.75rem 0.6rem 2.2rem;
+}
 </style>
 {% endblock %}
 
@@ -36,33 +63,176 @@
                     <i class="bi bi-pencil-square"></i> Данные заявки
                 </div>
                 <div class="card-body">
-                    <div class="row g-3">
-                        {% for field in form.visible_fields %}
-                            {% if field.field.widget.input_type == 'checkbox' %}
-                                <div class="col-md-4">
-                                    <div class="form-check mt-2">
-                                        {{ field }}
-                                        <label class="form-check-label" for="{{ field.id_for_label }}">
-                                            {{ field.label }}
-                                        </label>
-                                    </div>
-                                    {% for error in field.errors %}
-                                        <div class="invalid-feedback d-block">{{ error }}</div>
-                                    {% endfor %}
-                                </div>
-                            {% else %}
-                                <div class="{% if field.name == 'vehicle_info' or field.name == 'notes' or field.name == 'usage_purposes' or field.name == 'telematics_complex' or field.name == 'insurance_territory' %}col-12{% else %}col-md-6{% endif %}">
-                                    <label class="form-label fw-semibold" for="{{ field.id_for_label }}">
-                                        {{ field.label }}
-                                    </label>
-                                    {{ field }}
-                                    {% for error in field.errors %}
-                                        <div class="invalid-feedback d-block">{{ error }}</div>
-                                    {% endfor %}
-                                </div>
-                            {% endif %}
-                        {% endfor %}
-                    </div>
+                    <section class="parser-v2-section">
+                        <h6 class="parser-v2-section-title text-uppercase text-muted">
+                            <i class="bi bi-person-vcard"></i> Основные данные
+                        </h6>
+                        <div class="row g-3">
+                            <div class="col-md-8">
+                                <label class="form-label fw-semibold" for="{{ form.client_name.id_for_label }}">{{ form.client_name.label }}</label>
+                                {{ form.client_name }}
+                                {% for error in form.client_name.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold" for="{{ form.inn.id_for_label }}">{{ form.inn.label }}</label>
+                                {{ form.inn }}
+                                {% for error in form.inn.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold" for="{{ form.dfa_number.id_for_label }}">{{ form.dfa_number.label }}</label>
+                                {{ form.dfa_number }}
+                                {% for error in form.dfa_number.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold" for="{{ form.branch.id_for_label }}">{{ form.branch.label }}</label>
+                                {{ form.branch }}
+                                {% for error in form.branch.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold" for="{{ form.manager_name.id_for_label }}">{{ form.manager_name.label }}</label>
+                                {{ form.manager_name }}
+                                {% for error in form.manager_name.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold" for="{{ form.deal_status.id_for_label }}">{{ form.deal_status.label }}</label>
+                                {{ form.deal_status }}
+                                {% for error in form.deal_status.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold" for="{{ form.response_deadline.id_for_label }}">{{ form.response_deadline.label }}</label>
+                                {{ form.response_deadline }}
+                                {% for error in form.response_deadline.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="parser-v2-section">
+                        <h6 class="parser-v2-section-title text-uppercase text-muted">
+                            <i class="bi bi-shield-check"></i> Условия страхования
+                        </h6>
+                        <div class="row g-3 align-items-end">
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold" for="{{ form.insurance_type.id_for_label }}">{{ form.insurance_type.label }}</label>
+                                {{ form.insurance_type }}
+                                {% for error in form.insurance_type.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold" for="{{ form.insurance_period.id_for_label }}">{{ form.insurance_period.label }}</label>
+                                {{ form.insurance_period }}
+                                {% for error in form.insurance_period.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold" for="{{ form.franchise_type.id_for_label }}">{{ form.franchise_type.label }}</label>
+                                {{ form.franchise_type }}
+                                {% for error in form.franchise_type.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                            </div>
+                        </div>
+                        <div class="parser-v2-check-grid mt-3">
+                            <div class="form-check">
+                                {{ form.has_installment }}
+                                <label class="form-check-label" for="{{ form.has_installment.id_for_label }}">{{ form.has_installment.label }}</label>
+                            </div>
+                        </div>
+                        {% for error in form.has_installment.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                    </section>
+
+                    <section class="parser-v2-section">
+                        <h6 class="parser-v2-section-title text-uppercase text-muted">
+                            <i class="bi bi-truck"></i> Предмет лизинга
+                        </h6>
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label fw-semibold" for="{{ form.vehicle_info.id_for_label }}">{{ form.vehicle_info.label }}</label>
+                                {{ form.vehicle_info }}
+                                {% for error in form.vehicle_info.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold" for="{{ form.manufacturing_year.id_for_label }}">{{ form.manufacturing_year.label }}</label>
+                                {{ form.manufacturing_year }}
+                                {% for error in form.manufacturing_year.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="col-md-8">
+                                <label class="form-label fw-semibold" for="{{ form.asset_status.id_for_label }}">{{ form.asset_status.label }}</label>
+                                {{ form.asset_status }}
+                                {% for error in form.asset_status.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="parser-v2-section">
+                        <h6 class="parser-v2-section-title text-uppercase text-muted">
+                            <i class="bi bi-car-front"></i> КАСКО и спецтехника
+                        </h6>
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold" for="{{ form.key_completeness.id_for_label }}">{{ form.key_completeness.label }}</label>
+                                {{ form.key_completeness }}
+                                {% for error in form.key_completeness.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold" for="{{ form.pts_psm.id_for_label }}">{{ form.pts_psm.label }}</label>
+                                {{ form.pts_psm }}
+                                {% for error in form.pts_psm.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold" for="{{ form.creditor_bank.id_for_label }}">{{ form.creditor_bank.label }}</label>
+                                {{ form.creditor_bank }}
+                                {% for error in form.creditor_bank.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" for="{{ form.usage_purposes.id_for_label }}">{{ form.usage_purposes.label }}</label>
+                                {{ form.usage_purposes }}
+                                {% for error in form.usage_purposes.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" for="{{ form.telematics_complex.id_for_label }}">{{ form.telematics_complex.label }}</label>
+                                {{ form.telematics_complex }}
+                                {% for error in form.telematics_complex.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                            </div>
+                        </div>
+                        <div class="parser-v2-check-grid mt-3">
+                            <div class="form-check">
+                                {{ form.has_autostart }}
+                                <label class="form-check-label" for="{{ form.has_autostart.id_for_label }}">{{ form.has_autostart.label }}</label>
+                            </div>
+                            <div class="form-check">
+                                {{ form.has_casco_ce }}
+                                <label class="form-check-label" for="{{ form.has_casco_ce.id_for_label }}">{{ form.has_casco_ce.label }}</label>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="parser-v2-section">
+                        <h6 class="parser-v2-section-title text-uppercase text-muted">
+                            <i class="bi bi-building"></i> Имущество
+                        </h6>
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label fw-semibold" for="{{ form.insurance_territory.id_for_label }}">{{ form.insurance_territory.label }}</label>
+                                {{ form.insurance_territory }}
+                                {% for error in form.insurance_territory.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                            </div>
+                        </div>
+                        <div class="parser-v2-check-grid mt-3">
+                            <div class="form-check">
+                                {{ form.has_transportation }}
+                                <label class="form-check-label" for="{{ form.has_transportation.id_for_label }}">{{ form.has_transportation.label }}</label>
+                            </div>
+                            <div class="form-check">
+                                {{ form.has_construction_work }}
+                                <label class="form-check-label" for="{{ form.has_construction_work.id_for_label }}">{{ form.has_construction_work.label }}</label>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="parser-v2-section">
+                        <h6 class="parser-v2-section-title text-uppercase text-muted">
+                            <i class="bi bi-journal-text"></i> Примечание
+                        </h6>
+                        <label class="form-label fw-semibold" for="{{ form.notes.id_for_label }}">{{ form.notes.label }}</label>
+                        {{ form.notes }}
+                        {% for error in form.notes.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                    </section>
                 </div>
             </div>
 
