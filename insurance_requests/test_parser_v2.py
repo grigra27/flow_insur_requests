@@ -47,6 +47,8 @@ class ParserV2UploadTests(TestCase):
         sheet['D6'] = '20213-ЛТ-КЗ'
         sheet['D7'] = 'ООО Ромашка'
         sheet['D9'] = '1234567890'
+        sheet['B14'] = 'Страхователь'
+        sheet['D14'] = 'ЛизингоДАТЕЛЬ'
         sheet['D21'] = 'КАСКО'
         sheet['N17'] = '1 год'
         sheet['B24'] = 'Предмет лизинга'
@@ -58,6 +60,41 @@ class ParserV2UploadTests(TestCase):
         buffer.seek(0)
         return SimpleUploadedFile(
             filename,
+            buffer.read(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        )
+
+    def _xlsx_upload_with_template_object_rows(self):
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet['C4'] = 'Казанский филиал'
+        sheet['C5'] = 'Иванов Иван'
+        sheet['D7'] = 'ООО Ромашка'
+        sheet['D9'] = '1234567890'
+        sheet['D21'] = 'КАСКО'
+        sheet['N17'] = '1 год'
+        sheet['A39'] = 'СВЕДЕНИЯ ОБ ОБЪЕКТЕ СТРАХОВАНИЯ'
+        sheet['A41'] = '№ п/п'
+        sheet['B41'] = 'Наименование и описание имущества  (марка модель комплектация)'
+        sheet['C41'] = 'Год выпуска'
+        sheet['A42'] = 'Транспортные средства категории B'
+        sheet['A43'] = '1'
+        sheet['B43'] = 'Lixiang L9 (пробег 13 000 км)'
+        sheet['C43'] = '2024'
+        sheet['D43'] = 'б/у'
+        sheet['E43'] = '9 000 000'
+        sheet['A45'] = 'Противоугонные системы и оборудование (отметьте знаком "Х")'
+        sheet['B45'] = 'Штатная'
+        sheet['C45'] = 'Установленная дополнительно'
+        sheet['D45'] = 'название, модель'
+        sheet['A46'] = 'Сигнализация'
+        sheet['A47'] = 'Иммобилайзер'
+
+        buffer = BytesIO()
+        workbook.save(buffer)
+        buffer.seek(0)
+        return SimpleUploadedFile(
+            'заявка object-template.xlsx',
             buffer.read(),
             content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         )
@@ -124,7 +161,22 @@ class ParserV2UploadTests(TestCase):
         self.assertContains(response, 'ООО Ромашка')
         self.assertContains(response, 'Мини-погрузчик Sunward SWL 4028')
         self.assertIn('draft_id', response.context)
+        self.assertEqual(response.context['form'].initial['client_name'], 'ООО Ромашка')
         self.assertEqual(response.context['form'].initial['manager_name'], 'Иванов Иван')
+
+    def test_parser_v2_does_not_take_template_rows_as_vehicle_info(self):
+        self.client.login(username='parser_v2_root', password='pwd')
+
+        response = self.client.post(
+            reverse('insurance_requests:upload_excel_v2'),
+            {'excel_file': self._xlsx_upload_with_template_object_rows()},
+        )
+
+        vehicle_info = response.context['form'].initial['vehicle_info']
+        self.assertIn('Lixiang L9', vehicle_info)
+        self.assertNotIn('Транспортные средства категории B', vehicle_info)
+        self.assertNotIn('Противоугонные системы', vehicle_info)
+        self.assertNotIn('Сигнализация', vehicle_info)
 
     def test_parser_v2_creates_request_from_preview_and_keeps_original_attachment(self):
         self.client.login(username='parser_v2_root', password='pwd')

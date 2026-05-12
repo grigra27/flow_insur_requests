@@ -23,6 +23,30 @@ PARSER_V2_VERSION = "2.0.0"
 MISSING_CLIENT = "Клиент не указан"
 MISSING_DFA = "Номер ДФА не указан"
 MISSING_VEHICLE = "Предмет лизинга не указан"
+CLIENT_COORDINATES = ("D7", "D8")
+CLIENT_MAX_LABEL_ROW = 10
+OBJECT_TEMPLATE_ROW_MARKERS = [
+    "транспортные средства категории b",
+    "транспортные средства категории c",
+    "транспортные средства категории d",
+    "специальная техника",
+    "противоугонные системы и оборудование",
+    "штатная",
+    "установленная дополнительно",
+    "название модель",
+    "название модели",
+    "модель сигнализации",
+    "сигнализация",
+    "иммобилайзер",
+    "иммобилизатор",
+    "мобилизатор",
+    "механические противоугонные устройства",
+    "спутниковая противоугонная система",
+    "капот",
+    "рычаг кпп",
+    "прочее",
+    "марка модель конфигурация",
+]
 
 
 @dataclass(frozen=True)
@@ -125,12 +149,7 @@ class ExcelRequestParserV2:
         data = self._default_data()
         rows = self._rows(cells)
 
-        client_name, source = self._extract_labeled_value(
-            cells,
-            rows,
-            label_groups=[("страхователь",), ("лизингополучатель",), ("клиент",)],
-            fallback_coordinate="D7",
-        )
+        client_name, source = self._extract_client_name(cells, rows)
         if client_name:
             data["client_name"] = client_name
             source_map["client_name"] = source
@@ -346,6 +365,35 @@ class ExcelRequestParserV2:
 
         return "", ""
 
+    def _extract_client_name(self, cells: List[GridCell], rows: Dict[int, List[GridCell]]) -> Tuple[str, str]:
+        for coordinate in CLIENT_COORDINATES:
+            cell = self._cell_by_coordinate(cells, coordinate)
+            if cell and self._looks_like_client_name(cell.value):
+                return cell.value, cell.coordinate
+
+        for cell in cells:
+            if cell.row > CLIENT_MAX_LABEL_ROW:
+                continue
+            if not self._matches_any_group(
+                cell.normalized,
+                [("наименование", "лизингополучател"), ("страхователь",), ("клиент",)],
+            ):
+                continue
+
+            inline = self._inline_value_after_label(cell.value)
+            if self._looks_like_client_name(inline):
+                return inline, cell.coordinate
+
+            right = self._first_value_right(rows, cell)
+            if right and self._looks_like_client_name(right.value):
+                return right.value, right.coordinate
+
+            below = self._first_value_below(rows, cell)
+            if below and self._looks_like_client_name(below.value):
+                return below.value, below.coordinate
+
+        return "", ""
+
     def _extract_inn(self, cells: List[GridCell], rows: Dict[int, List[GridCell]]) -> Tuple[str, str]:
         value, source = self._extract_labeled_value(cells, rows, label_groups=[("инн",)])
         inn = self._normalize_inn(value)
@@ -428,7 +476,7 @@ class ExcelRequestParserV2:
                 blank_rows = 0
                 if row_number != start_row and self._is_object_stop_row(row_norm):
                     break
-                if self._is_object_header_or_label(row_norm):
+                if self._is_object_header_or_label(row_norm) or self._is_object_template_row(row_norm):
                     continue
                 if len(row_text) < 8:
                     continue
@@ -445,7 +493,7 @@ class ExcelRequestParserV2:
 
         if not objects:
             value, source = self._extract_labeled_value(cells, rows, label_groups=[("предмет", "лизинга"), ("объект", "страхования")])
-            if value:
+            if value and not self._is_object_template_row(normalize_text(value)):
                 objects.append({"description": value, "year": self._year_from_text(value), "source": source})
 
         return objects[:50]
@@ -594,6 +642,21 @@ class ExcelRequestParserV2:
         label_words = ["страхователь", "лизингополучатель", "менеджер", "инн", "филиал", "объект", "предмет"]
         return normalized in label_words
 
+    def _looks_like_client_name(self, value: str) -> bool:
+        normalized = normalize_text(value)
+        if len(normalized) < 3:
+            return False
+        blocked_values = {
+            "лизингодатель",
+            "лизингополучатель",
+            "страхователь",
+            "клиент",
+            "наименование лизингополучателя",
+        }
+        if normalized in blocked_values:
+            return False
+        return "адрес" not in normalized
+
     def _cell_by_coordinate(self, cells: List[GridCell], coordinate: str) -> Optional[GridCell]:
         if not coordinate:
             return None
@@ -617,6 +680,9 @@ class ExcelRequestParserV2:
         header_hits = ["наименование", "год", "стоимость", "vin", "заводской", "серийный"]
         return sum(1 for item in header_hits if item in row_norm) >= 2
 
+    def _is_object_template_row(self, row_norm: str) -> bool:
+        return any(marker in row_norm for marker in OBJECT_TEMPLATE_ROW_MARKERS)
+
     def _is_object_stop_row(self, row_norm: str) -> bool:
         return any(
             marker in row_norm
@@ -627,6 +693,7 @@ class ExcelRequestParserV2:
                 "порядок оплаты",
                 "график платеж",
                 "дополнительные условия",
+                "противоугонные системы и оборудование",
             ]
         )
 
