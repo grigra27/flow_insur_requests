@@ -7,14 +7,27 @@ from django.contrib.auth import login, logout
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_http_methods
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+from django.core.files import File
+from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
 from django.utils import timezone
+from django.utils.text import get_valid_filename
 import os
 import tempfile
 import logging
+import uuid
 
 from .models import InsuranceRequest, RequestAttachment
-from .forms import ExcelUploadForm, InsuranceRequestForm, EmailPreviewForm, CustomAuthenticationForm, RequestStatusForm
-from .decorators import user_required, admin_required
+from .forms import (
+    ExcelUploadForm,
+    InsuranceRequestForm,
+    EmailPreviewForm,
+    CustomAuthenticationForm,
+    RequestStatusForm,
+    ParserV2ExcelUploadForm,
+    ParserV2PreviewForm,
+)
+from .decorators import user_required, admin_required, superuser_required
 from .security import (
     clear_login_failures,
     format_lockout_message,
@@ -22,11 +35,13 @@ from .security import (
     get_login_lock_state,
     register_failed_login_attempt,
 )
+from .parsers.excel_v2 import ExcelRequestParserV2
 from core.excel_utils import ExcelReader
 from core.templates import EmailTemplateGenerator
 
 
 logger = logging.getLogger(__name__)
+PARSER_V2_SESSION_KEY = 'parser_v2_drafts'
 
 
 def _get_format_context_for_logging(application_type=None, application_format=None):
@@ -63,6 +78,142 @@ def _get_detailed_format_context_for_logging(application_type=None, application_
         return "application_type: unknown, application_format: unknown"
     
     return f"application_type: {application_type}, application_format: {application_format}"
+
+
+def _get_parser_v2_drafts(request):
+    return request.session.get(PARSER_V2_SESSION_KEY, {})
+
+
+def _store_parser_v2_draft(request, draft_id, draft):
+    drafts = _get_parser_v2_drafts(request)
+    drafts[draft_id] = draft
+    request.session[PARSER_V2_SESSION_KEY] = drafts
+    request.session.modified = True
+
+
+def _pop_parser_v2_draft(request, draft_id):
+    drafts = _get_parser_v2_drafts(request)
+    draft = drafts.pop(draft_id, None)
+    request.session[PARSER_V2_SESSION_KEY] = drafts
+    request.session.modified = True
+    return draft
+
+
+def _get_parser_v2_draft(request, draft_id):
+    return _get_parser_v2_drafts(request).get(draft_id)
+
+
+def _save_parser_v2_upload(uploaded_file):
+    original_name = os.path.basename(uploaded_file.name)
+    safe_name = get_valid_filename(original_name) or 'insurance_request.xlsx'
+    storage_path = f"parser_v2_uploads/{uuid.uuid4().hex}_{safe_name}"
+    content = ContentFile(b''.join(uploaded_file.chunks()))
+    return default_storage.save(storage_path, content)
+
+
+def _get_parser_v2_file_path(storage_path):
+    try:
+        return default_storage.path(storage_path), None
+    except NotImplementedError:
+        suffix = os.path.splitext(storage_path)[1] or '.xlsx'
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+        with default_storage.open(storage_path, 'rb') as source:
+            for chunk in iter(lambda: source.read(1024 * 1024), b''):
+                temp_file.write(chunk)
+        temp_file.close()
+        return temp_file.name, temp_file.name
+
+
+def _parser_v2_initial_data(draft_id, parse_result):
+    data = parse_result.get('data', {}).copy()
+    data['draft_id'] = draft_id
+    return data
+
+
+def _json_safe_value(value):
+    if hasattr(value, 'isoformat'):
+        return value.isoformat()
+    if isinstance(value, dict):
+        return {key: _json_safe_value(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_json_safe_value(item) for item in value]
+    return value
+
+
+def _build_parser_v2_additional_data(draft, request_fields, user):
+    parse_result = draft.get('parse_result', {})
+    parsed_payload = parse_result.get('data', {}).get('parser_v2_payload', {})
+    application_type = parsed_payload.get('application_type', 'legal_entity')
+    application_format = parsed_payload.get('application_format', 'casco_equipment')
+    format_context = _get_format_context_for_logging(application_type, application_format)
+    detailed_context = _get_detailed_format_context_for_logging(application_type, application_format)
+    application_type_display = "заявка от ИП" if application_type == 'individual_entrepreneur' else "заявка от юр.лица"
+    application_format_display = "КАСКО/спецтехника" if application_format == 'casco_equipment' else "имущество"
+
+    return {
+        'application_type': application_type,
+        'application_format': application_format,
+        'application_type_display': application_type_display,
+        'application_format_display': application_format_display,
+        'format_context': format_context,
+        'detailed_context': detailed_context,
+        'processed_by_user': user.username,
+        'processing_timestamp': timezone.now().isoformat(),
+        'parser_version': 'v2',
+        'parser_v2': {
+            'version': parse_result.get('parser_version'),
+            'confidence': parse_result.get('confidence', 0),
+            'warnings': parse_result.get('warnings', []),
+            'source_map': parse_result.get('source_map', {}),
+            'raw_debug': parse_result.get('raw_debug', {}),
+            'parsed_payload': parsed_payload,
+            'preview_fields': _json_safe_value(request_fields),
+            'source_file_name': draft.get('original_filename', ''),
+            'created_from_preview': True,
+            'created_by_user': user.username,
+            'created_at': timezone.now().isoformat(),
+        }
+    }
+
+
+def _attach_parser_v2_original_file(insurance_request, draft):
+    storage_path = draft.get('storage_path')
+    original_filename = draft.get('original_filename') or os.path.basename(storage_path or '')
+    if not storage_path or not default_storage.exists(storage_path):
+        logger.warning("Parser V2 original file is missing for request #%s", insurance_request.pk)
+        return None
+
+    safe_name = get_valid_filename(os.path.basename(original_filename)) or 'insurance_request.xlsx'
+    with default_storage.open(storage_path, 'rb') as source:
+        attachment = RequestAttachment.objects.create(
+            request=insurance_request,
+            file=File(source, name=safe_name),
+            original_filename=original_filename,
+            file_type=os.path.splitext(original_filename)[1]
+        )
+    try:
+        default_storage.delete(storage_path)
+    except Exception as cleanup_error:
+        logger.warning("Could not delete Parser V2 temporary file %s: %s", storage_path, cleanup_error)
+    return attachment
+
+
+def _render_parser_v2_preview(request, draft_id, draft, preview_form=None):
+    parse_result = draft.get('parse_result', {})
+    if preview_form is None:
+        preview_form = ParserV2PreviewForm(initial=_parser_v2_initial_data(draft_id, parse_result))
+    confidence = parse_result.get('confidence', 0) or 0
+
+    return render(request, 'insurance_requests/upload_excel_v2_preview.html', {
+        'form': preview_form,
+        'warnings': parse_result.get('warnings', []),
+        'source_map': parse_result.get('source_map', {}),
+        'confidence': confidence,
+        'confidence_percent': int(confidence * 100),
+        'original_filename': draft.get('original_filename', ''),
+        'draft_id': draft_id,
+        'parse_result': parse_result,
+    })
 
 
 def login_view(request):
@@ -578,6 +729,126 @@ def upload_excel(request):
     
     return render(request, 'insurance_requests/upload_excel.html', {
         'form': form
+    })
+
+
+@superuser_required
+def upload_excel_v2(request):
+    """Экспериментальный Parser V2: upload -> preview -> best-effort create."""
+    if request.method == 'POST' and request.POST.get('draft_id'):
+        draft_id = request.POST.get('draft_id')
+        draft = _get_parser_v2_draft(request, draft_id)
+        if not draft:
+            messages.error(request, 'Черновик Parser V2 не найден. Загрузите файл еще раз.')
+            return redirect('insurance_requests:upload_excel_v2')
+
+        form = ParserV2PreviewForm(request.POST)
+        if form.is_valid():
+            request_fields = form.to_request_fields()
+            additional_data = _build_parser_v2_additional_data(draft, request_fields, request.user)
+
+            insurance_request = InsuranceRequest.objects.create(
+                client_name=request_fields['client_name'],
+                inn=request_fields['inn'],
+                insurance_type=request_fields['insurance_type'],
+                insurance_period=request_fields['insurance_period'],
+                vehicle_info=request_fields['vehicle_info'],
+                dfa_number=request_fields['dfa_number'],
+                branch=request_fields['branch'],
+                manager_name=request_fields['manager_name'],
+                deal_status=request_fields['deal_status'],
+                franchise_type=request_fields['franchise_type'],
+                has_franchise=request_fields['has_franchise'],
+                has_installment=request_fields['has_installment'],
+                has_autostart=request_fields['has_autostart'],
+                has_casco_ce=request_fields['has_casco_ce'],
+                has_transportation=request_fields['has_transportation'],
+                has_construction_work=request_fields['has_construction_work'],
+                manufacturing_year=request_fields['manufacturing_year'],
+                asset_status=request_fields['asset_status'],
+                key_completeness=request_fields['key_completeness'],
+                pts_psm=request_fields['pts_psm'],
+                creditor_bank=request_fields['creditor_bank'],
+                usage_purposes=request_fields['usage_purposes'],
+                telematics_complex=request_fields['telematics_complex'],
+                insurance_territory=request_fields['insurance_territory'],
+                response_deadline=request_fields['response_deadline'],
+                notes=request_fields['notes'],
+                additional_data=additional_data,
+                created_by=request.user,
+            )
+
+            attachment = _attach_parser_v2_original_file(insurance_request, draft)
+            _pop_parser_v2_draft(request, draft_id)
+
+            warning_count = len(additional_data['parser_v2'].get('warnings', []))
+            if warning_count:
+                messages.warning(
+                    request,
+                    f'Заявка {insurance_request.get_display_name()} создана через Parser V2. '
+                    f'Предупреждений разбора: {warning_count}. Проверьте данные перед дальнейшей работой.'
+                )
+            else:
+                messages.success(
+                    request,
+                    f'Заявка {insurance_request.get_display_name()} успешно создана через Parser V2.'
+                )
+            if not attachment:
+                messages.warning(request, 'Исходный Excel не удалось прикрепить к заявке автоматически.')
+
+            logger.info(
+                "Parser V2 created request #%s from file '%s' by user %s",
+                insurance_request.pk,
+                draft.get('original_filename', ''),
+                request.user.username,
+            )
+            return redirect('insurance_requests:edit_request', pk=insurance_request.pk)
+
+        messages.error(request, 'Проверьте значения на странице предварительной проверки.')
+        return _render_parser_v2_preview(request, draft_id, draft, preview_form=form)
+
+    if request.method == 'POST':
+        upload_form = ParserV2ExcelUploadForm(request.POST, request.FILES)
+        if upload_form.is_valid():
+            uploaded_file = upload_form.cleaned_data['excel_file']
+            storage_path = _save_parser_v2_upload(uploaded_file)
+            parser_file_path, temp_copy_path = _get_parser_v2_file_path(storage_path)
+            try:
+                parse_result = ExcelRequestParserV2().parse(
+                    parser_file_path,
+                    original_filename=uploaded_file.name,
+                )
+            finally:
+                if temp_copy_path:
+                    try:
+                        os.unlink(temp_copy_path)
+                    except Exception as cleanup_error:
+                        logger.warning("Could not delete Parser V2 temp copy %s: %s", temp_copy_path, cleanup_error)
+
+            draft_id = uuid.uuid4().hex
+            draft = {
+                'storage_path': storage_path,
+                'original_filename': uploaded_file.name,
+                'parse_result': parse_result.to_session_dict(),
+                'created_at': timezone.now().isoformat(),
+                'created_by_user': request.user.username,
+            }
+            _store_parser_v2_draft(request, draft_id, draft)
+
+            messages.info(
+                request,
+                'Файл разобран Parser V2. Проверьте распознанные данные и создайте заявку.'
+            )
+            return _render_parser_v2_preview(request, draft_id, draft)
+
+        for field, errors in upload_form.errors.items():
+            for error in errors:
+                messages.error(request, f'Ошибка загрузки Parser V2 ({field}): {error}')
+    else:
+        upload_form = ParserV2ExcelUploadForm()
+
+    return render(request, 'insurance_requests/upload_excel_v2.html', {
+        'form': upload_form,
     })
 
 

@@ -84,6 +84,7 @@ SECTION_CONFIG = {
         'links': [
             ('Все заявки', 'insurance_requests:request_list'),
             ('Загрузить Excel', 'insurance_requests:upload_excel'),
+            ('Parser V2', 'insurance_requests:upload_excel_v2'),
         ],
     },
     'summaries': {
@@ -131,6 +132,11 @@ ADMIN_ONLY_ROUTES = {
 }
 
 
+SUPERUSER_ONLY_ROUTES = {
+    'insurance_requests:upload_excel_v2',
+}
+
+
 SECTION_ROUTE_OVERRIDES = {
     ('summaries', 'deal_list'): 'deals',
     ('summaries', 'deal_summary'): 'deals',
@@ -147,6 +153,7 @@ SECTION_ROUTE_OVERRIDES = {
 PAGE_LABELS = {
     ('insurance_requests', 'request_list'): 'Список заявок',
     ('insurance_requests', 'upload_excel'): 'Загрузка заявок',
+    ('insurance_requests', 'upload_excel_v2'): 'Parser V2',
     ('insurance_requests', 'request_detail'): 'Карточка заявки',
     ('insurance_requests', 'edit_request'): 'Редактирование заявки',
     ('insurance_requests', 'preview_email'): 'Предпросмотр письма',
@@ -176,6 +183,10 @@ BREADCRUMB_TEMPLATES = {
     ('insurance_requests', 'upload_excel'): [
         ('Заявки', 'insurance_requests:request_list'),
         ('Загрузка заявок', None),
+    ],
+    ('insurance_requests', 'upload_excel_v2'): [
+        ('Заявки', 'insurance_requests:request_list'),
+        ('Parser V2', None),
     ],
     ('insurance_requests', 'request_detail'): [
         ('Заявки', 'insurance_requests:request_list'),
@@ -266,6 +277,7 @@ BREADCRUMB_TEMPLATES = {
 LAYOUT_MODE_BY_PAGE = {
     ('insurance_requests', 'request_list'): 'wide',
     ('insurance_requests', 'upload_excel'): 'wide',
+    ('insurance_requests', 'upload_excel_v2'): 'wide',
     ('insurance_requests', 'request_detail'): 'wide',
     ('summaries', 'summary_list'): 'wide',
     ('summaries', 'deal_list'): 'wide',
@@ -319,6 +331,11 @@ def _has_admin_navigation_access(user):
     return user_groups.filter(name='Администраторы').exists()
 
 
+def _has_superuser_navigation_access(user):
+    """Check whether user can access superuser-only navigation items."""
+    return bool(getattr(user, 'is_authenticated', False) and getattr(user, 'is_superuser', False))
+
+
 def navigation_context(request):
     """Global navigation context for active menu, breadcrumbs and quick links."""
     resolver_match = getattr(request, 'resolver_match', None)
@@ -336,6 +353,7 @@ def navigation_context(request):
         ],
     })
     user_has_admin_access = _has_admin_navigation_access(getattr(request, 'user', None))
+    user_has_superuser_access = _has_superuser_navigation_access(getattr(request, 'user', None))
 
     main_items = []
     for item in MAIN_NAV_ITEMS:
@@ -344,6 +362,8 @@ def navigation_context(request):
         children = []
         for child_label, child_route in item.get('children', []):
             if child_route in ADMIN_ONLY_ROUTES and not user_has_admin_access:
+                continue
+            if child_route in SUPERUSER_ONLY_ROUTES and not user_has_superuser_access:
                 continue
 
             child_app, _, child_url_name = child_route.partition(':')
@@ -368,6 +388,8 @@ def navigation_context(request):
     section_items = []
     for label, route_name in section['links']:
         if route_name in ADMIN_ONLY_ROUTES and not user_has_admin_access:
+            continue
+        if route_name in SUPERUSER_ONLY_ROUTES and not user_has_superuser_access:
             continue
         route_app, _, route_url_name = route_name.partition(':')
         section_items.append({

@@ -1,0 +1,147 @@
+{% extends 'base.html' %}
+
+{% block title %}Предварительная проверка Parser V2 - {{ block.super }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.parser-v2-meter {
+    height: 0.55rem;
+}
+.parser-v2-source-map {
+    max-height: 260px;
+    overflow: auto;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="mb-1"><i class="bi bi-clipboard-check"></i> Предварительная проверка</h1>
+        <div class="text-muted">{{ original_filename }}</div>
+    </div>
+    <a href="{% url 'insurance_requests:upload_excel_v2' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-clockwise"></i> Загрузить другой файл
+    </a>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-8">
+        <form method="post" novalidate>
+            {% csrf_token %}
+            {{ form.draft_id }}
+
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <i class="bi bi-pencil-square"></i> Данные заявки
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        {% for field in form.visible_fields %}
+                            {% if field.field.widget.input_type == 'checkbox' %}
+                                <div class="col-md-4">
+                                    <div class="form-check mt-2">
+                                        {{ field }}
+                                        <label class="form-check-label" for="{{ field.id_for_label }}">
+                                            {{ field.label }}
+                                        </label>
+                                    </div>
+                                    {% for error in field.errors %}
+                                        <div class="invalid-feedback d-block">{{ error }}</div>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <div class="{% if field.name == 'vehicle_info' or field.name == 'notes' or field.name == 'usage_purposes' or field.name == 'telematics_complex' or field.name == 'insurance_territory' %}col-12{% else %}col-md-6{% endif %}">
+                                    <label class="form-label fw-semibold" for="{{ field.id_for_label }}">
+                                        {{ field.label }}
+                                    </label>
+                                    {{ field }}
+                                    {% for error in field.errors %}
+                                        <div class="invalid-feedback d-block">{{ error }}</div>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex gap-2 mb-4">
+                <button type="submit" class="btn btn-success btn-lg">
+                    <i class="bi bi-check-circle"></i> Создать заявку
+                </button>
+                <a href="{% url 'insurance_requests:upload_excel_v2' %}" class="btn btn-outline-secondary btn-lg">
+                    Отмена
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="bi bi-speedometer2"></i> Уверенность разбора
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between mb-2">
+                    <span>{{ confidence|floatformat:2 }}</span>
+                    <span class="text-muted">из 1.00</span>
+                </div>
+                <div class="progress parser-v2-meter">
+                    <div class="progress-bar" role="progressbar" style="width: {{ confidence_percent }}%"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="bi bi-exclamation-triangle"></i> Предупреждения
+            </div>
+            <div class="card-body">
+                {% if warnings %}
+                    <div class="list-group list-group-flush">
+                        {% for warning in warnings %}
+                            <div class="list-group-item px-0">
+                                <div class="d-flex justify-content-between gap-2">
+                                    <strong>{{ warning.field }}</strong>
+                                    <span class="badge {% if warning.level == 'error' %}bg-danger{% elif warning.level == 'manual_required' %}bg-warning text-dark{% elif warning.level == 'info' %}bg-info text-dark{% else %}bg-secondary{% endif %}">
+                                        {{ warning.level }}
+                                    </span>
+                                </div>
+                                <div class="small mt-1">{{ warning.message }}</div>
+                                {% if warning.source %}
+                                    <div class="small text-muted mt-1">{{ warning.source }}</div>
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="mb-0 text-muted">Критичных предупреждений нет.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-grid-3x3-gap"></i> Источники полей
+            </div>
+            <div class="card-body parser-v2-source-map">
+                {% if source_map %}
+                    <table class="table table-sm align-middle mb-0">
+                        <tbody>
+                            {% for field_name, source in source_map.items %}
+                                <tr>
+                                    <th class="text-nowrap">{{ field_name }}</th>
+                                    <td>{{ source }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% else %}
+                    <p class="mb-0 text-muted">Карта источников пока пустая.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

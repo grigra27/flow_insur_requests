@@ -276,6 +276,163 @@ class ExcelUploadForm(forms.Form):
         return cleaned_data
 
 
+class ParserV2ExcelUploadForm(forms.Form):
+    """Форма загрузки файла для экспериментального Parser V2."""
+
+    excel_file = forms.FileField(
+        label='Excel файл с заявкой',
+        help_text='Загрузите файл в формате .xls, .xlsx или .xltx',
+        widget=forms.FileInput(attrs={
+            'class': 'form-control form-control-lg',
+            'accept': '.xls,.xlsx,.xltx',
+        })
+    )
+
+    def clean_excel_file(self):
+        file = self.cleaned_data.get('excel_file')
+        if not file:
+            raise ValidationError('Файл не выбран. Пожалуйста, выберите Excel файл для загрузки.')
+
+        ext = os.path.splitext(file.name)[1].lower()
+        if ext not in ['.xls', '.xlsx', '.xltx']:
+            raise ValidationError(
+                f'Неподдерживаемый формат файла: {ext}. Поддерживаются только .xls, .xlsx и .xltx.'
+            )
+
+        if file.size > 10 * 1024 * 1024:
+            size_mb = file.size / (1024 * 1024)
+            raise ValidationError(f'Размер файла слишком большой: {size_mb:.1f}MB. Максимум: 10MB.')
+
+        return file
+
+
+class ParserV2PreviewForm(forms.Form):
+    """Editable best-effort preview before creating a request from Parser V2."""
+
+    draft_id = forms.CharField(widget=forms.HiddenInput)
+    client_name = forms.CharField(label='Клиент', required=False, widget=forms.TextInput(attrs={'class': 'form-control'}))
+    inn = forms.CharField(label='ИНН', required=False, widget=forms.TextInput(attrs={'class': 'form-control'}))
+    insurance_type = forms.ChoiceField(
+        label='Тип страхования',
+        required=False,
+        choices=InsuranceRequest.INSURANCE_TYPE_CHOICES,
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+    insurance_period = forms.ChoiceField(
+        label='Срок страхования',
+        required=False,
+        choices=[('', '-- Не указан --')] + InsuranceRequest.INSURANCE_PERIOD_CHOICES,
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+    vehicle_info = forms.CharField(
+        label='Информация о предмете лизинга',
+        required=False,
+        widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 4})
+    )
+    dfa_number = forms.CharField(label='Номер ДФА', required=False, widget=forms.TextInput(attrs={'class': 'form-control'}))
+    branch = forms.CharField(label='Филиал', required=False, widget=forms.TextInput(attrs={'class': 'form-control'}))
+    manager_name = forms.CharField(label='ФИО менеджера', required=False, widget=forms.TextInput(attrs={'class': 'form-control'}))
+    deal_status = forms.ChoiceField(
+        label='Статус сделки',
+        required=False,
+        choices=InsuranceRequest.DEAL_STATUS_CHOICES,
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+    franchise_type = forms.ChoiceField(
+        label='Тип франшизы',
+        required=False,
+        choices=InsuranceRequest.FRANCHISE_TYPE_CHOICES,
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+    has_franchise = forms.BooleanField(label='Требуется франшиза', required=False, widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}))
+    has_installment = forms.BooleanField(label='Требуется рассрочка', required=False, widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}))
+    has_autostart = forms.BooleanField(label='Есть автозапуск', required=False, widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}))
+    has_casco_ce = forms.BooleanField(label='КАСКО кат. C/E', required=False, widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}))
+    has_transportation = forms.BooleanField(label='Требуется перевозка', required=False, widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}))
+    has_construction_work = forms.BooleanField(label='Требуется СМР', required=False, widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}))
+    manufacturing_year = forms.CharField(label='Год выпуска', required=False, widget=forms.TextInput(attrs={'class': 'form-control'}))
+    asset_status = forms.CharField(label='Статус имущества', required=False, widget=forms.TextInput(attrs={'class': 'form-control'}))
+    key_completeness = forms.CharField(label='Комплектность ключей', required=False, widget=forms.TextInput(attrs={'class': 'form-control'}))
+    pts_psm = forms.CharField(label='ПТС/ПСМ', required=False, widget=forms.TextInput(attrs={'class': 'form-control'}))
+    creditor_bank = forms.CharField(label='Банк-кредитор', required=False, widget=forms.TextInput(attrs={'class': 'form-control'}))
+    usage_purposes = forms.CharField(label='Цели использования', required=False, widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 2}))
+    telematics_complex = forms.CharField(label='Телематический комплекс', required=False, widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 2}))
+    insurance_territory = forms.CharField(label='Территория страхования', required=False, widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 2}))
+    response_deadline = forms.CharField(
+        label='Срок ответа',
+        required=False,
+        widget=forms.DateTimeInput(attrs={'class': 'form-control', 'type': 'datetime-local'})
+    )
+    notes = forms.CharField(
+        label='Примечание',
+        required=False,
+        widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 4})
+    )
+
+    def to_request_fields(self):
+        """Return model-safe values without blocking request creation."""
+        cleaned = self.cleaned_data
+        insurance_type = cleaned.get('insurance_type') or 'другое'
+        valid_insurance_types = {choice[0] for choice in InsuranceRequest.INSURANCE_TYPE_CHOICES}
+        if insurance_type not in valid_insurance_types:
+            insurance_type = 'другое'
+
+        franchise_type = cleaned.get('franchise_type') or 'none'
+        valid_franchise_types = {choice[0] for choice in InsuranceRequest.FRANCHISE_TYPE_CHOICES}
+        if franchise_type not in valid_franchise_types:
+            franchise_type = 'none'
+
+        deal_status = cleaned.get('deal_status') or 'new'
+        valid_deal_statuses = {choice[0] for choice in InsuranceRequest.DEAL_STATUS_CHOICES}
+        if deal_status not in valid_deal_statuses:
+            deal_status = 'new'
+
+        return {
+            'client_name': self._limit(cleaned.get('client_name') or 'Клиент не указан', 255),
+            'inn': self._limit(cleaned.get('inn') or '', 12),
+            'insurance_type': insurance_type,
+            'insurance_period': cleaned.get('insurance_period') or '',
+            'vehicle_info': cleaned.get('vehicle_info') or 'Предмет лизинга не указан',
+            'dfa_number': self._limit(cleaned.get('dfa_number') or 'Номер ДФА не указан', 100),
+            'branch': self._limit(cleaned.get('branch') or '', 255),
+            'manager_name': self._limit(cleaned.get('manager_name') or '', 255),
+            'deal_status': deal_status,
+            'franchise_type': franchise_type,
+            'has_franchise': bool(cleaned.get('has_franchise')) or franchise_type in ['with_franchise', 'both_variants'],
+            'has_installment': bool(cleaned.get('has_installment')),
+            'has_autostart': bool(cleaned.get('has_autostart')),
+            'has_casco_ce': bool(cleaned.get('has_casco_ce')),
+            'has_transportation': bool(cleaned.get('has_transportation')),
+            'has_construction_work': bool(cleaned.get('has_construction_work')),
+            'manufacturing_year': self._limit(cleaned.get('manufacturing_year') or '', 255),
+            'asset_status': self._limit(cleaned.get('asset_status') or '', 255),
+            'key_completeness': self._limit(cleaned.get('key_completeness') or '', 255),
+            'pts_psm': self._limit(cleaned.get('pts_psm') or '', 255),
+            'creditor_bank': self._limit(cleaned.get('creditor_bank') or '', 255),
+            'usage_purposes': cleaned.get('usage_purposes') or '',
+            'telematics_complex': cleaned.get('telematics_complex') or '',
+            'insurance_territory': cleaned.get('insurance_territory') or '',
+            'notes': cleaned.get('notes') or '',
+            'response_deadline': self._parse_response_deadline(cleaned.get('response_deadline')),
+        }
+
+    def _parse_response_deadline(self, value):
+        if not value:
+            return None
+        for date_format in ['%Y-%m-%dT%H:%M', '%Y-%m-%d %H:%M:%S', '%d.%m.%Y %H:%M']:
+            try:
+                parsed = datetime.strptime(value, date_format)
+                moscow_tz = pytz.timezone('Europe/Moscow')
+                return timezone.make_aware(parsed, moscow_tz)
+            except ValueError:
+                continue
+        return None
+
+    def _limit(self, value, max_length):
+        value = str(value).strip()
+        return value[:max_length]
+
+
 class DateTimeLocalWidget(forms.DateTimeInput):
     """Custom widget for datetime-local input with proper formatting"""
     

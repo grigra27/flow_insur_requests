@@ -39,6 +39,23 @@ def user_required(view_func):
     return _wrapped_view
 
 
+def superuser_required(view_func):
+    """
+    Декоратор для экспериментальных административных инструментов.
+    Требует именно флаг superuser, а не только группу администраторов.
+    """
+    @wraps(view_func)
+    @login_required
+    def _wrapped_view(request, *args, **kwargs):
+        if not request.user.is_superuser:
+            return render(request, 'insurance_requests/access_denied.html', {
+                'required_role': 'Superuser',
+                'user_role': 'Superuser' if request.user.is_superuser else get_user_role(request.user)
+            }, status=403)
+        return view_func(request, *args, **kwargs)
+    return _wrapped_view
+
+
 def get_user_role(user):
     """
     Вспомогательная функция для определения роли пользователя.
