@@ -349,7 +349,53 @@ class FinalIntegrationTest(TestCase):
             
             self.assertIn('processing_error', error_types)
             self.assertIn('duplicate_offer', error_types)
-    
+
+    def test_row_warnings_surface_on_partially_successful_file(self):
+        """При частично успешной обработке файла предупреждения по строкам
+        должны попадать в результат, чтобы пользователь видел пропуски."""
+        processor = MultipleFileProcessor(self.summary)
+        test_file = self._build_valid_excel_file("partial.xlsx", company_name='ВСК')
+
+        row_error = (
+            "Строка 6: Ошибка в строке 6, ячейка D6, поле 'премия': "
+            "значение 24749999999999996.00 слишком большое, максимум 9999999999999.99"
+        )
+        with patch('summaries.services.excel_services.ExcelResponseProcessor.process_excel_file') as mock_process:
+            mock_process.return_value = {
+                'company_name': 'ВСК',
+                'offers_created': 1,
+                'years': [2],
+                'processed_rows': [7],
+                'skipped_rows': [6, 8, 9, 10],
+                'processing_errors': [row_error],
+            }
+
+            results = processor.process_files([test_file])
+
+        self.assertEqual(len(results), 1)
+        result = results[0]
+        self.assertTrue(result['success'])
+        self.assertIn('row_warnings', result)
+        self.assertEqual(result['row_warnings'], [row_error])
+
+    def test_row_warnings_default_empty_on_clean_file(self):
+        """Файл без пропущенных строк не должен получать предупреждения."""
+        processor = MultipleFileProcessor(self.summary)
+        test_file = self._build_valid_excel_file("clean.xlsx", company_name='ВСК')
+
+        with patch('summaries.services.excel_services.ExcelResponseProcessor.process_excel_file') as mock_process:
+            mock_process.return_value = {
+                'company_name': 'ВСК',
+                'offers_created': 1,
+                'years': [1],
+                'processed_rows': [6],
+                'skipped_rows': [],
+            }
+            results = processor.process_files([test_file])
+
+        self.assertTrue(results[0]['success'])
+        self.assertEqual(results[0].get('row_warnings'), [])
+
     def test_backward_compatibility(self):
         """Тест обратной совместимости с существующим функционалом"""
         self.client.login(username='admin', password='testpass123')

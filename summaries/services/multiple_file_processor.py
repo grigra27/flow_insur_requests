@@ -231,7 +231,8 @@ class MultipleFileProcessor:
                 offers_created=processing_result['offers_created'],
                 years_processed=processing_result['years'],
                 processed_rows=processing_result.get('processed_rows', []),
-                skipped_rows=processing_result.get('skipped_rows', [])
+                skipped_rows=processing_result.get('skipped_rows', []),
+                row_warnings=processing_result.get('processing_errors', [])
             )
             
         except DuplicateOfferError as e:
@@ -441,6 +442,10 @@ class MultipleFileProcessor:
                 'years_processed': kwargs.get('years_processed', []),
                 'processed_rows': kwargs.get('processed_rows', []),
                 'skipped_rows': kwargs.get('skipped_rows', []),
+                # Ошибки по отдельным строкам, не сорвавшие обработку файла,
+                # но требующие внимания пользователя (битая ячейка, переполнение
+                # лимита и т.п. — строка пропущена, остальные импортированы).
+                'row_warnings': kwargs.get('row_warnings', []),
             })
         else:
             result.update({

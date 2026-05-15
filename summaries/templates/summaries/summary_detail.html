@@ -2271,6 +2271,20 @@ function displaySelectedFiles(files) {
     selectedFilesList.style.display = 'block';
 }
 
+// HTML-эскейп для пользовательских строк (имена файлов, сообщения об ошибках,
+// названия компаний — всё, что приходит из ответа бэка и вставляется в innerHTML).
+function escapeHtml(value) {
+    if (value === null || value === undefined) {
+        return '';
+    }
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 // Show multiple upload success results
 function showMultipleUploadSuccess(data) {
     let content = `
@@ -2297,21 +2311,35 @@ function showMultipleUploadSuccess(data) {
     if (data.results && data.results.length > 0) {
         data.results.forEach(result => {
             if (result.success) {
+                const hasWarnings = Array.isArray(result.row_warnings) && result.row_warnings.length > 0;
+                const alertClass = hasWarnings ? 'alert-warning' : 'alert-success';
+                const icon = hasWarnings ? 'bi-exclamation-triangle' : 'bi-check-circle';
+                let warningsBlock = '';
+                if (hasWarnings) {
+                    const items = result.row_warnings.map(msg => `<li>${escapeHtml(msg)}</li>`).join('');
+                    warningsBlock = `
+                        <div class="mt-2">
+                            <strong>Пропущены строки с ошибками:</strong>
+                            <ul class="mb-0">${items}</ul>
+                        </div>
+                    `;
+                }
                 content += `
-                    <div class="alert alert-success">
-                        <i class="bi bi-check-circle"></i>
-                        <strong>${result.file_name}</strong><br>
-                        Компания: ${result.company_name}<br>
+                    <div class="alert ${alertClass}">
+                        <i class="bi ${icon}"></i>
+                        <strong>${escapeHtml(result.file_name)}</strong><br>
+                        Компания: ${escapeHtml(result.company_name || '')}<br>
                         Создано предложений: ${result.offers_created}
                         ${result.years_processed ? `<br>Годы: ${result.years_processed.join(', ')}` : ''}
+                        ${warningsBlock}
                     </div>
                 `;
             } else {
                 content += `
                     <div class="alert alert-danger">
                         <i class="bi bi-exclamation-triangle"></i>
-                        <strong>${result.file_name}</strong><br>
-                        Ошибка: ${result.error_message}
+                        <strong>${escapeHtml(result.file_name)}</strong><br>
+                        Ошибка: ${escapeHtml(result.error_message || '')}
                     </div>
                 `;
             }
