@@ -3086,6 +3086,13 @@ class ExcelResponseProcessor:
             # Проверяем, что есть хотя бы один год с данными
             if not data['years']:
                 self.logger.error("Не найдено ни одного года с валидными данными страхования")
+                processing_errors = data.get('processing_info', {}).get('processing_errors', [])
+                if processing_errors:
+                    details = '; '.join(processing_errors)
+                    raise MissingDataError(message=(
+                        f"Не удалось обработать данные по годам страхования. {details}. "
+                        f"Пожалуйста, проверьте корректность значений согласно шаблону."
+                    ))
                 raise MissingDataError(['данные по годам страхования'])
             
             self.logger.info(f"Извлечение данных компании завершено успешно:")
@@ -3337,6 +3344,17 @@ class ExcelResponseProcessor:
 
     def _normalize_decimal_input(self, value: Any) -> str:
         """Подготовка входного значения к безопасному Decimal-парсингу."""
+        # Числовые типы (openpyxl возвращает float/int для числовых ячеек)
+        # уже однозначны: разделителей тысяч в них быть не может, а точка —
+        # всегда десятичная. Прогонять их через эвристику нельзя — длинный
+        # дробный хвост float (например, 24749.999999999996) ошибочно
+        # принимается за разделитель тысяч.
+        if isinstance(value, bool):
+            return str(int(value))
+        if isinstance(value, (int, Decimal)):
+            return str(value)
+        if isinstance(value, float):
+            return repr(value)
         return self._normalize_decimal_separator_for_parser(str(value))
     
     def _parse_decimal(self, value, cell_address: str, field_name: str, default_value: Optional[Decimal] = None) -> Decimal:

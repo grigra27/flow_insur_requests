@@ -7,6 +7,7 @@ from django.test import TestCase
 from django.contrib.auth.models import User
 from unittest.mock import Mock, patch
 
+from .exceptions import MissingDataError
 from .forms import OfferForm, AddOfferToSummaryForm
 from .services.company_matcher import CompanyNameMatcher
 from .services.excel_services import ExcelResponseProcessor
@@ -176,6 +177,47 @@ class UserMessagesTestCase(TestCase):
         processor = ExcelResponseProcessor()
         parsed = processor._parse_decimal_with_row(' 382 171,80 ', 'D6', 'премия', 6)
         self.assertEqual(parsed, Decimal('382171.80'))
+
+    def test_excel_processor_parses_float_with_long_fractional_tail(self):
+        """Float от openpyxl с длинным дробным хвостом не должен трактоваться
+        как разделитель тысяч (регрессия: 24749.999999999996 -> 24750.00).
+        """
+        processor = ExcelResponseProcessor()
+        parsed = processor._parse_decimal_with_row(24749.999999999996, 'D6', 'премия', 6)
+        self.assertEqual(parsed, Decimal('24750.00'))
+
+    def test_excel_processor_parses_native_int_and_float(self):
+        """Числовые типы не должны проходить через эвристику разделителей."""
+        processor = ExcelResponseProcessor()
+        self.assertEqual(processor._parse_decimal_with_row(2475000, 'B6', 'премия', 6), Decimal('2475000.00'))
+        self.assertEqual(processor._parse_decimal_with_row(22275.5, 'D7', 'премия', 7), Decimal('22275.50'))
+
+    def test_extract_company_data_surfaces_row_errors_when_no_valid_years(self):
+        """Когда все строки отбраковываются — сообщение содержит адрес ячейки и поле,
+        а не общую заглушку «заполните все обязательные поля»."""
+        processor = ExcelResponseProcessor()
+        worksheet = Mock()
+        row_error = (
+            "Строка 6: Ошибка в строке 6, ячейка D6, поле 'премия': "
+            "значение 24749999999999996.00 слишком большое, максимум 9999999999999.99"
+        )
+        with patch.object(processor, '_get_cell_value', return_value='Ингосстрах'), \
+             patch.object(processor, '_extract_all_years_data', return_value={
+                 'years': [],
+                 'processing_info': {
+                     'total_rows_checked': 5,
+                     'rows_with_data': [],
+                     'rows_skipped': [6, 7, 8, 9, 10],
+                     'years_processed': [],
+                     'processing_errors': [row_error],
+                 },
+             }):
+            with self.assertRaises(MissingDataError) as ctx:
+                processor.extract_company_data(worksheet)
+        message = str(ctx.exception)
+        self.assertIn('D6', message)
+        self.assertIn("'премия'", message)
+        self.assertIn('слишком большое', message)
 
 
 if __name__ == '__main__':
