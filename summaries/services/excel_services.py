@@ -1739,16 +1739,18 @@ class ExcelExportService:
             
             # Для франшизы 0 - это валидное значение, не None
             formatted_value = self._format_numeric_value(franchise, field_name)
-            
-            # Если франшиза None, но это вариант 1 - возвращаем 0 (по умолчанию)
-            if formatted_value is None and variant == 1:
-                logger.debug(f"Франшиза-1 равна None, используем значение по умолчанию 0")
+
+            # Если франшиза None - возвращаем 0 (по умолчанию).
+            # Для варианта 2 вызов уже выполняется внутри has_second_franchise_variant(),
+            # поэтому None здесь означает "вариант существует, но франшиза не задана = 0".
+            if formatted_value is None:
+                logger.debug(f"{field_name.capitalize()} равна None, используем значение по умолчанию 0")
                 return Decimal('0')
-            
+
             return formatted_value
         except Exception as e:
             logger.error(f"Ошибка при форматировании франшизы для варианта {variant}: {str(e)}")
-            return Decimal('0') if variant == 1 else None
+            return Decimal('0')
     
     def _copy_formula_to_row(self, worksheet, source_row: int, target_row: int, column: str) -> None:
         """

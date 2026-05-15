@@ -779,14 +779,19 @@ class NumericFormattingTests(ExcelExportServiceCompanyDataTests):
         
         self.assertEqual(result, Decimal('0'))
     
-    def test_format_franchise_variant_2_none_stays_none(self):
-        """Тест форматирования франшизы варианта 2: None остается None"""
+    def test_format_franchise_variant_2_none_to_zero(self):
+        """Тест форматирования франшизы варианта 2: None -> 0.
+
+        Вызов _format_franchise(offer, 2) выполняется только под охраной
+        has_second_franchise_variant(), поэтому None во франшизе-2 трактуется
+        как 0 (по аналогии с variant 1).
+        """
         offer = Mock()
         offer.franchise_2 = None
-        
+
         result = self.service._format_franchise(offer, 2)
-        
-        self.assertIsNone(result)
+
+        self.assertEqual(result, Decimal('0'))
     
     def test_format_franchise_valid_value(self):
         """Тест форматирования корректного значения франшизы"""

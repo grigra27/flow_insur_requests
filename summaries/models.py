@@ -618,11 +618,11 @@ class InsuranceOffer(models.Model):
     
     def get_franchise_display_variant2(self):
         """Returns formatted franchise-2 amount or default indicator"""
-        if self.franchise_2 is not None:
-            if self.franchise_2 == 0:
-                return "0"
-            return f"{self.franchise_2:,.0f} ₽"
-        return "Нет"
+        if not self.has_second_franchise_variant():
+            return "Нет"
+        if self.franchise_2 is None or self.franchise_2 == 0:
+            return "0"
+        return f"{self.franchise_2:,.0f} ₽"
     
     def get_premium_with_franchise1(self):
         """Returns premium with franchise-1 (typically with zero franchise)"""
@@ -633,8 +633,14 @@ class InsuranceOffer(models.Model):
         return self.premium_with_franchise_2 or self.premium_with_franchise_1 or 0
     
     def has_second_franchise_variant(self):
-        """Проверяет, есть ли второй вариант франшизы"""
-        return self.franchise_2 is not None and self.premium_with_franchise_2 is not None
+        """Проверяет, есть ли второй вариант предложения.
+
+        Признаком наличия второго варианта считается заполненная premium_with_franchise_2.
+        Отсутствующая franchise_2 трактуется как 0 (по аналогии с franchise_1, у которой default=0):
+        это нужно, чтобы кейс "оба варианта с франшизой 0, второй отличается лишь доп. риском"
+        корректно выгружался в Excel, а не оставлял ячейки шаблона с заглушками.
+        """
+        return self.premium_with_franchise_2 is not None
     
 
     
@@ -649,7 +655,7 @@ class InsuranceOffer(models.Model):
         
         if self.has_second_franchise_variant():
             variants.append({
-                'franchise': self.franchise_2,
+                'franchise': self.franchise_2 if self.franchise_2 is not None else Decimal('0'),
                 'premium': self.premium_with_franchise_2,
                 'franchise_display': self.get_franchise_display_variant2(),
                 'variant_number': 2
