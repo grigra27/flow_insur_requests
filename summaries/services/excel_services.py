@@ -1402,6 +1402,14 @@ class ExcelExportService:
                 logger.debug(f"Записана рассрочка-2: {installment_2} платежей в год")
             else:
                 logger.debug("Второй вариант франшизы отсутствует, пропускаем заполнение")
+                # Если оффер оказался в строке 10 (FIRST_DATA_ROW), её ячейки тарифа-2
+                # и суммы-2 содержат формулы из шаблона (=L10/C10, =SUM(L10:L10)).
+                # _clear_row_data_values их пропускает, поэтому без явной очистки Excel
+                # посчитает их по пустым ячейкам и отобразит "0" вместо пустоты.
+                # Стираем всё, что относится к варианту 2, в текущей строке.
+                for key in ('rate_2', 'premium_2', 'franchise_2', 'installment_2', 'premium_2_summary'):
+                    if key in columns:
+                        worksheet[f"{columns[key]}{row_num}"].value = None
             
             # Примечания (если есть) с обрезкой и валидацией
             notes_to_export = self._build_export_notes(getattr(offer, 'notes', None), additional_note)
