@@ -1311,11 +1311,18 @@ class ExcelExportService:
             columns = columns_mapping if columns_mapping is not None else self.COMPANY_DATA_COLUMNS
             
             logger.debug(f"Заполняем строку {row_num} для компании '{company_name}', {year_display}")
-            
+
             # Копируем стили из строки 10 (первой строки с данными) перед заполнением данных
             if row_num != self.FIRST_DATA_ROW:
                 self._copy_row_styles(worksheet, self.FIRST_DATA_ROW, row_num)
-            
+
+            # Защитный сброс значений в data-ячейках строки.
+            # Шаблон может содержать значения-заглушки в data-ячейках, а код пишет в них
+            # условно (только при валидных данных, существующем варианте 2 и т.п.).
+            # Без сброса заглушки протекли бы в выгрузку. Формулы (тариф E/K, суммы I/O)
+            # сохраняем нетронутыми.
+            self._clear_row_data_values(worksheet, row_num, columns)
+
             # Основные данные
             # Название компании записываем только если передано (для первой строки компании)
             if company_name is not None:
@@ -1875,6 +1882,30 @@ class ExcelExportService:
             logger.warning(f"Ошибка при заполнении тарифа в ячейке {column}{row_num}: {str(e)}")
             # Не выбрасываем исключение, чтобы не прерывать заполнение других данных
     
+    def _clear_row_data_values(self, worksheet, row_num: int, columns: dict) -> None:
+        """
+        Защитная зачистка значений в data-ячейках строки перед заполнением.
+
+        Назначение: устранить риск утечки значений-заглушек из xlsx-шаблона
+        в выгрузку, когда код по условию не пишет в какую-то ячейку (например,
+        отсутствующая премия, не прошедшая валидация страховая сумма, нет варианта 2).
+        Формулы (data_type == 'f') не трогаем — они должны сохраниться.
+
+        Очищает только те ячейки, координаты которых перечислены в columns; всё,
+        что код не отображает на data-колонки, не затрагивается.
+        """
+        try:
+            for column_letter in columns.values():
+                cell = worksheet[f'{column_letter}{row_num}']
+                if getattr(cell, 'data_type', None) == 'f':
+                    continue
+                cell.value = None
+        except Exception as e:
+            logger.warning(
+                f"Не удалось очистить data-ячейки строки {row_num}: {e}. "
+                f"Возможна утечка значений-заглушек из шаблона."
+            )
+
     def _copy_row_styles(self, worksheet, source_row: int, target_row: int) -> None:
         """
         Копирует стили форматирования из исходной строки в целевую строку
