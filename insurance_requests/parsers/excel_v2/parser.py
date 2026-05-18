@@ -217,14 +217,22 @@ class ExcelRequestParserV2:
             "pts_psm": [("птс",), ("псм",)],
             "creditor_bank": [("банк", "кредитор")],
             "usage_purposes": [("цель", "использ"), ("цели", "использ")],
-            "telematics_complex": [("телемат",)],
             "insurance_territory": [("территор", "страх")],
-            "asset_status": [("статус", "имуществ"), ("состояние",)],
         }.items():
             value, source = self._extract_labeled_value(cells, rows, label_groups=label_groups)
             if value:
                 data[field_name] = value
                 source_map[field_name] = source
+
+        asset_value, asset_source = self._extract_asset_status(cells, rows, application_type)
+        if asset_value:
+            data["asset_status"] = asset_value
+            source_map["asset_status"] = asset_source
+
+        telematics_value, telematics_source = self._extract_telematics_complex(cells, rows)
+        if telematics_value:
+            data["telematics_complex"] = telematics_value
+            source_map["telematics_complex"] = telematics_source
 
         parser_payload = {
             "insured_objects": insured_objects,
@@ -631,6 +639,94 @@ class ExcelRequestParserV2:
             year = self._year_from_text(cell.value)
             if year:
                 return year, cell.coordinate
+        return "", ""
+
+    def _ip_row_offset(self, application_type: str, base_row: int) -> int:
+        if application_type == "individual_entrepreneur" and base_row > 8:
+            return base_row + 1
+        return base_row
+
+    def _extract_asset_status(
+        self,
+        cells: List[GridCell],
+        rows: Dict[int, List[GridCell]],
+        application_type: str,
+    ) -> Tuple[str, str]:
+        # 1) Label-based: «статус имущества» / «состояние».
+        value, source = self._extract_labeled_value(
+            cells,
+            rows,
+            label_groups=[("статус", "имуществ"), ("состояние",)],
+        )
+        if value:
+            return value, source
+        # 2) Fallback by coordinates: column K (11) in object rows 43/45/47/49,
+        # shifted by +1 for individual entrepreneur applications. Some templates
+        # have an extra leading column, so we also try column L (12) as a backup.
+        status_values = {"новое", "новый", "новая", "б/у", "бу", "б-у"}
+        parts: List[str] = []
+        coords: List[str] = []
+        for base_row in (43, 45, 47, 49):
+            target_row = self._ip_row_offset(application_type, base_row)
+            row_cells = rows.get(target_row, [])
+            for col in (11, 12):
+                cell = next((c for c in row_cells if c.col == col), None)
+                if not cell:
+                    continue
+                normalized = cell.normalized
+                if not normalized:
+                    continue
+                if normalized in status_values:
+                    parts.append(cell.value.strip())
+                    coords.append(cell.coordinate)
+                    break
+                if col == 11 and cell.value.strip():
+                    # Legacy V1 behaviour: trust column K even when value is non-canonical.
+                    parts.append(cell.value.strip())
+                    coords.append(cell.coordinate)
+                    break
+        if parts:
+            return " ".join(parts), ", ".join(coords)
+        return "", ""
+
+    def _extract_telematics_complex(
+        self,
+        cells: List[GridCell],
+        rows: Dict[int, List[GridCell]],
+    ) -> Tuple[str, str]:
+        # Real applications use two layouts for the telematics block:
+        #   inline:    [label] | [«Наименование»] | [value]      (same row)
+        #   stacked:   [label] | [«Наименование»]                (row N)
+        #              ...     | [value]                          (row N+1 or +2)
+        # We anchor on the «телемат» label and scan rightward columns first in
+        # the same row, then in the following 1–3 rows, skipping sub-header labels.
+        label_cell = next((cell for cell in cells if "телемат" in cell.normalized), None)
+        if not label_cell:
+            return "", ""
+        sub_labels = {"наименование", "название", "модель", "марка", "конфигурация"}
+
+        def is_value(cell: GridCell) -> bool:
+            normalized = cell.normalized
+            if not normalized or normalized in sub_labels:
+                return False
+            if self._looks_like_empty_or_label(cell.value):
+                return False
+            return True
+
+        max_col_offset = 5
+        # 1) Same row, to the right of the label.
+        for cell in rows.get(label_cell.row, []):
+            if cell.col <= label_cell.col or cell.col > label_cell.col + max_col_offset:
+                continue
+            if is_value(cell):
+                return cell.value, cell.coordinate
+        # 2) Rows below, columns to the right of the label.
+        for row_offset in range(1, 4):
+            for cell in rows.get(label_cell.row + row_offset, []):
+                if cell.col <= label_cell.col or cell.col > label_cell.col + max_col_offset:
+                    continue
+                if is_value(cell):
+                    return cell.value, cell.coordinate
         return "", ""
 
     def _build_warnings(self, data: Dict[str, Any], insured_objects: List[Dict[str, str]]) -> List[Dict[str, str]]:

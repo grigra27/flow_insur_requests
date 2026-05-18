@@ -1,0 +1,230 @@
+{
+  "total_files": 178,
+  "v1_total_failed": 0,
+  "v2_total_failed": 0,
+  "v1_filled": {
+    "client_name": {
+      "count": 164,
+      "pct": "92.1%"
+    },
+    "inn": {
+      "count": 167,
+      "pct": "93.8%"
+    },
+    "insurance_type": {
+      "count": 178,
+      "pct": "100.0%"
+    },
+    "insurance_period": {
+      "count": 173,
+      "pct": "97.2%"
+    },
+    "vehicle_info": {
+      "count": 170,
+      "pct": "95.5%"
+    },
+    "dfa_number": {
+      "count": 166,
+      "pct": "93.3%"
+    },
+    "branch": {
+      "count": 174,
+      "pct": "97.8%"
+    },
+    "manager_name": {
+      "count": 175,
+      "pct": "98.3%"
+    },
+    "franchise_type": {
+      "count": 178,
+      "pct": "100.0%"
+    },
+    "has_transportation": {
+      "count": 7,
+      "pct": "3.9%"
+    },
+    "usage_purposes": {
+      "count": 169,
+      "pct": "94.9%"
+    },
+    "insurance_territory": {
+      "count": 7,
+      "pct": "3.9%"
+    },
+    "has_autostart": {
+      "count": 27,
+      "pct": "15.2%"
+    },
+    "has_casco_ce": {
+      "count": 89,
+      "pct": "50.0%"
+    },
+    "creditor_bank": {
+      "count": 108,
+      "pct": "60.7%"
+    },
+    "manufacturing_year": {
+      "count": 153,
+      "pct": "86.0%"
+    },
+    "asset_status": {
+      "count": 154,
+      "pct": "86.5%"
+    },
+    "key_completeness": {
+      "count": 131,
+      "pct": "73.6%"
+    },
+    "pts_psm": {
+      "count": 147,
+      "pct": "82.6%"
+    },
+    "telematics_complex": {
+      "count": 14,
+      "pct": "7.9%"
+    },
+    "has_installment": {
+      "count": 23,
+      "pct": "12.9%"
+    }
+  },
+  "v2_filled": {
+    "client_name": {
+      "count": 165,
+      "pct": "92.7%"
+    },
+    "inn": {
+      "count": 164,
+      "pct": "92.1%"
+    },
+    "insurance_type": {
+      "count": 178,
+      "pct": "100.0%"
+    },
+    "insurance_period": {
+      "count": 175,
+      "pct": "98.3%"
+    },
+    "vehicle_info": {
+      "count": 178,
+      "pct": "100.0%"
+    },
+    "branch": {
+      "count": 163,
+      "pct": "91.6%"
+    },
+    "manager_name": {
+      "count": 178,
+      "pct": "100.0%"
+    },
+    "franchise_type": {
+      "count": 178,
+      "pct": "100.0%"
+    },
+    "has_installment": {
+      "count": 175,
+      "pct": "98.3%"
+    },
+    "has_transportation": {
+      "count": 57,
+      "pct": "32.0%"
+    },
+    "manufacturing_year": {
+      "count": 178,
+      "pct": "100.0%"
+    },
+    "creditor_bank": {
+      "count": 157,
+      "pct": "88.2%"
+    },
+    "usage_purposes": {
+      "count": 175,
+      "pct": "98.3%"
+    },
+    "insurance_territory": {
+      "count": 175,
+      "pct": "98.3%"
+    },
+    "insured_objects_count": {
+      "count": 178,
+      "pct": "100.0%"
+    },
+    "dfa_number": {
+      "count": 156,
+      "pct": "87.6%"
+    },
+    "has_casco_ce": {
+      "count": 163,
+      "pct": "91.6%"
+    },
+    "asset_status": {
+      "count": 158,
+      "pct": "88.8%"
+    },
+    "key_completeness": {
+      "count": 163,
+      "pct": "91.6%"
+    },
+    "pts_psm": {
+      "count": 149,
+      "pct": "83.7%"
+    },
+    "has_autostart": {
+      "count": 79,
+      "pct": "44.4%"
+    },
+    "telematics_complex": {
+      "count": 33,
+      "pct": "18.5%"
+    }
+  },
+  "multi_object_files_lost_in_v1": 46,
+  "v2_object_count_distribution": {
+    "6": 11,
+    "1": 132,
+    "2": 21,
+    "3": 4,
+    "5": 2,
+    "4": 2,
+    "10": 1,
+    "15": 1,
+    "8": 2,
+    "11": 1,
+    "9": 1
+  },
+  "sample_v2_payload": {
+    "file": "Запрос 20009 - Комплект спортивного оборудования.xls",
+    "application_type": "legal_entity",
+    "application_format": "property",
+    "object_sample": [
+      {
+        "description": "1 Комплект спортивного оборудования 2024 новое 32485200 руб экв 314 079 USD",
+        "year": "2024",
+        "source": "B42:P42"
+      },
+      {
+        "description": "Дополнительные виды страхования оборудования(отметьте знаком \"Х\") Х Перевозка (с погрузкой, выгрузкой) от поставщика к лизингополучателю",
+        "year": "",
+        "source": "B44:D44"
+      }
+    ],
+    "franchise_details": {
+      "value_row": 29,
+      "label_row": 28,
+      "selected_columns": [
+        {
+          "column": "D",
+          "variant": "without_franchise",
+          "value_coordinate": "D29",
+          "value": "Х",
+          "label_coordinate": "D28",
+          "label": "Нет франшизы"
+        }
+      ],
+      "franchise_type": "none",
+      "source": "D29=Х (D28: Нет франшизы)",
+      "selection_row_looks_like_header": false,
+      "label_row_looks_like_franchise_options": false
+    }
+  }
+}
