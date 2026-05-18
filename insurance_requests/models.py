@@ -147,7 +147,27 @@ class InsuranceRequest(models.Model):
         default='new',
         verbose_name='Статус сделки'
     )
-    
+
+    # Партия (для V2-splitting: один Excel с N объектами → N заявок-сестёр).
+    # V1 и исторические заявки оставляют эти поля пустыми и отображаются как раньше.
+    source_batch_id = models.UUIDField(
+        null=True,
+        blank=True,
+        db_index=True,
+        verbose_name='ID партии',
+        help_text='Общий идентификатор партии для заявок, созданных из одного Excel-файла'
+    )
+    item_no = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        verbose_name='Номер объекта в партии'
+    )
+    item_count = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        verbose_name='Всего объектов в партии'
+    )
+
     class Meta:
         verbose_name = 'Страховая заявка'
         verbose_name_plural = 'Страховые заявки'
@@ -158,10 +178,18 @@ class InsuranceRequest(models.Model):
         ]
     
     def get_display_name(self):
-        """Возвращает отображаемое название заявки с использованием номера ДФА"""
+        """Возвращает отображаемое название заявки с использованием номера ДФА.
+
+        Для заявок партии (item_count > 1) добавляет суффикс «объект K из N»,
+        чтобы оператор различал сёстры одной загрузки.
+        """
         if self.dfa_number and self.dfa_number.strip() and self.dfa_number != 'Номер ДФА не указан':
-            return f"{self.dfa_number}"
-        return f"#{self.id}"
+            base = self.dfa_number
+        else:
+            base = f"#{self.id}"
+        if self.item_count and self.item_count > 1 and self.item_no:
+            return f"{base} / объект {self.item_no} из {self.item_count}"
+        return base
     
 
     

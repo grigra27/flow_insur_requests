@@ -1,6 +1,8 @@
 """
 Tests for insurance_requests app
 """
+import uuid
+
 from django.test import TestCase, Client, override_settings
 from django.contrib.auth.models import User, Group
 from django.core.cache import cache
@@ -89,6 +91,66 @@ class RequestDetailViewTest(TestCase):
         self.assertEqual(response.status_code, 200)
         # With the new logic, emails_sent status should show create summary button
         self.assertContains(response, 'Создать свод')
+
+
+class DisplayNameBatchTest(TestCase):
+    """Tests for get_display_name() with batch fields (V2 splitting)."""
+
+    def test_display_name_for_single_request_without_batch_fields(self):
+        req = InsuranceRequest.objects.create(
+            client_name='Тест ООО',
+            inn='1234567890',
+            insurance_type='КАСКО',
+            dfa_number='ДФА 18022',
+        )
+        self.assertEqual(req.get_display_name(), 'ДФА 18022')
+
+    def test_display_name_for_single_item_batch_omits_suffix(self):
+        # item_count == 1 means «партия из одной заявки» — суффикс не нужен.
+        req = InsuranceRequest.objects.create(
+            client_name='Тест ООО',
+            inn='1234567890',
+            insurance_type='КАСКО',
+            dfa_number='ДФА 18022',
+            source_batch_id=uuid.uuid4(),
+            item_no=1,
+            item_count=1,
+        )
+        self.assertEqual(req.get_display_name(), 'ДФА 18022')
+
+    def test_display_name_for_multi_item_batch_includes_position(self):
+        batch_id = uuid.uuid4()
+        req1 = InsuranceRequest.objects.create(
+            client_name='Тест ООО',
+            inn='1234567890',
+            insurance_type='КАСКО',
+            dfa_number='ДФА 18022',
+            source_batch_id=batch_id,
+            item_no=1,
+            item_count=3,
+        )
+        req2 = InsuranceRequest.objects.create(
+            client_name='Тест ООО',
+            inn='1234567890',
+            insurance_type='КАСКО',
+            dfa_number='ДФА 18022',
+            source_batch_id=batch_id,
+            item_no=2,
+            item_count=3,
+        )
+        self.assertEqual(req1.get_display_name(), 'ДФА 18022 / объект 1 из 3')
+        self.assertEqual(req2.get_display_name(), 'ДФА 18022 / объект 2 из 3')
+
+    def test_display_name_falls_back_to_id_when_dfa_missing(self):
+        req = InsuranceRequest.objects.create(
+            client_name='Тест ООО',
+            inn='1234567890',
+            insurance_type='КАСКО',
+            source_batch_id=uuid.uuid4(),
+            item_no=2,
+            item_count=4,
+        )
+        self.assertEqual(req.get_display_name(), f'#{req.id} / объект 2 из 4')
 
 
 @override_settings(

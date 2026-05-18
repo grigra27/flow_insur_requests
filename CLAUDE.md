@@ -76,6 +76,18 @@ Access is gated by two Django groups: **`Администраторы`** and **`
 
 Invalid values fall back to `legal_entity` / `casco_equipment` with a warning. Branch names are normalized via the `BRANCH_MAPPING` dict at the top of `excel_utils.py` — extend that dict when new full-form branch names appear.
 
+### One request = one insured object (V2 onwards)
+
+**Core architectural rule for the V2 flow:** one `InsuranceRequest` row holds exactly one insured object. When an uploaded Excel from a leasing company contains N objects (in the corpus: 46/178 files have ≥2 objects, max 15), V2 creates N `InsuranceRequest` rows — one per object. Common fields (client, INN, branch, lease deal, franchise, period, manager, dates) are duplicated to every row; only the object-specific fields (brand, model, VIN, manufacturing year, condition, acquisition cost, …) differ.
+
+Sibling rows that come from the same upload are linked by `source_batch_id` (UUID assigned per upload) and ordered via `item_no` / `item_count` (1-based). Display name uses the form **"ДФА X / объект K из N"** when `item_count > 1`; single-object requests display as before.
+
+The lifecycle is per-request, not per-batch: each row gets its own status, its own `InsuranceSummary`, its own selected insurer, its own outgoing PDF/JSON. **Outbound email is one-per-request** — N requests in a batch produce N letters to insurers, one PDF/JSON attachment each.
+
+V1 (`core.excel_utils.ExcelReader`) keeps its historical **"1 file → 1 request"** behaviour with all objects slipped into `vehicle_info`. We do not split historical V1 requests; they display as before. Splitting applies only to **new** uploads through the V2 flow.
+
+JSON Schema v1 (`docs/insurance_request_format_package/insurance_request_schema_v1.json`) reflects this model: the schema carries `insured_object` (singular) per request, not an array.
+
 ### Insurer offer ingestion and the company-name contract
 
 - Single-file upload: `summaries/services/excel_services.py`.

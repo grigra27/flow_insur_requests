@@ -44,9 +44,9 @@
 
 Падений парсера на 178 файлах: **0** (оба парсера работают best-effort).
 
-## Многообъектные заявки — главный структурный пробел
+## Многообъектные файлы → партии заявок
 
-Распределение по числу объектов (v2):
+Распределение по числу объектов в исходном файле (v2):
 
 | Объектов | Файлов |
 |---------:|-------:|
@@ -62,9 +62,16 @@
 
 Что с ними сейчас происходит:
 
-- **V1** склеивает всё в текстовый `vehicle_info`. Структура полностью теряется.
-- **V2** видит массив, кладёт его в `data["parser_v2_payload"]["insured_objects"]`. Этот payload в `views.py:143` сохраняется в `additional_data["parser_v2"]["parsed_payload"]` — то есть **в JSON-блоб в одной ячейке, без индексирования и связи**.
-- В БД нет таблицы `InsuredObject`. Из 46 многообъектных заявок ни одна не доступна для фильтров, отчётов и для нашей будущей PDF-таблицы объектов.
+- **V1** склеивает всё в текстовый `vehicle_info`. Структура полностью теряется. Историческое поведение остаётся как есть — историю не разбиваем.
+- **V2** видит массив, кладёт его в `data["parser_v2_payload"]["insured_objects"]`. Этот payload в `views.py:143` сохраняется в `additional_data["parser_v2"]["parsed_payload"]` — то есть **в JSON-блоб в одной ячейке, без индексирования и связи**, и **всё ещё в одной записи `InsuranceRequest`**.
+
+### Целевая модель: 1 файл → N заявок
+
+Принципиальное решение: **одна `InsuranceRequest` = ровно один объект страхования.** Если в файле N объектов, V2 при загрузке создаёт N отдельных записей `InsuranceRequest`. Общие реквизиты (клиент, ИНН, тип/период страхования, франшиза, ДФА, филиал, менеджер, банк-кредитор, даты лизинга) дублируются в каждую запись; уникальны только объектные поля (марка, модель, VIN, год, состояние, стоимость, валюта).
+
+Сёстры одной партии связываются полями `source_batch_id` (UUID, общий для всей партии) и `item_no` / `item_count` (1-based). Display-имя выводит «ДФА X / объект K из N» при `item_count > 1`. Каждая запись живёт независимо: свой статус, свой свод, свой PDF/JSON, **своё письмо страховщику**.
+
+**Отдельной таблицы `InsuredObject` НЕ делаем.** Поля объекта живут прямо в `InsuranceRequest`. См. подробнее в [own_insurance_request_form.md](own_insurance_request_form.md#ключевой-архитектурный-принцип-один-объект--одна-заявка).
 
 ## Поля JSON Schema v1, которых нет в текущей модели
 
@@ -95,12 +102,22 @@
 - `premium_payment.frequency` — поквартально / полугодие / годовая.
 - `franchise.options[]` — детальные варианты франшизы с `kind`/`percent`/`amount`. Сейчас в БД только `franchise_type` enum + `franchise_details` JSON (без формальной структуры).
 
-### Объект(ы) страхования — **самый большой пробел**
+### Объект страхования — **самый большой пробел**
+
+Поля по схеме v1 (`insured_object` — singular, **одна заявка = один объект**):
+
 - `insured_object.brand`, `model`, `vin`, `serial_number` — сейчас слиты в текст.
 - `insured_object.manufacturing_year` как integer (есть только текстом).
 - `insured_object.condition` — `new` / `used` / `unknown` (есть `asset_status` строкой).
 - `insured_object.equipment_type`, `power_or_capacity`, `quantity`.
 - `insured_object.acquisition_cost` (money: value + currency) — **стоимость объекта, research показывает наличие в 148 / 151. Никуда не сохраняется.** Это критично для расчёта премии и для нашего PDF.
+
+### Поля партии (новое)
+
+При splitting'е N-объектного файла нужно различать заявки-сёстры:
+
+- `source_batch_id` — UUID партии, общий для всех заявок из одного Excel.
+- `item_no`, `item_count` — позиция и размер партии (1-based).
 
 ### Андеррайтинг / противоугонные
 - `underwriting.telematics.required` (boolean отдельно от текста).
@@ -120,11 +137,15 @@
 
 ### Что менять в модели до перехода на собственную форму заявки
 
-1. **Добавить таблицу `InsuredObject`** со связью FK к `InsuranceRequest`. Без неё 26 % заявок не имеют адекватного представления в БД. Поля: `item_no`, `object_type`, `description`, `brand`, `model`, `vin`, `serial_number`, `manufacturing_year` (int), `condition` (enum), `equipment_type`, `power_or_capacity`, `quantity`, `acquisition_cost_value`, `acquisition_cost_currency`, `comment`.
-2. **Добавить в `InsuranceRequest`** ОГРН, КПП, юр./почтовый адрес, вид деятельности, дата подачи, даты договора лизинга, `insured_party`, `submission_date`.
-3. **Расширить параметры страхования**: `period.start_date`/`end_date`/`months`, `insured_sum_type`, `indemnity_basis`, `guard_conditions`, `premium_frequency`.
-4. **Структурировать франшизу**: вынести `franchise.options[]` из `additional_data` в отдельную таблицу (или нормализованный JSON-список с фиксированной формой).
-5. **Структурировать `anti_theft_systems`** и доп.покрытия (`transportation.origin/destination`, `construction_work.description`). Альтернатива — отдельная JSON-структура на уровне модели с явной схемой.
+Все новые поля добавляются **прямо в `InsuranceRequest`** как `null=True, blank=True`. Отдельной таблицы `InsuredObject` НЕ делаем — один объект на одну запись.
+
+1. **Поля партии**: `source_batch_id` (UUID), `item_no` (int), `item_count` (int). Заполняются только V2; для одиночных заявок — `item_count=1`, `item_no=1`. Для исторических V1-заявок — `null`.
+2. **Поля объекта** (живут в самой `InsuranceRequest`): `brand`, `model`, `vin`, `serial_number`, `manufacturing_year_int`, `condition` (enum `new`/`used`/`unknown`), `equipment_type`, `power_or_capacity`, `quantity`, `acquisition_cost_value`, `acquisition_cost_currency`.
+3. **Реквизиты страхователя**: `ogrn`, `kpp`, `legal_address`, `postal_address`, `business_activity`, `birth_date` (для ИП), `submission_date`.
+4. **Параметры сделки**: `contract_start_date`, `contract_end_date`, `insured_party`.
+5. **Расширить параметры страхования**: `period_start_date`, `period_end_date`, `period_months`, `insured_sum_type`, `indemnity_basis`, `guard_conditions`, `property_location_right_holder`, `premium_frequency`.
+6. **Structured-франшиза**: вместо `franchise_details` JSON-блоба — нормализованный JSON-список `franchise_options` с фиксированной формой (`kind` / `percent` / `amount_value` / `amount_currency`).
+7. **Структурированные анти-теф и доп.покрытия**: `anti_theft_alarm`, `anti_theft_immobilizer`, `anti_theft_mechanical`, `anti_theft_satellite` (JSON-объекты); `transportation_origin`, `transportation_destination`, `transportation_estimated_days`; `construction_work_description`.
 
 ### Что менять в парсере параллельно
 
@@ -138,6 +159,7 @@
 8. **Структура противоугонных систем** (`underwriting.anti_theft_systems`): сейчас V2 использует маркеры (`сигнализация`, `иммобилайзер`, `механические противоугонные устройства`, `спутниковая противоугонная система`) только чтобы **пропускать** эти строки в таблице объектов. Надо вместо этого извлекать из них значения: `alarm`/`immobilizer`/`mechanical_devices[]`/`satellite_system` с брендом/моделью.
 9. **Условия покрытия для имущества и нестандартные параметры**: `coverage_terms.insured_sum_type` (агрегатная / неагрегатная), `coverage_terms.indemnity_basis` (с износом / без), `coverage_terms.guard_conditions`, `coverage_terms.property_location_right_holder`.
 10. **Детали перевозки/СМР**: `additional_coverages.transportation.origin` / `destination` / `estimated_days`, `additional_coverages.construction_work.description`. Сейчас только boolean-флаги.
+11. **Splitting-логика в V2-view'е**: при > 1 объект в парсе **создавать N заявок** (одна запись на объект) с общим `source_batch_id` и `item_no=1..N`. UI превью показывает список будущих заявок; оператор подтверждает или редактирует каждую. Это меняет существующий V2-флоу `/upload-v2/` — сейчас он создаёт ровно одну запись. Подробности — в [own_insurance_request_form.md](own_insurance_request_form.md#splitting-в-v2-1-файл--n-заявок).
 
 ### Совместимость V1 (прод) и V2 (разработка)
 
