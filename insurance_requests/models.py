@@ -49,6 +49,28 @@ class InsuranceRequest(models.Model):
         ('USD', 'Доллары США'),
         ('EUR', 'Евро'),
     ]
+
+    INSURED_PARTY_CHOICES = [
+        ('lessor', 'Лизингодатель'),
+        ('lessee', 'Лизингополучатель'),
+        ('both', 'Оба'),
+    ]
+
+    INSURED_SUM_TYPE_CHOICES = [
+        ('aggregate', 'Агрегатная'),
+        ('non_aggregate', 'Неагрегатная'),
+    ]
+
+    PROPERTY_LOCATION_RIGHT_HOLDER_CHOICES = [
+        ('lessee_owner', 'Собственность лизингополучателя'),
+        ('third_party_owner', 'Стороннее лицо'),
+    ]
+
+    PREMIUM_FREQUENCY_CHOICES = [
+        ('single', 'Единовременно'),
+        ('quarterly', 'Поквартально'),
+        ('annual', 'Ежегодно'),
+    ]
     
     # Основные поля
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Дата создания')
@@ -232,6 +254,46 @@ class InsuranceRequest(models.Model):
     )
     submission_date = models.DateField(
         blank=True, null=True, verbose_name='Дата подачи заявки'
+    )
+
+    # Параметры сделки и страхования (для V2; V1 их не заполняет).
+    # Поля contract_*, period_*, indemnity_basis из исходного плана не добавлены:
+    # в Excel заявки от лизинга конкретных дат лизинга/периода страхования нет,
+    # а indemnity_basis отсутствует (0/30 hits в мини-аудите).
+    # Подробнее в docs/improvement_plans/json_schema_v2.md.
+    insured_party = models.CharField(
+        max_length=10,
+        choices=INSURED_PARTY_CHOICES,
+        blank=True,
+        null=True,
+        verbose_name='Страхователь',
+    )
+    insured_sum_type = models.CharField(
+        max_length=15,
+        choices=INSURED_SUM_TYPE_CHOICES,
+        blank=True,
+        null=True,
+        verbose_name='Тип страховой суммы',
+    )
+    guard_conditions = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name='Условия охраны/хранения',
+    )
+    property_location_right_holder = models.CharField(
+        max_length=20,
+        choices=PROPERTY_LOCATION_RIGHT_HOLDER_CHOICES,
+        blank=True,
+        null=True,
+        verbose_name='Правообладатель места расположения',
+        help_text='Для страхования имущества',
+    )
+    premium_frequency = models.CharField(
+        max_length=10,
+        choices=PREMIUM_FREQUENCY_CHOICES,
+        blank=True,
+        null=True,
+        verbose_name='Частота уплаты премии',
     )
 
     class Meta:

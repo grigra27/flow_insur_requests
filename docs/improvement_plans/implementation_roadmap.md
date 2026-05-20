@@ -109,34 +109,34 @@ deprecate'нуть отдельно.
 
 ### Под-этап 2.3 — Параметры сделки и страхования
 
-**Цель.** Структурировать всё, что сейчас живёт либо в `insurance_period`
-enum (одно из двух), либо вообще нигде не хранится.
+**Цель.** Структурировать параметры сделки и страхования, которые есть
+в Excel заявки. Перед миграцией прогнан мини-аудит на 30 файлах
+(`scripts/inspect_deal_fields.py`) — он сократил план с 11 полей до 5.
 
-**Поля.**
+**Поля (финальный состав).**
 
-| Поле                                | Тип                                                            | Источник                                |
-|-------------------------------------|----------------------------------------------------------------|------------------------------------------|
-| `contract_start_date`               | `DateField`                                                    | `lease.contract_start_date`              |
-| `contract_end_date`                 | `DateField`                                                    | `lease.contract_end_date`                |
-| `insured_party`                     | `CharField(choices=['lessor','lessee','both','unknown'])`      | `lease.insured_party`                    |
-| `period_start_date`                 | `DateField`                                                    | `insurance.period.start_date`            |
-| `period_end_date`                   | `DateField`                                                    | `insurance.period.end_date`              |
-| `period_months`                     | `PositiveSmallIntegerField`                                    | `insurance.period.months`                |
-| `insured_sum_type`                  | `CharField(choices=['aggregate','non_aggregate'])`             | `coverage_terms.insured_sum_type`        |
-| `indemnity_basis`                   | `CharField(choices=['with_depreciation','without_depreciation'])` | `coverage_terms.indemnity_basis`      |
-| `guard_conditions`                  | `TextField`                                                    | `coverage_terms.guard_conditions`        |
-| `property_location_right_holder`    | `CharField(choices=['lessee_owner','third_party_owner','unknown'])` | `coverage_terms.property_location_right_holder` (для имущества) |
-| `premium_frequency`                 | `CharField(choices=['quarterly','semiannual','annual','custom'])` | `premium_payment.frequency`           |
+| Поле                                | Тип                                                                                  | Hits в аудите |
+|-------------------------------------|--------------------------------------------------------------------------------------|----------------|
+| `insured_party`                     | `CharField(choices=[('lessor','Лизингодатель'),('lessee','Лизингополучатель'),('both','Оба')])`, nullable | 30/30      |
+| `insured_sum_type`                  | `CharField(choices=[('aggregate','Агрегатная'),('non_aggregate','Неагрегатная')])`, nullable | 30/30  |
+| `guard_conditions`                  | `TextField`, nullable — свободный текст («без ограничений», «гараж», ...)              | 29/30          |
+| `property_location_right_holder`    | `CharField(choices=[('lessee_owner','Собственность лизингополучателя'),('third_party_owner','Стороннее лицо')])`, nullable. Для страхования имущества. | 1/30 (только property) |
+| `premium_frequency`                 | `CharField(choices=[('single','Единовременно'),('quarterly','Поквартально'),('annual','Ежегодно')])`, nullable | 60/60   |
 
-**Зависимости.** Никаких новых. `insurance_period` (enum-строка) остаётся
-для совместимости.
+`premium_frequency` имеет только три значения, потому что в корпусе встречаются ровно три: `Единовременно`, `ежеквартально`, `ежегодно`. `semiannual` и `custom` исключены — если появятся, добавим миграцией.
 
-**Открытые вопросы.**
+**Поля, исключённые из плана (мини-аудит):**
 
-1. **`insurance_period` (старый enum) vs `period_start_date`/`period_end_date`/`period_months`.** Сейчас старое поле принимает `'1 год'` / `'на весь срок лизинга'`. После добавления дат старое становится избыточным. Дублируем (V2 пишет всё), потом deprecate'аем?
-2. `insured_party = 'unknown'` или `null`? Аналогично `condition`.
-3. `property_location_right_holder` нужен только для страхования имущества. Делать ли отдельно «applicable_for_property_only» или просто оставлять null для casco — пусть UI сам решает, что показывать?
-4. `premium_frequency='custom'` — нужно ли отдельное текстовое поле `premium_frequency_comment` для описания нестандартной периодичности? В схеме v1 есть `premium_payment.comment` — добавить как `premium_frequency_comment`?
+- `contract_start_date` / `contract_end_date` — в Excel **нет конкретных дат** лизинга, только enum «на весь срок лизинга» (уже хранится в `insurance_period`).
+- `period_start_date` / `period_end_date` / `period_months` — то же для периода страхования.
+- `indemnity_basis` (с износом/без) — **0/30 hits**. В Excel заявки от лизинга не указывается.
+
+**Решения по открытым вопросам.**
+
+1. **Старые поля `insurance_period` и `has_installment` остаются.** Новые `premium_frequency` дополняет `has_installment` детализацией.
+2. **Enum'ы — nullable без `unknown`.** Тот же паттерн, что в 2.1 для `condition`. NULL = «не определено».
+3. **`property_location_right_holder`** живёт в той же модели, для casco-заявок просто остаётся NULL. UI/PDF сам решит, что показывать.
+4. **`premium_frequency_comment` не добавляем** — список из 3 значений покрывает 100% корпуса.
 
 ### Под-этап 2.4 — Структурированные блоки
 

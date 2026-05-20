@@ -272,6 +272,72 @@ class CustomerFieldsTest(TestCase):
         self.assertEqual(req.legal_address, long_address)
 
 
+class DealInsuranceFieldsTest(TestCase):
+    """Stage 2.3: deal and insurance parameters.
+
+    Excluded from the original plan because the source does not carry them:
+      contract_start_date / contract_end_date  — Excel only has the «на весь
+        срок лизинга» enum, not actual dates;
+      period_start_date / period_end_date / period_months — same;
+      indemnity_basis — 0/30 hits in the audit.
+    """
+
+    def test_fields_default_to_null(self):
+        req = InsuranceRequest.objects.create(
+            client_name='Тест ООО',
+            inn='1234567890',
+            insurance_type='КАСКО',
+        )
+        self.assertIsNone(req.insured_party)
+        self.assertIsNone(req.insured_sum_type)
+        self.assertIsNone(req.guard_conditions)
+        self.assertIsNone(req.property_location_right_holder)
+        self.assertIsNone(req.premium_frequency)
+        # Excluded fields must not exist on the model.
+        for absent in ('contract_start_date', 'contract_end_date',
+                       'period_start_date', 'period_end_date', 'period_months',
+                       'indemnity_basis'):
+            self.assertFalse(hasattr(req, absent), f'{absent} should not exist on InsuranceRequest')
+
+    def test_fields_store_full_payload(self):
+        req = InsuranceRequest.objects.create(
+            client_name='Тест ООО',
+            inn='1234567890',
+            insurance_type='КАСКО',
+            insured_party='lessor',
+            insured_sum_type='non_aggregate',
+            guard_conditions='без ограничений',
+            property_location_right_holder='lessee_owner',
+            premium_frequency='quarterly',
+        )
+        req.refresh_from_db()
+        self.assertEqual(req.insured_party, 'lessor')
+        self.assertEqual(req.get_insured_party_display(), 'Лизингодатель')
+        self.assertEqual(req.insured_sum_type, 'non_aggregate')
+        self.assertEqual(req.get_insured_sum_type_display(), 'Неагрегатная')
+        self.assertEqual(req.guard_conditions, 'без ограничений')
+        self.assertEqual(req.property_location_right_holder, 'lessee_owner')
+        self.assertEqual(req.premium_frequency, 'quarterly')
+        self.assertEqual(req.get_premium_frequency_display(), 'Поквартально')
+
+    def test_choices_reject_unknown_value(self):
+        bad_values = [
+            ('insured_party', 'owner'),
+            ('insured_sum_type', 'unknown'),
+            ('property_location_right_holder', 'tenant'),
+            ('premium_frequency', 'semiannual'),  # excluded from our enum
+        ]
+        for field, value in bad_values:
+            req = InsuranceRequest(
+                client_name='Тест',
+                inn='1234567890',
+                insurance_type='КАСКО',
+                **{field: value},
+            )
+            with self.assertRaises(ValidationError, msg=f'{field}={value!r} must be rejected'):
+                req.full_clean()
+
+
 @override_settings(
     LOGIN_RATE_LIMIT_ENABLED=True,
     LOGIN_MAX_ATTEMPTS=3,

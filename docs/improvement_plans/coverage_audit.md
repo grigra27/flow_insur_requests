@@ -97,17 +97,29 @@
   [json_schema_v2.md](json_schema_v2.md)).
 
 ### Лизинговая сделка
-- `lease.contract_start_date` / `contract_end_date` — research: 131–134 / 151.
 - `lease.insured_party` — лизингодатель / лизингополучатель / оба.
+  Мини-аудит 2.3: 30/30 (значения «ЛизингоДАТЕЛЬ» / «ЛизингоПОЛУЧАТЕЛЬ»).
+  **Добавлено в модель** (этап 2.3, миграция `0036_add_deal_insurance_fields`).
+- **`lease.contract_start_date` / `contract_end_date` — НЕ добавляем.**
+  В Excel заявки конкретных дат нет, только enum «на весь срок лизинга»
+  (уже хранится в `insurance_period`). См. [json_schema_v2.md](json_schema_v2.md).
 
 ### Параметры страхования
-- `insurance.period.start_date` / `end_date` / `months` — сейчас только `kind` enum.
-- `coverage_terms.insured_sum_type` — агрегатная / неагрегатная.
-- `coverage_terms.indemnity_basis` — с износом / без.
-- `coverage_terms.guard_conditions`.
-- `coverage_terms.property_location_right_holder` — для страхования имущества.
-- `premium_payment.frequency` — поквартально / полугодие / годовая.
-- `franchise.options[]` — детальные варианты франшизы с `kind`/`percent`/`amount`. Сейчас в БД только `franchise_type` enum + `franchise_details` JSON (без формальной структуры).
+- `insurance.period.start_date` / `end_date` / `months` — **НЕ добавляем.**
+  В Excel конкретных дат периода страхования нет; используем существующий
+  enum `insurance_period`.
+- `coverage_terms.insured_sum_type` — агрегатная / неагрегатная. Аудит 30/30.
+  **Добавлено в модель.**
+- **`coverage_terms.indemnity_basis` (с износом / без) — НЕ добавляем.**
+  Мини-аудит 2.3: 0/30 hits. В Excel заявки от лизинга не указывается.
+- `coverage_terms.guard_conditions`. Аудит 29/30. **Добавлено в модель.**
+- `coverage_terms.property_location_right_holder` — для страхования
+  имущества (1/30 в общей выборке, ~100% для property). **Добавлено.**
+- `premium_payment.frequency` — `single` / `quarterly` / `annual`.
+  В корпусе встречаются ровно эти три варианта (60/60 сканированных файлов
+  имеют все три как опции с галочкой). `semiannual` / `custom` исключены.
+  **Добавлено в модель.**
+- `franchise.options[]` — детальные варианты франшизы с `kind`/`percent`/`amount`. Сейчас в БД только `franchise_type` enum + `franchise_details` JSON (без формальной структуры). Запланировано в этапе 2.4.
 
 ### Объект страхования — **самый большой пробел**
 
