@@ -58,40 +58,28 @@ splitting на Этапе 4 бессмысленен — N сёстер буду
 | `model`                       | `CharField(max_length=255)`                                         | `insured_object.model`                   |
 | `vin`                         | `CharField(max_length=32)`                                          | `insured_object.vin`                     |
 | `serial_number`               | `CharField(max_length=64)`                                          | `insured_object.serial_number`           |
-| `manufacturing_year_int`      | `PositiveSmallIntegerField` (1900–2100)                             | `insured_object.manufacturing_year`      |
-| `condition`                   | `CharField(max_length=10, choices=['new','used','unknown'])`        | `insured_object.condition`               |
+| `condition`                   | `CharField(max_length=10, choices=['new','used'])` (nullable)       | `insured_object.condition`               |
 | `equipment_type`              | `CharField(max_length=128)`                                         | `insured_object.equipment_type`          |
 | `power_or_capacity`           | `CharField(max_length=64)`                                          | `insured_object.power_or_capacity`       |
 | `quantity`                    | `DecimalField(max_digits=10, decimal_places=2)`                     | `insured_object.quantity`                |
 | `acquisition_cost_value`      | `DecimalField(max_digits=14, decimal_places=2)`                     | `insured_object.acquisition_cost.value`  |
-| `acquisition_cost_currency`   | `CharField(max_length=3)` (`RUB`/`USD`/`EUR`)                       | `insured_object.acquisition_cost.currency` |
+| `acquisition_cost_currency`   | `CharField(max_length=3, choices=['RUB','USD','EUR'])`              | `insured_object.acquisition_cost.currency` |
 
 **Что разблокирует.** Этап 4 (splitting). Парсинг строки объекта на
 Этапе 3.
 
 **Что отсюда НЕ убираем.** Существующие текстовые поля
 (`manufacturing_year` как `CharField`, `asset_status`, `vehicle_info`)
-остаются для совместимости. V2 будет писать и в старые поля, и в новые
+остаются для совместимости. V2 пишет в них **и** в новые поля
 (дублирование). После полного перехода на V2 — старые поля можно
 deprecate'нуть отдельно.
 
-**Открытые вопросы.**
+**Решения по открытым вопросам.**
 
-1. `condition`: использовать ли `unknown` как явное значение или
-   просто `null` означает «не определено»? Я предлагаю `null`, без
-   явного enum-значения `unknown` — это упрощает выборки.
-2. `manufacturing_year_int` vs существующий `manufacturing_year`
-   (string): сейчас V1 кладёт строку вида `'2024'`; иногда там
-   слипшийся текст (`'2018 2018 2018'` при нескольких объектах).
-   Дублируем в int нормализованно — но V1 продолжает писать в строку.
-   После полного перехода строковое поле можно убрать. Когда?
-3. `acquisition_cost_currency` — фиксируем 3 значения (`RUB`/`USD`/`EUR`)
-   или оставляем свободным `CharField(max_length=3)`? В корпусе встречал
-   только `руб` и `USD`. Я предлагаю свободный 3-letter ISO, валидация
-   на стороне парсера/формы.
-4. Что с `vehicle_info`: оставляем как есть (заполняется и V1, и V2
-   — слиплённой строкой)? После перехода на V2 он становится
-   избыточным.
+1. **`condition`**: nullable `CharField(choices=[('new','Новое'),('used','Б/у')])`. `null` означает «не определено». Без явного `unknown`-значения.
+2. **`manufacturing_year_int` не добавляем.** Оставляем только существующий CharField `manufacturing_year`. Год для фильтров/сравнений извлекаем regex'ом из строки на ходу. Без миграции для года.
+3. **`acquisition_cost_currency`**: closed `choices=[('RUB','Рубли'),('USD','Доллары США'),('EUR','Евро')]`. Парсер нормализует `руб`/`рублей`/`₽`→`RUB`, `$`/`долл`→`USD`.
+4. **`vehicle_info` оставляем** — оба парсера пишут слиплённой строкой как раньше. Шаблоны и письма продолжают читать. Deprecate отдельной задачей после полного перехода на V2.
 
 ### Под-этап 2.2 — Реквизиты страхователя
 

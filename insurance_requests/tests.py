@@ -2,10 +2,12 @@
 Tests for insurance_requests app
 """
 import uuid
+from decimal import Decimal
 
-from django.test import TestCase, Client, override_settings
-from django.contrib.auth.models import User, Group
 from django.core.cache import cache
+from django.core.exceptions import ValidationError
+from django.contrib.auth.models import User, Group
+from django.test import TestCase, Client, override_settings
 from django.urls import reverse
 from .models import InsuranceRequest
 
@@ -151,6 +153,76 @@ class DisplayNameBatchTest(TestCase):
             item_count=4,
         )
         self.assertEqual(req.get_display_name(), f'#{req.id} / объект 2 из 4')
+
+
+class ObjectFieldsTest(TestCase):
+    """Этап 2.1: новые поля объекта живут прямо в InsuranceRequest."""
+
+    def test_object_fields_default_to_null(self):
+        # V1-флоу не заполняет ни одно из новых полей — для совместимости
+        # они должны корректно создаваться пустыми.
+        req = InsuranceRequest.objects.create(
+            client_name='Тест ООО',
+            inn='1234567890',
+            insurance_type='КАСКО',
+        )
+        self.assertIsNone(req.brand)
+        self.assertIsNone(req.model)
+        self.assertIsNone(req.vin)
+        self.assertIsNone(req.serial_number)
+        self.assertIsNone(req.condition)
+        self.assertIsNone(req.equipment_type)
+        self.assertIsNone(req.power_or_capacity)
+        self.assertIsNone(req.quantity)
+        self.assertIsNone(req.acquisition_cost_value)
+        self.assertIsNone(req.acquisition_cost_currency)
+
+    def test_object_fields_store_full_payload(self):
+        req = InsuranceRequest.objects.create(
+            client_name='Тест ООО',
+            inn='1234567890',
+            insurance_type='КАСКО',
+            brand='LADA',
+            model='Largus KS045L',
+            vin='XTAKS045LP0001234',
+            serial_number='SN-12345',
+            condition='used',
+            equipment_type='Легковой автомобиль',
+            power_or_capacity='78.05',
+            quantity=Decimal('1.00'),
+            acquisition_cost_value=Decimal('1490000.00'),
+            acquisition_cost_currency='RUB',
+        )
+        req.refresh_from_db()
+        self.assertEqual(req.brand, 'LADA')
+        self.assertEqual(req.model, 'Largus KS045L')
+        self.assertEqual(req.vin, 'XTAKS045LP0001234')
+        self.assertEqual(req.condition, 'used')
+        self.assertEqual(req.get_condition_display(), 'Б/у')
+        self.assertEqual(req.acquisition_cost_value, Decimal('1490000.00'))
+        self.assertEqual(req.acquisition_cost_currency, 'RUB')
+        self.assertEqual(req.get_acquisition_cost_currency_display(), 'Рубли')
+
+    def test_condition_rejects_unknown_value(self):
+        # choices ограничены 'new'/'used'; full_clean ловит остальное.
+        req = InsuranceRequest(
+            client_name='Тест ООО',
+            inn='1234567890',
+            insurance_type='КАСКО',
+            condition='unknown',
+        )
+        with self.assertRaises(ValidationError):
+            req.full_clean()
+
+    def test_currency_rejects_non_iso_value(self):
+        req = InsuranceRequest(
+            client_name='Тест ООО',
+            inn='1234567890',
+            insurance_type='КАСКО',
+            acquisition_cost_currency='руб',
+        )
+        with self.assertRaises(ValidationError):
+            req.full_clean()
 
 
 @override_settings(

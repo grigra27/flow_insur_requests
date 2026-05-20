@@ -38,6 +38,17 @@ class InsuranceRequest(models.Model):
         ('new', 'Новая сделка'),
         ('prolongation', 'Пролонгация'),
     ]
+
+    OBJECT_CONDITION_CHOICES = [
+        ('new', 'Новое'),
+        ('used', 'Б/у'),
+    ]
+
+    ACQUISITION_COST_CURRENCY_CHOICES = [
+        ('RUB', 'Рубли'),
+        ('USD', 'Доллары США'),
+        ('EUR', 'Евро'),
+    ]
     
     # Основные поля
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Дата создания')
@@ -166,6 +177,55 @@ class InsuranceRequest(models.Model):
         null=True,
         blank=True,
         verbose_name='Всего объектов в партии'
+    )
+
+    # Поля объекта страхования (для V2; V1 их не заполняет — данные слипшейся
+    # строкой остаются в vehicle_info / manufacturing_year / asset_status).
+    brand = models.CharField(
+        max_length=128, blank=True, null=True, verbose_name='Марка'
+    )
+    model = models.CharField(
+        max_length=255, blank=True, null=True, verbose_name='Модель'
+    )
+    vin = models.CharField(
+        max_length=32, blank=True, null=True, verbose_name='VIN'
+    )
+    serial_number = models.CharField(
+        max_length=64, blank=True, null=True, verbose_name='Заводской номер'
+    )
+    condition = models.CharField(
+        max_length=10,
+        choices=OBJECT_CONDITION_CHOICES,
+        blank=True,
+        null=True,
+        verbose_name='Состояние объекта',
+    )
+    equipment_type = models.CharField(
+        max_length=128, blank=True, null=True, verbose_name='Тип/категория техники'
+    )
+    power_or_capacity = models.CharField(
+        max_length=64, blank=True, null=True, verbose_name='Мощность/производительность'
+    )
+    quantity = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        blank=True,
+        null=True,
+        verbose_name='Количество',
+    )
+    acquisition_cost_value = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        blank=True,
+        null=True,
+        verbose_name='Стоимость на момент приобретения',
+    )
+    acquisition_cost_currency = models.CharField(
+        max_length=3,
+        choices=ACQUISITION_COST_CURRENCY_CHOICES,
+        blank=True,
+        null=True,
+        verbose_name='Валюта стоимости',
     )
 
     class Meta:
