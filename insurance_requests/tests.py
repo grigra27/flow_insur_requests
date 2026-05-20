@@ -168,12 +168,9 @@ class ObjectFieldsTest(TestCase):
         )
         self.assertIsNone(req.brand)
         self.assertIsNone(req.model)
-        self.assertIsNone(req.vin)
-        self.assertIsNone(req.serial_number)
         self.assertIsNone(req.condition)
         self.assertIsNone(req.equipment_type)
         self.assertIsNone(req.power_or_capacity)
-        self.assertIsNone(req.quantity)
         self.assertIsNone(req.acquisition_cost_value)
         self.assertIsNone(req.acquisition_cost_currency)
 
@@ -184,19 +181,15 @@ class ObjectFieldsTest(TestCase):
             insurance_type='КАСКО',
             brand='LADA',
             model='Largus KS045L',
-            vin='XTAKS045LP0001234',
-            serial_number='SN-12345',
             condition='used',
             equipment_type='Легковой автомобиль',
             power_or_capacity='78.05',
-            quantity=Decimal('1.00'),
             acquisition_cost_value=Decimal('1490000.00'),
             acquisition_cost_currency='RUB',
         )
         req.refresh_from_db()
         self.assertEqual(req.brand, 'LADA')
         self.assertEqual(req.model, 'Largus KS045L')
-        self.assertEqual(req.vin, 'XTAKS045LP0001234')
         self.assertEqual(req.condition, 'used')
         self.assertEqual(req.get_condition_display(), 'Б/у')
         self.assertEqual(req.acquisition_cost_value, Decimal('1490000.00'))

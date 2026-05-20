@@ -66,12 +66,9 @@ V2_FIELDS = V1_FIELDS + ["insured_objects_count"]
 V2_OBJECT_FIELDS = [
     "brand",
     "model",
-    "vin",
-    "serial_number",
     "condition",
     "equipment_type",
     "power_or_capacity",
-    "quantity",
     "acquisition_cost_value",
     "acquisition_cost_currency",
 ]

@@ -56,14 +56,13 @@ splitting на Этапе 4 бессмысленен — N сёстер буду
 |-------------------------------|---------------------------------------------------------------------|------------------------------------------|
 | `brand`                       | `CharField(max_length=128)`                                         | `insured_object.brand`                   |
 | `model`                       | `CharField(max_length=255)`                                         | `insured_object.model`                   |
-| `vin`                         | `CharField(max_length=32)`                                          | `insured_object.vin`                     |
-| `serial_number`               | `CharField(max_length=64)`                                          | `insured_object.serial_number`           |
 | `condition`                   | `CharField(max_length=10, choices=['new','used'])` (nullable)       | `insured_object.condition`               |
 | `equipment_type`              | `CharField(max_length=128)`                                         | `insured_object.equipment_type`          |
 | `power_or_capacity`           | `CharField(max_length=64)`                                          | `insured_object.power_or_capacity`       |
-| `quantity`                    | `DecimalField(max_digits=10, decimal_places=2)`                     | `insured_object.quantity`                |
 | `acquisition_cost_value`      | `DecimalField(max_digits=14, decimal_places=2)`                     | `insured_object.acquisition_cost.value`  |
 | `acquisition_cost_currency`   | `CharField(max_length=3, choices=['RUB','USD','EUR'])`              | `insured_object.acquisition_cost.currency` |
+
+Поля `vin`, `serial_number`, `quantity` из исходного плана **удалены** — они системно отсутствуют в источнике (см. [json_schema_v2.md](json_schema_v2.md)). Изначально были добавлены миграцией `0033`, удалены миграцией `0034_remove_vin_serial_quantity`.
 
 **Что разблокирует.** Этап 4 (splitting). Парсинг строки объекта на
 Этапе 3.
@@ -293,6 +292,18 @@ N записей `InsuranceRequest` — по одной на объект.
    Это уже Этап 5+, но дизайн UX надо держать в голове.
 
 ---
+
+## Между Этапом 4 и Этапом 5 — JSON Schema v2
+
+Сразу после splitting'а и **перед** генерацией собственного PDF — переход
+на [JSON Schema v2](json_schema_v2.md). Что делаем:
+
+- Создать `docs/insurance_request_format_package/insurance_request_schema_v2.json`:
+  `insured_object` (singular, не массив), `customer.ogrn` / `customer.kpp`,
+  `request.batch.*`, bump `schema_version` → `alliance.insurance_request.v2`.
+- Удалить v1-схему и пересоздать примеры.
+- Зафиксировать v2 как внутренний контракт между парсером, БД и
+  будущим PDF/JSON-генератором.
 
 ## После Этапа 4
 

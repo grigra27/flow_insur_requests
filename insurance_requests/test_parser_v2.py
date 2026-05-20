@@ -15,9 +15,6 @@ from .models import InsuranceRequest, RequestAttachment
 from .parsers.excel_v2 import ExcelRequestParserV2
 from .parsers.excel_v2.parser import (
     classify_equipment_or_power,
-    extract_quantity,
-    extract_serial_number,
-    extract_vin,
     normalize_condition,
     normalize_currency,
     parse_cost_value,
@@ -54,13 +51,6 @@ class ObjectRowHelpersTests(TestCase):
         self.assertIsNone(normalize_condition('неизвестно'))
         self.assertIsNone(normalize_condition(None))
 
-    def test_extract_vin_only_matches_valid_iso_3779(self):
-        self.assertEqual(extract_vin('XTAKS045LP0001234'), 'XTAKS045LP0001234')
-        # I/O/Q are not allowed in a VIN.
-        self.assertIsNone(extract_vin('XTAIO0Q9876543210'))
-        self.assertIsNone(extract_vin('TOO SHORT VIN'))
-        self.assertIsNone(extract_vin(None))
-
     def test_parse_cost_value_strips_separators(self):
         self.assertEqual(parse_cost_value('1490000'), Decimal('1490000'))
         self.assertEqual(parse_cost_value('1 490 000'), Decimal('1490000'))
@@ -96,18 +86,6 @@ class ObjectRowHelpersTests(TestCase):
         self.assertEqual(split_brand_model('Mining', None), (None, 'Mining'))
         self.assertEqual(split_brand_model('', None), (None, None))
         self.assertEqual(split_brand_model(None, None), (None, None))
-
-    def test_extract_quantity_only_with_marker(self):
-        self.assertEqual(extract_quantity('15 шт.'), Decimal('15'))
-        self.assertEqual(extract_quantity('Автобус ГАЗ 15шт'), Decimal('15'))
-        # Without «шт» marker we do not guess.
-        self.assertIsNone(extract_quantity('Toyota Camry 2024'))
-        self.assertIsNone(extract_quantity(None))
-
-    def test_extract_serial_number_pattern(self):
-        self.assertEqual(extract_serial_number('Заводской номер ABC1234'), 'ABC1234')
-        self.assertEqual(extract_serial_number('Серийный № XYZ-9876'), 'XYZ-9876')
-        self.assertIsNone(extract_serial_number('просто текст без маркера'))
 
 
 class ObjectRowPayloadIntegrationTests(TestCase):
@@ -158,8 +136,6 @@ class ObjectRowPayloadIntegrationTests(TestCase):
         self.assertEqual(obj['power_or_capacity'], '78.05')
         self.assertEqual(obj['acquisition_cost_value'], '1490000')
         self.assertEqual(obj['acquisition_cost_currency'], 'RUB')
-        # VIN не задан в synthetic-файле — должно быть None, без ложного срабатывания.
-        self.assertIsNone(obj['vin'])
 
     def test_object_payload_normalises_alternative_currency_synonyms(self):
         wb = self._build_minimal_workbook_with_object_row()

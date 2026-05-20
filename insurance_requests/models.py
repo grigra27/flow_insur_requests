@@ -187,12 +187,6 @@ class InsuranceRequest(models.Model):
     model = models.CharField(
         max_length=255, blank=True, null=True, verbose_name='Модель'
     )
-    vin = models.CharField(
-        max_length=32, blank=True, null=True, verbose_name='VIN'
-    )
-    serial_number = models.CharField(
-        max_length=64, blank=True, null=True, verbose_name='Заводской номер'
-    )
     condition = models.CharField(
         max_length=10,
         choices=OBJECT_CONDITION_CHOICES,
@@ -205,13 +199,6 @@ class InsuranceRequest(models.Model):
     )
     power_or_capacity = models.CharField(
         max_length=64, blank=True, null=True, verbose_name='Мощность/производительность'
-    )
-    quantity = models.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        blank=True,
-        null=True,
-        verbose_name='Количество',
     )
     acquisition_cost_value = models.DecimalField(
         max_digits=14,

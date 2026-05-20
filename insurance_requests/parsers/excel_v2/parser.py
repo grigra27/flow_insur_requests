@@ -112,23 +112,6 @@ def normalize_text(value: Any) -> str:
 # acquisition_cost_*, …). They live at module level so they can be unit-tested
 # in isolation and reused by tests via direct import.
 
-# VIN: 17 chars, A–H J–N P–R, no I/O/Q (ISO 3779). Match must be word-bounded.
-_VIN_RE = re.compile(r"\b[A-HJ-NPR-Z0-9]{17}\b")
-_QUANTITY_RE = re.compile(r"(\d+)\s*шт\.?", re.IGNORECASE)
-# Serial / factory number markers commonly found in spec-equipment requests.
-# Two patterns to keep the trailing identifier from accidentally grabbing the
-# next plain word: either «… номер ABC1234» (explicit «номер» token), or
-# «… № ABC1234» (any of №/#/: as separator).
-_SERIAL_PATTERNS = [
-    re.compile(
-        r"(?:заводско[йяе]|серийн\w*)\s+(?:номер|no)\s+([A-ZА-Я0-9\-]{4,})",
-        re.IGNORECASE,
-    ),
-    re.compile(
-        r"(?:заводско[йяе]|серийн\w*|s\s*/\s*n|sn)\s*[№#:]+\s*([A-ZА-Я0-9\-]{4,})",
-        re.IGNORECASE,
-    ),
-]
 _NUMERIC_RE = re.compile(r"^-?\d+(?:[.,]\d+)?$")
 
 # Currency synonyms → ISO code. Keep keys in normalized lowercase form.
@@ -185,41 +168,6 @@ def normalize_condition(value: Any) -> Optional[str]:
     return _CONDITION_MAP.get(text)
 
 
-def extract_vin(text: Any) -> Optional[str]:
-    """Find a 17-char ISO 3779 VIN inside an arbitrary text string."""
-    if text is None:
-        return None
-    cleaned = clean_value(text).upper()
-    match = _VIN_RE.search(cleaned)
-    return match.group(0) if match else None
-
-
-def extract_serial_number(text: Any) -> Optional[str]:
-    """Look for an explicit «заводской/серийный номер» marker followed by an id."""
-    if text is None:
-        return None
-    cleaned = clean_value(text)
-    for pattern in _SERIAL_PATTERNS:
-        match = pattern.search(cleaned)
-        if match:
-            return match.group(1).strip()
-    return None
-
-
-def extract_quantity(text: Any) -> Optional[Decimal]:
-    """Find «N шт» in the row text; otherwise return None (we don't default to 1)."""
-    if text is None:
-        return None
-    cleaned = clean_value(text)
-    match = _QUANTITY_RE.search(cleaned)
-    if not match:
-        return None
-    try:
-        return Decimal(match.group(1))
-    except (InvalidOperation, ValueError):
-        return None
-
-
 def parse_cost_value(value: Any) -> Optional[Decimal]:
     """Convert a price-like cell ('1 490 000', '1490000,00', '147.51') to Decimal."""
     if value is None:
@@ -261,14 +209,13 @@ def classify_equipment_or_power(value: Any) -> Tuple[Optional[str], Optional[str
 def split_brand_model(
     text: Any,
     year: Optional[str] = None,
-    vin: Optional[str] = None,
 ) -> Tuple[Optional[str], Optional[str]]:
     """
     Split a free-form object description into (brand, model).
 
     Strategy:
-      - drop the year, the VIN and any obvious price tokens (numbers with 5+ digits);
-      - drop currency / condition markers;
+      - drop the year and any obvious price tokens (numbers with 4+ digits);
+      - drop currency / condition markers and fractional numbers (engine power);
       - the first remaining token is the brand, the rest is the model;
       - if only one token survives, brand=None, model=that token (we won't guess).
     """
@@ -279,8 +226,6 @@ def split_brand_model(
         return None, None
     if year:
         cleaned = re.sub(rf"\b{re.escape(year)}\b", " ", cleaned)
-    if vin:
-        cleaned = re.sub(re.escape(vin), " ", cleaned, flags=re.IGNORECASE)
     # Drop tokens that are obviously not part of the brand/model:
     #   - currency / condition markers,
     #   - prices (4+ digit integers like 1490000),
@@ -709,12 +654,9 @@ class ExcelRequestParserV2:
                         "source": source,
                         "brand": None,
                         "model": None,
-                        "vin": extract_vin(value),
-                        "serial_number": extract_serial_number(value),
                         "condition": None,
                         "equipment_type": None,
                         "power_or_capacity": None,
-                        "quantity": None,
                         "acquisition_cost_value": None,
                         "acquisition_cost_currency": None,
                     }
@@ -743,9 +685,7 @@ class ExcelRequestParserV2:
         description_text = " ".join(c.value for c in description_cells) if description_cells else row_text
 
         year = self._year_from_text(row_text)
-        vin = extract_vin(row_text)
-        serial_number = extract_serial_number(row_text) if not vin else None
-        brand, model = split_brand_model(description_text, year, vin)
+        brand, model = split_brand_model(description_text, year)
 
         condition: Optional[str] = None
         currency: Optional[str] = None
@@ -793,20 +733,15 @@ class ExcelRequestParserV2:
                 equipment_type = kind
                 continue
 
-        quantity = extract_quantity(row_text)
-
         return {
             "description": row_text,
             "year": year,
             "source": self._row_source(row_cells),
             "brand": brand,
             "model": model,
-            "vin": vin,
-            "serial_number": serial_number,
             "condition": condition,
             "equipment_type": equipment_type,
             "power_or_capacity": power_or_capacity,
-            "quantity": str(quantity) if quantity is not None else None,
             "acquisition_cost_value": str(cost_value) if cost_value is not None else None,
             "acquisition_cost_currency": currency,
         }

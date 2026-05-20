@@ -151,22 +151,21 @@
 
 1. ~~Починить регрессы v2: `asset_status`, `telematics_complex`.~~ **Сделано.** Добавлен fallback по координатам K43/K45/K47/K49 для статуса, табличная логика «лейбл → значение в той же строке справа или строкой ниже» для телематики. Изменения локализованы в `_extract_asset_status` / `_extract_telematics_complex` в `insurance_requests/parsers/excel_v2/parser.py`.
 2. Решить судьбу `has_construction_work`: либо вынести признак из модели, либо найти в корпусе СМР-заявки и понять, как они выглядят.
-3. ~~**Разбор строки объекта** на отдельные поля.~~ **Сделано в этапе 3.1.** V2 теперь раскладывает строку объекта на структурированные поля: `brand`, `model`, `vin`, `serial_number`, `condition`, `equipment_type`, `power_or_capacity`, `quantity`, `acquisition_cost_value`, `acquisition_cost_currency`. Они живут в payload (`parser_v2_payload.insured_objects[]`), в БД пока не пишутся — это произойдёт на этапе 4 (splitting). Per-object fill rate на корпусе 178 файлов / 331 объект:
+3. ~~**Разбор строки объекта** на отдельные поля.~~ **Сделано в этапе 3.1.** V2 теперь раскладывает строку объекта на структурированные поля: `brand`, `model`, `condition`, `equipment_type`, `power_or_capacity`, `acquisition_cost_value`, `acquisition_cost_currency`. Они живут в payload (`parser_v2_payload.insured_objects[]`), в БД пока не пишутся — это произойдёт на этапе 4 (splitting). Per-object fill rate на корпусе 178 файлов / 331 объект:
 
-   | Поле                          | Per-object  | First-of-file |
-   |-------------------------------|-------------|---------------|
-   | `brand`                       | 98.5%       | 98.9%         |
-   | `model`                       | 100%        | 100%          |
-   | `vin`                         | 8.8%        | 6.7%          |
-   | `serial_number`               | 0%          | 0%            |
-   | `condition`                   | 75.5%       | 93.8%         |
-   | `equipment_type`              | 14.2%       | 19.7%         |
-   | `power_or_capacity`           | 33.8%       | 44.4%         |
-   | `quantity`                    | 0.6%        | 1.1%          |
-   | **`acquisition_cost_value`**  | **76.7%**   | **96.1%**     |
-   | **`acquisition_cost_currency`** | **72.2%** | **90.4%**     |
+   | Поле                            | Per-object  | First-of-file |
+   |---------------------------------|-------------|---------------|
+   | `brand`                         | 98.5%       | 98.9%         |
+   | `model`                         | 100%        | 100%          |
+   | `condition`                     | 75.5%       | 93.8%         |
+   | `equipment_type`                | 14.2%       | 19.7%         |
+   | `power_or_capacity`             | 33.8%       | 44.4%         |
+   | **`acquisition_cost_value`**    | **76.7%**   | **96.1%**     |
+   | **`acquisition_cost_currency`** | **72.2%**   | **90.4%**     |
 
    Главное достижение: **стоимость объекта** теперь извлекается в 96.1% случаев (research-таргет был ~98%). Это поле раньше не извлекалось вообще ни одним парсером.
+
+   На предыдущей итерации парсер пытался также извлекать `vin` / `serial_number` / `quantity`, но эти поля системно отсутствуют в лизинговой таблице объектов. Удалены — и из модели, и из парсера, и из планируемой [schema v2](json_schema_v2.md).
 4. **Реквизиты страхователя**: `customer.legal_address`, `customer.postal_address`, `customer.business_activity`. Research показывает, что в Excel они есть (legal — 133/151, postal — 86/151, activity — 115/151), но V2 их не извлекает. Плюс ОГРН/КПП (нет даже в JSON Schema v1 — добавить в схему).
 5. **Даты договора лизинга**: `lease.contract_start_date` / `contract_end_date` (research — 131–134/151), `lease.insured_party` (лизингодатель / лизингополучатель / оба).
 6. **Расширение франшизы**: V2 уже находит выделенную колонку (`without_franchise` / `percent_franchise` / `absolute_franchise`), но конкретные значения процентов и абсолютных сумм не парсит. Достать их рядом с выбранной колонкой — заполнит `franchise.options[]` из схемы v1.
