@@ -90,8 +90,8 @@
   },
   "v2_filled": {
     "client_name": {
-      "count": 165,
-      "pct": "92.7%"
+      "count": 164,
+      "pct": "92.1%"
     },
     "inn": {
       "count": 164,
@@ -149,9 +149,45 @@
       "count": 178,
       "pct": "100.0%"
     },
+    "legal_address": {
+      "count": 164,
+      "pct": "92.1%"
+    },
+    "business_activity": {
+      "count": 159,
+      "pct": "89.3%"
+    },
+    "submission_date": {
+      "count": 175,
+      "pct": "98.3%"
+    },
+    "insured_party": {
+      "count": 175,
+      "pct": "98.3%"
+    },
+    "insured_sum_type": {
+      "count": 175,
+      "pct": "98.3%"
+    },
+    "property_location_right_holder": {
+      "count": 12,
+      "pct": "6.7%"
+    },
+    "premium_frequency": {
+      "count": 174,
+      "pct": "97.8%"
+    },
     "dfa_number": {
       "count": 156,
       "pct": "87.6%"
+    },
+    "birth_date": {
+      "count": 20,
+      "pct": "11.2%"
+    },
+    "postal_address": {
+      "count": 99,
+      "pct": "55.6%"
     },
     "has_casco_ce": {
       "count": 163,
@@ -168,6 +204,10 @@
     "pts_psm": {
       "count": 149,
       "pct": "83.7%"
+    },
+    "guard_conditions": {
+      "count": 163,
+      "pct": "91.6%"
     },
     "has_autostart": {
       "count": 79,

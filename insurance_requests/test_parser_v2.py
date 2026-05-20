@@ -1,3 +1,4 @@
+from datetime import date
 from decimal import Decimal
 from io import BytesIO
 import os
@@ -17,7 +18,12 @@ from .parsers.excel_v2.parser import (
     classify_equipment_or_power,
     normalize_condition,
     normalize_currency,
+    normalize_insured_party,
+    normalize_insured_sum_type,
+    normalize_premium_frequency_label,
+    normalize_property_location_right_holder,
     parse_cost_value,
+    parse_date_value,
     split_brand_model,
 )
 
@@ -88,6 +94,55 @@ class ObjectRowHelpersTests(TestCase):
         self.assertEqual(split_brand_model(None, None), (None, None))
 
 
+class CustomerDealHelpersTests(TestCase):
+    """Stages 3.2 / 3.3: low-level extractors for customer and deal fields."""
+
+    def test_parse_date_handles_common_formats(self):
+        self.assertEqual(parse_date_value('17.04.2026'), date(2026, 4, 17))
+        self.assertEqual(parse_date_value('12.06.80'), date(1980, 6, 12))
+        self.assertEqual(parse_date_value('1982-12-12'), date(1982, 12, 12))
+        self.assertEqual(parse_date_value('1982-12-12 00:00:00'), date(1982, 12, 12))
+        self.assertEqual(parse_date_value(date(2024, 1, 1)), date(2024, 1, 1))
+        self.assertIsNone(parse_date_value(''))
+        self.assertIsNone(parse_date_value(None))
+        self.assertIsNone(parse_date_value('not a date'))
+
+    def test_normalize_insured_party(self):
+        self.assertEqual(normalize_insured_party('ЛизингоДАТЕЛЬ'), 'lessor')
+        self.assertEqual(normalize_insured_party('ЛИЗИНГОПОЛУЧАТЕЛЬ'), 'lessee')
+        self.assertEqual(normalize_insured_party('Лизингополучатель'), 'lessee')
+        self.assertEqual(normalize_insured_party('Оба'), 'both')
+        self.assertIsNone(normalize_insured_party('что-то другое'))
+        self.assertIsNone(normalize_insured_party(None))
+
+    def test_normalize_insured_sum_type_handles_substring_collision(self):
+        # «неагрегатная» содержит «агрегатная» как подстроку — нельзя путать.
+        self.assertEqual(normalize_insured_sum_type('Неагрегатная'), 'non_aggregate')
+        self.assertEqual(normalize_insured_sum_type('агрегатная'), 'aggregate')
+        self.assertIsNone(normalize_insured_sum_type('что-то'))
+
+    def test_normalize_property_location_right_holder(self):
+        self.assertEqual(
+            normalize_property_location_right_holder('собственность лизингополучателя'),
+            'lessee_owner',
+        )
+        self.assertEqual(
+            normalize_property_location_right_holder('Стороннее лицо'),
+            'third_party_owner',
+        )
+        self.assertIsNone(normalize_property_location_right_holder('—'))
+
+    def test_normalize_premium_frequency_label(self):
+        self.assertEqual(normalize_premium_frequency_label('Единовременно'), 'single')
+        self.assertEqual(normalize_premium_frequency_label('ежеквартально'), 'quarterly')
+        self.assertEqual(normalize_premium_frequency_label('Поквартально'), 'quarterly')
+        self.assertEqual(normalize_premium_frequency_label('ежегодно'), 'annual')
+        # «2 раза в год» и «прочее» — вне нашего enum.
+        self.assertIsNone(normalize_premium_frequency_label('2 раза в год'))
+        self.assertIsNone(normalize_premium_frequency_label('прочее (укажите)'))
+        self.assertIsNone(normalize_premium_frequency_label(None))
+
+
 class ObjectRowPayloadIntegrationTests(TestCase):
     """Stage 3.1: insured_objects[] entries must carry structured fields."""
 
@@ -145,6 +200,93 @@ class ObjectRowPayloadIntegrationTests(TestCase):
         obj = result.data['parser_v2_payload']['insured_objects'][0]
         self.assertEqual(obj['acquisition_cost_currency'], 'USD')
         self.assertEqual(obj['acquisition_cost_value'], '25000')
+
+
+class CustomerDealPayloadIntegrationTests(TestCase):
+    """Stages 3.2 / 3.3: customer + deal fields must surface in parse() result."""
+
+    def _build_workbook(self):
+        wb = Workbook()
+        sheet = wb.active
+        # Header / customer block. Submission date sits in M2 with a «дата
+        # подачи» label one cell to the left, just like the real corpus.
+        sheet['L2'] = 'дата подачи'
+        sheet['M2'] = '17.04.2026'
+        sheet['C5'] = 'Иванов Иван'
+        sheet['D7'] = 'ООО Ромашка'
+        sheet['B8'] = 'Юридический адрес:'
+        sheet['D8'] = '194354, Санкт-Петербург г, Северный пр-кт, дом № 11'
+        sheet['D9'] = '7707083893'
+        sheet['B10'] = 'Почтовый адрес:'
+        sheet['D10'] = '194354, Санкт-Петербург г, Северный пр-кт, дом № 11'
+        sheet['B11'] = 'Основной вид деятельности:'
+        sheet['D11'] = 'Строительство автомобильных дорог'
+        # Deal / insurance block.
+        sheet['B14'] = 'Страхователь'
+        sheet['D14'] = 'ЛизингоДАТЕЛЬ'
+        sheet['D21'] = 'КАСКО'
+        sheet['N17'] = '1 год'
+        sheet['D24'] = 'страховая сумма'
+        sheet['E24'] = 'Неагрегатная'
+        sheet['D26'] = 'условия по охране (день/ночь)'
+        sheet['E26'] = 'без ограничений'
+        # Premium frequency block: «Х» next to «ежеквартально».
+        sheet['B31'] = 'Порядок уплаты страховой премии'
+        sheet['D31'] = 'Единовременно'
+        sheet['E31'] = 'В рассрочку'
+        sheet['E32'] = 'ежеквартально'
+        sheet['F32'] = 'Х'
+        sheet['E33'] = '2 раза в год'
+        sheet['E34'] = 'ежегодно'
+        return wb
+
+    def _parse_workbook(self, workbook):
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx')
+        try:
+            temp_file.close()
+            workbook.save(temp_file.name)
+            return ExcelRequestParserV2().parse(temp_file.name, original_filename='customer-deal.xlsx')
+        finally:
+            os.unlink(temp_file.name)
+
+    def test_customer_fields_surface_in_parse_result(self):
+        result = self._parse_workbook(self._build_workbook())
+        self.assertEqual(result.data.get('legal_address'),
+                         '194354, Санкт-Петербург г, Северный пр-кт, дом № 11')
+        self.assertEqual(result.data.get('postal_address'),
+                         '194354, Санкт-Петербург г, Северный пр-кт, дом № 11')
+        self.assertEqual(result.data.get('business_activity'),
+                         'Строительство автомобильных дорог')
+        self.assertEqual(result.data.get('submission_date'), '2026-04-17')
+
+    def test_deal_fields_surface_in_parse_result(self):
+        result = self._parse_workbook(self._build_workbook())
+        self.assertEqual(result.data.get('insured_party'), 'lessor')
+        self.assertEqual(result.data.get('insured_sum_type'), 'non_aggregate')
+        self.assertEqual(result.data.get('guard_conditions'), 'без ограничений')
+        self.assertEqual(result.data.get('premium_frequency'), 'quarterly')
+
+    def test_empty_template_does_not_pick_neighbour_labels(self):
+        # Build a "template only" workbook — labels present, values empty.
+        wb = Workbook()
+        sheet = wb.active
+        sheet['L2'] = 'дата подачи'
+        sheet['M2'] = '17.04.2026'
+        sheet['B8'] = 'Юридический адрес:'
+        sheet['B10'] = 'Почтовый адрес:'
+        sheet['B11'] = 'Основной вид деятельности:'
+        sheet['B12'] = 'ПАРАМЕТРЫ СТРАХОВОЙ СДЕЛКИ'
+        sheet['D21'] = 'КАСКО'
+        sheet['N17'] = '1 год'
+        sheet['D7'] = 'ООО Ромашка'
+        sheet['D9'] = '7707083893'
+        result = self._parse_workbook(wb)
+        # No value -> field stays absent (or None), never the next label.
+        for field in ('legal_address', 'postal_address', 'business_activity'):
+            value = result.data.get(field)
+            self.assertNotIn('Почтовый адрес', value or '')
+            self.assertNotIn('Основной вид деятельности', value or '')
+            self.assertNotIn('ПАРАМЕТРЫ', value or '')
 
 
 class ParserV2UploadTests(TestCase):

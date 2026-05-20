@@ -208,13 +208,33 @@
    Главное достижение: **стоимость объекта** теперь извлекается в 96.1% случаев (research-таргет был ~98%). Это поле раньше не извлекалось вообще ни одним парсером.
 
    На предыдущей итерации парсер пытался также извлекать `vin` / `serial_number` / `quantity`, но эти поля системно отсутствуют в лизинговой таблице объектов. Удалены — и из модели, и из парсера, и из планируемой [schema v2](json_schema_v2.md).
-4. **Реквизиты страхователя**: `customer.legal_address`, `customer.postal_address`, `customer.business_activity`. Research показывает, что в Excel они есть (legal — 133/151, postal — 86/151, activity — 115/151), но V2 их не извлекает. Плюс ОГРН/КПП (нет даже в JSON Schema v1 — добавить в схему).
-5. **Даты договора лизинга**: `lease.contract_start_date` / `contract_end_date` (research — 131–134/151), `lease.insured_party` (лизингодатель / лизингополучатель / оба).
-6. **Расширение франшизы**: V2 уже находит выделенную колонку (`without_franchise` / `percent_franchise` / `absolute_franchise`), но конкретные значения процентов и абсолютных сумм не парсит. Достать их рядом с выбранной колонкой — заполнит `franchise.options[]` из схемы v1.
-7. **Частота рассрочки** (`premium_payment.frequency`): сейчас V2 ловит только сам факт `has_installment` по словам «рассроч/ежекварт/ежемесяч». Добавить классификацию (`quarterly` / `semiannual` / `annual` / `custom`).
-8. **Структура противоугонных систем** (`underwriting.anti_theft_systems`): сейчас V2 использует маркеры (`сигнализация`, `иммобилайзер`, `механические противоугонные устройства`, `спутниковая противоугонная система`) только чтобы **пропускать** эти строки в таблице объектов. Надо вместо этого извлекать из них значения: `alarm`/`immobilizer`/`mechanical_devices[]`/`satellite_system` с брендом/моделью.
-9. **Условия покрытия для имущества и нестандартные параметры**: `coverage_terms.insured_sum_type` (агрегатная / неагрегатная), `coverage_terms.indemnity_basis` (с износом / без), `coverage_terms.guard_conditions`, `coverage_terms.property_location_right_holder`.
-10. **Детали перевозки/СМР**: `additional_coverages.transportation.origin` / `destination` / `estimated_days`, `additional_coverages.construction_work.description`. Сейчас только boolean-флаги.
+4. ~~**Реквизиты страхователя.**~~ **Сделано в этапе 3.2.** V2 теперь label-based извлекает customer/submission поля. Fill rate на 178 файлах:
+
+   | Поле                | Fill rate | Заметка                              |
+   |---------------------|-----------|--------------------------------------|
+   | `legal_address`     | 92.1%     | research target ~88%, превышен        |
+   | `postal_address`    | 55.6%     | research target ~57%                  |
+   | `business_activity` | 89.3%     | research target ~76%, превышен        |
+   | `birth_date`        | 11.2%     | только ИП-файлы (ожидаемо)            |
+   | `submission_date`   | 98.3%     | research target ~98%                  |
+
+   Все поля живут в `parse_result.data.{field_name}`. В БД пока не пишутся (Этап 4).
+5. ~~**Даты договора лизинга и параметры сделки/страхования.**~~ **Сделано в этапе 3.3.** Помимо `insured_party` (98.3%), V2 извлекает:
+
+   | Поле                              | Fill rate | Заметка                              |
+   |-----------------------------------|-----------|--------------------------------------|
+   | `insured_party`                   | 98.3%     | lessor/lessee/both                    |
+   | `insured_sum_type`                | 98.3%     | aggregate/non_aggregate              |
+   | `guard_conditions`                | 91.6%     | свободный текст                       |
+   | `property_location_right_holder`  | 6.7%      | только property insurance             |
+   | `premium_frequency`               | 97.8%     | single/quarterly/annual              |
+
+   Даты лизинга / периода страхования и `indemnity_basis` исключены из плана — в источнике их нет (см. этап 2.3).
+6. ~~**Расширение франшизы.**~~ **Отменено** в этапе 2.4 — в Excel заявки конкретных значений % / абс.сумм нет.
+7. ~~**Частота рассрочки.**~~ **Сделано в этапе 3.3** (`premium_frequency` 97.8%).
+8. ~~**Структура противоугонных систем.**~~ **Отменено** в этапе 2.4 — шаблонная таблица в Excel пустая.
+9. ~~**Условия покрытия.**~~ Частично сделано: `insured_sum_type`, `guard_conditions`, `property_location_right_holder` — в этапе 3.3 (см. п. 5). `indemnity_basis` отменён в этапе 2.3 (0/30 в источнике).
+10. ~~**Детали перевозки/СМР.**~~ **Отменены** в этапе 2.4 — origin/destination и описание СМР в источнике отсутствуют. Остаются только boolean-флаги `has_transportation` и `has_construction_work`.
 11. **Splitting-логика в V2-view'е**: при > 1 объект в парсе **создавать N заявок** (одна запись на объект) с общим `source_batch_id` и `item_no=1..N`. UI превью показывает список будущих заявок; оператор подтверждает или редактирует каждую. Это меняет существующий V2-флоу `/upload-v2/` — сейчас он создаёт ровно одну запись. Подробности — в [own_insurance_request_form.md](own_insurance_request_form.md#splitting-в-v2-1-файл--n-заявок).
 
 ### Совместимость V1 (прод) и V2 (разработка)

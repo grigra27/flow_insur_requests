@@ -60,7 +60,21 @@ V1_FIELDS = [
     "insurance_territory",
 ]
 
-V2_FIELDS = V1_FIELDS + ["insured_objects_count"]
+V2_FIELDS = V1_FIELDS + [
+    "insured_objects_count",
+    # Stage 3.2 — customer details
+    "legal_address",
+    "postal_address",
+    "business_activity",
+    "birth_date",
+    "submission_date",
+    # Stage 3.3 — deal / insurance parameters
+    "insured_party",
+    "insured_sum_type",
+    "guard_conditions",
+    "property_location_right_holder",
+    "premium_frequency",
+]
 
 # Per-object fields filled by stage 3.1 inside each insured_objects[] entry.
 V2_OBJECT_FIELDS = [

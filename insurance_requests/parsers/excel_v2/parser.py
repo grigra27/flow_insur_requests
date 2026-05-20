@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 import logging
 import os
@@ -251,6 +251,110 @@ def split_brand_model(
     return tokens[0], " ".join(tokens[1:])
 
 
+# --- Customer/deal field extractors (stages 3.2 / 3.3) ----------------------
+#
+# Helpers used to fill the columns added by stages 2.2 and 2.3. They do not
+# write to the database — they populate the parser_v2 result dict, which the
+# preview view exposes for the operator to confirm. The actual InsuranceRequest
+# fields will be filled during stage 4 (splitting).
+
+_DATE_FORMATS = (
+    "%d.%m.%Y",
+    "%d.%m.%y",
+    "%Y-%m-%d",
+    "%d-%m-%Y",
+    "%d/%m/%Y",
+    "%Y/%m/%d",
+)
+
+
+def parse_date_value(value: Any) -> Optional[date]:
+    """Convert a date-ish cell into a `date`. Returns None on unknown formats."""
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    text = clean_value(value)
+    if not text:
+        return None
+    # Excel sometimes hands us "1982-12-12 00:00:00" (timestamp string).
+    for fmt in _DATE_FORMATS:
+        try:
+            return datetime.strptime(text, fmt).date()
+        except ValueError:
+            continue
+    try:
+        return datetime.fromisoformat(text).date()
+    except (ValueError, TypeError):
+        return None
+
+
+def normalize_insured_party(value: Any) -> Optional[str]:
+    """Map a raw cell value to the lease.insured_party enum."""
+    if value is None:
+        return None
+    text = normalize_text(value)
+    if not text:
+        return None
+    if "лизингодател" in text:
+        return "lessor"
+    if "лизингополучател" in text:
+        return "lessee"
+    if "оба" in text or "обе" in text:
+        return "both"
+    return None
+
+
+def normalize_insured_sum_type(value: Any) -> Optional[str]:
+    """Map a raw cell value to the coverage_terms.insured_sum_type enum."""
+    if value is None:
+        return None
+    text = normalize_text(value)
+    if not text:
+        return None
+    # Order matters: «неагрегатная» contains «агрегатная» as a substring.
+    if "неагрегатн" in text:
+        return "non_aggregate"
+    if "агрегатн" in text:
+        return "aggregate"
+    return None
+
+
+def normalize_property_location_right_holder(value: Any) -> Optional[str]:
+    """Map a raw cell value to property_location_right_holder enum."""
+    if value is None:
+        return None
+    text = normalize_text(value)
+    if not text:
+        return None
+    if "лизингополучател" in text or "собственн" in text and "лизинг" in text:
+        return "lessee_owner"
+    if "сторонн" in text or "трет" in text or "арендодател" in text:
+        return "third_party_owner"
+    return None
+
+
+def normalize_premium_frequency_label(value: Any) -> Optional[str]:
+    """Map a raw label cell (one of «Единовременно» / «ежеквартально» / «ежегодно»)
+    to the premium_frequency enum. «2 раза в год» / «прочее» are out of our enum
+    and return None — they have not been observed selected in the corpus.
+    """
+    if value is None:
+        return None
+    text = normalize_text(value)
+    if not text:
+        return None
+    if "единовременн" in text:
+        return "single"
+    if "ежекварт" in text or "покварталь" in text:
+        return "quarterly"
+    if "ежегодн" in text:
+        return "annual"
+    return None
+
+
 class ExcelRequestParserV2:
     """Label-based Parser V2 that never blocks request creation."""
 
@@ -380,6 +484,80 @@ class ExcelRequestParserV2:
         if telematics_value:
             data["telematics_complex"] = telematics_value
             source_map["telematics_complex"] = telematics_source
+
+        # Stage 3.2 — customer details. The audit found these labels at fixed
+        # anchors (R8/R10/R11 for юр.лицо), but we still go through the
+        # label-based extractor so IP templates with a +1 row shift work too.
+        for field_name, label_groups in {
+            "legal_address": [("юридическ", "адрес"),
+                              ("юр", "адрес")],
+            "postal_address": [("почтов", "адрес"),
+                               ("фактическ", "адрес")],
+            "business_activity": [("вид", "деятельност"),
+                                  ("оквэд",)],
+        }.items():
+            value, source = self._extract_labeled_value(cells, rows, label_groups=label_groups)
+            if value:
+                data[field_name] = value
+                source_map[field_name] = source
+
+        # Date-typed customer fields (3.2).
+        birth_raw, birth_source = self._extract_labeled_value(
+            cells, rows, label_groups=[("дата", "рождени")]
+        )
+        birth_value = parse_date_value(birth_raw)
+        if birth_value:
+            data["birth_date"] = birth_value.isoformat()
+            source_map["birth_date"] = birth_source
+
+        submission_raw, submission_source = self._extract_labeled_value(
+            cells, rows, label_groups=[("дата", "подачи"),
+                                       ("дата", "заявки"),
+                                       ("дата", "составлен")]
+        )
+        submission_value = parse_date_value(submission_raw)
+        if submission_value:
+            data["submission_date"] = submission_value.isoformat()
+            source_map["submission_date"] = submission_source
+
+        # Stage 3.3 — deal / insurance parameters.
+        party_raw, party_source = self._extract_labeled_value(
+            cells, rows, label_groups=[("страхователь",)]
+        )
+        party_value = normalize_insured_party(party_raw)
+        if party_value:
+            data["insured_party"] = party_value
+            source_map["insured_party"] = party_source
+
+        sum_raw, sum_source = self._extract_labeled_value(
+            cells, rows, label_groups=[("страхов", "сумма")]
+        )
+        sum_value = normalize_insured_sum_type(sum_raw)
+        if sum_value:
+            data["insured_sum_type"] = sum_value
+            source_map["insured_sum_type"] = sum_source
+
+        guard_raw, guard_source = self._extract_labeled_value(
+            cells, rows, label_groups=[("условия", "охран"),
+                                       ("условия", "хранен")]
+        )
+        if guard_raw:
+            data["guard_conditions"] = guard_raw
+            source_map["guard_conditions"] = guard_source
+
+        plrh_raw, plrh_source = self._extract_labeled_value(
+            cells, rows, label_groups=[("правообладат",),
+                                       ("собственник", "места")]
+        )
+        plrh_value = normalize_property_location_right_holder(plrh_raw)
+        if plrh_value:
+            data["property_location_right_holder"] = plrh_value
+            source_map["property_location_right_holder"] = plrh_source
+
+        freq_value, freq_source = self._extract_premium_frequency(cells, rows)
+        if freq_value:
+            data["premium_frequency"] = freq_value
+            source_map["premium_frequency"] = freq_source
 
         parser_payload = {
             "insured_objects": insured_objects,
@@ -965,6 +1143,57 @@ class ExcelRequestParserV2:
                     return cell.value, cell.coordinate
         return "", ""
 
+    def _extract_premium_frequency(
+        self,
+        cells: List[GridCell],
+        rows: Dict[int, List[GridCell]],
+    ) -> Tuple[Optional[str], str]:
+        """Locate the «Порядок уплаты страховой премии» block and read the
+        marked frequency variant.
+
+        Layout (юр.лицо CASCO):
+          R31: C4='Единовременно' | C5='В рассрочку'
+          R32: C5='ежеквартально'
+          R33: C5='2 раза в год'
+          R34: C5='ежегодно'
+          R35: C5='прочее (укажите)'
+        A mark (e.g. «Х») sits in column 6 next to the selected row, or in
+        column 5 next to «Единовременно» / column 4 if the entire row is the
+        selection. IP templates shift these rows by +1.
+        """
+        anchor: Optional[GridCell] = None
+        for cell in cells:
+            if "порядок" in cell.normalized and "уплат" in cell.normalized:
+                anchor = cell
+                break
+        if anchor is None:
+            return None, ""
+
+        # The anchor lives in row N; option labels sit in rows N..N+4.
+        for row_offset in range(0, 5):
+            row_cells = rows.get(anchor.row + row_offset, [])
+            row_by_col = {c.col: c for c in row_cells}
+            # Find label cell in cols 4..5 and check whether any cell in cols
+            # 4..7 of the same row carries a non-template mark («Х», «X», «+»).
+            label_cell = row_by_col.get(5) or row_by_col.get(4)
+            if not label_cell:
+                continue
+            label_value = normalize_premium_frequency_label(label_cell.value)
+            if label_value is None:
+                continue
+            marked = False
+            for col in (4, 5, 6, 7):
+                cell = row_by_col.get(col)
+                if cell is None or cell is label_cell:
+                    continue
+                normalized = normalize_text(cell.value).strip()
+                if normalized in {"х", "x", "+", "v"}:
+                    marked = True
+                    break
+            if marked:
+                return label_value, label_cell.coordinate
+        return None, ""
+
     def _build_warnings(self, data: Dict[str, Any], insured_objects: List[Dict[str, str]]) -> List[Dict[str, str]]:
         warnings: List[Dict[str, str]] = []
         required_checks = [
@@ -1085,7 +1314,26 @@ class ExcelRequestParserV2:
             "предмет",
             "наименование",
         ]
-        return normalized in label_words
+        if normalized in label_words:
+            return True
+        # A raw cell that still ends with «:» almost always carries a label,
+        # not a value («Юридический адрес:», «Почтовый адрес:» и т.п.).
+        raw = clean_value(value)
+        if raw.endswith(":") and len(raw) <= 40:
+            return True
+        # Common form-section headers that should never be returned as values.
+        if normalized in {
+            "юридический адрес",
+            "почтовый адрес",
+            "фактический адрес",
+            "основной вид деятельности",
+            "вид деятельности",
+            "параметры страховой сделки",
+            "дата рождения",
+            "дата подачи",
+        }:
+            return True
+        return False
 
     def _looks_like_client_name(self, value: str) -> bool:
         normalized = normalize_text(value)
