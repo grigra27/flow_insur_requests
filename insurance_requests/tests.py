@@ -2,6 +2,7 @@
 Tests for insurance_requests app
 """
 import uuid
+from datetime import date
 from decimal import Decimal
 
 from django.core.cache import cache
@@ -216,6 +217,59 @@ class ObjectFieldsTest(TestCase):
         )
         with self.assertRaises(ValidationError):
             req.full_clean()
+
+
+class CustomerFieldsTest(TestCase):
+    """Stage 2.2: customer details (addresses, business activity, dates).
+    OGRN/KPP are intentionally absent — leasing Excel files don't carry them."""
+
+    def test_customer_fields_default_to_null(self):
+        req = InsuranceRequest.objects.create(
+            client_name='Тест ООО',
+            inn='1234567890',
+            insurance_type='КАСКО',
+        )
+        self.assertIsNone(req.legal_address)
+        self.assertIsNone(req.postal_address)
+        self.assertIsNone(req.business_activity)
+        self.assertIsNone(req.birth_date)
+        self.assertIsNone(req.submission_date)
+        # OGRN/KPP fields must not exist on the model.
+        self.assertFalse(hasattr(req, 'ogrn'))
+        self.assertFalse(hasattr(req, 'kpp'))
+
+    def test_customer_fields_store_full_payload(self):
+        req = InsuranceRequest.objects.create(
+            client_name='ИП Еремин Илья Сергеевич',
+            inn='121212121212',
+            insurance_type='КАСКО',
+            legal_address='194354, Санкт-Петербург г, Северный пр-кт, дом № 11',
+            postal_address='194354, Санкт-Петербург г, Северный пр-кт, дом № 11',
+            business_activity='42.11 Строительство автомобильных дорог',
+            birth_date=date(1980, 6, 12),
+            submission_date=date(2026, 4, 17),
+        )
+        req.refresh_from_db()
+        self.assertEqual(req.legal_address, '194354, Санкт-Петербург г, Северный пр-кт, дом № 11')
+        self.assertEqual(req.postal_address, '194354, Санкт-Петербург г, Северный пр-кт, дом № 11')
+        self.assertEqual(req.business_activity, '42.11 Строительство автомобильных дорог')
+        self.assertEqual(req.birth_date, date(1980, 6, 12))
+        self.assertEqual(req.submission_date, date(2026, 4, 17))
+
+    def test_long_address_is_not_truncated(self):
+        long_address = (
+            '385000, Адыгея (Адыгея) респ, Майкоп г, Железнодорожная ул, '
+            'дом № 332, корпус 1, литера А, помещение 5-Н, офис 12, '
+            'кадастровый № 01:08:0501041:101 ' * 3
+        )
+        req = InsuranceRequest.objects.create(
+            client_name='ООО Тест',
+            inn='1234567890',
+            insurance_type='КАСКО',
+            legal_address=long_address,
+        )
+        req.refresh_from_db()
+        self.assertEqual(req.legal_address, long_address)
 
 
 @override_settings(

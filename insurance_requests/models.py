@@ -215,6 +215,25 @@ class InsuranceRequest(models.Model):
         verbose_name='Валюта стоимости',
     )
 
+    # Реквизиты страхователя (для V2; V1 их не заполняет — данные приходят
+    # из шапки лизинговой заявки). ОГРН/КПП сюда НЕ добавляем — в Excel заявки
+    # они системно отсутствуют, см. docs/improvement_plans/json_schema_v2.md.
+    legal_address = models.TextField(
+        blank=True, null=True, verbose_name='Юридический адрес'
+    )
+    postal_address = models.TextField(
+        blank=True, null=True, verbose_name='Почтовый адрес'
+    )
+    business_activity = models.TextField(
+        blank=True, null=True, verbose_name='Основной вид деятельности'
+    )
+    birth_date = models.DateField(
+        blank=True, null=True, verbose_name='Дата рождения (для ИП)'
+    )
+    submission_date = models.DateField(
+        blank=True, null=True, verbose_name='Дата подачи заявки'
+    )
+
     class Meta:
         verbose_name = 'Страховая заявка'
         verbose_name_plural = 'Страховые заявки'

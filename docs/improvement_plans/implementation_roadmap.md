@@ -90,29 +90,22 @@ deprecate'нуть отдельно.
 
 | Поле                | Тип                                       | Источник                                  |
 |---------------------|--------------------------------------------|--------------------------------------------|
-| `ogrn`              | `CharField(max_length=15)`                | (нет в схеме v1, **добавить в схему**)     |
-| `kpp`               | `CharField(max_length=9)`                 | (нет в схеме v1, **добавить в схему**)     |
-| `legal_address`     | `TextField`                               | `customer.legal_address` (research: 133/151) |
-| `postal_address`    | `TextField`                               | `customer.postal_address` (86/151)         |
-| `business_activity` | `TextField`                               | `customer.business_activity` (115/151)     |
-| `birth_date`        | `DateField` (для ИП)                      | `customer.birth_date`                      |
-| `submission_date`   | `DateField`                               | `request.submission_date` (148/151)        |
+| `legal_address`     | `TextField` (nullable)                    | `customer.legal_address` (30/30 в мини-аудите) |
+| `postal_address`    | `TextField` (nullable)                    | `customer.postal_address` (30/30)         |
+| `business_activity` | `TextField` (nullable)                    | `customer.business_activity` (30/30)      |
+| `birth_date`        | `DateField` (nullable, для ИП)            | `customer.birth_date` (6/30)              |
+| `submission_date`   | `DateField` (nullable)                    | `request.submission_date` (30/30)         |
 
-**Зависимости.** Параллельно — обновить
-`docs/insurance_request_format_package/insurance_request_schema_v1.json`:
-добавить `customer.ogrn` и `customer.kpp` как nullable.
+Поля `ogrn` и `kpp` **исключены из плана** — мини-аудит 30 файлов
+показал 0 hits. В исходном Excel заявки от лизинга реквизиты ФНС
+страхователя не указываются. См. [json_schema_v2.md](json_schema_v2.md).
 
-**Открытые вопросы.**
+**Решения по открытым вопросам.**
 
-1. ОГРН: 13 знаков (юр.лица) или 15 (ОГРНИП)? Стоит хранить как
-   строку без валидации длины (max 15) или с двумя CharField
-   `ogrn` / `ogrnip` отдельно? Я предлагаю один `ogrn(max_length=15)`,
-   валидация чисел в форме/парсере.
-2. Адреса — `TextField` (без лимита) или `CharField(max_length=512)`?
-   В реальных заявках встречаются длинные адреса с переносами строк
-   — лучше `TextField`.
-3. `submission_date` или `request_date`? Это дата, когда лизинг подал
-   нам заявку. В схеме v1 — `submission_date`. Согласовать имя поля.
+1. **ОГРН/КПП**: не добавляем — отсутствуют в источнике.
+2. **Адреса** хранятся в `TextField` без лимита — реальные адреса длинные
+   и могут содержать переносы строк.
+3. **Имя поля даты подачи** — `submission_date`, как в JSON Schema.
 
 ### Под-этап 2.3 — Параметры сделки и страхования
 

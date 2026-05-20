@@ -83,11 +83,18 @@
 - `request.application_format` (`casco_equipment`/`property`) — то же.
 
 ### Страхователь
-- `customer.legal_address` — research: 133 / 151.
-- `customer.postal_address` — research: 86 / 151.
-- `customer.business_activity` — research: 115 / 151.
-- `customer.birth_date` — для ИП.
-- ОГРН / КПП — отсутствуют и в схеме v1, и в модели; **в Excel часто есть, стоит добавить**.
+- `customer.legal_address` — research: 133 / 151; мини-аудит 2.2: 30/30.
+  **Добавлено в модель** (этап 2.2, миграция `0035_add_customer_fields`).
+- `customer.postal_address` — research: 86 / 151; мини-аудит 2.2: 30/30.
+  **Добавлено в модель.**
+- `customer.business_activity` — research: 115 / 151; мини-аудит 2.2: 30/30.
+  **Добавлено в модель.**
+- `customer.birth_date` — для ИП; мини-аудит 2.2: 6/30. **Добавлено.**
+- `request.submission_date` — мини-аудит 2.2: 30/30. **Добавлено.**
+- **ОГРН / КПП — НЕ добавляем.** Изначально предполагалось, но мини-аудит
+  показал 0/30 hits. В Excel заявки от лизинга реквизиты ФНС
+  страхователя системно отсутствуют (см.
+  [json_schema_v2.md](json_schema_v2.md)).
 
 ### Лизинговая сделка
 - `lease.contract_start_date` / `contract_end_date` — research: 131–134 / 151.
