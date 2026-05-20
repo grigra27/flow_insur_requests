@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import timedelta
+from decimal import Decimal, InvalidOperation
 import logging
 import os
 import re
@@ -102,6 +103,207 @@ def normalize_text(value: Any) -> str:
     text = re.sub(r"[\n\r\t:;,.()]+", " ", text)
     text = re.sub(r"\s+", " ", text)
     return text.strip()
+
+
+# --- Object-row field extractors (stage 3.1) ---------------------------------
+#
+# These helpers turn a raw object row from the leasing-company Excel into the
+# structured fields introduced by stage 2.1 (brand, model, vin, condition,
+# acquisition_cost_*, …). They live at module level so they can be unit-tested
+# in isolation and reused by tests via direct import.
+
+# VIN: 17 chars, A–H J–N P–R, no I/O/Q (ISO 3779). Match must be word-bounded.
+_VIN_RE = re.compile(r"\b[A-HJ-NPR-Z0-9]{17}\b")
+_QUANTITY_RE = re.compile(r"(\d+)\s*шт\.?", re.IGNORECASE)
+# Serial / factory number markers commonly found in spec-equipment requests.
+# Two patterns to keep the trailing identifier from accidentally grabbing the
+# next plain word: either «… номер ABC1234» (explicit «номер» token), or
+# «… № ABC1234» (any of №/#/: as separator).
+_SERIAL_PATTERNS = [
+    re.compile(
+        r"(?:заводско[йяе]|серийн\w*)\s+(?:номер|no)\s+([A-ZА-Я0-9\-]{4,})",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"(?:заводско[йяе]|серийн\w*|s\s*/\s*n|sn)\s*[№#:]+\s*([A-ZА-Я0-9\-]{4,})",
+        re.IGNORECASE,
+    ),
+]
+_NUMERIC_RE = re.compile(r"^-?\d+(?:[.,]\d+)?$")
+
+# Currency synonyms → ISO code. Keep keys in normalized lowercase form.
+_CURRENCY_MAP = {
+    "руб": "RUB",
+    "рубли": "RUB",
+    "рублей": "RUB",
+    "руб ": "RUB",
+    "rur": "RUB",
+    "rub": "RUB",
+    "₽": "RUB",
+    "usd": "USD",
+    "$": "USD",
+    "долл": "USD",
+    "доллар": "USD",
+    "доллары": "USD",
+    "долларов": "USD",
+    "eur": "EUR",
+    "€": "EUR",
+    "евро": "EUR",
+}
+
+# Condition values (column K in the canonical CASCO/equipment layout).
+_CONDITION_MAP = {
+    "новое": "new",
+    "новый": "new",
+    "новая": "new",
+    "new": "new",
+    "б/у": "used",
+    "бу": "used",
+    "б\\у": "used",
+    "б-у": "used",
+    "used": "used",
+}
+
+
+def normalize_currency(value: Any) -> Optional[str]:
+    """Map a raw currency cell value to one of RUB/USD/EUR. Returns None if unknown."""
+    if value is None:
+        return None
+    text = normalize_text(value).strip(" .")
+    if not text:
+        return None
+    return _CURRENCY_MAP.get(text)
+
+
+def normalize_condition(value: Any) -> Optional[str]:
+    """Map a raw condition cell value to 'new'/'used'. Returns None if unknown."""
+    if value is None:
+        return None
+    text = normalize_text(value).strip(" .")
+    if not text:
+        return None
+    return _CONDITION_MAP.get(text)
+
+
+def extract_vin(text: Any) -> Optional[str]:
+    """Find a 17-char ISO 3779 VIN inside an arbitrary text string."""
+    if text is None:
+        return None
+    cleaned = clean_value(text).upper()
+    match = _VIN_RE.search(cleaned)
+    return match.group(0) if match else None
+
+
+def extract_serial_number(text: Any) -> Optional[str]:
+    """Look for an explicit «заводской/серийный номер» marker followed by an id."""
+    if text is None:
+        return None
+    cleaned = clean_value(text)
+    for pattern in _SERIAL_PATTERNS:
+        match = pattern.search(cleaned)
+        if match:
+            return match.group(1).strip()
+    return None
+
+
+def extract_quantity(text: Any) -> Optional[Decimal]:
+    """Find «N шт» in the row text; otherwise return None (we don't default to 1)."""
+    if text is None:
+        return None
+    cleaned = clean_value(text)
+    match = _QUANTITY_RE.search(cleaned)
+    if not match:
+        return None
+    try:
+        return Decimal(match.group(1))
+    except (InvalidOperation, ValueError):
+        return None
+
+
+def parse_cost_value(value: Any) -> Optional[Decimal]:
+    """Convert a price-like cell ('1 490 000', '1490000,00', '147.51') to Decimal."""
+    if value is None:
+        return None
+    text = clean_value(value)
+    if not text:
+        return None
+    # Strip thousand separators (regular and non-breaking spaces), unify decimal mark.
+    text = re.sub(r"[\s ]", "", text)
+    text = text.replace(",", ".")
+    if not _NUMERIC_RE.match(text):
+        return None
+    try:
+        return Decimal(text)
+    except (InvalidOperation, ValueError):
+        return None
+
+
+def classify_equipment_or_power(value: Any) -> Tuple[Optional[str], Optional[str]]:
+    """
+    Column L in the canonical layout is overloaded: it can hold engine power
+    ('78.05', '147,51') or an equipment kind ('колесная', 'гусеничная').
+    Distinguish by whether the cell parses as a single number.
+
+    Returns (equipment_type, power_or_capacity).
+    """
+    if value is None:
+        return None, None
+    text = clean_value(value)
+    if not text:
+        return None, None
+    # Strip spaces, normalize decimal mark before the numeric test.
+    no_spaces = re.sub(r"[\s ]", "", text).replace(",", ".")
+    if _NUMERIC_RE.match(no_spaces):
+        return None, text
+    return text, None
+
+
+def split_brand_model(
+    text: Any,
+    year: Optional[str] = None,
+    vin: Optional[str] = None,
+) -> Tuple[Optional[str], Optional[str]]:
+    """
+    Split a free-form object description into (brand, model).
+
+    Strategy:
+      - drop the year, the VIN and any obvious price tokens (numbers with 5+ digits);
+      - drop currency / condition markers;
+      - the first remaining token is the brand, the rest is the model;
+      - if only one token survives, brand=None, model=that token (we won't guess).
+    """
+    if text is None:
+        return None, None
+    cleaned = clean_value(text)
+    if not cleaned:
+        return None, None
+    if year:
+        cleaned = re.sub(rf"\b{re.escape(year)}\b", " ", cleaned)
+    if vin:
+        cleaned = re.sub(re.escape(vin), " ", cleaned, flags=re.IGNORECASE)
+    # Drop tokens that are obviously not part of the brand/model:
+    #   - currency / condition markers,
+    #   - prices (4+ digit integers like 1490000),
+    #   - fractional numbers (powers like 78.05, 147,51).
+    # Short integers (G 400, X5, A4, Prado 250) stay — they belong to the model name.
+    tokens: List[str] = []
+    for raw in cleaned.split():
+        token_norm = normalize_text(raw).strip(" .")
+        if not token_norm:
+            continue
+        if token_norm in _CURRENCY_MAP or token_norm in _CONDITION_MAP:
+            continue
+        normalized_number = raw.replace(",", ".")
+        if re.fullmatch(r"\d{4,}", raw):  # long integer = price
+            continue
+        if re.fullmatch(r"\d+\.\d+", normalized_number):  # fractional = power
+            continue
+        tokens.append(raw)
+    if not tokens:
+        return None, None
+    if len(tokens) == 1:
+        return None, tokens[0]
+    return tokens[0], " ".join(tokens[1:])
 
 
 class ExcelRequestParserV2:
@@ -495,20 +697,119 @@ class ExcelRequestParserV2:
                 if row_text in seen:
                     continue
                 seen.add(row_text)
-                objects.append(
-                    {
-                        "description": row_text,
-                        "year": self._year_from_text(row_text),
-                        "source": self._row_source(row_cells),
-                    }
-                )
+                objects.append(self._build_object_payload(row_cells, row_text))
 
         if not objects:
             value, source = self._extract_labeled_value(cells, rows, label_groups=[("предмет", "лизинга"), ("объект", "страхования")])
             if value and not self._is_object_template_row(normalize_text(value)):
-                objects.append({"description": value, "year": self._year_from_text(value), "source": source})
+                objects.append(
+                    {
+                        "description": value,
+                        "year": self._year_from_text(value),
+                        "source": source,
+                        "brand": None,
+                        "model": None,
+                        "vin": extract_vin(value),
+                        "serial_number": extract_serial_number(value),
+                        "condition": None,
+                        "equipment_type": None,
+                        "power_or_capacity": None,
+                        "quantity": None,
+                        "acquisition_cost_value": None,
+                        "acquisition_cost_currency": None,
+                    }
+                )
 
         return objects[:50]
+
+    def _build_object_payload(self, row_cells: List[GridCell], row_text: str) -> Dict[str, Any]:
+        """Turn one object row into a structured payload (stage 3.1).
+
+        Canonical layout (юр.лицо CASCO):
+          - columns 3..9 (C..I)   — descriptive text (brand, model, sometimes VIN)
+          - column 10 (J)         — manufacturing year
+          - column 11 (K)         — condition (новое/б/у)
+          - column 12 (L)         — equipment kind OR engine power
+          - column 13 (M)         — acquisition cost value
+          - column 14 (N)         — acquisition cost currency
+
+        Templates for individual entrepreneurs (and a few regional layouts) shift
+        some of these columns by +1. To stay robust we scan columns 10..15 and
+        classify each cell by its content (currency lookup, condition lookup,
+        numeric value), rather than trusting a single coordinate.
+        """
+        cell_by_col: Dict[int, GridCell] = {cell.col: cell for cell in row_cells}
+        description_cells = [c for c in row_cells if 3 <= c.col <= 9]
+        description_text = " ".join(c.value for c in description_cells) if description_cells else row_text
+
+        year = self._year_from_text(row_text)
+        vin = extract_vin(row_text)
+        serial_number = extract_serial_number(row_text) if not vin else None
+        brand, model = split_brand_model(description_text, year, vin)
+
+        condition: Optional[str] = None
+        currency: Optional[str] = None
+        cost_value: Optional[Decimal] = None
+        equipment_type: Optional[str] = None
+        power_or_capacity: Optional[str] = None
+
+        # Columns 11..15 cover condition/equipment/cost/currency across all
+        # observed templates (column 10 is the manufacturing year and is parsed
+        # separately above; skipping it avoids classifying e.g. 2025 as a price).
+        for col in range(11, 16):
+            cell = cell_by_col.get(col)
+            if not cell:
+                continue
+            raw = cell.value
+            if not raw:
+                continue
+            # Skip cells that look like a year — IP templates shift columns,
+            # so the year can appear in column 11 instead of 10.
+            if re.fullmatch(r"(19|20)\d{2}", raw.strip()):
+                continue
+            # Try classifications in order of decreasing specificity.
+            if condition is None:
+                normalized_condition = normalize_condition(raw)
+                if normalized_condition:
+                    condition = normalized_condition
+                    continue
+            if currency is None:
+                normalized_currency = normalize_currency(raw)
+                if normalized_currency:
+                    currency = normalized_currency
+                    continue
+            # Try cost: numeric value of price magnitude (>= 10_000). Engine
+            # power (78.05) and small integers stay out of this branch.
+            parsed_cost = parse_cost_value(raw)
+            if cost_value is None and parsed_cost is not None and parsed_cost >= Decimal("10000"):
+                cost_value = parsed_cost
+                continue
+            # Otherwise classify as equipment kind or engine power.
+            kind, power = classify_equipment_or_power(raw)
+            if power and power_or_capacity is None:
+                power_or_capacity = power
+                continue
+            if kind and equipment_type is None:
+                equipment_type = kind
+                continue
+
+        quantity = extract_quantity(row_text)
+
+        return {
+            "description": row_text,
+            "year": year,
+            "source": self._row_source(row_cells),
+            "brand": brand,
+            "model": model,
+            "vin": vin,
+            "serial_number": serial_number,
+            "condition": condition,
+            "equipment_type": equipment_type,
+            "power_or_capacity": power_or_capacity,
+            "quantity": str(quantity) if quantity is not None else None,
+            "acquisition_cost_value": str(cost_value) if cost_value is not None else None,
+            "acquisition_cost_currency": currency,
+        }
 
     def _extract_franchise_type(self, cells: List[GridCell], application_type: str) -> Tuple[str, Dict[str, Any]]:
         cell_map = {(cell.row, cell.col): cell for cell in cells}

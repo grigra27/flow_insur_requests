@@ -62,6 +62,20 @@ V1_FIELDS = [
 
 V2_FIELDS = V1_FIELDS + ["insured_objects_count"]
 
+# Per-object fields filled by stage 3.1 inside each insured_objects[] entry.
+V2_OBJECT_FIELDS = [
+    "brand",
+    "model",
+    "vin",
+    "serial_number",
+    "condition",
+    "equipment_type",
+    "power_or_capacity",
+    "quantity",
+    "acquisition_cost_value",
+    "acquisition_cost_currency",
+]
+
 
 def is_meaningful(field_name: str, value) -> bool:
     """Заполнено ли поле осмысленным значением (не дефолтом и не пустотой)."""
@@ -148,6 +162,9 @@ def main():
 
     v1_filled = defaultdict(int)
     v2_filled = defaultdict(int)
+    v2_object_field_total = 0  # Считаем по всем найденным объектам, не по файлам.
+    v2_object_field_filled = defaultdict(int)
+    v2_files_with_first_object_filled = defaultdict(int)
     v1_total_failed = 0
     v2_total_failed = 0
     v1_objects_lost = 0
@@ -177,6 +194,19 @@ def main():
         if obj_count > 1:
             v1_objects_lost += 1  # v1 кладёт всё в vehicle_info
 
+        # Per-object fill stats (stage 3.1).
+        objects = v2_payload.get("insured_objects") or []
+        if objects:
+            for obj in objects:
+                v2_object_field_total += 1
+                for of in V2_OBJECT_FIELDS:
+                    if is_meaningful(of, obj.get(of)):
+                        v2_object_field_filled[of] += 1
+            first = objects[0]
+            for of in V2_OBJECT_FIELDS:
+                if is_meaningful(of, first.get(of)):
+                    v2_files_with_first_object_filled[of] += 1
+
         if sample_payload is None and v2_payload.get("insured_objects"):
             sample_payload = {
                 "file": path.name,
@@ -200,6 +230,9 @@ def main():
     def pct(n):
         return f"{n / total * 100:.1f}%" if total else "—"
 
+    def pct_of(numerator, denominator):
+        return f"{numerator / denominator * 100:.1f}%" if denominator else "—"
+
     report = {
         "total_files": total,
         "v1_total_failed": v1_total_failed,
@@ -208,6 +241,15 @@ def main():
         "v2_filled": {f: {"count": c, "pct": pct(c)} for f, c in v2_filled.items()},
         "multi_object_files_lost_in_v1": v1_objects_lost,
         "v2_object_count_distribution": dict(v2_object_count_dist),
+        "v2_object_field_total": v2_object_field_total,
+        "v2_object_fields_filled_per_object": {
+            f: {"count": v2_object_field_filled.get(f, 0), "pct": pct_of(v2_object_field_filled.get(f, 0), v2_object_field_total)}
+            for f in V2_OBJECT_FIELDS
+        },
+        "v2_object_fields_filled_in_first_object_per_file": {
+            f: {"count": v2_files_with_first_object_filled.get(f, 0), "pct": pct(v2_files_with_first_object_filled.get(f, 0))}
+            for f in V2_OBJECT_FIELDS
+        },
         "sample_v2_payload": sample_payload,
     }
 
@@ -227,6 +269,15 @@ def main():
         c = v2_filled.get(f, 0)
         print(f"  {f:<26} {c:>4}/{total}  {pct(c)}")
     print(f"\n  v2_failed: {v2_total_failed}/{total}")
+
+    print("\n--- V2 per-object fill rate (stage 3.1) ---")
+    print(f"  total objects across all files: {v2_object_field_total}")
+    for of in V2_OBJECT_FIELDS:
+        c = v2_object_field_filled.get(of, 0)
+        per_obj_pct = pct_of(c, v2_object_field_total)
+        per_file_c = v2_files_with_first_object_filled.get(of, 0)
+        per_file_pct = pct(per_file_c)
+        print(f"  {of:<28} per-object {c:>4}/{v2_object_field_total}  {per_obj_pct:>6}   first-object-per-file {per_file_c:>4}/{total}  {per_file_pct}")
     print(f"  multi-object files (in v2, >1 obj): {sum(c for k, c in v2_object_count_dist.items() if k > 1)}")
     print(f"  v2 object-count distribution: {dict(sorted(v2_object_count_dist.items()))}")
 

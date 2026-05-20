@@ -1,3 +1,4 @@
+from decimal import Decimal
 from io import BytesIO
 import os
 import shutil
@@ -12,6 +13,162 @@ from openpyxl import Workbook
 from .forms import DEFAULT_BRANCH, ParserV2PreviewForm
 from .models import InsuranceRequest, RequestAttachment
 from .parsers.excel_v2 import ExcelRequestParserV2
+from .parsers.excel_v2.parser import (
+    classify_equipment_or_power,
+    extract_quantity,
+    extract_serial_number,
+    extract_vin,
+    normalize_condition,
+    normalize_currency,
+    parse_cost_value,
+    split_brand_model,
+)
+
+
+class ObjectRowHelpersTests(TestCase):
+    """Stage 3.1: low-level extractors used while parsing an object row."""
+
+    def test_normalize_currency_recognises_common_variants(self):
+        self.assertEqual(normalize_currency('руб'), 'RUB')
+        self.assertEqual(normalize_currency('руб.'), 'RUB')
+        self.assertEqual(normalize_currency('РУБ'), 'RUB')
+        self.assertEqual(normalize_currency('рублей'), 'RUB')
+        self.assertEqual(normalize_currency('₽'), 'RUB')
+        self.assertEqual(normalize_currency('USD'), 'USD')
+        self.assertEqual(normalize_currency('$'), 'USD')
+        self.assertEqual(normalize_currency('долл'), 'USD')
+        self.assertEqual(normalize_currency('EUR'), 'EUR')
+        self.assertEqual(normalize_currency('евро'), 'EUR')
+        self.assertEqual(normalize_currency('€'), 'EUR')
+        self.assertIsNone(normalize_currency('XXX'))
+        self.assertIsNone(normalize_currency(''))
+        self.assertIsNone(normalize_currency(None))
+
+    def test_normalize_condition_recognises_common_variants(self):
+        self.assertEqual(normalize_condition('новое'), 'new')
+        self.assertEqual(normalize_condition('Новый'), 'new')
+        self.assertEqual(normalize_condition('НОВАЯ'), 'new')
+        self.assertEqual(normalize_condition('б/у'), 'used')
+        self.assertEqual(normalize_condition('БУ'), 'used')
+        self.assertEqual(normalize_condition('б-у'), 'used')
+        self.assertIsNone(normalize_condition('неизвестно'))
+        self.assertIsNone(normalize_condition(None))
+
+    def test_extract_vin_only_matches_valid_iso_3779(self):
+        self.assertEqual(extract_vin('XTAKS045LP0001234'), 'XTAKS045LP0001234')
+        # I/O/Q are not allowed in a VIN.
+        self.assertIsNone(extract_vin('XTAIO0Q9876543210'))
+        self.assertIsNone(extract_vin('TOO SHORT VIN'))
+        self.assertIsNone(extract_vin(None))
+
+    def test_parse_cost_value_strips_separators(self):
+        self.assertEqual(parse_cost_value('1490000'), Decimal('1490000'))
+        self.assertEqual(parse_cost_value('1 490 000'), Decimal('1490000'))
+        self.assertEqual(parse_cost_value('1490000,00'), Decimal('1490000.00'))
+        self.assertEqual(parse_cost_value('147.51'), Decimal('147.51'))
+        self.assertIsNone(parse_cost_value('abc'))
+        self.assertIsNone(parse_cost_value(''))
+        self.assertIsNone(parse_cost_value(None))
+
+    def test_classify_equipment_or_power_separates_text_from_number(self):
+        self.assertEqual(classify_equipment_or_power('колесная'), ('колесная', None))
+        self.assertEqual(classify_equipment_or_power('гусеничная'), ('гусеничная', None))
+        self.assertEqual(classify_equipment_or_power('78.05'), (None, '78.05'))
+        self.assertEqual(classify_equipment_or_power('147,51'), (None, '147,51'))
+        self.assertEqual(classify_equipment_or_power('8 700'), (None, '8 700'))
+        self.assertEqual(classify_equipment_or_power(''), (None, None))
+        self.assertEqual(classify_equipment_or_power(None), (None, None))
+
+    def test_split_brand_model_preserves_short_model_numbers(self):
+        self.assertEqual(
+            split_brand_model('LADA Largus KS045L 2024 б/у 78.05 1490000 руб', '2024'),
+            ('LADA', 'Largus KS045L'),
+        )
+        # Short numerics inside model name (Mercedes G 400, BMW X5, Audi A4)
+        # must survive — only prices (4+ digits) and fractional numbers are dropped.
+        self.assertEqual(split_brand_model('Mercedes-Benz G 400 2024', '2024'),
+                         ('Mercedes-Benz', 'G 400'))
+        self.assertEqual(split_brand_model('Toyota Land Cruiser Prado 250 2024', '2024'),
+                         ('Toyota', 'Land Cruiser Prado 250'))
+        self.assertEqual(split_brand_model('Haval H7 2025 новое', '2025'),
+                         ('Haval', 'H7'))
+        # Single token → brand=None, all in model.
+        self.assertEqual(split_brand_model('Mining', None), (None, 'Mining'))
+        self.assertEqual(split_brand_model('', None), (None, None))
+        self.assertEqual(split_brand_model(None, None), (None, None))
+
+    def test_extract_quantity_only_with_marker(self):
+        self.assertEqual(extract_quantity('15 шт.'), Decimal('15'))
+        self.assertEqual(extract_quantity('Автобус ГАЗ 15шт'), Decimal('15'))
+        # Without «шт» marker we do not guess.
+        self.assertIsNone(extract_quantity('Toyota Camry 2024'))
+        self.assertIsNone(extract_quantity(None))
+
+    def test_extract_serial_number_pattern(self):
+        self.assertEqual(extract_serial_number('Заводской номер ABC1234'), 'ABC1234')
+        self.assertEqual(extract_serial_number('Серийный № XYZ-9876'), 'XYZ-9876')
+        self.assertIsNone(extract_serial_number('просто текст без маркера'))
+
+
+class ObjectRowPayloadIntegrationTests(TestCase):
+    """Stage 3.1: insured_objects[] entries must carry structured fields."""
+
+    def _build_minimal_workbook_with_object_row(self):
+        wb = Workbook()
+        sheet = wb.active
+        # Minimal headers so that V2 detects an object table starting at row 41.
+        sheet['C5'] = 'Иванов Иван'
+        sheet['D7'] = 'ООО Ромашка'
+        sheet['D9'] = '7707083893'
+        sheet['D21'] = 'КАСКО'
+        sheet['N17'] = '1 год'
+        # Object table header.
+        sheet['C41'] = 'Наименование и описание имущества'
+        sheet['J41'] = 'Год выпуска'
+        sheet['L41'] = 'Мощность'
+        sheet['M41'] = 'Стоимость на момент приобретения'
+        sheet['N41'] = 'Валюта'
+        # Object row.
+        sheet['C43'] = 'LADA Largus KS045L'
+        sheet['J43'] = 2024
+        sheet['K43'] = 'б/у'
+        sheet['L43'] = '78.05'
+        sheet['M43'] = 1490000
+        sheet['N43'] = 'руб'
+        return wb
+
+    def _parse_workbook(self, workbook):
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx')
+        try:
+            temp_file.close()
+            workbook.save(temp_file.name)
+            return ExcelRequestParserV2().parse(temp_file.name, original_filename='object-row.xlsx')
+        finally:
+            os.unlink(temp_file.name)
+
+    def test_object_payload_contains_structured_fields(self):
+        result = self._parse_workbook(self._build_minimal_workbook_with_object_row())
+        objects = result.data['parser_v2_payload']['insured_objects']
+        self.assertEqual(len(objects), 1)
+        obj = objects[0]
+        self.assertEqual(obj['brand'], 'LADA')
+        self.assertEqual(obj['model'], 'Largus KS045L')
+        self.assertEqual(obj['year'], '2024')
+        self.assertEqual(obj['condition'], 'used')
+        self.assertEqual(obj['power_or_capacity'], '78.05')
+        self.assertEqual(obj['acquisition_cost_value'], '1490000')
+        self.assertEqual(obj['acquisition_cost_currency'], 'RUB')
+        # VIN не задан в synthetic-файле — должно быть None, без ложного срабатывания.
+        self.assertIsNone(obj['vin'])
+
+    def test_object_payload_normalises_alternative_currency_synonyms(self):
+        wb = self._build_minimal_workbook_with_object_row()
+        wb.active['N43'] = 'USD'
+        wb.active['M43'] = 25000
+        result = self._parse_workbook(wb)
+        obj = result.data['parser_v2_payload']['insured_objects'][0]
+        self.assertEqual(obj['acquisition_cost_currency'], 'USD')
+        self.assertEqual(obj['acquisition_cost_value'], '25000')
 
 
 class ParserV2UploadTests(TestCase):
