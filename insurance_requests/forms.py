@@ -352,7 +352,7 @@ class ParserV2PreviewForm(forms.Form):
     branch = forms.ChoiceField(
         label='Филиал',
         required=False,
-        choices=AVAILABLE_BRANCH_CHOICES,
+        choices=EDIT_BRANCH_CHOICES,
         initial=DEFAULT_BRANCH,
         widget=forms.Select(attrs={'class': 'form-control'})
     )
@@ -440,9 +440,7 @@ class ParserV2PreviewForm(forms.Form):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        valid_branches = {choice[0] for choice in AVAILABLE_BRANCH_CHOICES}
-        initial_branch = self.initial.get('branch')
-        if not self.is_bound and initial_branch not in valid_branches:
+        if not self.is_bound and not self.initial.get('branch'):
             self.initial['branch'] = DEFAULT_BRANCH
 
     def to_request_fields(self):
@@ -541,7 +539,7 @@ class ParserV2PreviewForm(forms.Form):
 
     def _normalize_branch(self, value):
         valid_branches = {choice[0] for choice in AVAILABLE_BRANCH_CHOICES}
-        return value if value in valid_branches else DEFAULT_BRANCH
+        return value if value in valid_branches else ''
 
 
 class ParserV2ObjectForm(forms.Form):

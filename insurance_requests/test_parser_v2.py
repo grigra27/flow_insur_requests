@@ -526,7 +526,7 @@ class ParserV2UploadTests(TestCase):
         self.assertEqual(response.context['form'].initial['client_name'], 'ООО Ромашка')
         self.assertEqual(response.context['form'].initial['manager_name'], 'Иванов Иван')
 
-    def test_parser_v2_branch_defaults_to_spb_when_not_recognized(self):
+    def test_parser_v2_unrecognized_branch_preserves_raw_value_and_warns(self):
         self.client.login(username='parser_v2_root', password='pwd')
 
         response = self.client.post(
@@ -535,8 +535,13 @@ class ParserV2UploadTests(TestCase):
         )
 
         form = response.context['form']
-        self.assertEqual(form.initial['branch'], DEFAULT_BRANCH)
+        self.assertEqual(form.initial['branch'], 'Неизвестный филиал')
         self.assertEqual(form.fields['branch'].widget.__class__.__name__, 'Select')
+        warnings = response.context['warnings']
+        self.assertTrue(
+            any(w.get('field') == 'branch' and w.get('level') == 'manual_required' for w in warnings),
+            f"Expected a manual_required branch warning, got: {warnings}",
+        )
 
     def test_parser_v2_branch_accepts_only_known_choices(self):
         form = ParserV2PreviewForm(data={'draft_id': 'draft', 'branch': 'Неизвестный филиал'})

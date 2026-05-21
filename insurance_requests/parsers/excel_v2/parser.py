@@ -15,7 +15,7 @@ from django.utils import timezone
 from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter
 
-from core.excel_utils import map_branch_name
+from core.excel_utils import AVAILABLE_BRANCHES, map_branch_name
 
 logger = logging.getLogger(__name__)
 
@@ -1208,6 +1208,17 @@ class ExcelRequestParserV2:
             if data.get(field_name) == missing_value or not data.get(field_name):
                 warnings.append({"level": "manual_required", "field": field_name, "message": message, "source": ""})
 
+        branch_value = data.get("branch")
+        if branch_value and branch_value not in AVAILABLE_BRANCHES:
+            warnings.append(
+                {
+                    "level": "manual_required",
+                    "field": "branch",
+                    "message": f"Филиал «{branch_value}» не входит в список известных — выберите вручную.",
+                    "source": "",
+                }
+            )
+
         if not data.get("insurance_period"):
             warnings.append(
                 {
@@ -1242,7 +1253,7 @@ class ExcelRequestParserV2:
             bool(data.get("client_name") and data["client_name"] != MISSING_CLIENT),
             bool(data.get("inn")),
             bool(data.get("dfa_number") and data["dfa_number"] != MISSING_DFA),
-            bool(data.get("branch")),
+            data.get("branch") in AVAILABLE_BRANCHES,
             bool(data.get("manager_name")),
             bool(insured_objects),
             data.get("insurance_type") != "другое",
