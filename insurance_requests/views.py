@@ -27,6 +27,8 @@ from .forms import (
     RequestStatusForm,
     ParserV2ExcelUploadForm,
     ParserV2PreviewForm,
+    ParserV2ObjectFormSet,
+    parser_v2_object_initial_from_payload,
 )
 from .decorators import user_required, admin_required, superuser_required
 from .security import (
@@ -280,18 +282,21 @@ def _build_common_request_kwargs(request_fields, additional_data, user):
     }
 
 
-def _create_requests_with_splitting(*, request_fields, additional_data, insured_objects, draft, user):
-    """Stage 4.1 splitting: produce N sibling InsuranceRequest rows from a
+def _create_requests_with_splitting(*, request_fields, additional_data, object_kwargs_list, draft, user):
+    """Stage 4 splitting: produce N sibling InsuranceRequest rows from a
     single Excel upload.
 
-    - 0 objects → fall back to a single request using the form's vehicle_info
-      / manufacturing_year (legacy V2 behaviour, kept for files where the
-      parser failed to identify any object row).
-    - 1 object → create a single request, no source_batch_id / item_no /
+    `object_kwargs_list` is a list of dicts with per-object model fields
+    (built from the formset in stage 4.2, after skipped objects are
+    filtered out).
+
+    - empty list → fall back to a single request using the form's
+      vehicle_info / manufacturing_year (the parser found no object row).
+    - 1 entry → create a single request, no source_batch_id / item_no /
       item_count (these stay NULL; user-confirmed default in stage 4 design).
-    - N ≥ 2 objects → one source_batch_id (UUID), N rows with item_no=1..N
+    - N ≥ 2 entries → one source_batch_id (UUID), N rows with item_no=1..N
       and item_count=N. Common fields are duplicated; per-object fields
-      (brand/model/condition/cost/...) come from each insured_objects[i].
+      (brand/model/condition/cost/...) come from each object_kwargs_list[i].
 
     The original Excel is attached to every created request; the source file
     in storage is removed once after the loop.
@@ -300,7 +305,7 @@ def _create_requests_with_splitting(*, request_fields, additional_data, insured_
     created: list = []
 
     with transaction.atomic():
-        if not insured_objects:
+        if not object_kwargs_list:
             # Legacy fallback — no objects parsed, use the form values.
             instance = InsuranceRequest.objects.create(
                 vehicle_info=request_fields['vehicle_info'],
@@ -308,15 +313,13 @@ def _create_requests_with_splitting(*, request_fields, additional_data, insured_
                 **common,
             )
             created.append(instance)
-        elif len(insured_objects) == 1:
-            object_kwargs = _parser_v2_object_fields(insured_objects[0])
-            instance = InsuranceRequest.objects.create(**object_kwargs, **common)
+        elif len(object_kwargs_list) == 1:
+            instance = InsuranceRequest.objects.create(**object_kwargs_list[0], **common)
             created.append(instance)
         else:
             batch_id = uuid.uuid4()
-            item_count = len(insured_objects)
-            for idx, payload_object in enumerate(insured_objects, start=1):
-                object_kwargs = _parser_v2_object_fields(payload_object)
+            item_count = len(object_kwargs_list)
+            for idx, object_kwargs in enumerate(object_kwargs_list, start=1):
                 instance = InsuranceRequest.objects.create(
                     source_batch_id=batch_id,
                     item_no=idx,
@@ -334,7 +337,7 @@ def _create_requests_with_splitting(*, request_fields, additional_data, insured_
     return created
 
 
-def _render_parser_v2_preview(request, draft_id, draft, preview_form=None):
+def _render_parser_v2_preview(request, draft_id, draft, preview_form=None, object_formset=None):
     parse_result = draft.get('parse_result', {})
     if preview_form is None:
         preview_form = ParserV2PreviewForm(initial=_parser_v2_initial_data(draft_id, parse_result))
@@ -344,8 +347,15 @@ def _render_parser_v2_preview(request, draft_id, draft, preview_form=None):
     insured_objects = payload.get('insured_objects') or []
     batch_size = len(insured_objects)
 
+    if object_formset is None:
+        object_formset = ParserV2ObjectFormSet(
+            initial=parser_v2_object_initial_from_payload(insured_objects),
+            prefix='objects',
+        )
+
     return render(request, 'insurance_requests/upload_excel_v2_preview.html', {
         'form': preview_form,
+        'object_formset': object_formset,
         'warnings': parse_result.get('warnings', []),
         'source_map': parse_result.get('source_map', {}),
         'confidence': confidence,
@@ -356,6 +366,7 @@ def _render_parser_v2_preview(request, draft_id, draft, preview_form=None):
         'insured_objects': insured_objects,
         'batch_size': batch_size,
         'is_batch': batch_size >= 2,
+        'has_objects': batch_size >= 1,
     })
 
 
@@ -884,18 +895,47 @@ def upload_excel_v2(request):
             return redirect('insurance_requests:upload_excel_v2')
 
         form = ParserV2PreviewForm(request.POST)
-        if form.is_valid():
+        parse_result = draft.get('parse_result', {})
+        payload = (parse_result.get('data') or {}).get('parser_v2_payload') or {}
+        insured_objects = payload.get('insured_objects') or []
+
+        object_formset = ParserV2ObjectFormSet(
+            request.POST,
+            initial=parser_v2_object_initial_from_payload(insured_objects),
+            prefix='objects',
+        ) if insured_objects else None
+
+        formset_valid = True if object_formset is None else object_formset.is_valid()
+
+        if form.is_valid() and formset_valid:
             request_fields = form.to_request_fields()
             additional_data = _build_parser_v2_additional_data(draft, request_fields, request.user)
 
-            parse_result = draft.get('parse_result', {})
-            payload = (parse_result.get('data') or {}).get('parser_v2_payload') or {}
-            insured_objects = payload.get('insured_objects') or []
+            # Stage 4.2: per-object data comes from the formset (operator may
+            # have edited fields). Skipped forms are dropped before creation.
+            if object_formset is None:
+                selected_object_kwargs = []
+            else:
+                selected_object_kwargs = [
+                    obj_form.to_object_kwargs()
+                    for obj_form in object_formset
+                    if not obj_form.cleaned_data.get('skip')
+                ]
+
+            if insured_objects and not selected_object_kwargs:
+                messages.error(
+                    request,
+                    'Все объекты партии отмечены к пропуску — нечего создавать.'
+                )
+                return _render_parser_v2_preview(
+                    request, draft_id, draft,
+                    preview_form=form, object_formset=object_formset,
+                )
 
             created_requests = _create_requests_with_splitting(
                 request_fields=request_fields,
                 additional_data=additional_data,
-                insured_objects=insured_objects,
+                object_kwargs_list=selected_object_kwargs,
                 draft=draft,
                 user=request.user,
             )
@@ -934,7 +974,10 @@ def upload_excel_v2(request):
             return redirect('insurance_requests:request_detail', pk=primary.pk)
 
         messages.error(request, 'Проверьте значения на странице предварительной проверки.')
-        return _render_parser_v2_preview(request, draft_id, draft, preview_form=form)
+        return _render_parser_v2_preview(
+            request, draft_id, draft,
+            preview_form=form, object_formset=object_formset,
+        )
 
     if request.method == 'POST':
         upload_form = ParserV2ExcelUploadForm(request.POST, request.FILES)

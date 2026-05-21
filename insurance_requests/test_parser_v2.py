@@ -5,6 +5,7 @@ import os
 import shutil
 import tempfile
 
+from django import forms as forms_module
 from django.contrib.auth.models import Group, User
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase, override_settings
@@ -431,7 +432,20 @@ class ParserV2UploadTests(TestCase):
         finally:
             os.unlink(temp_file.name)
 
-    def _post_data_from_preview(self, form):
+    def _post_data_from_preview(self, source):
+        """Build POST data that mirrors what the operator would submit.
+
+        Accepts either an HttpResponse from the upload step (preferred —
+        also collects the object formset) or a bare ParserV2PreviewForm
+        for back-compat with tests that don't deal with the formset.
+        """
+        if hasattr(source, 'context') and source.context is not None:
+            form = source.context['form']
+            object_formset = source.context.get('object_formset')
+        else:
+            form = source
+            object_formset = None
+
         data = {}
         checkbox_fields = {
             'has_installment',
@@ -445,7 +459,24 @@ class ParserV2UploadTests(TestCase):
                 if form.initial.get(field):
                     data[field] = 'on'
             else:
-                data[field] = form.initial.get(field, '')
+                value = form.initial.get(field, '')
+                data[field] = '' if value is None else value
+
+        if object_formset is not None:
+            prefix = object_formset.prefix or 'form'
+            data[f'{prefix}-TOTAL_FORMS'] = str(object_formset.total_form_count())
+            data[f'{prefix}-INITIAL_FORMS'] = str(object_formset.initial_form_count())
+            data[f'{prefix}-MIN_NUM_FORMS'] = '0'
+            data[f'{prefix}-MAX_NUM_FORMS'] = '1000'
+            for index, obj_form in enumerate(object_formset.forms):
+                for field_name, field in obj_form.fields.items():
+                    initial = obj_form.initial.get(field_name, '')
+                    key = f'{prefix}-{index}-{field_name}'
+                    if isinstance(field, forms_module.BooleanField):
+                        if initial:
+                            data[key] = 'on'
+                    else:
+                        data[key] = '' if initial is None else initial
         return data
 
     def test_parser_v2_access_is_superuser_only(self):
@@ -619,8 +650,7 @@ class ParserV2UploadTests(TestCase):
             reverse('insurance_requests:upload_excel_v2'),
             {'excel_file': self._xlsx_upload()},
         )
-        form = upload_response.context['form']
-        post_data = self._post_data_from_preview(form)
+        post_data = self._post_data_from_preview(upload_response)
         post_data['client_name'] = 'ООО Ромашка Проверено'
 
         create_response = self.client.post(reverse('insurance_requests:upload_excel_v2'), post_data)
@@ -692,8 +722,7 @@ class ParserV2UploadTests(TestCase):
         self.assertContains(upload_response, 'Партия объектов')
         self.assertContains(upload_response, 'Создать партию из 3 заявок')
 
-        form = upload_response.context['form']
-        post_data = self._post_data_from_preview(form)
+        post_data = self._post_data_from_preview(upload_response)
 
         create_response = self.client.post(reverse('insurance_requests:upload_excel_v2'), post_data)
 
@@ -750,8 +779,7 @@ class ParserV2UploadTests(TestCase):
         self.assertNotContains(upload_response, 'Партия объектов')
         self.assertContains(upload_response, 'Создать заявку')
 
-        form = upload_response.context['form']
-        post_data = self._post_data_from_preview(form)
+        post_data = self._post_data_from_preview(upload_response)
         self.client.post(reverse('insurance_requests:upload_excel_v2'), post_data)
 
         created = InsuranceRequest.objects.get()
@@ -762,6 +790,72 @@ class ParserV2UploadTests(TestCase):
         self.assertEqual(created.brand, 'LADA')
         self.assertEqual(created.acquisition_cost_value, Decimal('1490000'))
         self.assertEqual(RequestAttachment.objects.count(), 1)
+
+    def test_parser_v2_can_skip_a_sibling_in_the_formset(self):
+        """Stage 4.2: marking one card as skip removes it from the created batch."""
+        self.client.login(username='parser_v2_root', password='pwd')
+        upload_response = self.client.post(
+            reverse('insurance_requests:upload_excel_v2'),
+            {'excel_file': self._xlsx_upload_with_multiple_objects(object_count=3)},
+        )
+        post_data = self._post_data_from_preview(upload_response)
+        # Drop the middle sibling.
+        post_data['objects-1-skip'] = 'on'
+
+        self.client.post(reverse('insurance_requests:upload_excel_v2'), post_data)
+
+        siblings = list(InsuranceRequest.objects.order_by('item_no'))
+        self.assertEqual(len(siblings), 2)
+        # Both surviving siblings share the same batch and have item_count=2.
+        self.assertEqual({s.source_batch_id for s in siblings}, {siblings[0].source_batch_id})
+        self.assertIsNotNone(siblings[0].source_batch_id)
+        self.assertEqual([s.item_no for s in siblings], [1, 2])
+        for s in siblings:
+            self.assertEqual(s.item_count, 2)
+        # First and third objects survive, second (Toyota) was skipped.
+        brands = [s.brand for s in siblings]
+        self.assertIn('LADA', brands)
+        self.assertIn('Haval', brands)
+        self.assertNotIn('Toyota', brands)
+        self.assertEqual(RequestAttachment.objects.count(), 2)
+
+    def test_parser_v2_skipping_all_siblings_blocks_creation(self):
+        """Stage 4.2: if every card is skipped, nothing is created."""
+        self.client.login(username='parser_v2_root', password='pwd')
+        upload_response = self.client.post(
+            reverse('insurance_requests:upload_excel_v2'),
+            {'excel_file': self._xlsx_upload_with_multiple_objects(object_count=3)},
+        )
+        post_data = self._post_data_from_preview(upload_response)
+        for index in range(3):
+            post_data[f'objects-{index}-skip'] = 'on'
+
+        response = self.client.post(reverse('insurance_requests:upload_excel_v2'), post_data)
+
+        self.assertEqual(InsuranceRequest.objects.count(), 0)
+        self.assertEqual(RequestAttachment.objects.count(), 0)
+        # User is shown the preview again with an explicit error.
+        self.assertContains(response, 'Все объекты партии отмечены к пропуску')
+
+    def test_parser_v2_operator_edits_propagate_into_created_sibling(self):
+        """Stage 4.2: edits in the formset overwrite parser payload defaults."""
+        self.client.login(username='parser_v2_root', password='pwd')
+        upload_response = self.client.post(
+            reverse('insurance_requests:upload_excel_v2'),
+            {'excel_file': self._xlsx_upload_with_multiple_objects(object_count=2)},
+        )
+        post_data = self._post_data_from_preview(upload_response)
+        post_data['objects-0-brand'] = 'LADA (исправлено)'
+        post_data['objects-0-acquisition_cost_value'] = '2500000'
+
+        self.client.post(reverse('insurance_requests:upload_excel_v2'), post_data)
+
+        first = InsuranceRequest.objects.get(item_no=1)
+        self.assertEqual(first.brand, 'LADA (исправлено)')
+        self.assertEqual(first.acquisition_cost_value, Decimal('2500000'))
+        # Second sibling untouched.
+        second = InsuranceRequest.objects.get(item_no=2)
+        self.assertEqual(second.brand, 'Toyota')
 
     def test_parser_v2_can_create_minimal_request_after_unreadable_file(self):
         self.client.login(username='parser_v2_root', password='pwd')

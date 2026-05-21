@@ -544,6 +544,107 @@ class ParserV2PreviewForm(forms.Form):
         return value if value in valid_branches else DEFAULT_BRANCH
 
 
+class ParserV2ObjectForm(forms.Form):
+    """Stage 4.2: one card per insured object in a V2 preview formset.
+
+    The fields mirror the per-object columns introduced by stage 2.1
+    (brand, model, condition, equipment_type, power_or_capacity,
+    acquisition_cost_value, acquisition_cost_currency) plus the textual
+    `manufacturing_year` and the free-form `vehicle_info` description for
+    that object. The `skip` checkbox lets the operator drop a sibling
+    before it is created.
+    """
+
+    skip = forms.BooleanField(
+        label='Не создавать эту заявку',
+        required=False,
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'})
+    )
+    brand = forms.CharField(
+        label='Марка', required=False, max_length=128,
+        widget=forms.TextInput(attrs={'class': 'form-control'})
+    )
+    model = forms.CharField(
+        label='Модель', required=False, max_length=255,
+        widget=forms.TextInput(attrs={'class': 'form-control'})
+    )
+    condition = forms.ChoiceField(
+        label='Состояние', required=False,
+        choices=[('', '— Не определено —')] + InsuranceRequest.OBJECT_CONDITION_CHOICES,
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+    equipment_type = forms.CharField(
+        label='Тип/категория', required=False, max_length=128,
+        widget=forms.TextInput(attrs={'class': 'form-control'})
+    )
+    power_or_capacity = forms.CharField(
+        label='Мощность/производительность', required=False, max_length=64,
+        widget=forms.TextInput(attrs={'class': 'form-control'})
+    )
+    acquisition_cost_value = forms.DecimalField(
+        label='Стоимость', required=False, max_digits=14, decimal_places=2,
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'})
+    )
+    acquisition_cost_currency = forms.ChoiceField(
+        label='Валюта', required=False,
+        choices=[('', '— Не определена —')] + InsuranceRequest.ACQUISITION_COST_CURRENCY_CHOICES,
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+    manufacturing_year = forms.CharField(
+        label='Год выпуска', required=False, max_length=255,
+        widget=forms.TextInput(attrs={'class': 'form-control'})
+    )
+    vehicle_info = forms.CharField(
+        label='Описание объекта', required=False,
+        widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 2})
+    )
+
+    def to_object_kwargs(self):
+        """Return model field kwargs for one InsuranceRequest sibling.
+
+        Mirrors `_parser_v2_object_fields()` in views.py but works from
+        cleaned form data instead of parser payload.
+        """
+        cleaned = self.cleaned_data
+        return {
+            'brand': cleaned.get('brand') or None,
+            'model': cleaned.get('model') or None,
+            'condition': cleaned.get('condition') or None,
+            'equipment_type': cleaned.get('equipment_type') or None,
+            'power_or_capacity': cleaned.get('power_or_capacity') or None,
+            'acquisition_cost_value': cleaned.get('acquisition_cost_value'),
+            'acquisition_cost_currency': cleaned.get('acquisition_cost_currency') or None,
+            'vehicle_info': (cleaned.get('vehicle_info') or 'Предмет лизинга не указан')[:5000],
+            'manufacturing_year': (cleaned.get('manufacturing_year') or '')[:255],
+        }
+
+
+ParserV2ObjectFormSet = forms.formset_factory(
+    ParserV2ObjectForm,
+    extra=0,
+    can_delete=False,
+)
+
+
+def parser_v2_object_initial_from_payload(insured_objects):
+    """Build initial data for ParserV2ObjectFormSet from parser payload."""
+    initial = []
+    for obj in insured_objects:
+        initial.append({
+            'brand': obj.get('brand') or '',
+            'model': obj.get('model') or '',
+            'condition': obj.get('condition') or '',
+            'equipment_type': obj.get('equipment_type') or '',
+            'power_or_capacity': obj.get('power_or_capacity') or '',
+            'acquisition_cost_value': obj.get('acquisition_cost_value') or '',
+            'acquisition_cost_currency': obj.get('acquisition_cost_currency') or '',
+            'manufacturing_year': obj.get('year') or '',
+            'vehicle_info': obj.get('description') or '',
+            'skip': False,
+        })
+    return initial
+
+
 class DateTimeLocalWidget(forms.DateTimeInput):
     """Custom widget for datetime-local input with proper formatting"""
     

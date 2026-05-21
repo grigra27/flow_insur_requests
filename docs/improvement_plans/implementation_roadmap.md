@@ -274,7 +274,35 @@ N записей `InsuranceRequest` — по одной на объект.
 - Тесты: 3 объекта → 3 сестры с общим batch_id, 1 объект → запись без
   batch_id, attachment к каждой.
 
-UI редактирования отдельных объектов и skip-чекбокс — в этапе 4.2.
+### Под-этап 4.2 — Formset + UI редактирования объектов ✅
+
+**Сделано.**
+
+- `ParserV2ObjectForm` + `ParserV2ObjectFormSet` (formset_factory с
+  `extra=0`) в `forms.py`. Каждая карточка: skip-чекбокс + поля объекта
+  (brand/model/condition/equipment_type/power_or_capacity/cost+currency/
+  manufacturing_year/vehicle_info). `to_object_kwargs()` возвращает
+  готовые kwargs для `InsuranceRequest`.
+- `parser_v2_object_initial_from_payload()` строит initial из payload.
+- `_render_parser_v2_preview` принимает и рендерит formset с префиксом
+  `objects-`.
+- Confirm-step валидирует formset вместе с общей формой; собирает
+  `object_kwargs_list` из cleaned_data, фильтрует skipped. Если все
+  объекты отмечены к пропуску — ошибка «нечего создавать», превью
+  рендерится повторно.
+- `_create_requests_with_splitting()` теперь работает не с payload,
+  а с готовым `object_kwargs_list` — payload используется только для
+  инициализации formset.
+- В шаблоне `upload_excel_v2_preview.html` секция объектов заменена
+  на formset карточек; legacy-поля общей формы (`vehicle_info`,
+  `manufacturing_year`, `asset_status`) скрываются, когда есть
+  объектные карточки, чтобы избежать двойного ввода.
+- Тесты:
+  - Skip subset (3 объекта → отметили 1 → создаётся 2 сестры с
+    `item_count=2`).
+  - Skip all (3 объекта → все skip → 0 заявок, ошибка в response).
+  - Edit propagation (правка `brand` и `acquisition_cost_value`
+    отдельной карточки доходит до записи в БД).
 
 ### Логика
 

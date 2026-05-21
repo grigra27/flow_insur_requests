@@ -136,6 +136,7 @@
                         {% for error in form.has_installment.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                     </section>
 
+                    {% if not has_objects %}
                     <section class="parser-v2-section">
                         <h6 class="parser-v2-section-title text-uppercase text-muted">
                             <i class="bi bi-truck"></i> Предмет лизинга
@@ -158,6 +159,15 @@
                             </div>
                         </div>
                     </section>
+                    {% else %}
+                    {# Hide legacy single-object fields when the formset renders per-object cards. #}
+                    {# `asset_status` stays per-batch (operator can edit via admin) — hide it too if needed. #}
+                    <div class="d-none">
+                        {{ form.vehicle_info }}
+                        {{ form.manufacturing_year }}
+                        {{ form.asset_status }}
+                    </div>
+                    {% endif %}
 
                     <section class="parser-v2-section">
                         <h6 class="parser-v2-section-title text-uppercase text-muted">
@@ -291,55 +301,95 @@
                         </div>
                     </section>
 
-                    {% if is_batch %}
+                    {% if has_objects %}
                     <section class="parser-v2-section">
                         <h6 class="parser-v2-section-title text-uppercase text-muted">
-                            <i class="bi bi-collection"></i> Партия объектов
+                            <i class="bi bi-collection"></i>
+                            {% if is_batch %}
+                                Партия объектов ({{ batch_size }})
+                            {% else %}
+                                Объект страхования
+                            {% endif %}
                         </h6>
+                        {% if is_batch %}
                         <div class="alert alert-info mb-3">
                             <i class="bi bi-info-circle"></i>
-                            В файле найдено <strong>{{ batch_size }}</strong> объектов страхования.
-                            Будут созданы <strong>{{ batch_size }}</strong> отдельных заявок-сестёр
-                            с общими реквизитами выше и индивидуальными данными по каждому объекту.
-                            На странице карточек партии (этап 4.2) их можно будет редактировать
-                            и отбраковывать.
+                            В файле найдено <strong>{{ batch_size }}</strong> объектов.
+                            Будут созданы N заявок-сестёр с общими реквизитами выше и
+                            индивидуальными данными ниже. Любую карточку можно отметить
+                            «Не создавать», чтобы исключить из партии.
                         </div>
-                        <div class="table-responsive">
-                            <table class="table table-sm">
-                                <thead>
-                                    <tr>
-                                        <th>#</th>
-                                        <th>Марка / Модель</th>
-                                        <th>Год</th>
-                                        <th>Состояние</th>
-                                        <th>Стоимость</th>
-                                        <th>Описание</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                {% for obj in insured_objects %}
-                                    <tr>
-                                        <td>{{ forloop.counter }}</td>
-                                        <td>
-                                            {% if obj.brand %}{{ obj.brand }} {% endif %}{{ obj.model|default:"—" }}
-                                        </td>
-                                        <td>{{ obj.year|default:"—" }}</td>
-                                        <td>
-                                            {% if obj.condition == 'new' %}новое
-                                            {% elif obj.condition == 'used' %}б/у
-                                            {% else %}—{% endif %}
-                                        </td>
-                                        <td>
-                                            {% if obj.acquisition_cost_value %}
-                                                {{ obj.acquisition_cost_value }} {{ obj.acquisition_cost_currency|default:"" }}
-                                            {% else %}—{% endif %}
-                                        </td>
-                                        <td class="text-muted small">{{ obj.description|truncatechars:80 }}</td>
-                                    </tr>
-                                {% endfor %}
-                                </tbody>
-                            </table>
+                        {% endif %}
+
+                        {{ object_formset.management_form }}
+                        {% if object_formset.non_form_errors %}
+                            <div class="alert alert-danger">{{ object_formset.non_form_errors }}</div>
+                        {% endif %}
+
+                        {% for obj_form in object_formset %}
+                        <div class="card mb-3 parser-v2-object-card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <strong>
+                                    {% if is_batch %}
+                                        Объект {{ forloop.counter }} из {{ batch_size }}
+                                    {% else %}
+                                        Объект страхования
+                                    {% endif %}
+                                </strong>
+                                {% if is_batch %}
+                                <div class="form-check">
+                                    {{ obj_form.skip }}
+                                    <label class="form-check-label small text-muted" for="{{ obj_form.skip.id_for_label }}">
+                                        {{ obj_form.skip.label }}
+                                    </label>
+                                </div>
+                                {% endif %}
+                            </div>
+                            <div class="card-body">
+                                <div class="row g-3">
+                                    <div class="col-md-4">
+                                        <label class="form-label fw-semibold" for="{{ obj_form.brand.id_for_label }}">{{ obj_form.brand.label }}</label>
+                                        {{ obj_form.brand }}
+                                        {% for error in obj_form.brand.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                                    </div>
+                                    <div class="col-md-8">
+                                        <label class="form-label fw-semibold" for="{{ obj_form.model.id_for_label }}">{{ obj_form.model.label }}</label>
+                                        {{ obj_form.model }}
+                                        {% for error in obj_form.model.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label fw-semibold" for="{{ obj_form.manufacturing_year.id_for_label }}">{{ obj_form.manufacturing_year.label }}</label>
+                                        {{ obj_form.manufacturing_year }}
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label fw-semibold" for="{{ obj_form.condition.id_for_label }}">{{ obj_form.condition.label }}</label>
+                                        {{ obj_form.condition }}
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label fw-semibold" for="{{ obj_form.equipment_type.id_for_label }}">{{ obj_form.equipment_type.label }}</label>
+                                        {{ obj_form.equipment_type }}
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label fw-semibold" for="{{ obj_form.power_or_capacity.id_for_label }}">{{ obj_form.power_or_capacity.label }}</label>
+                                        {{ obj_form.power_or_capacity }}
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold" for="{{ obj_form.acquisition_cost_value.id_for_label }}">{{ obj_form.acquisition_cost_value.label }}</label>
+                                        {{ obj_form.acquisition_cost_value }}
+                                        {% for error in obj_form.acquisition_cost_value.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold" for="{{ obj_form.acquisition_cost_currency.id_for_label }}">{{ obj_form.acquisition_cost_currency.label }}</label>
+                                        {{ obj_form.acquisition_cost_currency }}
+                                    </div>
+                                    <div class="col-md-12">
+                                        <label class="form-label fw-semibold" for="{{ obj_form.vehicle_info.id_for_label }}">{{ obj_form.vehicle_info.label }}</label>
+                                        {{ obj_form.vehicle_info }}
+                                    </div>
+                                </div>
+                            </div>
                         </div>
+                        {% endfor %}
                     </section>
                     {% endif %}
 
