@@ -53,7 +53,6 @@ class InsuranceRequest(models.Model):
     INSURED_PARTY_CHOICES = [
         ('lessor', 'Лизингодатель'),
         ('lessee', 'Лизингополучатель'),
-        ('both', 'Оба'),
     ]
 
     INSURED_SUM_TYPE_CHOICES = [

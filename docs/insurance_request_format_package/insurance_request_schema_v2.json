@@ -130,7 +130,7 @@
         },
         "insured_party": {
           "type": ["string", "null"],
-          "enum": ["lessor", "lessee", "both", null],
+          "enum": ["lessor", "lessee", null],
           "description": "Кто из сторон договора лизинга выступает страхователем. NULL = не определено в исходнике."
         }
       }

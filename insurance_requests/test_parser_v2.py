@@ -112,7 +112,7 @@ class CustomerDealHelpersTests(TestCase):
         self.assertEqual(normalize_insured_party('ЛизингоДАТЕЛЬ'), 'lessor')
         self.assertEqual(normalize_insured_party('ЛИЗИНГОПОЛУЧАТЕЛЬ'), 'lessee')
         self.assertEqual(normalize_insured_party('Лизингополучатель'), 'lessee')
-        self.assertEqual(normalize_insured_party('Оба'), 'both')
+        self.assertIsNone(normalize_insured_party('Оба'))
         self.assertIsNone(normalize_insured_party('что-то другое'))
         self.assertIsNone(normalize_insured_party(None))
 
@@ -222,9 +222,12 @@ class CustomerDealPayloadIntegrationTests(TestCase):
         sheet['D10'] = '194354, Санкт-Петербург г, Северный пр-кт, дом № 11'
         sheet['B11'] = 'Основной вид деятельности:'
         sheet['D11'] = 'Строительство автомобильных дорог'
-        # Deal / insurance block.
+        # Deal / insurance block. Two label cells + an «Х» under one of them
+        # is the canonical layout in the real corpus.
         sheet['B14'] = 'Страхователь'
         sheet['D14'] = 'ЛизингоДАТЕЛЬ'
+        sheet['E14'] = 'ЛизингоПОЛУЧАТЕЛЬ'
+        sheet['D15'] = 'Х'
         sheet['D21'] = 'КАСКО'
         sheet['N17'] = '1 год'
         sheet['D24'] = 'страховая сумма'
@@ -265,6 +268,39 @@ class CustomerDealPayloadIntegrationTests(TestCase):
         self.assertEqual(result.data.get('insured_party'), 'lessor')
         self.assertEqual(result.data.get('insured_sum_type'), 'non_aggregate')
         self.assertEqual(result.data.get('guard_conditions'), 'без ограничений')
+
+    def test_insured_party_x_marker_picks_lessee_when_marked(self):
+        wb = self._build_workbook()
+        sheet = wb.active
+        # Move the «Х» from under lessor (D15) to under lessee (E15).
+        sheet['D15'] = None
+        sheet['E15'] = 'Х'
+        result = self._parse_workbook(wb)
+        self.assertEqual(result.data.get('insured_party'), 'lessee')
+
+    def test_insured_party_warns_when_no_mark_is_present(self):
+        wb = self._build_workbook()
+        sheet = wb.active
+        # Strip every X-mark candidate cell below the label row.
+        for coord in ('D15', 'E15'):
+            sheet[coord] = None
+        result = self._parse_workbook(wb)
+        self.assertIsNone(result.data.get('insured_party'))
+        self.assertTrue(
+            any(
+                w.get('field') == 'insured_party' and w.get('level') == 'manual_required'
+                for w in result.warnings
+            ),
+            f"Expected a manual_required insured_party warning, got: {result.warnings}",
+        )
+
+    def test_insured_party_ambiguous_when_both_columns_marked(self):
+        wb = self._build_workbook()
+        sheet = wb.active
+        sheet['D15'] = 'Х'
+        sheet['E15'] = 'Х'
+        result = self._parse_workbook(wb)
+        self.assertIsNone(result.data.get('insured_party'))
         self.assertEqual(result.data.get('premium_frequency'), 'quarterly')
 
     def test_empty_template_does_not_pick_neighbour_labels(self):
@@ -328,6 +364,8 @@ class ParserV2UploadTests(TestCase):
         sheet['D9'] = '1234567890'
         sheet['B14'] = 'Страхователь'
         sheet['D14'] = 'ЛизингоДАТЕЛЬ'
+        sheet['E14'] = 'ЛизингоПОЛУЧАТЕЛЬ'
+        sheet['D15'] = 'Х'
         sheet['D21'] = 'КАСКО'
         sheet['N17'] = '1 год'
         sheet['B24'] = 'Предмет лизинга'
@@ -683,6 +721,8 @@ class ParserV2UploadTests(TestCase):
         sheet['D9'] = '1234567890'
         sheet['B14'] = 'Страхователь'
         sheet['D14'] = 'ЛизингоДАТЕЛЬ'
+        sheet['E14'] = 'ЛизингоПОЛУЧАТЕЛЬ'
+        sheet['D15'] = 'Х'
         sheet['D21'] = 'КАСКО'
         sheet['N17'] = '1 год'
         # Object table header.

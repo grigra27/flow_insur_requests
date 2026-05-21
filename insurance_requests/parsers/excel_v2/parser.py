@@ -292,7 +292,12 @@ def parse_date_value(value: Any) -> Optional[date]:
 
 
 def normalize_insured_party(value: Any) -> Optional[str]:
-    """Map a raw cell value to the lease.insured_party enum."""
+    """Map a raw cell value to the lease.insured_party enum.
+
+    Used only as a fallback when the canonical X-marker layout is missing
+    (e.g. a free-text cell carrying just the role). The X-marker pickup
+    lives in :meth:`ExcelRequestParserV2._extract_insured_party`.
+    """
     if value is None:
         return None
     text = normalize_text(value)
@@ -302,8 +307,6 @@ def normalize_insured_party(value: Any) -> Optional[str]:
         return "lessor"
     if "лизингополучател" in text:
         return "lessee"
-    if "оба" in text or "обе" in text:
-        return "both"
     return None
 
 
@@ -521,10 +524,7 @@ class ExcelRequestParserV2:
             source_map["submission_date"] = submission_source
 
         # Stage 3.3 — deal / insurance parameters.
-        party_raw, party_source = self._extract_labeled_value(
-            cells, rows, label_groups=[("страхователь",)]
-        )
-        party_value = normalize_insured_party(party_raw)
+        party_value, party_source = self._extract_insured_party(cells, rows)
         if party_value:
             data["insured_party"] = party_value
             source_map["insured_party"] = party_source
@@ -1143,6 +1143,68 @@ class ExcelRequestParserV2:
                     return cell.value, cell.coordinate
         return "", ""
 
+    def _extract_insured_party(
+        self,
+        cells: List[GridCell],
+        rows: Dict[int, List[GridCell]],
+    ) -> Tuple[Optional[str], str]:
+        """Locate the «Страхователь» block and read the X-marker.
+
+        Layout in the corpus:
+          row N     : col B='Страхователь' | col D='ЛизингоДАТЕЛЬ' | col E='ЛизингоПОЛУЧАТЕЛЬ'
+          row N+1   : 'Х' under either col D or col E
+        IP templates shift rows by +1, so we probe N+1..N+2.
+        """
+        header_row: Optional[int] = None
+        lessor_col: Optional[int] = None
+        lessee_col: Optional[int] = None
+        anchor_coord = ""
+
+        for row_number, row_cells in rows.items():
+            lessor_cell: Optional[GridCell] = None
+            lessee_cell: Optional[GridCell] = None
+            for cell in row_cells:
+                text = cell.normalized
+                if "лизингодател" in text and lessor_cell is None:
+                    lessor_cell = cell
+                elif "лизингополучател" in text and lessee_cell is None:
+                    lessee_cell = cell
+            if lessor_cell and lessee_cell:
+                header_row = row_number
+                lessor_col = lessor_cell.col
+                lessee_col = lessee_cell.col
+                anchor_coord = lessor_cell.coordinate
+                break
+
+        if header_row is None:
+            # Fallback: file has just «Страхователь: ЛизингоПОЛУЧАТЕЛЬ»
+            # as free text (no two-label layout) — use the soft text match.
+            raw, source = self._extract_labeled_value(
+                cells, rows, label_groups=[("страхователь",)]
+            )
+            return normalize_insured_party(raw), source
+
+        for offset in (1, 2):
+            mark_row = rows.get(header_row + offset, [])
+            row_by_col = {c.col: c for c in mark_row}
+            lessor_marked = self._is_mark(row_by_col.get(lessor_col))
+            lessee_marked = self._is_mark(row_by_col.get(lessee_col))
+            if lessor_marked and not lessee_marked:
+                cell = row_by_col.get(lessor_col)
+                return "lessor", cell.coordinate if cell else anchor_coord
+            if lessee_marked and not lessor_marked:
+                cell = row_by_col.get(lessee_col)
+                return "lessee", cell.coordinate if cell else anchor_coord
+            if lessor_marked and lessee_marked:
+                return None, anchor_coord  # ambiguous — warning will fire
+
+        return None, anchor_coord
+
+    def _is_mark(self, cell: Optional[GridCell]) -> bool:
+        if cell is None:
+            return False
+        return normalize_text(cell.value).strip() in {"х", "x", "+", "v"}
+
     def _extract_premium_frequency(
         self,
         cells: List[GridCell],
@@ -1215,6 +1277,16 @@ class ExcelRequestParserV2:
                     "level": "manual_required",
                     "field": "branch",
                     "message": f"Филиал «{branch_value}» не входит в список известных — выберите вручную.",
+                    "source": "",
+                }
+            )
+
+        if not data.get("insured_party"):
+            warnings.append(
+                {
+                    "level": "manual_required",
+                    "field": "insured_party",
+                    "message": "Страхователь не распознан — отметьте «Х» под нужным вариантом или выберите вручную.",
                     "source": "",
                 }
             )
