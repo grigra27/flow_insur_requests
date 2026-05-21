@@ -545,11 +545,7 @@ class ExcelRequestParserV2:
             data["guard_conditions"] = guard_raw
             source_map["guard_conditions"] = guard_source
 
-        plrh_raw, plrh_source = self._extract_labeled_value(
-            cells, rows, label_groups=[("правообладат",),
-                                       ("собственник", "места")]
-        )
-        plrh_value = normalize_property_location_right_holder(plrh_raw)
+        plrh_value, plrh_source = self._extract_property_location_right_holder(cells, rows)
         if plrh_value:
             data["property_location_right_holder"] = plrh_value
             source_map["property_location_right_holder"] = plrh_source
@@ -1143,62 +1139,112 @@ class ExcelRequestParserV2:
                     return cell.value, cell.coordinate
         return "", ""
 
+    def _extract_marker_choice(
+        self,
+        rows: Dict[int, List[GridCell]],
+        *,
+        left_label_groups: List[Tuple[str, ...]],
+        left_value: str,
+        right_label_groups: List[Tuple[str, ...]],
+        right_value: str,
+    ) -> Tuple[Optional[str], str, bool]:
+        """Two-label crosshair extraction.
+
+        Find a row that simultaneously holds a left-side label and a
+        right-side label, then probe the next two rows (IP +1 shift) for
+        an X-mark under either column.
+
+        Returns (value, source_coordinate, found_header):
+          - found_header=False signals the caller can fall back to soft text matching;
+          - value=None with found_header=True means the layout was found but no
+            unambiguous mark — the caller should treat this as "unresolved".
+        """
+        header_row: Optional[int] = None
+        left_col: Optional[int] = None
+        right_col: Optional[int] = None
+        anchor_coord = ""
+
+        for row_number, row_cells in rows.items():
+            left_cell: Optional[GridCell] = None
+            right_cell: Optional[GridCell] = None
+            for cell in row_cells:
+                text = cell.normalized
+                if left_cell is None and self._matches_any_group(text, left_label_groups):
+                    left_cell = cell
+                    continue
+                if right_cell is None and self._matches_any_group(text, right_label_groups):
+                    right_cell = cell
+            if left_cell and right_cell and left_cell.col != right_cell.col:
+                header_row = row_number
+                left_col = left_cell.col
+                right_col = right_cell.col
+                anchor_coord = left_cell.coordinate
+                break
+
+        if header_row is None:
+            return None, "", False
+
+        for offset in (1, 2):
+            mark_row = rows.get(header_row + offset, [])
+            row_by_col = {c.col: c for c in mark_row}
+            left_marked = self._is_mark(row_by_col.get(left_col))
+            right_marked = self._is_mark(row_by_col.get(right_col))
+            if left_marked and not right_marked:
+                cell = row_by_col.get(left_col)
+                return left_value, cell.coordinate if cell else anchor_coord, True
+            if right_marked and not left_marked:
+                cell = row_by_col.get(right_col)
+                return right_value, cell.coordinate if cell else anchor_coord, True
+            if left_marked and right_marked:
+                return None, anchor_coord, True
+
+        return None, anchor_coord, True
+
     def _extract_insured_party(
         self,
         cells: List[GridCell],
         rows: Dict[int, List[GridCell]],
     ) -> Tuple[Optional[str], str]:
-        """Locate the «Страхователь» block and read the X-marker.
+        """«Страхователь» block: ЛизингоДАТЕЛЬ / ЛизингоПОЛУЧАТЕЛЬ + crosshair."""
+        value, source, found_header = self._extract_marker_choice(
+            rows,
+            left_label_groups=[("лизингодател",)],
+            left_value="lessor",
+            right_label_groups=[("лизингополучател",)],
+            right_value="lessee",
+        )
+        if found_header:
+            return value, source
 
-        Layout in the corpus:
-          row N     : col B='Страхователь' | col D='ЛизингоДАТЕЛЬ' | col E='ЛизингоПОЛУЧАТЕЛЬ'
-          row N+1   : 'Х' under either col D or col E
-        IP templates shift rows by +1, so we probe N+1..N+2.
+        # Fallback: file uses free text like «Страхователь: ЛизингоПОЛУЧАТЕЛЬ».
+        raw, fallback_source = self._extract_labeled_value(
+            cells, rows, label_groups=[("страхователь",)]
+        )
+        return normalize_insured_party(raw), fallback_source
+
+    def _extract_property_location_right_holder(
+        self,
+        cells: List[GridCell],
+        rows: Dict[int, List[GridCell]],
+    ) -> Tuple[Optional[str], str]:
+        """«Правообладатель места расположения» block:
+          «собственность лизингополучателя» / «собственность третьего лица» + crosshair.
         """
-        header_row: Optional[int] = None
-        lessor_col: Optional[int] = None
-        lessee_col: Optional[int] = None
-        anchor_coord = ""
+        value, source, found_header = self._extract_marker_choice(
+            rows,
+            left_label_groups=[("лизингополучател",), ("собственн", "лизинг")],
+            left_value="lessee_owner",
+            right_label_groups=[("сторонн",), ("трет",), ("арендодател",)],
+            right_value="third_party_owner",
+        )
+        if found_header:
+            return value, source
 
-        for row_number, row_cells in rows.items():
-            lessor_cell: Optional[GridCell] = None
-            lessee_cell: Optional[GridCell] = None
-            for cell in row_cells:
-                text = cell.normalized
-                if "лизингодател" in text and lessor_cell is None:
-                    lessor_cell = cell
-                elif "лизингополучател" in text and lessee_cell is None:
-                    lessee_cell = cell
-            if lessor_cell and lessee_cell:
-                header_row = row_number
-                lessor_col = lessor_cell.col
-                lessee_col = lessee_cell.col
-                anchor_coord = lessor_cell.coordinate
-                break
-
-        if header_row is None:
-            # Fallback: file has just «Страхователь: ЛизингоПОЛУЧАТЕЛЬ»
-            # as free text (no two-label layout) — use the soft text match.
-            raw, source = self._extract_labeled_value(
-                cells, rows, label_groups=[("страхователь",)]
-            )
-            return normalize_insured_party(raw), source
-
-        for offset in (1, 2):
-            mark_row = rows.get(header_row + offset, [])
-            row_by_col = {c.col: c for c in mark_row}
-            lessor_marked = self._is_mark(row_by_col.get(lessor_col))
-            lessee_marked = self._is_mark(row_by_col.get(lessee_col))
-            if lessor_marked and not lessee_marked:
-                cell = row_by_col.get(lessor_col)
-                return "lessor", cell.coordinate if cell else anchor_coord
-            if lessee_marked and not lessor_marked:
-                cell = row_by_col.get(lessee_col)
-                return "lessee", cell.coordinate if cell else anchor_coord
-            if lessor_marked and lessee_marked:
-                return None, anchor_coord  # ambiguous — warning will fire
-
-        return None, anchor_coord
+        raw, fallback_source = self._extract_labeled_value(
+            cells, rows,
+            label_groups=[("правообладат",), ("собственник", "места")],
+        )
+        return normalize_property_location_right_holder(raw), fallback_source
 
     def _is_mark(self, cell: Optional[GridCell]) -> bool:
         if cell is None:
@@ -1287,6 +1333,19 @@ class ExcelRequestParserV2:
                     "level": "manual_required",
                     "field": "insured_party",
                     "message": "Страхователь не распознан — отметьте «Х» под нужным вариантом или выберите вручную.",
+                    "source": "",
+                }
+            )
+
+        if (
+            data.get("insurance_type") == "страхование имущества"
+            and not data.get("property_location_right_holder")
+        ):
+            warnings.append(
+                {
+                    "level": "manual_required",
+                    "field": "property_location_right_holder",
+                    "message": "Правообладатель места расположения не распознан — отметьте «Х» под нужным вариантом или выберите вручную.",
                     "source": "",
                 }
             )

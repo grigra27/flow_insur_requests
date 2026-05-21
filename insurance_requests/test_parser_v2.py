@@ -234,6 +234,12 @@ class CustomerDealPayloadIntegrationTests(TestCase):
         sheet['E24'] = 'Неагрегатная'
         sheet['D26'] = 'условия по охране (день/ночь)'
         sheet['E26'] = 'без ограничений'
+        # Property-location right holder block: two labels in one row + «Х»
+        # under one of them (same crosshair layout as the «Страхователь» block).
+        sheet['B27'] = 'Правообладатель места расположения'
+        sheet['D27'] = 'собственность лизингополучателя'
+        sheet['F27'] = 'собственность третьего лица'
+        sheet['D28'] = 'Х'
         # Premium frequency block: «Х» next to «ежеквартально».
         sheet['B31'] = 'Порядок уплаты страховой премии'
         sheet['D31'] = 'Единовременно'
@@ -268,6 +274,7 @@ class CustomerDealPayloadIntegrationTests(TestCase):
         self.assertEqual(result.data.get('insured_party'), 'lessor')
         self.assertEqual(result.data.get('insured_sum_type'), 'non_aggregate')
         self.assertEqual(result.data.get('guard_conditions'), 'без ограничений')
+        self.assertEqual(result.data.get('property_location_right_holder'), 'lessee_owner')
 
     def test_insured_party_x_marker_picks_lessee_when_marked(self):
         wb = self._build_workbook()
@@ -302,6 +309,53 @@ class CustomerDealPayloadIntegrationTests(TestCase):
         result = self._parse_workbook(wb)
         self.assertIsNone(result.data.get('insured_party'))
         self.assertEqual(result.data.get('premium_frequency'), 'quarterly')
+
+    def test_plrh_x_marker_picks_third_party_when_marked(self):
+        wb = self._build_workbook()
+        sheet = wb.active
+        sheet['D28'] = None
+        sheet['F28'] = 'Х'
+        result = self._parse_workbook(wb)
+        self.assertEqual(result.data.get('property_location_right_holder'), 'third_party_owner')
+
+    def test_plrh_warns_only_for_property_insurance(self):
+        # No mark + insurance_type = «страхование имущества» → warning fires.
+        wb = self._build_workbook()
+        sheet = wb.active
+        sheet['D21'] = 'страхование имущества'
+        sheet['D28'] = None
+        sheet['F28'] = None
+        result = self._parse_workbook(wb)
+        self.assertIsNone(result.data.get('property_location_right_holder'))
+        self.assertTrue(
+            any(
+                w.get('field') == 'property_location_right_holder'
+                and w.get('level') == 'manual_required'
+                for w in result.warnings
+            ),
+            f"Expected a manual_required PLRH warning, got: {result.warnings}",
+        )
+
+    def test_plrh_warning_suppressed_for_casco(self):
+        # No mark + default КАСКО → no PLRH warning (field is irrelevant for CASCO).
+        wb = self._build_workbook()
+        sheet = wb.active
+        sheet['D28'] = None
+        sheet['F28'] = None
+        result = self._parse_workbook(wb)
+        self.assertIsNone(result.data.get('property_location_right_holder'))
+        self.assertFalse(
+            any(w.get('field') == 'property_location_right_holder' for w in result.warnings),
+            f"Did not expect a PLRH warning for CASCO, got: {result.warnings}",
+        )
+
+    def test_plrh_ambiguous_when_both_columns_marked(self):
+        wb = self._build_workbook()
+        sheet = wb.active
+        sheet['D28'] = 'Х'
+        sheet['F28'] = 'Х'
+        result = self._parse_workbook(wb)
+        self.assertIsNone(result.data.get('property_location_right_holder'))
 
     def test_empty_template_does_not_pick_neighbour_labels(self):
         # Build a "template only" workbook — labels present, values empty.
