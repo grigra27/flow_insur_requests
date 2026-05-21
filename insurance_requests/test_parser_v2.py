@@ -637,6 +637,132 @@ class ParserV2UploadTests(TestCase):
         self.assertEqual(created_request.additional_data['parser_v2']['version'], '2.0.0')
         self.assertTrue(RequestAttachment.objects.filter(request=created_request).exists())
 
+    def _xlsx_upload_with_multiple_objects(self, object_count=3, filename='partia.xlsx'):
+        """Build a synthetic xlsx with several object rows so the parser
+        finds an N-object batch."""
+        wb = Workbook()
+        sheet = wb.active
+        sheet['C4'] = 'Казанский филиал'
+        sheet['C5'] = 'Иванов Иван'
+        sheet['D7'] = 'ООО Ромашка'
+        sheet['D9'] = '1234567890'
+        sheet['B14'] = 'Страхователь'
+        sheet['D14'] = 'ЛизингоДАТЕЛЬ'
+        sheet['D21'] = 'КАСКО'
+        sheet['N17'] = '1 год'
+        # Object table header.
+        sheet['C41'] = 'Наименование и описание имущества'
+        sheet['J41'] = 'Год выпуска'
+        sheet['L41'] = 'Мощность'
+        sheet['M41'] = 'Стоимость на момент приобретения'
+        sheet['N41'] = 'Валюта'
+        # Object rows at 43, 45, 47, 49 — stop at the requested count.
+        descriptions = [
+            ('LADA Largus KS045L', 2024, 'б/у', '78.05', 1490000),
+            ('Toyota Camry XV70', 2023, 'новое', '249', 4500000),
+            ('Haval H7', 2025, 'новое', '170', 3649000),
+            ('Mercedes-Benz Sprinter', 2022, 'б/у', '170', 5200000),
+        ]
+        for idx, (desc, year, cond, power, cost) in enumerate(descriptions[:object_count]):
+            row = 43 + idx * 2
+            sheet[f'C{row}'] = desc
+            sheet[f'J{row}'] = year
+            sheet[f'K{row}'] = cond
+            sheet[f'L{row}'] = power
+            sheet[f'M{row}'] = cost
+            sheet[f'N{row}'] = 'руб'
+        buffer = BytesIO()
+        wb.save(buffer)
+        buffer.seek(0)
+        return SimpleUploadedFile(
+            filename,
+            buffer.read(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        )
+
+    def test_parser_v2_splits_multi_object_file_into_sibling_requests(self):
+        """Stage 4.1: 3 objects → 3 requests sharing one source_batch_id."""
+        self.client.login(username='parser_v2_root', password='pwd')
+        upload_response = self.client.post(
+            reverse('insurance_requests:upload_excel_v2'),
+            {'excel_file': self._xlsx_upload_with_multiple_objects(object_count=3)},
+        )
+
+        # Preview must announce a batch and the submit button must reflect it.
+        self.assertContains(upload_response, 'Партия объектов')
+        self.assertContains(upload_response, 'Создать партию из 3 заявок')
+
+        form = upload_response.context['form']
+        post_data = self._post_data_from_preview(form)
+
+        create_response = self.client.post(reverse('insurance_requests:upload_excel_v2'), post_data)
+
+        # Three sibling rows must be created.
+        siblings = InsuranceRequest.objects.order_by('item_no')
+        self.assertEqual(siblings.count(), 3)
+
+        # Common fields are duplicated.
+        for s in siblings:
+            self.assertEqual(s.client_name, 'ООО Ромашка')
+            self.assertEqual(s.inn, '1234567890')
+            self.assertEqual(s.branch, 'Казань')
+            self.assertEqual(s.insured_party, 'lessor')
+
+        # Batch identity is consistent across siblings.
+        batch_ids = {s.source_batch_id for s in siblings}
+        self.assertEqual(len(batch_ids), 1)
+        self.assertIsNotNone(siblings.first().source_batch_id)
+        item_nos = [s.item_no for s in siblings]
+        self.assertEqual(item_nos, [1, 2, 3])
+        for s in siblings:
+            self.assertEqual(s.item_count, 3)
+
+        # Per-object fields differ.
+        first, second, third = siblings
+        self.assertEqual(first.brand, 'LADA')
+        self.assertEqual(second.brand, 'Toyota')
+        self.assertEqual(third.brand, 'Haval')
+        self.assertEqual(first.acquisition_cost_value, Decimal('1490000'))
+        self.assertEqual(second.acquisition_cost_value, Decimal('4500000'))
+        self.assertEqual(third.acquisition_cost_value, Decimal('3649000'))
+        for s in siblings:
+            self.assertEqual(s.acquisition_cost_currency, 'RUB')
+
+        # Original Excel is attached to every sibling.
+        self.assertEqual(RequestAttachment.objects.count(), 3)
+        for s in siblings:
+            self.assertTrue(RequestAttachment.objects.filter(request=s).exists())
+
+        # The view redirects to the first request of the batch.
+        self.assertRedirects(
+            create_response,
+            reverse('insurance_requests:request_detail', kwargs={'pk': first.pk}),
+        )
+
+    def test_parser_v2_single_object_file_keeps_batch_fields_null(self):
+        """Stage 4.1: 1 object → 1 request, source_batch_id stays NULL."""
+        self.client.login(username='parser_v2_root', password='pwd')
+        upload_response = self.client.post(
+            reverse('insurance_requests:upload_excel_v2'),
+            {'excel_file': self._xlsx_upload_with_multiple_objects(object_count=1)},
+        )
+        # No "Партия объектов" block for single-object uploads.
+        self.assertNotContains(upload_response, 'Партия объектов')
+        self.assertContains(upload_response, 'Создать заявку')
+
+        form = upload_response.context['form']
+        post_data = self._post_data_from_preview(form)
+        self.client.post(reverse('insurance_requests:upload_excel_v2'), post_data)
+
+        created = InsuranceRequest.objects.get()
+        self.assertIsNone(created.source_batch_id)
+        self.assertIsNone(created.item_no)
+        self.assertIsNone(created.item_count)
+        # Object fields are still filled (single-object stage 4.1 still uses the payload).
+        self.assertEqual(created.brand, 'LADA')
+        self.assertEqual(created.acquisition_cost_value, Decimal('1490000'))
+        self.assertEqual(RequestAttachment.objects.count(), 1)
+
     def test_parser_v2_can_create_minimal_request_after_unreadable_file(self):
         self.client.login(username='parser_v2_root', password='pwd')
         unreadable_file = SimpleUploadedFile(

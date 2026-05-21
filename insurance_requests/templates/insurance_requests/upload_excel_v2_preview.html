@@ -227,6 +227,124 @@
 
                     <section class="parser-v2-section">
                         <h6 class="parser-v2-section-title text-uppercase text-muted">
+                            <i class="bi bi-building"></i> Реквизиты страхователя
+                        </h6>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" for="{{ form.legal_address.id_for_label }}">{{ form.legal_address.label }}</label>
+                                {{ form.legal_address }}
+                                {% for error in form.legal_address.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" for="{{ form.postal_address.id_for_label }}">{{ form.postal_address.label }}</label>
+                                {{ form.postal_address }}
+                                {% for error in form.postal_address.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="col-md-12">
+                                <label class="form-label fw-semibold" for="{{ form.business_activity.id_for_label }}">{{ form.business_activity.label }}</label>
+                                {{ form.business_activity }}
+                                {% for error in form.business_activity.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" for="{{ form.birth_date.id_for_label }}">{{ form.birth_date.label }}</label>
+                                {{ form.birth_date }}
+                                {% for error in form.birth_date.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" for="{{ form.submission_date.id_for_label }}">{{ form.submission_date.label }}</label>
+                                {{ form.submission_date }}
+                                {% for error in form.submission_date.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="parser-v2-section">
+                        <h6 class="parser-v2-section-title text-uppercase text-muted">
+                            <i class="bi bi-file-text"></i> Параметры сделки
+                        </h6>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" for="{{ form.insured_party.id_for_label }}">{{ form.insured_party.label }}</label>
+                                {{ form.insured_party }}
+                                {% for error in form.insured_party.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" for="{{ form.insured_sum_type.id_for_label }}">{{ form.insured_sum_type.label }}</label>
+                                {{ form.insured_sum_type }}
+                                {% for error in form.insured_sum_type.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" for="{{ form.premium_frequency.id_for_label }}">{{ form.premium_frequency.label }}</label>
+                                {{ form.premium_frequency }}
+                                {% for error in form.premium_frequency.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" for="{{ form.property_location_right_holder.id_for_label }}">{{ form.property_location_right_holder.label }}</label>
+                                {{ form.property_location_right_holder }}
+                                {% for error in form.property_location_right_holder.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="col-md-12">
+                                <label class="form-label fw-semibold" for="{{ form.guard_conditions.id_for_label }}">{{ form.guard_conditions.label }}</label>
+                                {{ form.guard_conditions }}
+                                {% for error in form.guard_conditions.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                            </div>
+                        </div>
+                    </section>
+
+                    {% if is_batch %}
+                    <section class="parser-v2-section">
+                        <h6 class="parser-v2-section-title text-uppercase text-muted">
+                            <i class="bi bi-collection"></i> Партия объектов
+                        </h6>
+                        <div class="alert alert-info mb-3">
+                            <i class="bi bi-info-circle"></i>
+                            В файле найдено <strong>{{ batch_size }}</strong> объектов страхования.
+                            Будут созданы <strong>{{ batch_size }}</strong> отдельных заявок-сестёр
+                            с общими реквизитами выше и индивидуальными данными по каждому объекту.
+                            На странице карточек партии (этап 4.2) их можно будет редактировать
+                            и отбраковывать.
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Марка / Модель</th>
+                                        <th>Год</th>
+                                        <th>Состояние</th>
+                                        <th>Стоимость</th>
+                                        <th>Описание</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                {% for obj in insured_objects %}
+                                    <tr>
+                                        <td>{{ forloop.counter }}</td>
+                                        <td>
+                                            {% if obj.brand %}{{ obj.brand }} {% endif %}{{ obj.model|default:"—" }}
+                                        </td>
+                                        <td>{{ obj.year|default:"—" }}</td>
+                                        <td>
+                                            {% if obj.condition == 'new' %}новое
+                                            {% elif obj.condition == 'used' %}б/у
+                                            {% else %}—{% endif %}
+                                        </td>
+                                        <td>
+                                            {% if obj.acquisition_cost_value %}
+                                                {{ obj.acquisition_cost_value }} {{ obj.acquisition_cost_currency|default:"" }}
+                                            {% else %}—{% endif %}
+                                        </td>
+                                        <td class="text-muted small">{{ obj.description|truncatechars:80 }}</td>
+                                    </tr>
+                                {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+                    {% endif %}
+
+                    <section class="parser-v2-section">
+                        <h6 class="parser-v2-section-title text-uppercase text-muted">
                             <i class="bi bi-journal-text"></i> Примечание
                         </h6>
                         <label class="form-label fw-semibold" for="{{ form.notes.id_for_label }}">{{ form.notes.label }}</label>
@@ -238,7 +356,12 @@
 
             <div class="d-flex gap-2 mb-4">
                 <button type="submit" class="btn btn-success btn-lg">
-                    <i class="bi bi-check-circle"></i> Создать заявку
+                    <i class="bi bi-check-circle"></i>
+                    {% if is_batch %}
+                        Создать партию из {{ batch_size }} заявок
+                    {% else %}
+                        Создать заявку
+                    {% endif %}
                 </button>
                 <a href="{% url 'insurance_requests:upload_excel_v2' %}" class="btn btn-outline-secondary btn-lg">
                     Отмена

@@ -392,6 +392,51 @@ class ParserV2PreviewForm(forms.Form):
         required=False,
         widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 4})
     )
+    # Stage 2.2/2.3 — customer + deal/insurance common fields.
+    legal_address = forms.CharField(
+        label='Юридический адрес', required=False,
+        widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 2})
+    )
+    postal_address = forms.CharField(
+        label='Почтовый адрес', required=False,
+        widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 2})
+    )
+    business_activity = forms.CharField(
+        label='Основной вид деятельности', required=False,
+        widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 2})
+    )
+    birth_date = forms.DateField(
+        label='Дата рождения (для ИП)', required=False,
+        widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'})
+    )
+    submission_date = forms.DateField(
+        label='Дата подачи заявки', required=False,
+        widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'})
+    )
+    insured_party = forms.ChoiceField(
+        label='Страхователь', required=False,
+        choices=[('', '-- Не указан --')] + InsuranceRequest.INSURED_PARTY_CHOICES,
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+    insured_sum_type = forms.ChoiceField(
+        label='Тип страховой суммы', required=False,
+        choices=[('', '-- Не указан --')] + InsuranceRequest.INSURED_SUM_TYPE_CHOICES,
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+    guard_conditions = forms.CharField(
+        label='Условия охраны/хранения', required=False,
+        widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 2})
+    )
+    property_location_right_holder = forms.ChoiceField(
+        label='Правообладатель места расположения', required=False,
+        choices=[('', '-- Не указан --')] + InsuranceRequest.PROPERTY_LOCATION_RIGHT_HOLDER_CHOICES,
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+    premium_frequency = forms.ChoiceField(
+        label='Частота уплаты премии', required=False,
+        choices=[('', '-- Не указан --')] + InsuranceRequest.PREMIUM_FREQUENCY_CHOICES,
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -417,6 +462,26 @@ class ParserV2PreviewForm(forms.Form):
         valid_deal_statuses = {choice[0] for choice in InsuranceRequest.DEAL_STATUS_CHOICES}
         if deal_status not in valid_deal_statuses:
             deal_status = 'new'
+
+        insured_party = cleaned.get('insured_party') or None
+        valid_insured_party = {choice[0] for choice in InsuranceRequest.INSURED_PARTY_CHOICES}
+        if insured_party not in valid_insured_party:
+            insured_party = None
+
+        insured_sum_type = cleaned.get('insured_sum_type') or None
+        valid_sum_types = {choice[0] for choice in InsuranceRequest.INSURED_SUM_TYPE_CHOICES}
+        if insured_sum_type not in valid_sum_types:
+            insured_sum_type = None
+
+        plrh = cleaned.get('property_location_right_holder') or None
+        valid_plrh = {choice[0] for choice in InsuranceRequest.PROPERTY_LOCATION_RIGHT_HOLDER_CHOICES}
+        if plrh not in valid_plrh:
+            plrh = None
+
+        premium_freq = cleaned.get('premium_frequency') or None
+        valid_premium_freq = {choice[0] for choice in InsuranceRequest.PREMIUM_FREQUENCY_CHOICES}
+        if premium_freq not in valid_premium_freq:
+            premium_freq = None
 
         return {
             'client_name': self._limit(cleaned.get('client_name') or 'Клиент не указан', 255),
@@ -444,6 +509,18 @@ class ParserV2PreviewForm(forms.Form):
             'insurance_territory': cleaned.get('insurance_territory') or '',
             'notes': cleaned.get('notes') or '',
             'response_deadline': self._parse_response_deadline(cleaned.get('response_deadline')),
+            # Stage 2.2 — customer details
+            'legal_address': cleaned.get('legal_address') or None,
+            'postal_address': cleaned.get('postal_address') or None,
+            'business_activity': cleaned.get('business_activity') or None,
+            'birth_date': cleaned.get('birth_date') or None,
+            'submission_date': cleaned.get('submission_date') or None,
+            # Stage 2.3 — deal / insurance parameters
+            'insured_party': insured_party,
+            'insured_sum_type': insured_sum_type,
+            'guard_conditions': cleaned.get('guard_conditions') or None,
+            'property_location_right_holder': plrh,
+            'premium_frequency': premium_freq,
         }
 
     def _parse_response_deadline(self, value):

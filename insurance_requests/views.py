@@ -10,6 +10,7 @@ from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.core.files import File
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
+from django.db import transaction
 from django.utils import timezone
 from django.utils.text import get_valid_filename
 import os
@@ -176,7 +177,14 @@ def _build_parser_v2_additional_data(draft, request_fields, user):
     }
 
 
-def _attach_parser_v2_original_file(insurance_request, draft):
+def _attach_parser_v2_original_file(insurance_request, draft, *, cleanup_source=True):
+    """Attach the original Excel to a created request.
+
+    With cleanup_source=False the source file in storage is kept after the
+    attach, so the same draft can be attached to several sibling requests in
+    a batch (stage 4 splitting). The caller is responsible for deleting the
+    storage file once after all siblings have been attached.
+    """
     storage_path = draft.get('storage_path')
     original_filename = draft.get('original_filename') or os.path.basename(storage_path or '')
     if not storage_path or not default_storage.exists(storage_path):
@@ -191,11 +199,139 @@ def _attach_parser_v2_original_file(insurance_request, draft):
             original_filename=original_filename,
             file_type=os.path.splitext(original_filename)[1]
         )
-    try:
-        default_storage.delete(storage_path)
-    except Exception as cleanup_error:
-        logger.warning("Could not delete Parser V2 temporary file %s: %s", storage_path, cleanup_error)
+    if cleanup_source:
+        try:
+            default_storage.delete(storage_path)
+        except Exception as cleanup_error:
+            logger.warning("Could not delete Parser V2 temporary file %s: %s", storage_path, cleanup_error)
     return attachment
+
+
+def _parser_v2_object_fields(payload_object):
+    """Translate one parser_v2 insured_objects[] entry into model field kwargs.
+
+    Returns a dict ready to spread into InsuranceRequest(**kwargs). Decimal
+    fields are decoded back from the string form used in payload.
+    """
+    from decimal import Decimal, InvalidOperation
+
+    def _decimal(value):
+        if value is None:
+            return None
+        try:
+            return Decimal(str(value))
+        except (InvalidOperation, ValueError, TypeError):
+            return None
+
+    description = payload_object.get('description') or 'Предмет лизинга не указан'
+    return {
+        'brand': payload_object.get('brand') or None,
+        'model': payload_object.get('model') or None,
+        'condition': payload_object.get('condition') or None,
+        'equipment_type': payload_object.get('equipment_type') or None,
+        'power_or_capacity': payload_object.get('power_or_capacity') or None,
+        'acquisition_cost_value': _decimal(payload_object.get('acquisition_cost_value')),
+        'acquisition_cost_currency': payload_object.get('acquisition_cost_currency') or None,
+        'vehicle_info': description[:5000],
+        'manufacturing_year': (payload_object.get('year') or '')[:255],
+    }
+
+
+def _build_common_request_kwargs(request_fields, additional_data, user):
+    """Common kwargs duplicated to every sibling request in a V2 batch."""
+    return {
+        'client_name': request_fields['client_name'],
+        'inn': request_fields['inn'],
+        'insurance_type': request_fields['insurance_type'],
+        'insurance_period': request_fields['insurance_period'],
+        'dfa_number': request_fields['dfa_number'],
+        'branch': request_fields['branch'],
+        'manager_name': request_fields['manager_name'],
+        'deal_status': request_fields['deal_status'],
+        'franchise_type': request_fields['franchise_type'],
+        'has_installment': request_fields['has_installment'],
+        'has_autostart': request_fields['has_autostart'],
+        'has_casco_ce': request_fields['has_casco_ce'],
+        'has_transportation': request_fields['has_transportation'],
+        'has_construction_work': request_fields['has_construction_work'],
+        'asset_status': request_fields['asset_status'],
+        'key_completeness': request_fields['key_completeness'],
+        'pts_psm': request_fields['pts_psm'],
+        'creditor_bank': request_fields['creditor_bank'],
+        'usage_purposes': request_fields['usage_purposes'],
+        'telematics_complex': request_fields['telematics_complex'],
+        'insurance_territory': request_fields['insurance_territory'],
+        'response_deadline': request_fields['response_deadline'],
+        'notes': request_fields['notes'],
+        # Stage 2.2 — customer details
+        'legal_address': request_fields.get('legal_address'),
+        'postal_address': request_fields.get('postal_address'),
+        'business_activity': request_fields.get('business_activity'),
+        'birth_date': request_fields.get('birth_date'),
+        'submission_date': request_fields.get('submission_date'),
+        # Stage 2.3 — deal / insurance parameters
+        'insured_party': request_fields.get('insured_party'),
+        'insured_sum_type': request_fields.get('insured_sum_type'),
+        'guard_conditions': request_fields.get('guard_conditions'),
+        'property_location_right_holder': request_fields.get('property_location_right_holder'),
+        'premium_frequency': request_fields.get('premium_frequency'),
+        'additional_data': additional_data,
+        'created_by': user,
+    }
+
+
+def _create_requests_with_splitting(*, request_fields, additional_data, insured_objects, draft, user):
+    """Stage 4.1 splitting: produce N sibling InsuranceRequest rows from a
+    single Excel upload.
+
+    - 0 objects → fall back to a single request using the form's vehicle_info
+      / manufacturing_year (legacy V2 behaviour, kept for files where the
+      parser failed to identify any object row).
+    - 1 object → create a single request, no source_batch_id / item_no /
+      item_count (these stay NULL; user-confirmed default in stage 4 design).
+    - N ≥ 2 objects → one source_batch_id (UUID), N rows with item_no=1..N
+      and item_count=N. Common fields are duplicated; per-object fields
+      (brand/model/condition/cost/...) come from each insured_objects[i].
+
+    The original Excel is attached to every created request; the source file
+    in storage is removed once after the loop.
+    """
+    common = _build_common_request_kwargs(request_fields, additional_data, user)
+    created: list = []
+
+    with transaction.atomic():
+        if not insured_objects:
+            # Legacy fallback — no objects parsed, use the form values.
+            instance = InsuranceRequest.objects.create(
+                vehicle_info=request_fields['vehicle_info'],
+                manufacturing_year=request_fields['manufacturing_year'],
+                **common,
+            )
+            created.append(instance)
+        elif len(insured_objects) == 1:
+            object_kwargs = _parser_v2_object_fields(insured_objects[0])
+            instance = InsuranceRequest.objects.create(**object_kwargs, **common)
+            created.append(instance)
+        else:
+            batch_id = uuid.uuid4()
+            item_count = len(insured_objects)
+            for idx, payload_object in enumerate(insured_objects, start=1):
+                object_kwargs = _parser_v2_object_fields(payload_object)
+                instance = InsuranceRequest.objects.create(
+                    source_batch_id=batch_id,
+                    item_no=idx,
+                    item_count=item_count,
+                    **object_kwargs,
+                    **common,
+                )
+                created.append(instance)
+
+    # Attach the original Excel to every sibling, clean storage at the end.
+    last_index = len(created) - 1
+    for idx, instance in enumerate(created):
+        _attach_parser_v2_original_file(instance, draft, cleanup_source=(idx == last_index))
+
+    return created
 
 
 def _render_parser_v2_preview(request, draft_id, draft, preview_form=None):
@@ -203,6 +339,10 @@ def _render_parser_v2_preview(request, draft_id, draft, preview_form=None):
     if preview_form is None:
         preview_form = ParserV2PreviewForm(initial=_parser_v2_initial_data(draft_id, parse_result))
     confidence = parse_result.get('confidence', 0) or 0
+
+    payload = (parse_result.get('data') or {}).get('parser_v2_payload') or {}
+    insured_objects = payload.get('insured_objects') or []
+    batch_size = len(insured_objects)
 
     return render(request, 'insurance_requests/upload_excel_v2_preview.html', {
         'form': preview_form,
@@ -213,6 +353,9 @@ def _render_parser_v2_preview(request, draft_id, draft, preview_form=None):
         'original_filename': draft.get('original_filename', ''),
         'draft_id': draft_id,
         'parse_result': parse_result,
+        'insured_objects': insured_objects,
+        'batch_size': batch_size,
+        'is_batch': batch_size >= 2,
     })
 
 
@@ -745,61 +888,50 @@ def upload_excel_v2(request):
             request_fields = form.to_request_fields()
             additional_data = _build_parser_v2_additional_data(draft, request_fields, request.user)
 
-            insurance_request = InsuranceRequest.objects.create(
-                client_name=request_fields['client_name'],
-                inn=request_fields['inn'],
-                insurance_type=request_fields['insurance_type'],
-                insurance_period=request_fields['insurance_period'],
-                vehicle_info=request_fields['vehicle_info'],
-                dfa_number=request_fields['dfa_number'],
-                branch=request_fields['branch'],
-                manager_name=request_fields['manager_name'],
-                deal_status=request_fields['deal_status'],
-                franchise_type=request_fields['franchise_type'],
-                has_installment=request_fields['has_installment'],
-                has_autostart=request_fields['has_autostart'],
-                has_casco_ce=request_fields['has_casco_ce'],
-                has_transportation=request_fields['has_transportation'],
-                has_construction_work=request_fields['has_construction_work'],
-                manufacturing_year=request_fields['manufacturing_year'],
-                asset_status=request_fields['asset_status'],
-                key_completeness=request_fields['key_completeness'],
-                pts_psm=request_fields['pts_psm'],
-                creditor_bank=request_fields['creditor_bank'],
-                usage_purposes=request_fields['usage_purposes'],
-                telematics_complex=request_fields['telematics_complex'],
-                insurance_territory=request_fields['insurance_territory'],
-                response_deadline=request_fields['response_deadline'],
-                notes=request_fields['notes'],
+            parse_result = draft.get('parse_result', {})
+            payload = (parse_result.get('data') or {}).get('parser_v2_payload') or {}
+            insured_objects = payload.get('insured_objects') or []
+
+            created_requests = _create_requests_with_splitting(
+                request_fields=request_fields,
                 additional_data=additional_data,
-                created_by=request.user,
+                insured_objects=insured_objects,
+                draft=draft,
+                user=request.user,
             )
 
-            attachment = _attach_parser_v2_original_file(insurance_request, draft)
             _pop_parser_v2_draft(request, draft_id)
 
             warning_count = len(additional_data['parser_v2'].get('warnings', []))
-            if warning_count:
-                messages.warning(
-                    request,
-                    f'Заявка {insurance_request.get_display_name()} создана через Parser V2. '
-                    f'Предупреждений разбора: {warning_count}. Проверьте данные перед дальнейшей работой.'
-                )
-            else:
+            batch_size = len(created_requests)
+            primary = created_requests[0]
+            if batch_size > 1:
                 messages.success(
                     request,
-                    f'Заявка {insurance_request.get_display_name()} успешно создана через Parser V2.'
+                    f'Создана партия из {batch_size} заявок через Parser V2. '
+                    f'Первая: {primary.get_display_name()}.'
                 )
-            if not attachment:
-                messages.warning(request, 'Исходный Excel не удалось прикрепить к заявке автоматически.')
+            else:
+                if warning_count:
+                    messages.warning(
+                        request,
+                        f'Заявка {primary.get_display_name()} создана через Parser V2. '
+                        f'Предупреждений разбора: {warning_count}. Проверьте данные перед дальнейшей работой.'
+                    )
+                else:
+                    messages.success(
+                        request,
+                        f'Заявка {primary.get_display_name()} успешно создана через Parser V2.'
+                    )
 
             logger.info(
-                "Parser V2 created request #%s from file '%s' by user %s",
-                insurance_request.pk,
+                "Parser V2 created %d request(s) from file '%s' by user %s (batch_size=%d)",
+                batch_size,
                 draft.get('original_filename', ''),
                 request.user.username,
+                batch_size,
             )
-            return redirect('insurance_requests:request_detail', pk=insurance_request.pk)
+            return redirect('insurance_requests:request_detail', pk=primary.pk)
 
         messages.error(request, 'Проверьте значения на странице предварительной проверки.')
         return _render_parser_v2_preview(request, draft_id, draft, preview_form=form)
