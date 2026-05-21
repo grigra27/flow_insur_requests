@@ -26,6 +26,39 @@
             {% status_progress request %}
         {% endif %}
 
+        {% if request.item_count and request.item_count > 1 %}
+        <!-- Stage 4.4: батч-навигация для V2-сёстер -->
+        <div class="card mb-4 border-info">
+            <div class="card-header bg-info-subtle">
+                <i class="bi bi-collection text-info"></i>
+                <strong>Партия из {{ request.item_count }} заявок</strong>
+                — вы смотрите объект <strong>{{ request.item_no }}</strong> из {{ request.item_count }}.
+            </div>
+            <div class="card-body">
+                {% if batch_siblings %}
+                <div class="text-muted small mb-2">Другие заявки этой партии:</div>
+                <div class="list-group list-group-flush">
+                    {% for sibling in batch_siblings %}
+                    <a href="{% url 'insurance_requests:request_detail' sibling.pk %}"
+                       class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                        <span>
+                            <span class="badge bg-secondary me-2">{{ sibling.item_no }}/{{ sibling.item_count }}</span>
+                            <strong>{{ sibling.brand|default:"" }} {{ sibling.model|default:"" }}</strong>
+                            {% if sibling.acquisition_cost_value %}
+                                <span class="text-muted small ms-2">{{ sibling.acquisition_cost_value }} {{ sibling.acquisition_cost_currency|default:"" }}</span>
+                            {% endif %}
+                        </span>
+                        <span class="badge {{ sibling.status|status_badge_class }}">{{ sibling.get_status_display }}</span>
+                    </a>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-muted small">Другие заявки партии не найдены (возможно, удалены).</div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
         <!-- Параметры заявки -->
         <div class="card mb-4">
             <div class="card-header">

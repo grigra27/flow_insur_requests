@@ -217,6 +217,69 @@ class RequestListBatchGroupingTest(TestCase):
         self.assertNotContains(response, '/ объект ')
 
 
+class RequestDetailBatchPanelTest(TestCase):
+    """Stage 4.4: detail page of a V2 sibling must show the batch panel."""
+
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user(username='detailuser', password='pwd')
+        user_group, _ = Group.objects.get_or_create(name='Пользователи')
+        self.user.groups.add(user_group)
+        self.client.login(username='detailuser', password='pwd')
+
+        batch_id = uuid.uuid4()
+        self.siblings = []
+        for i in (1, 2, 3):
+            self.siblings.append(InsuranceRequest.objects.create(
+                client_name='Партия Клиент',
+                inn='3333333333',
+                insurance_type='КАСКО',
+                dfa_number='ДФА-BATCH',
+                brand=f'Brand{i}',
+                model=f'Model{i}',
+                source_batch_id=batch_id,
+                item_no=i,
+                item_count=3,
+                created_by=self.user,
+            ))
+        self.standalone = InsuranceRequest.objects.create(
+            client_name='Одиночка',
+            inn='4444444444',
+            insurance_type='КАСКО',
+            dfa_number='ДФА-SOLO',
+            created_by=self.user,
+        )
+
+    def test_batch_panel_is_shown_on_sibling_detail(self):
+        first = self.siblings[0]
+        url = reverse('insurance_requests:request_detail', kwargs={'pk': first.pk})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Партия из 3 заявок')
+        # Context contains the two other siblings, sorted by item_no.
+        siblings_in_context = response.context['batch_siblings']
+        self.assertEqual([s.item_no for s in siblings_in_context], [2, 3])
+        # Links to siblings are rendered.
+        for sibling in self.siblings[1:]:
+            self.assertContains(response, f'href="{reverse("insurance_requests:request_detail", kwargs={"pk": sibling.pk})}"')
+
+    def test_batch_panel_excludes_current_request(self):
+        middle = self.siblings[1]
+        url = reverse('insurance_requests:request_detail', kwargs={'pk': middle.pk})
+        response = self.client.get(url)
+        siblings_in_context = response.context['batch_siblings']
+        # Order is by item_no across all but the current one.
+        self.assertEqual([s.item_no for s in siblings_in_context], [1, 3])
+        self.assertNotIn(middle, siblings_in_context)
+
+    def test_standalone_detail_has_no_batch_panel(self):
+        url = reverse('insurance_requests:request_detail', kwargs={'pk': self.standalone.pk})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'Партия из')
+        self.assertEqual(response.context['batch_siblings'], [])
+
+
 class ObjectFieldsTest(TestCase):
     """Этап 2.1: новые поля объекта живут прямо в InsuranceRequest."""
 

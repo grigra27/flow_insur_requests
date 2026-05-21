@@ -1042,13 +1042,25 @@ def upload_excel_v2(request):
 def request_detail(request, pk):
     """Детальная информация о заявке"""
     insurance_request = get_object_or_404(InsuranceRequest, pk=pk)
-    
+
     # Создаем форму для изменения статуса
     status_form = RequestStatusForm(initial={'status': insurance_request.status})
-    
+
+    # Stage 4.4: when this row belongs to a V2 batch, pull the siblings so
+    # the template can render «В этой партии: N заявок» with links.
+    batch_siblings = []
+    if insurance_request.source_batch_id and insurance_request.item_count and insurance_request.item_count > 1:
+        batch_siblings = list(
+            InsuranceRequest.objects
+            .filter(source_batch_id=insurance_request.source_batch_id)
+            .exclude(pk=insurance_request.pk)
+            .order_by('item_no')
+        )
+
     return render(request, 'insurance_requests/request_detail.html', {
         'request': insurance_request,
-        'status_form': status_form
+        'status_form': status_form,
+        'batch_siblings': batch_siblings,
     })
 
 
