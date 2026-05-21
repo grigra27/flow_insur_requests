@@ -156,6 +156,67 @@ class DisplayNameBatchTest(TestCase):
         self.assertEqual(req.get_display_name(), f'#{req.id} / объект 2 из 4')
 
 
+class RequestListBatchGroupingTest(TestCase):
+    """Stage 4.3: batch siblings must look like a group in /request_list/."""
+
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user(username='listuser', password='pwd')
+        user_group, _ = Group.objects.get_or_create(name='Пользователи')
+        self.user.groups.add(user_group)
+        self.client.login(username='listuser', password='pwd')
+
+        # One V1-style standalone request, one V2 batch of 3 siblings.
+        self.standalone = InsuranceRequest.objects.create(
+            client_name='Одиночка',
+            inn='1111111111',
+            insurance_type='КАСКО',
+            dfa_number='ДФА-SOLO',
+            created_by=self.user,
+        )
+        batch_id = uuid.uuid4()
+        sibling_pks = []
+        for i in (1, 2, 3):
+            sibling = InsuranceRequest.objects.create(
+                client_name='Партия',
+                inn='2222222222',
+                insurance_type='КАСКО',
+                dfa_number='ДФА-PART',
+                source_batch_id=batch_id,
+                item_no=i,
+                item_count=3,
+                created_by=self.user,
+            )
+            sibling_pks.append(sibling.pk)
+        # Mirror the production behaviour: every sibling of a batch shares
+        # the same created_at so the (-created_at, source_batch_id, item_no)
+        # ordering keeps them together.
+        from django.utils import timezone as tz
+        InsuranceRequest.objects.filter(pk__in=sibling_pks).update(created_at=tz.now())
+
+    def test_batch_rows_have_dedicated_css_class_and_badge(self):
+        response = self.client.get(reverse('insurance_requests:request_list'))
+        self.assertEqual(response.status_code, 200)
+        # Position-in-batch badges are rendered for each sibling.
+        self.assertContains(response, '1/3')
+        self.assertContains(response, '2/3')
+        self.assertContains(response, '3/3')
+        # The queryset ordered the siblings consecutively by item_no.
+        listed = list(response.context['requests'])
+        batch_rows = [r for r in listed if r.source_batch_id is not None]
+        self.assertEqual([r.item_no for r in batch_rows], [1, 2, 3])
+
+    def test_standalone_rows_do_not_show_batch_position_badge(self):
+        response = self.client.get(reverse('insurance_requests:request_list') + '?dfa_filter=SOLO')
+        listed = list(response.context['requests'])
+        self.assertEqual(len(listed), 1)
+        self.assertEqual(listed[0], self.standalone)
+        # No "K/N" badge text for a standalone request.
+        self.assertNotContains(response, '/3')
+        # And no "/ объект K из N" suffix in the display name.
+        self.assertNotContains(response, '/ объект ')
+
+
 class ObjectFieldsTest(TestCase):
     """Этап 2.1: новые поля объекта живут прямо в InsuranceRequest."""
 

@@ -3,6 +3,23 @@
 
 {% block title %}Список заявок - {{ block.super }}{% endblock %}
 
+{% block extra_css %}
+<style>
+    /* Stage 4.3 — sibling rows of a V2 batch share a coloured left border so
+       the operator sees them as one group in the list. */
+    .request-row--batch {
+        border-left: 3px solid var(--bs-info);
+    }
+    .request-row--batch + .request-row:not(.request-row--batch) {
+        /* extra spacing after a batch ends */
+        border-top: 1px solid var(--bs-border-color-translucent);
+    }
+    .request-row--batch-first {
+        border-top: 2px solid var(--bs-info);
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h1><i class="bi bi-list-ul"></i> Заявки на страхование</h1>
@@ -175,14 +192,21 @@
             </thead>
             <tbody>
                 {% for request in requests %}
-                    <tr class="request-row"
+                    <tr class="request-row{% if request.source_batch_id %} request-row--batch{% endif %}{% if request.item_no == 1 and request.item_count and request.item_count > 1 %} request-row--batch-first{% endif %}"
                         data-href="{% url 'insurance_requests:request_detail' request.pk %}"
+                        {% if request.source_batch_id %}data-batch-id="{{ request.source_batch_id }}"{% endif %}
                         style="cursor: pointer;"
                         tabindex="0"
                         role="link"
                         aria-label="Открыть заявку {{ request.get_display_name }}">
                         <td>
                             <strong>{{ request.get_display_name }}</strong>
+                            {% if request.item_count and request.item_count > 1 %}
+                                <span class="badge bg-info-subtle text-info-emphasis ms-1"
+                                      title="Партия из {{ request.item_count }} заявок. Эта запись — объект {{ request.item_no }} из {{ request.item_count }}.">
+                                    <i class="bi bi-collection"></i> {{ request.item_no }}/{{ request.item_count }}
+                                </span>
+                            {% endif %}
                         </td>
                         <td>{{ request.client_name }}</td>
                         <td>

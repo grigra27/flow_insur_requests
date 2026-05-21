@@ -304,6 +304,22 @@ N записей `InsuranceRequest` — по одной на объект.
   - Edit propagation (правка `brand` и `acquisition_cost_value`
     отдельной карточки доходит до записи в БД).
 
+### Под-этап 4.3 — Группировка партии в request_list ✅
+
+**Сделано.**
+
+- В `request_list` queryset: `order_by('-created_at', 'source_batch_id', 'item_no')` — сёстры партии идут подряд по `item_no`.
+- В `_create_requests_with_splitting()` сёстры партии получают **общий `created_at`** через `update()` после создания. Без этого `auto_now_add` выдавал разные timestamps в цикле, и сёстры разбегались в списке.
+- В шаблоне `request_list.html`:
+  - У строк партии CSS-класс `request-row--batch` (синяя левая граница).
+  - У первой сестры дополнительно `request-row--batch-first` (верхняя граница, отделяет группу сверху).
+  - В колонке имени — badge «K/N» c tooltip «Партия из N заявок».
+  - Стиль вынесен в блок `extra_css`.
+- Тесты:
+  - Сёстры идут подряд по `item_no` в queryset.
+  - Badge «1/3», «2/3», «3/3» рендерится для каждой сестры.
+  - Одиночная заявка (V1 или V2 N=1) не получает badge и не имеет batch CSS-класса.
+
 ### Логика
 
 1. **Парсинг** — `ExcelRequestParserV2.parse()` возвращает payload с

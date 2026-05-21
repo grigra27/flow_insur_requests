@@ -329,6 +329,18 @@ def _create_requests_with_splitting(*, request_fields, additional_data, object_k
                 )
                 created.append(instance)
 
+            # Sync created_at across siblings so the request_list query
+            # (-created_at, source_batch_id, item_no) groups them together
+            # in the right order. Without this every sibling gets its own
+            # auto_now_add timestamp from the loop above and they end up
+            # interleaved with other requests.
+            batch_created_at = created[0].created_at
+            InsuranceRequest.objects.filter(pk__in=[r.pk for r in created]).update(
+                created_at=batch_created_at
+            )
+            for r in created:
+                r.created_at = batch_created_at
+
     # Attach the original Excel to every sibling, clean storage at the end.
     last_index = len(created) - 1
     for idx, instance in enumerate(created):
@@ -530,8 +542,10 @@ def request_list(request):
             # Игнорируем некорректные значения месяца
             pass
     
-    # Сортируем по дате создания (новые сначала)
-    queryset = queryset.order_by('-created_at')
+    # Сортируем по дате создания (новые сначала). Внутри одного «момента» —
+    # сёстры партии идут подряд по item_no, чтобы оператор видел партию целым
+    # блоком. Заявки без партии (V1 и одиночные V2) — без вторичной сортировки.
+    queryset = queryset.order_by('-created_at', 'source_batch_id', 'item_no')
     
     # Применяем пагинацию
     paginator = Paginator(queryset, 30)  # 30 заявок на страницу
