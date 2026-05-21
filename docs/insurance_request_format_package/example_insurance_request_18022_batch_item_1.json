@@ -1,0 +1,79 @@
+{
+  "schema_version": "alliance.insurance_request.v2",
+  "request": {
+    "request_number": "ТС-18022-2-ГА-МН",
+    "submission_date": "2025-05-16",
+    "applicant_type": "legal_entity",
+    "application_format": "casco_equipment",
+    "branch": {
+      "name": "Мурманск"
+    },
+    "manager": {
+      "full_name": "Иванов Иван"
+    },
+    "batch": {
+      "batch_id": "8e0f1b3d-2a4c-4e5e-9f7a-0c1d2e3f4a5b",
+      "item_no": 1,
+      "item_count": 2
+    }
+  },
+  "customer": {
+    "type": "legal_entity",
+    "name": "ООО Ромашка",
+    "inn": "5190040618",
+    "legal_address": "183038, Мурманская обл, Мурманск г, ул. Примерная, дом № 10",
+    "postal_address": "183038, Мурманская обл, Мурманск г, ул. Примерная, дом № 10",
+    "business_activity": "49.31 Деятельность сухопутного пассажирского транспорта"
+  },
+  "lease": {
+    "creditor_bank": "АО Газпромбанк",
+    "insured_party": "lessor"
+  },
+  "insurance": {
+    "product": "casco",
+    "period": {
+      "kind": "full_lease",
+      "text": "на весь срок лизинга"
+    },
+    "territory": null,
+    "coverage_terms": {
+      "insured_sum_type": "non_aggregate",
+      "guard_conditions": "без ограничений",
+      "property_location_right_holder": null
+    },
+    "franchise": {
+      "mode": "none",
+      "text": "Нет франшизы"
+    },
+    "premium_payment": {
+      "mode": "single",
+      "frequency": "single"
+    }
+  },
+  "insured_object": {
+    "object_type": "vehicle",
+    "description": "Автобус ГАЗ A64R42, 2023 г.в. (БУ)",
+    "brand": "ГАЗ",
+    "model": "A64R42",
+    "manufacturing_year": 2023,
+    "condition": "used",
+    "equipment_type": null,
+    "power_or_capacity": "120 л.с.",
+    "acquisition_cost": {
+      "value": 3450000,
+      "currency": "RUB"
+    }
+  },
+  "underwriting": {
+    "usage_purposes": "Регулярные пассажирские перевозки",
+    "autostart": false,
+    "casco_category_ce": true,
+    "transportation_required": false,
+    "construction_work_required": false,
+    "key_completeness": "2 ключа",
+    "title_document": "ПТС",
+    "telematics_complex": null,
+    "asset_status": "б/у"
+  },
+  "notes": []
+}

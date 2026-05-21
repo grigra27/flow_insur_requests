@@ -63,35 +63,37 @@
 - Можно версионировать контракт через `schema_version`.
 - Заказчик может выгружать один файл на заявку или отправлять тот же payload в API.
 
-Предлагаемый контракт:
+Принятый контракт (актуальная версия — **v2**, см. `insurance_request_schema_v2.json` рядом):
 
-- `schema_version` - версия формата, например `alliance.insurance_request.v1`.
-- `request` - номер заявки, дата подачи, филиал, менеджер, тип заявителя, формат заявки.
-- `customer` - клиент: тип, наименование, ИНН, адреса, дата рождения для ИП, вид деятельности.
-- `lease` - даты договора лизинга, банк-кредитор, кто является страхователем.
-- `insurance` - вид страхования, период, территория, условия покрытия, график оплаты, франшиза.
-- `insured_objects` - массив объектов страхования.
-- `underwriting` - дополнительные признаки: автозапуск, C/E, перевозка, СМР, ключи, ПТС/ПСМ, телематика, цели использования.
-- `notes` - свободные комментарии, если они нужны.
+- `schema_version` — `alliance.insurance_request.v2`.
+- `request` — номер заявки, дата подачи, филиал, менеджер, тип заявителя, формат заявки; опциональный блок `batch` для заявок-сестёр одной партии (`batch_id`, `item_no`, `item_count`).
+- `customer` — клиент: тип, наименование, ИНН, адреса, дата рождения для ИП, вид деятельности.
+- `lease` — банк-кредитор, кто является страхователем.
+- `insurance` — вид страхования, период (enum `one_year` / `full_lease` / `custom`), территория, условия покрытия (тип страховой суммы, условия охраны, правообладатель места — для имущества), франшиза (mode), частота уплаты премии.
+- `insured_object` — **один** объект страхования (одна JSON-заявка = один объект).
+- `underwriting` — дополнительные признаки: автозапуск, C/E, перевозка/СМР (boolean), ключи, ПТС/ПСМ, телематика, цели использования, asset_status.
+- `notes` — свободные комментарии.
 
-Формальный вариант схемы лежит рядом:
+Формальная схема и примеры рядом:
 
-- `insurance_request_schema_v1.json`
-- `example_insurance_request_20213.json`
-- `example_insurance_request_18022_multi_object.json`
-- `example_insurance_request_20165_property_transportation.json`
+- `insurance_request_schema_v2.json`
+- `example_insurance_request_20213.json` — одиночный CASCO/equipment.
+- `example_insurance_request_18022_batch_item_1.json` и `_item_2.json` — две сестры одной партии (общий `batch.batch_id`).
+- `example_insurance_request_20165_property_transportation.json` — страхование имущества с перевозкой.
+
+Различия v1→v2 и обоснование по каждому удалённому полю — в [`docs/improvement_plans/json_schema_v2.md`](../improvement_plans/json_schema_v2.md). Главные удаления: `insured_objects[]` → `insured_object`, удалены `vin`, `serial_number`, `quantity`, `contract_*_date`, `period_*_date`/`months`, `indemnity_basis`, structured `franchise.options[]`, `anti_theft_systems`, `transportation.origin/destination/estimated_days`, `construction_work.description` — в источнике их нет.
 
 ## Проверка полноты относительно Excel-анкеты
 
-После дополнительной сверки с реальными строками анкеты контракт v1 явно покрывает не только то, что сейчас забирает `ExcelReader`, но и поля, которые старый загрузчик частично теряет:
+После дополнительной сверки с реальными строками анкеты контракт v2 явно покрывает не только то, что сейчас забирает `ExcelReader`, но и поля, которые старый загрузчик частично теряет:
 
 | Блок Excel-анкеты | Где отражен в JSON |
 |---|---|
 | Номер заявки, дата подачи, филиал, контактное лицо | `request` |
+| Партия заявок (для многообъектных Excel) | `request.batch.{batch_id,item_no,item_count}` |
 | Тип заявителя: юрлицо / ИП | `request.applicant_type`, `customer.type` |
 | Клиент, ИНН, дата рождения ИП, адреса, вид деятельности | `customer` |
 | Страхователь: лизингодатель / лизингополучатель | `lease.insured_party` |
-| Сроки договора лизинга | `lease.contract_start_date`, `lease.contract_end_date` |
 | Банк-кредитор | `lease.creditor_bank` |
 | Вид страхования | `insurance.product` |
 | Необходимый период страхования, включая нестандартные сроки | `insurance.period` |
@@ -146,12 +148,10 @@
 
 ## Последствия для нашего проекта
 
-Для внедрения можно не ломать старый загрузчик:
+Для внедрения V1-загрузчик не ломаем:
 
-- добавить новый импорт `InsuranceRequestPayloadReader` для JSON;
-- валидировать payload по `insurance_request_schema_v1.json`;
-- маппить payload в текущую модель `InsuranceRequest`;
-- на первом этапе класть полный исходный JSON в `additional_data`;
-- позднее, если нужно, выделить `insured_objects` в отдельную модель, потому что текущий `vehicle_info` уже не хватает для многообъектных заявок.
+- модель `InsuranceRequest` расширена nullable-колонками под схему (stages 2.1/2.2/2.3);
+- payload по `insurance_request_schema_v2.json` сериализуется из модели для генерации собственного PDF/JSON (Этап 5+);
+- многообъектные исходные Excel разбиваются V2-парсером на N записей-сестёр (stage 4), общий `request.batch.batch_id` связывает соответствующие JSON-документы.
 
 Старый ExcelReader стоит оставить как fallback на переходный период.

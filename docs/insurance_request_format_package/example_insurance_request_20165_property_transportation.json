@@ -1,13 +1,12 @@
 {
-  "schema_version": "alliance.insurance_request.v1",
+  "schema_version": "alliance.insurance_request.v2",
   "request": {
     "request_number": "ОБ-20165-ЛО-КЗ",
     "submission_date": "2025-07-24",
-    "source_system": "customer_export",
     "applicant_type": "legal_entity",
     "application_format": "property",
     "branch": {
-      "name": "Казанский филиал"
+      "name": "Казань"
     },
     "manager": {
       "full_name": "Иванов Иван"
@@ -15,122 +14,63 @@
   },
   "customer": {
     "type": "legal_entity",
-    "name": "ООО \"ДОРМАСТЕР\"",
-    "inn": "1655490365",
-    "birth_date": null,
-    "legal_address": "420108, Татарстан респ, Казань г, Меховщиков ул, дом № 77А, кв.помещ. 11 (Кабинет 4)",
-    "postal_address": "420108, Татарстан респ, Казань г, Меховщиков ул, дом № 77А, кв.помещ. 11 (Кабинет 4)",
-    "business_activity": "Строительство и содержание дорог, придомовых территорий, уборка территорий"
+    "name": "ДОРМАСТЕР ООО",
+    "inn": "1645024000",
+    "legal_address": "422000, Татарстан Респ, Казань г, Промышленный пр-кт, дом № 14",
+    "postal_address": "422000, Татарстан Респ, Казань г, Промышленный пр-кт, дом № 14",
+    "business_activity": "42.11 Строительство автомобильных дорог и автомагистралей"
   },
   "lease": {
-    "contract_start_date": "2025-07-07",
-    "contract_end_date": "2026-08-05",
-    "creditor_bank": "Собственные средства",
-    "insured_party": "lessee"
+    "creditor_bank": "АО Альфа-Банк",
+    "insured_party": "lessor"
   },
   "insurance": {
     "product": "property",
     "period": {
       "kind": "custom",
-      "text": "14 месяцев",
-      "start_date": null,
-      "end_date": null,
-      "months": 14
+      "text": "на 14 месяцев и перевозка"
     },
-    "territory": "г.Казань, ул.Южно-Промышленная, 12В",
+    "territory": "Российская Федерация",
     "coverage_terms": {
       "insured_sum_type": "non_aggregate",
-      "indemnity_basis": "without_depreciation",
-      "guard_conditions": null,
-      "property_location_right_holder": "lessee_owner",
-      "property_location_right_holder_text": "собственность лизингоПОЛУЧАТЕЛЯ"
+      "guard_conditions": "ангар с круглосуточной охраной",
+      "property_location_right_holder": "lessee_owner"
     },
     "franchise": {
       "mode": "none",
-      "options": [
-        {
-          "kind": "none",
-          "percent": null,
-          "amount": null
-        }
-      ]
+      "text": "Нет франшизы"
     },
     "premium_payment": {
-      "mode": "installment",
-      "frequency": "annual",
-      "comment": "В исходном Excel отмечена строка \"ежегодно\"."
+      "mode": "single",
+      "frequency": "single"
     }
   },
-  "insured_objects": [
-    {
-      "item_no": 1,
-      "object_type": "equipment",
-      "category": "Оборудование",
-      "description": "Дизельная электростанция АД-120С-Т400-2РКМ19-Ricardo в кожухе",
-      "brand": null,
-      "model": "АД-120С-Т400-2РКМ19-Ricardo",
-      "vin": null,
-      "serial_number": null,
-      "manufacturing_year": 2025,
-      "condition": "new",
-      "equipment_type": null,
-      "power_or_capacity": null,
-      "quantity": 1,
-      "acquisition_cost": {
-        "value": 740800,
-        "currency": "RUB"
-      },
-      "comment": null
+  "insured_object": {
+    "object_type": "equipment",
+    "description": "Дизель-электростанция АД-120С-Т400-2РКМ19-Ricardo",
+    "brand": "Ricardo",
+    "model": "АД-120С-Т400-2РКМ19",
+    "manufacturing_year": 2025,
+    "condition": "new",
+    "equipment_type": "стационарная",
+    "power_or_capacity": "120 кВт",
+    "acquisition_cost": {
+      "value": 3200000,
+      "currency": "RUB"
     }
-  ],
+  },
   "underwriting": {
-    "usage_purposes": "производственные",
+    "usage_purposes": "Резервное электроснабжение строительной техники",
     "autostart": false,
     "casco_category_ce": false,
-    "transportation": true,
-    "construction_work": false,
-    "key_completeness": {
-      "keys_count": null,
-      "text": null
-    },
+    "transportation_required": true,
+    "construction_work_required": false,
+    "key_completeness": null,
     "title_document": null,
-    "telematics": {
-      "required": false,
-      "complex_name": null
-    },
-    "anti_theft_systems": {
-      "alarm": {
-        "factory": false,
-        "additional": false,
-        "name_or_model": null
-      },
-      "immobilizer": {
-        "factory": false,
-        "additional": false,
-        "name_or_model": null
-      },
-      "mechanical_devices": [],
-      "satellite_system": {
-        "required": false,
-        "brand": null,
-        "model": null,
-        "configuration": null
-      }
-    },
-    "additional_coverages": {
-      "transportation": {
-        "required": true,
-        "origin": "МО, г. Серпухов, переулок Центральный, дом 31А",
-        "destination": "г.Казань, ул.Южно-Промышленная, 12В",
-        "estimated_days": 1
-      },
-      "construction_work": {
-        "required": false,
-        "description": null
-      }
-    }
+    "telematics_complex": null,
+    "asset_status": "новое"
   },
   "notes": [
-    "Пример сформирован на основе файла avtozayavka/real_requests/заявка 20165-ЛО-КЗ - Дизель электростанция АД-120С-Т400-2РКМ19-Ricardo - на 14 месяцев и перевозка.xls"
+    "Требуется услуга перевозки оборудования."
   ]
 }

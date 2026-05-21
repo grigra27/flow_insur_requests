@@ -1,0 +1,327 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://your.local/schemas/insurance_request_v2.json",
+  "title": "AL Insurance Request v2",
+  "description": "Internal contract between the V2 parser, the InsuranceRequest DB row, and the generated PDF/JSON. One JSON document = one insurance request = one insured object. Multi-object Excel uploads are split into N JSON documents linked by request.batch.batch_id (see stage 4 of implementation_roadmap.md).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "request",
+    "customer",
+    "lease",
+    "insurance",
+    "insured_object"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "alliance.insurance_request.v2"
+    },
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "request_number",
+        "submission_date",
+        "applicant_type",
+        "application_format"
+      ],
+      "properties": {
+        "request_number": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Номер ДФА в системе заказчика."
+        },
+        "submission_date": {
+          "type": "string",
+          "format": "date"
+        },
+        "source_system": {
+          "type": ["string", "null"]
+        },
+        "applicant_type": {
+          "type": "string",
+          "enum": ["legal_entity", "individual_entrepreneur"]
+        },
+        "application_format": {
+          "type": "string",
+          "enum": ["casco_equipment", "property"]
+        },
+        "branch": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "type": "string"
+            }
+          }
+        },
+        "manager": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "full_name": {
+              "type": "string"
+            }
+          }
+        },
+        "batch": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Метаданные партии для заявок, созданных из одного многообъектного Excel. Для одиночных заявок поле опционально или отсутствует.",
+          "required": ["batch_id", "item_no", "item_count"],
+          "properties": {
+            "batch_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "item_no": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "item_count": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        }
+      }
+    },
+    "customer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "name", "inn"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["legal_entity", "individual_entrepreneur"]
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "inn": {
+          "type": "string",
+          "pattern": "^([0-9]{10}|[0-9]{12})$"
+        },
+        "birth_date": {
+          "type": ["string", "null"],
+          "format": "date",
+          "description": "Дата рождения для ИП. Для юр.лиц — null."
+        },
+        "legal_address": {
+          "type": ["string", "null"]
+        },
+        "postal_address": {
+          "type": ["string", "null"]
+        },
+        "business_activity": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "lease": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "creditor_bank": {
+          "type": ["string", "null"]
+        },
+        "insured_party": {
+          "type": ["string", "null"],
+          "enum": ["lessor", "lessee", "both", null],
+          "description": "Кто из сторон договора лизинга выступает страхователем. NULL = не определено в исходнике."
+        }
+      }
+    },
+    "insurance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["product", "period", "franchise", "premium_payment"],
+      "properties": {
+        "product": {
+          "type": "string",
+          "enum": ["casco", "equipment", "property", "other"]
+        },
+        "period": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind"],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": ["one_year", "full_lease", "custom"]
+            },
+            "text": {
+              "type": ["string", "null"]
+            }
+          }
+        },
+        "territory": {
+          "type": ["string", "null"]
+        },
+        "coverage_terms": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "insured_sum_type": {
+              "type": ["string", "null"],
+              "enum": ["aggregate", "non_aggregate", null]
+            },
+            "guard_conditions": {
+              "type": ["string", "null"]
+            },
+            "property_location_right_holder": {
+              "type": ["string", "null"],
+              "enum": ["lessee_owner", "third_party_owner", null],
+              "description": "Для страхования имущества: правообладатель места расположения. Для casco/equipment обычно null."
+            }
+          }
+        },
+        "franchise": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode"],
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": ["none", "with_franchise", "both_variants"]
+            },
+            "text": {
+              "type": ["string", "null"],
+              "description": "Свободный текст из исходной формы (например, отметка колонки). Сами значения процента/абсолютной суммы в источнике не указываются — поэтому массив options из v1 удалён."
+            }
+          }
+        },
+        "premium_payment": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode"],
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": ["single", "installment", "unknown"]
+            },
+            "frequency": {
+              "type": ["string", "null"],
+              "enum": ["single", "quarterly", "annual", null],
+              "description": "Только реально встречаемые в корпусе варианты. semiannual / custom из v1 удалены."
+            }
+          }
+        }
+      }
+    },
+    "insured_object": {
+      "$ref": "#/$defs/insured_object"
+    },
+    "underwriting": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "usage_purposes": {
+          "type": ["string", "null"]
+        },
+        "autostart": {
+          "type": "boolean"
+        },
+        "casco_category_ce": {
+          "type": "boolean"
+        },
+        "transportation_required": {
+          "type": "boolean",
+          "description": "Сам факт необходимости перевозки. origin/destination/estimated_days в источнике отсутствуют — удалены из v1."
+        },
+        "construction_work_required": {
+          "type": "boolean",
+          "description": "Сам факт необходимости СМР. Описание СМР в источнике отсутствует — удалено из v1."
+        },
+        "key_completeness": {
+          "type": ["string", "null"]
+        },
+        "title_document": {
+          "type": ["string", "null"],
+          "description": "ПТС/ПСМ."
+        },
+        "telematics_complex": {
+          "type": ["string", "null"]
+        },
+        "asset_status": {
+          "type": ["string", "null"],
+          "description": "Текстовое описание состояния (сохранено для совместимости с V1). Структурированное состояние объекта живёт в insured_object.condition."
+        }
+      }
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "$defs": {
+    "money": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "currency"],
+      "properties": {
+        "value": {
+          "type": "number",
+          "minimum": 0
+        },
+        "currency": {
+          "type": "string",
+          "enum": ["RUB", "USD", "EUR"]
+        }
+      }
+    },
+    "insured_object": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["description", "acquisition_cost"],
+      "properties": {
+        "object_type": {
+          "type": ["string", "null"],
+          "enum": ["vehicle", "special_equipment", "equipment", "property", "other", null]
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Свободное описание объекта (исходная строка из Excel)."
+        },
+        "brand": {
+          "type": ["string", "null"]
+        },
+        "model": {
+          "type": ["string", "null"]
+        },
+        "manufacturing_year": {
+          "type": ["integer", "null"],
+          "minimum": 1900,
+          "maximum": 2100
+        },
+        "condition": {
+          "type": ["string", "null"],
+          "enum": ["new", "used", null],
+          "description": "Состояние объекта. NULL = не определено в исходнике."
+        },
+        "equipment_type": {
+          "type": ["string", "null"]
+        },
+        "power_or_capacity": {
+          "type": ["string", "null"]
+        },
+        "acquisition_cost": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/money"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

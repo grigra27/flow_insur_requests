@@ -386,17 +386,19 @@ N записей `InsuranceRequest` — по одной на объект.
 
 ---
 
-## Между Этапом 4 и Этапом 5 — JSON Schema v2
+## Между Этапом 4 и Этапом 5 — JSON Schema v2 ✅
 
-Сразу после splitting'а и **перед** генерацией собственного PDF — переход
-на [JSON Schema v2](json_schema_v2.md). Что делаем:
+**Сделано.**
 
-- Создать `docs/insurance_request_format_package/insurance_request_schema_v2.json`:
-  `insured_object` (singular, не массив), `customer.ogrn` / `customer.kpp`,
-  `request.batch.*`, bump `schema_version` → `alliance.insurance_request.v2`.
-- Удалить v1-схему и пересоздать примеры.
-- Зафиксировать v2 как внутренний контракт между парсером, БД и
-  будущим PDF/JSON-генератором.
+- Создана `docs/insurance_request_format_package/insurance_request_schema_v2.json`: `insured_object` singular, опциональный блок `request.batch.{batch_id,item_no,item_count}`, удалены поля «без источника» (`vin`/`serial_number`/`quantity`, `contract_*_date`, `period_*_date`/`months`, `indemnity_basis`, structured `franchise.options[]`, `anti_theft_systems`, `transportation.origin/destination/estimated_days`, `construction_work.description`, `customer.ogrn`/`kpp`). `schema_version = "alliance.insurance_request.v2"`.
+- Старая v1-схема удалена; примеры переписаны:
+  - `example_insurance_request_20213.json` — одиночный CASCO/equipment;
+  - `example_insurance_request_18022_batch_item_1.json` + `_item_2.json` — пара сестёр одной партии (общий `batch_id`);
+  - `example_insurance_request_20165_property_transportation.json` — property с перевозкой.
+- Research-документ (`insurance_request_format_research.md`) обновлён под v2.
+- `jsonschema==4.25.1` добавлен в `requirements.txt`.
+- Тесты `insurance_requests/test_json_schema_v2.py`: схема валидна как Draft 2020-12, все примеры валидны против неё, singular `insured_object`, удалённые поля отсутствуют, у пары сёстер `batch_id` общий.
+- Подробное обоснование изменений и решения по открытым вопросам — в [json_schema_v2.md](json_schema_v2.md).
 
 ## После Этапа 4
 

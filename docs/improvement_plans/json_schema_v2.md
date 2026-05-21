@@ -1,7 +1,7 @@
-# JSON Schema v2 — планируемая ревизия
+# JSON Schema v2
 
-Дата: 2026-05-20.
-Статус: набросок для обсуждения. Сама схема ещё не создана; этот документ фиксирует, что и зачем меняем.
+Дата создания: 2026-05-20. Реализована: 2026-05-21.
+Статус: **актуальная схема** (`docs/insurance_request_format_package/insurance_request_schema_v2.json`).
 
 ## Контекст
 
@@ -79,8 +79,12 @@ JSON Schema v1 (`docs/insurance_request_format_package/insurance_request_schema_
 1. ~~Создать `docs/improvement_plans/json_schema_v2.md`.~~ Сделано.
 2. ~~Отметить в [coverage_audit.md](coverage_audit.md) поля как кандидаты на удаление в v2.~~ Сделано.
 3. ~~Удалить `vin`/`serial_number`/`quantity` из модели и парсера.~~ Сделано (миграция `0034`, парсер очищен).
-4. **Между Этапами 4 и 5**: создать `docs/insurance_request_format_package/insurance_request_schema_v2.json` с описанными выше изменениями (singular `insured_object`, +ОГРН/КПП, +`request.batch.*`, bump `schema_version`).
-5. **Перед Этапом 5**: обновить research-документ и примеры под v2.
+4. ~~Создать `docs/insurance_request_format_package/insurance_request_schema_v2.json`.~~ **Сделано.** Singular `insured_object`, добавлен опциональный `request.batch.*` (batch_id/item_no/item_count). ОГРН/КПП и остальные «несуществующие» поля исключены (см. таблицы выше). Старая v1-схема удалена.
+5. ~~Обновить research-документ и примеры под v2.~~ Сделано:
+   - `example_insurance_request_20213.json` (одиночный CASCO/equipment)
+   - `example_insurance_request_18022_batch_item_1.json` + `_item_2.json` — пара сестёр одной партии (`batch_id` общий)
+   - `example_insurance_request_20165_property_transportation.json` (страхование имущества с `transportation_required=true`)
+6. ~~Тесты на валидность схемы и примеров (`insurance_requests/test_json_schema_v2.py`).~~ Сделано: `jsonschema.Draft202012Validator.check_schema()`, валидация всех `example_*.json`, проверка `singular insured_object`, отсутствия удалённых полей, согласованности batch_id у сёстер.
 
 ## Связанные документы
 
