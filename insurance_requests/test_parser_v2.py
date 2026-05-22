@@ -137,9 +137,10 @@ class CustomerDealHelpersTests(TestCase):
         self.assertEqual(normalize_premium_frequency_label('Единовременно'), 'single')
         self.assertEqual(normalize_premium_frequency_label('ежеквартально'), 'quarterly')
         self.assertEqual(normalize_premium_frequency_label('Поквартально'), 'quarterly')
+        self.assertEqual(normalize_premium_frequency_label('2 раза в год'), 'biannual')
+        self.assertEqual(normalize_premium_frequency_label('полугодовой'), 'biannual')
         self.assertEqual(normalize_premium_frequency_label('ежегодно'), 'annual')
-        # «2 раза в год» и «прочее» — вне нашего enum.
-        self.assertIsNone(normalize_premium_frequency_label('2 раза в год'))
+        # «прочее» — вне нашего enum.
         self.assertIsNone(normalize_premium_frequency_label('прочее (укажите)'))
         self.assertIsNone(normalize_premium_frequency_label(None))
 
@@ -356,6 +357,40 @@ class CustomerDealPayloadIntegrationTests(TestCase):
         sheet['F28'] = 'Х'
         result = self._parse_workbook(wb)
         self.assertIsNone(result.data.get('property_location_right_holder'))
+
+    def test_has_installment_derived_from_premium_frequency(self):
+        # «Рассрочка» в нашей семантике = только внутригодовые платежи
+        # (quarterly / biannual). annual (один платёж за год) — НЕ рассрочка.
+        cases = {
+            'quarterly': ('F32', True),
+            'biannual':  ('F33', True),
+            'annual':    ('F34', False),
+        }
+        for expected_freq, (mark_cell, expected_installment) in cases.items():
+            wb = self._build_workbook()
+            sheet = wb.active
+            # Clear the default «Х» under «ежеквартально».
+            sheet['F32'] = None
+            sheet[mark_cell] = 'Х'
+            result = self._parse_workbook(wb)
+            self.assertEqual(
+                result.data.get('premium_frequency'), expected_freq,
+                f"premium_frequency for mark {mark_cell}",
+            )
+            self.assertEqual(
+                result.data.get('has_installment'), expected_installment,
+                f"has_installment for premium_frequency={expected_freq}",
+            )
+
+    def test_has_installment_false_when_premium_frequency_missing(self):
+        wb = self._build_workbook()
+        sheet = wb.active
+        # Strip every X-marker in the premium-frequency block.
+        for coord in ('F32', 'F33', 'F34'):
+            sheet[coord] = None
+        result = self._parse_workbook(wb)
+        self.assertIsNone(result.data.get('premium_frequency'))
+        self.assertFalse(result.data.get('has_installment'))
 
     def test_empty_template_does_not_pick_neighbour_labels(self):
         # Build a "template only" workbook — labels present, values empty.

@@ -68,6 +68,7 @@ class InsuranceRequest(models.Model):
     PREMIUM_FREQUENCY_CHOICES = [
         ('single', 'Единовременно'),
         ('quarterly', 'Поквартально'),
+        ('biannual', '2 раза в год'),
         ('annual', 'Ежегодно'),
     ]
     

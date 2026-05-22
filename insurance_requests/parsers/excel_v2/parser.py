@@ -340,9 +340,9 @@ def normalize_property_location_right_holder(value: Any) -> Optional[str]:
 
 
 def normalize_premium_frequency_label(value: Any) -> Optional[str]:
-    """Map a raw label cell (one of «Единовременно» / «ежеквартально» / «ежегодно»)
-    to the premium_frequency enum. «2 раза в год» / «прочее» are out of our enum
-    and return None — they have not been observed selected in the corpus.
+    """Map a raw label cell (one of «Единовременно» / «ежеквартально» /
+    «2 раза в год» / «ежегодно») to the premium_frequency enum.
+    «прочее» is out of our enum and returns None.
     """
     if value is None:
         return None
@@ -353,6 +353,8 @@ def normalize_premium_frequency_label(value: Any) -> Optional[str]:
         return "single"
     if "ежекварт" in text or "покварталь" in text:
         return "quarterly"
+    if "2 раз" in text or "дваж" in text or "полугод" in text:
+        return "biannual"
     if "ежегодн" in text:
         return "annual"
     return None
@@ -455,7 +457,6 @@ class ExcelRequestParserV2:
         data["franchise_type"] = franchise_type
         if franchise_details.get("source"):
             source_map["franchise_type"] = franchise_details["source"]
-        data["has_installment"] = self._contains_any(cells, ["рассроч", "ежекварт", "ежемесяч", "покварт"])
         data["has_autostart"] = self._extract_autostart(cells, rows)
         data["has_casco_ce"] = self._contains_any(cells, ["категори c", "категории c", "кат с", "кат. c", "c/e"])
         data["has_transportation"] = self._contains_any(cells, ["перевоз", "транспортиров"])
@@ -554,6 +555,12 @@ class ExcelRequestParserV2:
         if freq_value:
             data["premium_frequency"] = freq_value
             source_map["premium_frequency"] = freq_source
+
+        # has_installment is a derived flag: True only for within-year
+        # installment plans (quarterly / biannual). single (one upfront
+        # payment) and annual (one payment per year on a multi-year policy)
+        # are not considered installments by the insurers we mail.
+        data["has_installment"] = data.get("premium_frequency") in ("quarterly", "biannual")
 
         parser_payload = {
             "insured_objects": insured_objects,
@@ -1262,9 +1269,9 @@ class ExcelRequestParserV2:
         Layout (юр.лицо CASCO):
           R31: C4='Единовременно' | C5='В рассрочку'
           R32: C5='ежеквартально'
-          R33: C5='2 раза в год'
+          R33: C5='2 раза в год'    → biannual (within-year installment)
           R34: C5='ежегодно'
-          R35: C5='прочее (укажите)'
+          R35: C5='прочее (укажите)' → out of enum
         A mark (e.g. «Х») sits in column 6 next to the selected row, or in
         column 5 next to «Единовременно» / column 4 if the entire row is the
         selection. IP templates shift these rows by +1.
