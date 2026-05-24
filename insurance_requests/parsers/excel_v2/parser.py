@@ -435,7 +435,7 @@ class ExcelRequestParserV2:
             data["dfa_number"] = dfa_number
             source_map["dfa_number"] = source
 
-        data["insurance_type"], insurance_type_source = self._extract_insurance_type(cells)
+        data["insurance_type"], insurance_type_source = self._extract_insurance_type(cells, rows)
         if insurance_type_source:
             source_map["insurance_type"] = insurance_type_source
 
@@ -770,16 +770,132 @@ class ExcelRequestParserV2:
             return filename_match.group(0), "filename"
         return "", ""
 
-    def _extract_insurance_type(self, cells: List[GridCell]) -> Tuple[str, str]:
-        full_text = " ".join(cell.normalized for cell in cells)
-        source = self._first_source_containing(cells, ["имущество", "спецтехник", "каско"])
-        if "страхование имущества" in full_text or "имущество" in full_text:
+    def _extract_insurance_type(self, cells: List[GridCell], rows: Dict[int, List[GridCell]]) -> Tuple[str, str]:
+        """Extract insurance type with priority for X-marked option rows.
+
+        Canonical layouts keep option labels in column B and an X-mark in
+        column D on rows 21/22/23:
+          - legal entity: B21='КАСКО', B22='страхование спецтехники'
+          - IP (+1 layout): B22='КАСКО', B23='страхование спецтехники'
+          - property form: B22/B23='страхование имущества ...'
+        """
+        marked_value, marked_source, found_marks = self._extract_insurance_type_from_marked_rows(rows)
+        if found_marks:
+            return (marked_value or "другое"), marked_source
+
+        block_value, block_source, found_block = self._extract_insurance_type_from_block_rows(rows)
+        if found_block:
+            return (block_value or "другое"), block_source
+
+        # Last-resort fallback for non-canonical forms: inspect only the upper
+        # part of the sheet where the insurance-type block usually lives. This
+        # avoids false positives from object-table headers like «... имущества».
+        top_text = " ".join(cell.normalized for cell in cells if cell.row <= 30)
+        source = self._first_source_containing(
+            [cell for cell in cells if cell.row <= 30],
+            ["имуществ", "спецтехник", "каско"],
+        )
+        if "имуществ" in top_text:
             return "страхование имущества", source
-        if "спецтехник" in full_text:
+        if "спецтехник" in top_text:
             return "страхование спецтехники", source
-        if "каско" in full_text:
+        if "каско" in top_text:
             return "КАСКО", source
-        return "другое", ""
+        return "другое", source
+
+    def _extract_insurance_type_from_marked_rows(
+        self,
+        rows: Dict[int, List[GridCell]],
+    ) -> Tuple[Optional[str], str, bool]:
+        """Return insurance type selected by X-mark in D21/D22/D23."""
+        candidates: List[Tuple[str, str]] = []
+        mark_sources: List[str] = []
+
+        for row_number in (21, 22, 23):
+            row_by_col = {cell.col: cell for cell in rows.get(row_number, [])}
+            mark_cell = row_by_col.get(4)
+            if not self._is_mark(mark_cell):
+                continue
+            if mark_cell:
+                mark_sources.append(mark_cell.coordinate)
+
+            insurance_type: Optional[str] = None
+            for label_col in (2, 3, 5):
+                label_cell = row_by_col.get(label_col)
+                if not label_cell:
+                    continue
+                insurance_type = self._map_insurance_type_label(label_cell.value)
+                if insurance_type:
+                    break
+            if insurance_type and mark_cell:
+                candidates.append((insurance_type, mark_cell.coordinate))
+
+        if not mark_sources:
+            return None, "", False
+        if len(candidates) == 1:
+            return candidates[0][0], candidates[0][1], True
+        if len(candidates) > 1:
+            unique_types = {item[0] for item in candidates}
+            source = ", ".join(item[1] for item in candidates)
+            if len(unique_types) == 1:
+                return candidates[0][0], source, True
+            return None, source, True
+        return None, ", ".join(mark_sources), True
+
+    def _extract_insurance_type_from_block_rows(
+        self,
+        rows: Dict[int, List[GridCell]],
+    ) -> Tuple[Optional[str], str, bool]:
+        """Fallback for unmarked forms: infer from rows 21..23 only.
+
+        Preference:
+          1) explicit typed value in column D (legacy uploads/tests),
+          2) unique option label from B/C/E columns.
+        If multiple different options are visible with no mark, return
+        unresolved (None) so the preview defaults to manual correction.
+        """
+        explicit_candidates: List[Tuple[str, str]] = []
+        label_candidates: List[Tuple[str, str]] = []
+
+        for row_number in (21, 22, 23):
+            row_by_col = {cell.col: cell for cell in rows.get(row_number, [])}
+            explicit_cell = row_by_col.get(4)
+            if explicit_cell:
+                explicit_type = self._map_insurance_type_label(explicit_cell.value)
+                if explicit_type:
+                    explicit_candidates.append((explicit_type, explicit_cell.coordinate))
+            for label_col in (2, 3, 5):
+                label_cell = row_by_col.get(label_col)
+                if not label_cell:
+                    continue
+                label_type = self._map_insurance_type_label(label_cell.value)
+                if label_type:
+                    label_candidates.append((label_type, label_cell.coordinate))
+
+        if explicit_candidates:
+            unique_types = {item[0] for item in explicit_candidates}
+            if len(unique_types) == 1:
+                return explicit_candidates[0][0], explicit_candidates[0][1], True
+            return None, ", ".join(item[1] for item in explicit_candidates), True
+
+        if not label_candidates:
+            return None, "", False
+        unique_label_types = {item[0] for item in label_candidates}
+        if len(unique_label_types) == 1:
+            return label_candidates[0][0], label_candidates[0][1], True
+        return None, "", True
+
+    def _map_insurance_type_label(self, value: Any) -> Optional[str]:
+        text = normalize_text(value)
+        if not text:
+            return None
+        if "каско" in text:
+            return "КАСКО"
+        if "спецтехник" in text:
+            return "страхование спецтехники"
+        if "имуществ" in text:
+            return "страхование имущества"
+        return None
 
     def _extract_insurance_period(self, cells: List[GridCell]) -> Tuple[str, str]:
         full_text = " ".join(cell.normalized for cell in cells)

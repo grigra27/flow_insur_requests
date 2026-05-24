@@ -277,6 +277,54 @@ class CustomerDealPayloadIntegrationTests(TestCase):
         self.assertEqual(result.data.get('guard_conditions'), 'без ограничений')
         self.assertEqual(result.data.get('property_location_right_holder'), 'lessee_owner')
 
+    def test_insurance_type_uses_d21_mark_for_casco(self):
+        wb = self._build_workbook()
+        sheet = wb.active
+        sheet['D21'] = 'Х'
+        sheet['D22'] = None
+        sheet['B21'] = 'КАСКО'
+        sheet['B22'] = 'страхование спецтехники'
+        result = self._parse_workbook(wb)
+        self.assertEqual(result.data.get('insurance_type'), 'КАСКО')
+        self.assertEqual(result.source_map.get('insurance_type'), 'D21')
+
+    def test_insurance_type_uses_d22_mark_for_equipment(self):
+        wb = self._build_workbook()
+        sheet = wb.active
+        sheet['D21'] = None
+        sheet['D22'] = 'Х'
+        sheet['B21'] = 'КАСКО'
+        sheet['B22'] = 'страхование спецтехники'
+        result = self._parse_workbook(wb)
+        self.assertEqual(result.data.get('insurance_type'), 'страхование спецтехники')
+        self.assertEqual(result.source_map.get('insurance_type'), 'D22')
+
+    def test_insurance_type_uses_d23_mark_for_shifted_ip_layout(self):
+        wb = self._build_workbook()
+        sheet = wb.active
+        sheet['B21'] = 'Вид страхования (отметьте знаком "Х")'
+        sheet['B22'] = 'КАСКО'
+        sheet['B23'] = 'страхование спецтехники'
+        sheet['D21'] = None
+        sheet['D22'] = None
+        sheet['D23'] = 'Х'
+        result = self._parse_workbook(wb)
+        self.assertEqual(result.data.get('insurance_type'), 'страхование спецтехники')
+        self.assertEqual(result.source_map.get('insurance_type'), 'D23')
+
+    def test_insurance_type_not_forced_to_property_by_object_header_text(self):
+        wb = self._build_workbook()
+        sheet = wb.active
+        sheet['D21'] = 'Х'
+        sheet['D22'] = None
+        sheet['B21'] = 'КАСКО'
+        sheet['B22'] = 'страхование спецтехники'
+        # This phrase appears in object-table headers and used to trigger a
+        # false positive for property insurance in the old full-sheet scan.
+        sheet['C41'] = 'Наименование и описание имущества'
+        result = self._parse_workbook(wb)
+        self.assertEqual(result.data.get('insurance_type'), 'КАСКО')
+
     def test_insured_party_x_marker_picks_lessee_when_marked(self):
         wb = self._build_workbook()
         sheet = wb.active
