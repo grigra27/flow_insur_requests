@@ -494,6 +494,23 @@
                     <dt class="col-6">Исходный файл:</dt>
                     <dd class="col-6">{{ request.parser_v2_source_file_name }}</dd>
                     {% endif %}
+
+                    <dt class="col-6">Ответственный за проверку:</dt>
+                    <dd class="col-6">
+                        {% if request.created_by %}
+                            {% if request.created_by.last_name and request.created_by.first_name %}
+                                {{ request.created_by.last_name }} {{ request.created_by.first_name }}
+                            {% elif request.created_by.last_name %}
+                                {{ request.created_by.last_name }}
+                            {% elif request.created_by.first_name %}
+                                {{ request.created_by.first_name }}
+                            {% else %}
+                                Не указано
+                            {% endif %}
+                        {% else %}
+                            Не указано
+                        {% endif %}
+                    </dd>
                 </dl>
 
                 {% if request.parser_v2_data.warnings %}
