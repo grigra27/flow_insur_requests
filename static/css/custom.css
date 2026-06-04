@@ -116,6 +116,10 @@ a:hover {
     box-shadow: 0 10px 24px rgba(17, 31, 52, 0.2);
 }
 
+.app-navbar .navbar-collapse {
+    align-items: center;
+}
+
 .app-navbar .navbar-brand {
     font-family: 'Space Grotesk', 'Trebuchet MS', sans-serif;
     font-size: 1.32rem;
@@ -162,6 +166,14 @@ a:hover {
 .app-navbar .nav-link:focus {
     background-color: rgba(255, 255, 255, 0.16);
     color: #ffffff !important;
+}
+
+.app-navbar-divider {
+    flex: 0 0 auto;
+    width: 1px;
+    height: 1.55rem;
+    margin: 0 0.72rem;
+    background: rgba(255, 255, 255, 0.3);
 }
 
 .app-nav-links {
@@ -326,6 +338,10 @@ a:hover {
 @media (max-width: 991px) {
     .app-navbar .navbar-brand {
         font-size: 1.22rem;
+    }
+
+    .app-navbar-divider {
+        display: none;
     }
 
     .app-context-bar {
