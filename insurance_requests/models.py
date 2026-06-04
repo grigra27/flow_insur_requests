@@ -378,6 +378,18 @@ class InsuranceRequest(models.Model):
         return self.parser_v2_data.get('source_file_name', '')
 
     @property
+    def list_premium_frequency_display(self):
+        """List view only: show within-year frequencies, hide single/annual noise."""
+        if self.premium_frequency in {'quarterly', 'biannual'}:
+            return self.get_premium_frequency_display()
+        return ''
+
+    @property
+    def list_has_installment_badge(self):
+        """Legacy list badge: only for old rows without an explicit frequency."""
+        return bool(self.has_installment and not self.premium_frequency)
+
+    @property
     def has_structured_object_data(self):
         return any([
             self.brand,

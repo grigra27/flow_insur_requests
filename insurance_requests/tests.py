@@ -115,6 +115,15 @@ class RequestV1V2DisplayCompatibilityTest(TestCase):
             vehicle_info='Старое описание предмета лизинга V1',
             created_by=self.user,
         )
+        self.legacy_installment_request = InsuranceRequest.objects.create(
+            client_name='Старый клиент с рассрочкой',
+            inn='1111111112',
+            insurance_type='КАСКО',
+            insurance_period='1 год',
+            dfa_number='V1-INSTALL',
+            has_installment=True,
+            created_by=self.user,
+        )
         self.v2_request = InsuranceRequest.objects.create(
             client_name='Новый клиент',
             inn='2222222222',
@@ -146,6 +155,24 @@ class RequestV1V2DisplayCompatibilityTest(TestCase):
             },
             created_by=self.user,
         )
+        self.annual_request = InsuranceRequest.objects.create(
+            client_name='Ежегодный клиент',
+            inn='3333333333',
+            insurance_type='КАСКО',
+            insurance_period='1 год',
+            dfa_number='V2-ANNUAL',
+            premium_frequency='annual',
+            created_by=self.user,
+        )
+        self.single_request = InsuranceRequest.objects.create(
+            client_name='Единовременный клиент',
+            inn='4444444444',
+            insurance_type='КАСКО',
+            insurance_period='1 год',
+            dfa_number='V2-SINGLE',
+            premium_frequency='single',
+            created_by=self.user,
+        )
 
     def test_request_list_uses_structured_v2_object_and_v1_fallback(self):
         response = self.client.get(reverse('insurance_requests:request_list'))
@@ -154,8 +181,11 @@ class RequestV1V2DisplayCompatibilityTest(TestCase):
         self.assertContains(response, 'Старое описание предмета лизинга V1')
         self.assertContains(response, 'LADA Largus KS045L')
         self.assertContains(response, '1 490 000 RUB')
+        self.assertNotContains(response, 'Автомобиль LADA Largus KS045L 2024 б/у')
         self.assertContains(response, 'Поквартально')
-        self.assertContains(response, 'Лизингодатель')
+        self.assertContains(response, 'Рассрочка')
+        self.assertNotContains(response, 'Ежегодно')
+        self.assertNotContains(response, 'Единовременно')
         self.assertContains(response, 'Проверить')
 
     def test_request_detail_keeps_v1_simple_and_shows_v2_diagnostics(self):
