@@ -192,10 +192,26 @@ ${franshiza_text}${installment_text}${avtozapusk_text}${transportation_text}${co
         )
         
         # Transportation and construction work parameters
-        template_data['transportation_text'] = (
-            'Обратите внимание, требуется страхование перевозки (с погрузкой, выгрузкой) от поставщика к лизингополучателю.\n'
-            if data.get('has_transportation') else ''
-        )
+        if data.get('has_transportation'):
+            base_line = (
+                'Обратите внимание, требуется страхование перевозки '
+                '(с погрузкой, выгрузкой) от поставщика к лизингополучателю.'
+            )
+            route_parts = []
+            departure = (data.get('transportation_departure') or '').strip()
+            destination = (data.get('transportation_destination') or '').strip()
+            if departure:
+                route_parts.append(f'пункт отправления — {departure}')
+            if destination:
+                route_parts.append(f'пункт назначения — {destination}')
+            days = data.get('transportation_days')
+            if days:
+                route_parts.append(f'ориентировочный срок перевозки — {days} дн')
+            if route_parts:
+                base_line = base_line + ' ' + '; '.join(route_parts) + '.'
+            template_data['transportation_text'] = base_line + '\n'
+        else:
+            template_data['transportation_text'] = ''
         
         template_data['construction_work_text'] = (
             'Обратите внимание, требуется страхование монтажных (строительно-монтажных) работ на площадке ЛП по установке оборудования.\n'

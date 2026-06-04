@@ -612,6 +612,14 @@ class ExcelRequestParserV2:
         data["has_transportation"] = has_transportation
         if transportation_source:
             source_map["has_transportation"] = transportation_source
+        transport_details = self._extract_transportation_details(cells, rows)
+        for field_name in ("transportation_departure", "transportation_destination", "transportation_days"):
+            value = transport_details.get(field_name)
+            if value not in (None, ""):
+                data[field_name] = value
+            src = transport_details.get(f"{field_name}_source")
+            if src:
+                source_map[field_name] = src
         data["has_construction_work"] = self._contains_any(cells, ["смр", "строительно монтаж"])
 
         manufacturing_year, source = self._extract_manufacturing_year(cells, insured_objects)
@@ -806,6 +814,9 @@ class ExcelRequestParserV2:
             "has_autostart": False,
             "has_casco_ce": False,
             "has_transportation": False,
+            "transportation_departure": "",
+            "transportation_destination": "",
+            "transportation_days": None,
             "has_construction_work": False,
             "manufacturing_year": "",
             "asset_status": "",
@@ -1731,6 +1742,86 @@ class ExcelRequestParserV2:
                 if value_cell:
                     return value_cell.coordinate
         return ""
+
+    def _extract_transportation_details(
+        self,
+        cells: List[GridCell],
+        rows: Dict[int, List[GridCell]],
+    ) -> Dict[str, Any]:
+        """Pick up «Пункт отправления», «Пункт назначения» and «Срок
+        перевозки» values from the additional-insurance block.
+
+        Anchored on the same option-cell discovery as has_transportation
+        — if the block isn't found the result is all-empty. The day
+        count is parsed as int (the cell sometimes holds the bare digit,
+        sometimes a string like '1', '2').
+        """
+        result: Dict[str, Any] = {
+            "transportation_departure": "",
+            "transportation_departure_source": "",
+            "transportation_destination": "",
+            "transportation_destination_source": "",
+            "transportation_days": None,
+            "transportation_days_source": "",
+        }
+        label_to_field = [
+            (("пункт", "отправлен"), "transportation_departure"),
+            (("пункт", "назначен"), "transportation_destination"),
+            (("срок", "перевоз"), "transportation_days"),
+        ]
+        anchor: Optional[GridCell] = None
+        for cell in cells:
+            if not self._looks_like_transportation_option(cell):
+                continue
+            if not self._near_additional_insurance_block(cell, rows):
+                continue
+            anchor = cell
+            break
+        if anchor is None:
+            return result
+
+        for row_number in range(anchor.row + 1, anchor.row + 7):
+            for label_cell in rows.get(row_number, []):
+                matched_field: Optional[str] = None
+                for group, field_name in label_to_field:
+                    if self._matches_any_group(label_cell.normalized, [group]):
+                        matched_field = field_name
+                        break
+                if matched_field is None or result.get(matched_field):
+                    continue
+                inline = self._inline_value_after_label(label_cell.value)
+                value: Any = inline
+                source = label_cell.coordinate
+                if not value:
+                    right_cell = self._first_value_right(rows, label_cell)
+                    if right_cell:
+                        value = right_cell.value
+                        source = right_cell.coordinate
+                if not value:
+                    continue
+                if matched_field == "transportation_days":
+                    days = self._parse_days(value)
+                    if days is not None:
+                        result["transportation_days"] = days
+                        result["transportation_days_source"] = source
+                else:
+                    result[matched_field] = str(value).strip()
+                    result[f"{matched_field}_source"] = source
+        return result
+
+    def _parse_days(self, value: Any) -> Optional[int]:
+        text = clean_value(value)
+        if not text:
+            return None
+        # Pull the first integer from values like '1', '2-3 дня', '5 дней'.
+        match = re.search(r"\d+", text)
+        if not match:
+            return None
+        try:
+            days = int(match.group(0))
+        except ValueError:
+            return None
+        return days if days > 0 else None
 
     def _extract_marker_choice(
         self,

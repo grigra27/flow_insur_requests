@@ -62,6 +62,13 @@ class InsuranceRequestAdmin(admin.ModelAdmin):
                 'response_deadline'
             )
         }),
+        ('Перевозка (если has_transportation)', {
+            'fields': (
+                'transportation_departure', 'transportation_destination',
+                'transportation_days',
+            ),
+            'classes': ('collapse',),
+        }),
         ('Параметры КАСКО/Спецтехника', {
             'fields': (
                 'key_completeness', 'pts_psm', 'creditor_bank', 

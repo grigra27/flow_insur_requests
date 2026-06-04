@@ -109,6 +109,21 @@ class InsuranceRequest(models.Model):
     has_autostart = models.BooleanField(default=False, verbose_name='Есть автозапуск')
     has_casco_ce = models.BooleanField(default=False, verbose_name='КАСКО кат. C/E')
     has_transportation = models.BooleanField(default=False, verbose_name='Требуется перевозка')
+    transportation_departure = models.CharField(
+        max_length=500,
+        blank=True,
+        verbose_name='Пункт отправления (перевозка)',
+    )
+    transportation_destination = models.CharField(
+        max_length=500,
+        blank=True,
+        verbose_name='Пункт назначения (перевозка)',
+    )
+    transportation_days = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        verbose_name='Срок перевозки, дней',
+    )
     has_construction_work = models.BooleanField(default=False, verbose_name='Требуется СМР')
     response_deadline = models.DateTimeField(null=True, blank=True, verbose_name='Срок ответа')
     
@@ -446,6 +461,9 @@ class InsuranceRequest(models.Model):
             'has_autostart': self.has_autostart,
             'has_casco_ce': self.has_casco_ce,
             'has_transportation': self.has_transportation,
+            'transportation_departure': self.transportation_departure or '',
+            'transportation_destination': self.transportation_destination or '',
+            'transportation_days': self.transportation_days,
             'has_construction_work': self.has_construction_work,
             'notes': self.notes,
             'response_deadline': moscow_deadline.strftime('%H:%M %d.%m.%Y') if moscow_deadline else None,

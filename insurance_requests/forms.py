@@ -730,6 +730,7 @@ class InsuranceRequestForm(forms.ModelForm):
             'client_name', 'inn', 'insurance_type', 'insurance_period',
             'vehicle_info', 'dfa_number', 'branch', 'manager_name', 'deal_status', 'franchise_type',
             'has_installment', 'has_autostart', 'has_casco_ce', 'has_transportation',
+            'transportation_departure', 'transportation_destination', 'transportation_days',
             'has_construction_work', 'manufacturing_year', 'asset_status', 'response_deadline', 'notes',
             # Структурированные поля объекта Parser V2
             'brand', 'model', 'condition', 'equipment_type', 'power_or_capacity',
@@ -825,6 +826,21 @@ class InsuranceRequestForm(forms.ModelForm):
             'has_autostart': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'has_casco_ce': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'has_transportation': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'transportation_departure': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Например: г. Москва, ул. Ленина, 1',
+                'maxlength': '500',
+            }),
+            'transportation_destination': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Например: г. Псков, пр. Энтузиастов, 5',
+                'maxlength': '500',
+            }),
+            'transportation_days': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'min': '1',
+                'placeholder': 'Дней',
+            }),
             'has_construction_work': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'response_deadline': DateTimeLocalWidget(),
             'legal_address': forms.Textarea(attrs={

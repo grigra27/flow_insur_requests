@@ -230,7 +230,20 @@
         },
         "transportation_required": {
           "type": "boolean",
-          "description": "Сам факт необходимости перевозки. origin/destination/estimated_days в источнике отсутствуют — удалены из v1."
+          "description": "Сам факт необходимости перевозки. Сопровождающие поля transportation_departure / transportation_destination / transportation_days раскрывают маршрут и срок."
+        },
+        "transportation_departure": {
+          "type": ["string", "null"],
+          "description": "Пункт отправления при страховании перевозки. Заполняется только при transportation_required=true."
+        },
+        "transportation_destination": {
+          "type": ["string", "null"],
+          "description": "Пункт назначения при страховании перевозки."
+        },
+        "transportation_days": {
+          "type": ["integer", "null"],
+          "minimum": 1,
+          "description": "Ориентировочный срок перевозки в днях."
         },
         "construction_work_required": {
           "type": "boolean",
