@@ -1362,13 +1362,24 @@ class ExcelRequestParserV2:
         )
 
     def _extract_autostart(self, cells: List[GridCell], rows: Dict[int, List[GridCell]]) -> bool:
+        # Default to False unless an explicit "да" value is found in the row.
+        # An empty value cell next to the "Автозапуск" label means «нет».
         for cell in cells:
             if "автозапуск" not in cell.normalized:
                 continue
-            row_text = normalize_text(self._row_text(rows.get(cell.row, [])))
-            if "нет" in row_text and "да" not in row_text:
-                return False
-            return True
+            tokens: List[str] = []
+            for sibling in rows.get(cell.row, []):
+                if sibling.col == cell.col:
+                    continue
+                tokens.extend(t for t in re.split(r"[\s/]+", sibling.normalized) if t)
+            # Inline value in the label cell itself, e.g. «Автозапуск: да».
+            # Skip when the tail looks like a «(да/нет)» header (both tokens present).
+            tail_text = cell.normalized.split("автозапуск", 1)[1]
+            tail_tokens = [t for t in re.split(r"[\s/]+", tail_text) if t]
+            if not ("да" in tail_tokens and "нет" in tail_tokens):
+                tokens.extend(tail_tokens)
+            if "да" in tokens:
+                return True
         return False
 
     def _extract_manufacturing_year(self, cells: List[GridCell]) -> Tuple[str, str]:

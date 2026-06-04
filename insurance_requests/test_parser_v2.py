@@ -16,6 +16,7 @@ from .forms import DEFAULT_BRANCH, ParserV2PreviewForm
 from .models import InsuranceRequest, RequestAttachment
 from .parsers.excel_v2 import ExcelRequestParserV2
 from .parsers.excel_v2.parser import (
+    GridCell,
     classify_equipment_or_power,
     group_identical_objects,
     normalize_condition,
@@ -140,6 +141,46 @@ class ObjectRowHelpersTests(TestCase):
             split_brand_model('экскаватор LOVOL FR225E2-N 2025 новое', '2025'),
             ('LOVOL', 'FR225E2-N'),
         )
+
+
+class AutostartExtractionTests(TestCase):
+    """`_extract_autostart` must require an explicit «да» — empty cell means «нет»."""
+
+    @staticmethod
+    def _coord(row: int, col: int) -> str:
+        return f"{chr(64 + col)}{row}"
+
+    def _run(self, cells_spec):
+        cells = [
+            GridCell(row=r, col=c, coordinate=self._coord(r, c), value=v)
+            for r, c, v in cells_spec
+        ]
+        rows = {}
+        for cell in cells:
+            rows.setdefault(cell.row, []).append(cell)
+        return ExcelRequestParserV2()._extract_autostart(cells, rows)
+
+    def test_returns_true_when_value_cell_is_da(self):
+        self.assertTrue(self._run([(24, 12, 'Автозапуск'), (24, 13, 'да')]))
+
+    def test_returns_false_when_value_cell_is_net(self):
+        self.assertFalse(self._run([(24, 12, 'Автозапуск'), (24, 13, 'нет')]))
+
+    def test_returns_false_when_value_cell_is_empty(self):
+        # Regression: standard «Автозапуск» row with no value must NOT default to True.
+        self.assertFalse(self._run([(24, 12, 'Автозапуск')]))
+
+    def test_returns_false_for_da_net_header_without_value(self):
+        self.assertFalse(self._run([(24, 12, 'Автозапуск (да/нет):')]))
+
+    def test_returns_true_for_inline_label_with_da(self):
+        self.assertTrue(self._run([(24, 12, 'Автозапуск: да')]))
+
+    def test_returns_true_for_da_net_header_with_explicit_da_value(self):
+        self.assertTrue(self._run([(24, 12, 'Автозапуск (да/нет):'), (24, 13, 'да')]))
+
+    def test_returns_false_when_label_missing(self):
+        self.assertFalse(self._run([(24, 12, 'Что-то другое'), (24, 13, 'да')]))
 
 
 class CustomerDealHelpersTests(TestCase):
