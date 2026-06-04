@@ -235,6 +235,7 @@ class ObjectRowPayloadIntegrationTests(TestCase):
         obj = result.data['parser_v2_payload']['insured_objects'][0]
         self.assertEqual(obj.get('vehicle_category'), 'B')
         self.assertEqual(obj.get('vehicle_category_source'), 'B42:B42')
+        self.assertEqual(obj.get('equipment_type'), 'Категория B')
         self.assertFalse(result.data.get('has_casco_ce'))
         self.assertNotIn('has_casco_ce', result.source_map)
 
@@ -246,6 +247,7 @@ class ObjectRowPayloadIntegrationTests(TestCase):
         result = self._parse_workbook(wb)
         obj = result.data['parser_v2_payload']['insured_objects'][0]
         self.assertEqual(obj.get('vehicle_category'), 'C')
+        self.assertEqual(obj.get('equipment_type'), 'Категория C')
         self.assertTrue(result.data.get('has_casco_ce'))
         self.assertEqual(result.source_map.get('has_casco_ce'), 'B42:B42')
 
@@ -267,6 +269,30 @@ class ObjectRowPayloadIntegrationTests(TestCase):
         self.assertEqual([obj.get('vehicle_category') for obj in objects], ['B', 'C'])
         self.assertTrue(result.data.get('has_casco_ce'))
         self.assertEqual(result.source_map.get('has_casco_ce'), 'B44:B44')
+
+    def test_object_section_category_fills_empty_equipment_type(self):
+        wb = self._build_minimal_workbook_with_object_row()
+        sheet = wb.active
+        sheet['B42'] = 'Транспортные средства категории D'
+
+        result = self._parse_workbook(wb)
+        obj = result.data['parser_v2_payload']['insured_objects'][0]
+        self.assertEqual(obj.get('vehicle_category'), 'D')
+        self.assertEqual(obj.get('equipment_type'), 'Категория D')
+        self.assertEqual(obj.get('power_or_capacity'), '78.05')
+
+    def test_special_equipment_keeps_specific_equipment_type(self):
+        wb = self._build_minimal_workbook_with_object_row()
+        sheet = wb.active
+        sheet['B42'] = 'Специальная техника'
+        sheet['C43'] = 'Трактор LS R36iHT'
+        sheet['L43'] = 'колесная'
+
+        result = self._parse_workbook(wb)
+        obj = result.data['parser_v2_payload']['insured_objects'][0]
+        self.assertEqual(obj.get('vehicle_category'), 'special_equipment')
+        self.assertEqual(obj.get('equipment_type'), 'колесная')
+        self.assertIsNone(obj.get('power_or_capacity'))
 
 
 class CustomerDealPayloadIntegrationTests(TestCase):

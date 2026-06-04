@@ -978,6 +978,8 @@ class ExcelRequestParserV2:
                 if current_category:
                     payload["vehicle_category"] = current_category
                     payload["vehicle_category_source"] = current_category_source
+                    if not payload.get("equipment_type"):
+                        payload["equipment_type"] = self._equipment_type_from_category(current_category)
                 objects.append(payload)
 
         if not objects:
@@ -1012,6 +1014,14 @@ class ExcelRequestParserV2:
         if "специальная техника" in row_norm:
             return "special_equipment"
         return None
+
+    def _equipment_type_from_category(self, category: Optional[str]) -> Optional[str]:
+        return {
+            "B": "Категория B",
+            "C": "Категория C",
+            "D": "Категория D",
+            "special_equipment": "Спецтехника",
+        }.get(category or "")
 
     def _extract_casco_ce_from_objects(self, insured_objects: List[Dict[str, Any]]) -> Tuple[bool, str]:
         for obj in insured_objects:
