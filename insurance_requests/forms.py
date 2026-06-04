@@ -373,6 +373,18 @@ class ParserV2PreviewForm(forms.Form):
     has_autostart = forms.BooleanField(label='Есть автозапуск', required=False, widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}))
     has_casco_ce = forms.BooleanField(label='КАСКО кат. C/E', required=False, widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}))
     has_transportation = forms.BooleanField(label='Требуется перевозка', required=False, widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}))
+    transportation_departure = forms.CharField(
+        label='Пункт отправления (перевозка)', required=False,
+        widget=forms.TextInput(attrs={'class': 'form-control', 'maxlength': '500'})
+    )
+    transportation_destination = forms.CharField(
+        label='Пункт назначения (перевозка)', required=False,
+        widget=forms.TextInput(attrs={'class': 'form-control', 'maxlength': '500'})
+    )
+    transportation_days = forms.IntegerField(
+        label='Срок перевозки, дней', required=False, min_value=1,
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'min': '1'})
+    )
     has_construction_work = forms.BooleanField(label='Требуется СМР', required=False, widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}))
     manufacturing_year = forms.CharField(label='Год выпуска', required=False, widget=forms.TextInput(attrs={'class': 'form-control'}))
     asset_status = forms.CharField(label='Статус имущества', required=False, widget=forms.TextInput(attrs={'class': 'form-control'}))
@@ -496,6 +508,9 @@ class ParserV2PreviewForm(forms.Form):
             'has_autostart': bool(cleaned.get('has_autostart')),
             'has_casco_ce': bool(cleaned.get('has_casco_ce')),
             'has_transportation': bool(cleaned.get('has_transportation')),
+            'transportation_departure': self._limit(cleaned.get('transportation_departure') or '', 500),
+            'transportation_destination': self._limit(cleaned.get('transportation_destination') or '', 500),
+            'transportation_days': cleaned.get('transportation_days') or None,
             'has_construction_work': bool(cleaned.get('has_construction_work')),
             'manufacturing_year': self._limit(cleaned.get('manufacturing_year') or '', 255),
             'asset_status': self._limit(cleaned.get('asset_status') or '', 255),

@@ -317,6 +317,21 @@
                                 <dt class="col-sm-6">Перевозка:</dt>
                                 <dd class="col-sm-6">{% if request.has_transportation %}Да{% else %}Нет{% endif %}</dd>
 
+                                {% if request.has_transportation %}
+                                {% if request.transportation_departure %}
+                                <dt class="col-sm-6">Пункт отправления:</dt>
+                                <dd class="col-sm-6">{{ request.transportation_departure }}</dd>
+                                {% endif %}
+                                {% if request.transportation_destination %}
+                                <dt class="col-sm-6">Пункт назначения:</dt>
+                                <dd class="col-sm-6">{{ request.transportation_destination }}</dd>
+                                {% endif %}
+                                {% if request.transportation_days %}
+                                <dt class="col-sm-6">Срок перевозки:</dt>
+                                <dd class="col-sm-6">{{ request.transportation_days }} дн.</dd>
+                                {% endif %}
+                                {% endif %}
+
                                 <dt class="col-sm-6">СМР:</dt>
                                 <dd class="col-sm-6">{% if request.has_construction_work %}Да{% else %}Нет{% endif %}</dd>
                             </dl>

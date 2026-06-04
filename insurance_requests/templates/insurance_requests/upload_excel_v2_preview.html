@@ -238,6 +238,23 @@
                                 <label class="form-check-label" for="{{ form.has_construction_work.id_for_label }}">{{ form.has_construction_work.label }}</label>
                             </div>
                         </div>
+                        <div id="transportation-details" class="row g-3 mt-1{% if not form.has_transportation.value %} d-none{% endif %}">
+                            <div class="col-md-5">
+                                <label class="form-label fw-semibold" for="{{ form.transportation_departure.id_for_label }}">{{ form.transportation_departure.label }}</label>
+                                {{ form.transportation_departure }}
+                                {% for error in form.transportation_departure.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="col-md-5">
+                                <label class="form-label fw-semibold" for="{{ form.transportation_destination.id_for_label }}">{{ form.transportation_destination.label }}</label>
+                                {{ form.transportation_destination }}
+                                {% for error in form.transportation_destination.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label fw-semibold" for="{{ form.transportation_days.id_for_label }}">{{ form.transportation_days.label }}</label>
+                                {{ form.transportation_days }}
+                                {% for error in form.transportation_days.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                            </div>
+                        </div>
                     </section>
 
                     <section class="parser-v2-section">
@@ -498,4 +515,19 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const transportationCheckbox = document.getElementById('{{ form.has_transportation.id_for_label }}');
+        const transportationDetails = document.getElementById('transportation-details');
+        if (transportationCheckbox && transportationDetails) {
+            transportationCheckbox.addEventListener('change', function () {
+                transportationDetails.classList.toggle('d-none', !transportationCheckbox.checked);
+            });
+        }
+    });
+</script>
 {% endblock %}

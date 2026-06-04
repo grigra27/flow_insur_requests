@@ -647,6 +647,47 @@
                                         </div>
                                     </div>
                                 </div>
+                                <div id="transportation-details" class="row mt-2{% if not form.has_transportation.value %} d-none{% endif %}">
+                                    <div class="col-md-5">
+                                        <label class="form-label small" for="{{ form.transportation_departure.id_for_label }}">
+                                            {{ form.transportation_departure.label }}
+                                        </label>
+                                        {{ form.transportation_departure }}
+                                        {% if form.transportation_departure.errors %}
+                                        <div class="text-danger">
+                                            {% for error in form.transportation_departure.errors %}
+                                            <small>{{ error }}</small>
+                                            {% endfor %}
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="col-md-5">
+                                        <label class="form-label small" for="{{ form.transportation_destination.id_for_label }}">
+                                            {{ form.transportation_destination.label }}
+                                        </label>
+                                        {{ form.transportation_destination }}
+                                        {% if form.transportation_destination.errors %}
+                                        <div class="text-danger">
+                                            {% for error in form.transportation_destination.errors %}
+                                            <small>{{ error }}</small>
+                                            {% endfor %}
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label small" for="{{ form.transportation_days.id_for_label }}">
+                                            {{ form.transportation_days.label }}
+                                        </label>
+                                        {{ form.transportation_days }}
+                                        {% if form.transportation_days.errors %}
+                                        <div class="text-danger">
+                                            {% for error in form.transportation_days.errors %}
+                                            <small>{{ error }}</small>
+                                            {% endfor %}
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -674,6 +715,15 @@
         const insuranceTypeSelect = document.getElementById('{{ form.insurance_type.id_for_label }}');
         const cascoFields = document.getElementById('casco-additional-fields');
         const propertyFields = document.getElementById('property-additional-fields');
+
+        // Показ/скрытие деталей перевозки в зависимости от чекбокса
+        const transportationCheckbox = document.getElementById('{{ form.has_transportation.id_for_label }}');
+        const transportationDetails = document.getElementById('transportation-details');
+        if (transportationCheckbox && transportationDetails) {
+            transportationCheckbox.addEventListener('change', function () {
+                transportationDetails.classList.toggle('d-none', !transportationCheckbox.checked);
+            });
+        }
 
         // Функция для показа/скрытия дополнительных полей в зависимости от типа страхования
         function toggleAdditionalFields() {
