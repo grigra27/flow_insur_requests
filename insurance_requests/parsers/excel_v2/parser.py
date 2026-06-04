@@ -2044,7 +2044,7 @@ class ExcelRequestParserV2:
                 }
             )
 
-        if insured_objects:
+        if len(insured_objects) > 1:
             warnings.append(
                 {
                     "level": "info",
