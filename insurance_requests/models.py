@@ -1,4 +1,5 @@
 from django.db import models
+from django.core.validators import MinValueValidator
 from django.contrib.auth.models import User
 from django.utils import timezone
 from datetime import timedelta
@@ -235,6 +236,12 @@ class InsuranceRequest(models.Model):
         blank=True,
         null=True,
         verbose_name='Валюта стоимости',
+    )
+    source_object_count = models.PositiveIntegerField(
+        default=1,
+        validators=[MinValueValidator(1)],
+        verbose_name='Количество одинаковых объектов',
+        help_text='Сколько полностью одинаковых строк объекта из исходной Excel-заявки представляет эта заявка',
     )
 
     # Реквизиты страхователя (для V2; V1 их не заполняет — данные приходят

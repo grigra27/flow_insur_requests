@@ -596,6 +596,13 @@ class ParserV2ObjectForm(forms.Form):
         label='Описание объекта', required=False,
         widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 2})
     )
+    source_object_count = forms.IntegerField(
+        label='Количество одинаковых объектов',
+        min_value=1,
+        required=True,
+        initial=1,
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'min': '1'})
+    )
 
     def to_object_kwargs(self):
         """Return model field kwargs for one InsuranceRequest sibling.
@@ -614,6 +621,7 @@ class ParserV2ObjectForm(forms.Form):
             'acquisition_cost_currency': cleaned.get('acquisition_cost_currency') or None,
             'vehicle_info': (cleaned.get('vehicle_info') or 'Предмет лизинга не указан')[:5000],
             'manufacturing_year': (cleaned.get('manufacturing_year') or '')[:255],
+            'source_object_count': cleaned.get('source_object_count') or 1,
         }
 
 
@@ -638,6 +646,7 @@ def parser_v2_object_initial_from_payload(insured_objects):
             'acquisition_cost_currency': obj.get('acquisition_cost_currency') or '',
             'manufacturing_year': obj.get('year') or '',
             'vehicle_info': obj.get('description') or '',
+            'source_object_count': obj.get('source_object_count') or 1,
             'skip': False,
         })
     return initial

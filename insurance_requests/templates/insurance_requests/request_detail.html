@@ -139,6 +139,13 @@
                                     <dt class="col-sm-5">Год выпуска:</dt>
                                     <dd class="col-sm-7">{{ request.manufacturing_year|default:"Не указан" }}</dd>
 
+                                    {% if request.source_object_count and request.source_object_count > 1 %}
+                                    <dt class="col-sm-5">Количество одинаковых объектов:</dt>
+                                    <dd class="col-sm-7">
+                                        <span class="badge bg-warning text-dark">{{ request.source_object_count }}</span>
+                                    </dd>
+                                    {% endif %}
+
                                     <dt class="col-sm-5">Статус имущества:</dt>
                                     <dd class="col-sm-7">{{ request.asset_status|default:"Не указан" }}</dd>
 

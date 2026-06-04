@@ -292,6 +292,110 @@ def _strip_object_type_prefix(tokens: List[str]) -> List[str]:
     return tokens
 
 
+# --- Identical-object grouping (parser_v2_identical_object_multiplicity) ------
+#
+# A second, smarter dedup layer on top of the exact-row_text counting done in
+# `_extract_objects`. It collapses rows that are *business-equivalent* after
+# normalization (e.g. differ only in whitespace or in how the cost is written:
+# 1490000 / 1 490 000 / 1490000.00) into a single insured object, summing their
+# multiplicity. The exact-row_text layer already counts byte-identical rows;
+# this layer catches formatting variants that the byte comparison misses.
+
+# Structural fields that define object identity. `description` (== row_text) is
+# intentionally excluded: it is the raw row text, so including it would just
+# reproduce the byte-level dedup and make this layer useless.
+_CANONICAL_KEY_FIELDS = (
+    "brand",
+    "model",
+    "year",
+    "condition",
+    "equipment_type",
+    "power_or_capacity",
+    "vehicle_category",
+)
+
+
+def _normalized_cost(value: Any) -> str:
+    """Normalize an acquisition cost to a canonical string so that
+    1490000, '1 490 000' and '1490000.00' compare equal. Empty → ''."""
+    if value in (None, ""):
+        return ""
+    parsed = parse_cost_value(value)
+    if parsed is None:
+        return normalize_text(value)
+    # Decimal.normalize() drops trailing zeros; format 'f' avoids exponent form.
+    return format(parsed.normalize(), "f")
+
+
+def _object_canonical_key(obj: Dict[str, Any]) -> Tuple[str, ...]:
+    structural = tuple(
+        normalize_text(obj.get(field)) if obj.get(field) else ""
+        for field in _CANONICAL_KEY_FIELDS
+    )
+    cost = _normalized_cost(obj.get("acquisition_cost_value"))
+    currency = (obj.get("acquisition_cost_currency") or "").upper()
+    key = structural + (cost, currency)
+    if any(part for part in key):
+        return key
+    # Fallback: the structural key is empty (a poorly parsed row with only a
+    # free-text description). Use the normalized description so two genuinely
+    # different unparsed rows are not merged by an all-empty key.
+    return ("__desc__", normalize_text(obj.get("description")))
+
+
+def group_identical_objects(
+    insured_objects: List[Dict[str, Any]]
+) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    """Collapse business-equivalent objects, summing their multiplicity.
+
+    Returns (grouped_objects, grouping_meta). `grouped_objects` is the list the
+    preview formset and request creation work with — one entry per unique
+    object, each carrying `source_object_count` and `duplicate_sources`.
+    `grouping_meta` is an audit trail stored in parser_v2_payload.object_grouping.
+    Group order follows first appearance in the Excel (important for item_no).
+    """
+    grouped: List[Dict[str, Any]] = []
+    groups_meta: List[Dict[str, Any]] = []
+    index_by_key: Dict[Tuple[str, ...], int] = {}
+
+    for obj in insured_objects:
+        key = _object_canonical_key(obj)
+        count = obj.get("source_object_count") or 1
+        sources = list(obj.get("duplicate_sources") or ([obj["source"]] if obj.get("source") else []))
+        if key in index_by_key:
+            gi = index_by_key[key]
+            target = grouped[gi]
+            target["source_object_count"] = (target.get("source_object_count") or 1) + count
+            target["duplicate_sources"] = (target.get("duplicate_sources") or []) + sources
+            groups_meta[gi]["source_object_count"] = target["source_object_count"]
+            groups_meta[gi]["sources"] = list(target["duplicate_sources"])
+        else:
+            index_by_key[key] = len(grouped)
+            new_obj = dict(obj)
+            new_obj["source_object_count"] = count
+            new_obj["duplicate_sources"] = list(sources)
+            grouped.append(new_obj)
+            groups_meta.append({
+                "group_index": len(grouped),
+                "source_object_count": count,
+                "sources": list(sources),
+                "canonical_key": {
+                    "brand": obj.get("brand"),
+                    "model": obj.get("model"),
+                    "year": obj.get("year"),
+                    "acquisition_cost_value": _normalized_cost(obj.get("acquisition_cost_value")),
+                    "acquisition_cost_currency": (obj.get("acquisition_cost_currency") or "").upper(),
+                },
+            })
+
+    grouping_meta = {
+        "raw_object_count": sum((o.get("source_object_count") or 1) for o in grouped),
+        "unique_object_count": len(grouped),
+        "groups": groups_meta,
+    }
+    return grouped, grouping_meta
+
+
 # --- Customer/deal field extractors (stages 3.2 / 3.3) ----------------------
 #
 # Helpers used to fill the columns added by stages 2.2 and 2.3. They do not
@@ -485,6 +589,7 @@ class ExcelRequestParserV2:
             source_map["insurance_period"] = period_source
 
         insured_objects = self._extract_objects(cells, rows)
+        insured_objects, object_grouping = group_identical_objects(insured_objects)
         if insured_objects:
             data["vehicle_info"] = self._vehicle_summary(insured_objects)
             source_map["vehicle_info"] = insured_objects[0].get("source", "")
@@ -611,6 +716,7 @@ class ExcelRequestParserV2:
 
         parser_payload = {
             "insured_objects": insured_objects,
+            "object_grouping": object_grouping,
             "raw_branch": branch_raw,
             "application_format": self._detect_application_format(data),
             "application_type": application_type,
@@ -963,7 +1069,13 @@ class ExcelRequestParserV2:
             )
         ]
         objects: List[Dict[str, Any]] = []
-        seen = set()
+        # Map row_text → index in `objects`. A fully identical row does not
+        # create a second object: instead it increments source_object_count on
+        # the already-created payload and records its coordinates. This keeps
+        # the multiplicity of duplicated leasing-export rows instead of
+        # silently dropping it (see docs/improvement_plans/
+        # parser_v2_identical_object_multiplicity.md).
+        index_by_row_text: Dict[str, int] = {}
 
         for start_row in start_rows[:3]:
             blank_rows = 0
@@ -990,15 +1102,22 @@ class ExcelRequestParserV2:
                     continue
                 if len(row_text) < 8:
                     continue
-                if row_text in seen:
+                source = self._row_source(row_cells)
+                if row_text in index_by_row_text:
+                    existing = objects[index_by_row_text[row_text]]
+                    existing["source_object_count"] = (existing.get("source_object_count") or 1) + 1
+                    existing.setdefault("duplicate_sources", [existing.get("source") or ""])
+                    existing["duplicate_sources"].append(source)
                     continue
-                seen.add(row_text)
+                index_by_row_text[row_text] = len(objects)
                 payload = self._build_object_payload(row_cells, row_text)
                 if current_category:
                     payload["vehicle_category"] = current_category
                     payload["vehicle_category_source"] = current_category_source
                     if not payload.get("equipment_type"):
                         payload["equipment_type"] = self._equipment_type_from_category(current_category)
+                payload["source_object_count"] = 1
+                payload["duplicate_sources"] = [payload.get("source") or source]
                 objects.append(payload)
 
         if not objects:
@@ -1018,6 +1137,8 @@ class ExcelRequestParserV2:
                         "acquisition_cost_currency": None,
                         "vehicle_category": None,
                         "vehicle_category_source": "",
+                        "source_object_count": 1,
+                        "duplicate_sources": [source] if source else [],
                     }
                 )
 

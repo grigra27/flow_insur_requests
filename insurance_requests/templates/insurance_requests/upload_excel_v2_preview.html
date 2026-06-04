@@ -335,6 +335,11 @@
                                     {% else %}
                                         Объект страхования
                                     {% endif %}
+                                    {% with soc=obj_form.source_object_count.value %}
+                                        {% if soc and soc|add:"0" > 1 %}
+                                            <span class="badge bg-warning text-dark ms-1">Одинаковых строк: {{ soc }}</span>
+                                        {% endif %}
+                                    {% endwith %}
                                 </strong>
                                 {% if is_batch %}
                                 <div class="form-check">
@@ -385,6 +390,12 @@
                                     <div class="col-md-12">
                                         <label class="form-label fw-semibold" for="{{ obj_form.vehicle_info.id_for_label }}">{{ obj_form.vehicle_info.label }}</label>
                                         {{ obj_form.vehicle_info }}
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label fw-semibold" for="{{ obj_form.source_object_count.id_for_label }}">{{ obj_form.source_object_count.label }}</label>
+                                        {{ obj_form.source_object_count }}
+                                        <div class="form-text">Сколько полностью одинаковых строк объекта эта карточка представляет.</div>
+                                        {% for error in obj_form.source_object_count.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                                     </div>
                                 </div>
                             </div>

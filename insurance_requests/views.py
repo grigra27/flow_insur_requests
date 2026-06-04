@@ -236,6 +236,7 @@ def _parser_v2_object_fields(payload_object):
         'acquisition_cost_currency': payload_object.get('acquisition_cost_currency') or None,
         'vehicle_info': description[:5000],
         'manufacturing_year': (payload_object.get('year') or '')[:255],
+        'source_object_count': payload_object.get('source_object_count') or 1,
     }
 
 

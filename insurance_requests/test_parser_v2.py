@@ -17,6 +17,7 @@ from .models import InsuranceRequest, RequestAttachment
 from .parsers.excel_v2 import ExcelRequestParserV2
 from .parsers.excel_v2.parser import (
     classify_equipment_or_power,
+    group_identical_objects,
     normalize_condition,
     normalize_currency,
     normalize_insured_party,
@@ -317,6 +318,135 @@ class ObjectRowPayloadIntegrationTests(TestCase):
         self.assertEqual(obj.get('vehicle_category'), 'special_equipment')
         self.assertEqual(obj.get('equipment_type'), 'колесная')
         self.assertIsNone(obj.get('power_or_capacity'))
+
+
+class IdenticalObjectGroupingTests(TestCase):
+    """parser_v2_identical_object_multiplicity: fully identical object rows
+    collapse into one object that records how many source rows it represents."""
+
+    @staticmethod
+    def _obj(**overrides):
+        base = {
+            'description': 'LADA Largus KS045L',
+            'brand': 'LADA',
+            'model': 'Largus KS045L',
+            'year': '2024',
+            'condition': 'used',
+            'equipment_type': None,
+            'power_or_capacity': '78.05',
+            'acquisition_cost_value': '1490000',
+            'acquisition_cost_currency': 'RUB',
+            'vehicle_category': None,
+            'source': 'C43:N43',
+            'source_object_count': 1,
+            'duplicate_sources': ['C43:N43'],
+        }
+        base.update(overrides)
+        return base
+
+    def test_group_mixed_file_sums_multiplicity_in_first_appearance_order(self):
+        a = self._obj(brand='LADA', model='Largus KS045L')
+        b = self._obj(brand='Toyota', model='Camry XV70', acquisition_cost_value='4500000')
+        c = self._obj(brand='Haval', model='H7', acquisition_cost_value='3649000')
+        grouped, meta = group_identical_objects([a, a, a, b, c, c])
+
+        self.assertEqual([o['brand'] for o in grouped], ['LADA', 'Toyota', 'Haval'])
+        self.assertEqual([o['source_object_count'] for o in grouped], [3, 1, 2])
+        self.assertEqual(meta['raw_object_count'], 6)
+        self.assertEqual(meta['unique_object_count'], 3)
+        self.assertEqual([g['source_object_count'] for g in meta['groups']], [3, 1, 2])
+
+    def test_group_collapses_cost_format_variants(self):
+        a = self._obj(acquisition_cost_value='1490000')
+        b = self._obj(acquisition_cost_value='1490000.00')
+        grouped, meta = group_identical_objects([a, b])
+
+        self.assertEqual(len(grouped), 1)
+        self.assertEqual(grouped[0]['source_object_count'], 2)
+        self.assertEqual(meta['raw_object_count'], 2)
+        self.assertEqual(meta['unique_object_count'], 1)
+
+    def test_group_keeps_objects_that_differ_in_one_business_field(self):
+        a = self._obj(year='2024')
+        b = self._obj(year='2023')
+        grouped, _ = group_identical_objects([a, b])
+
+        self.assertEqual(len(grouped), 2)
+        self.assertEqual([o['source_object_count'] for o in grouped], [1, 1])
+
+    def test_group_does_not_merge_poorly_parsed_rows_with_empty_key(self):
+        # Both rows have an all-empty structural key; only the free-text
+        # description differs. They must stay separate (fallback rule).
+        bare = {
+            'description': 'Объект А', 'brand': None, 'model': None, 'year': '',
+            'condition': None, 'equipment_type': None, 'power_or_capacity': None,
+            'acquisition_cost_value': None, 'acquisition_cost_currency': None,
+            'vehicle_category': None, 'source': 'B25:B25',
+            'source_object_count': 1, 'duplicate_sources': ['B25:B25'],
+        }
+        other = dict(bare, description='Объект Б', source='B26:B26', duplicate_sources=['B26:B26'])
+        grouped, meta = group_identical_objects([bare, other])
+
+        self.assertEqual(len(grouped), 2)
+        self.assertEqual(meta['unique_object_count'], 2)
+
+    def _build_workbook_with_object_rows(self, rows):
+        wb = Workbook()
+        sheet = wb.active
+        sheet['C5'] = 'Иванов Иван'
+        sheet['D7'] = 'ООО Ромашка'
+        sheet['D9'] = '7707083893'
+        sheet['D21'] = 'КАСКО'
+        sheet['N17'] = '1 год'
+        sheet['C41'] = 'Наименование и описание имущества'
+        sheet['J41'] = 'Год выпуска'
+        sheet['L41'] = 'Мощность'
+        sheet['M41'] = 'Стоимость на момент приобретения'
+        sheet['N41'] = 'Валюта'
+        for idx, (desc, year, cond, power, cost) in enumerate(rows):
+            row = 43 + idx * 2
+            sheet[f'C{row}'] = desc
+            sheet[f'J{row}'] = year
+            sheet[f'K{row}'] = cond
+            sheet[f'L{row}'] = power
+            sheet[f'M{row}'] = cost
+            sheet[f'N{row}'] = 'руб'
+        return wb
+
+    def _parse_workbook(self, workbook):
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx')
+        try:
+            temp_file.close()
+            workbook.save(temp_file.name)
+            return ExcelRequestParserV2().parse(temp_file.name, original_filename='grouping.xlsx')
+        finally:
+            os.unlink(temp_file.name)
+
+    def test_three_identical_rows_collapse_to_one_object_through_parse(self):
+        identical = ('LADA Largus KS045L', 2024, 'б/у', '78.05', 1490000)
+        result = self._parse_workbook(
+            self._build_workbook_with_object_rows([identical, identical, identical])
+        )
+        payload = result.data['parser_v2_payload']
+        objects = payload['insured_objects']
+        self.assertEqual(len(objects), 1)
+        self.assertEqual(objects[0]['source_object_count'], 3)
+        self.assertEqual(len(objects[0]['duplicate_sources']), 3)
+
+        grouping = payload['object_grouping']
+        self.assertEqual(grouping['raw_object_count'], 3)
+        self.assertEqual(grouping['unique_object_count'], 1)
+
+    def test_distinct_rows_stay_separate_through_parse(self):
+        result = self._parse_workbook(self._build_workbook_with_object_rows([
+            ('LADA Largus KS045L', 2024, 'б/у', '78.05', 1490000),
+            ('Toyota Camry XV70', 2023, 'новое', '249', 4500000),
+        ]))
+        payload = result.data['parser_v2_payload']
+        self.assertEqual(len(payload['insured_objects']), 2)
+        self.assertEqual([o['source_object_count'] for o in payload['insured_objects']], [1, 1])
+        self.assertEqual(payload['object_grouping']['raw_object_count'], 2)
+        self.assertEqual(payload['object_grouping']['unique_object_count'], 2)
 
 
 class CustomerDealPayloadIntegrationTests(TestCase):
@@ -1203,6 +1333,129 @@ class ParserV2UploadTests(TestCase):
         # Second sibling untouched.
         second = InsuranceRequest.objects.get(item_no=2)
         self.assertEqual(second.brand, 'Toyota')
+
+    def _xlsx_upload_with_object_specs(self, specs, filename='multiplicity.xlsx'):
+        """Build a synthetic xlsx whose object rows are given verbatim by
+        `specs` (list of (desc, year, condition, power, cost) tuples), so the
+        test can place fully identical rows next to distinct ones."""
+        wb = Workbook()
+        sheet = wb.active
+        sheet['C4'] = 'Казанский филиал'
+        sheet['C5'] = 'Иванов Иван'
+        sheet['D7'] = 'ООО Ромашка'
+        sheet['D9'] = '1234567890'
+        sheet['D21'] = 'КАСКО'
+        sheet['N17'] = '1 год'
+        sheet['C41'] = 'Наименование и описание имущества'
+        sheet['J41'] = 'Год выпуска'
+        sheet['L41'] = 'Мощность'
+        sheet['M41'] = 'Стоимость на момент приобретения'
+        sheet['N41'] = 'Валюта'
+        for idx, (desc, year, cond, power, cost) in enumerate(specs):
+            row = 43 + idx * 2
+            sheet[f'C{row}'] = desc
+            sheet[f'J{row}'] = year
+            sheet[f'K{row}'] = cond
+            sheet[f'L{row}'] = power
+            sheet[f'M{row}'] = cost
+            sheet[f'N{row}'] = 'руб'
+        buffer = BytesIO()
+        wb.save(buffer)
+        buffer.seek(0)
+        return SimpleUploadedFile(
+            filename,
+            buffer.read(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        )
+
+    def test_parser_v2_identical_rows_create_single_request_with_multiplicity(self):
+        """Three identical rows → one request, source_object_count=3, no batch."""
+        self.client.login(username='parser_v2_root', password='pwd')
+        identical = ('LADA Largus KS045L', 2024, 'б/у', '78.05', 1490000)
+        upload_response = self.client.post(
+            reverse('insurance_requests:upload_excel_v2'),
+            {'excel_file': self._xlsx_upload_with_object_specs([identical, identical, identical])},
+        )
+        # Preview shows one card, not a 3-request batch.
+        self.assertNotContains(upload_response, 'Партия объектов')
+        self.assertContains(upload_response, 'Создать заявку')
+        self.assertContains(upload_response, 'Одинаковых строк: 3')
+
+        post_data = self._post_data_from_preview(upload_response)
+        self.client.post(reverse('insurance_requests:upload_excel_v2'), post_data)
+
+        created = InsuranceRequest.objects.get()
+        self.assertEqual(created.source_object_count, 3)
+        self.assertIsNone(created.source_batch_id)
+        self.assertIsNone(created.item_no)
+        self.assertIsNone(created.item_count)
+        grouping = created.additional_data['parser_v2']['parsed_payload']['object_grouping']
+        self.assertEqual(grouping['raw_object_count'], 3)
+        self.assertEqual(grouping['unique_object_count'], 1)
+
+    def test_parser_v2_mixed_file_groups_duplicates_into_sibling_multiplicities(self):
+        """A, A, A, B, C, C → three siblings with multiplicities [3, 1, 2]."""
+        self.client.login(username='parser_v2_root', password='pwd')
+        a = ('LADA Largus KS045L', 2024, 'б/у', '78.05', 1490000)
+        b = ('Toyota Camry XV70', 2023, 'новое', '249', 4500000)
+        c = ('Haval H7', 2025, 'новое', '170', 3649000)
+        upload_response = self.client.post(
+            reverse('insurance_requests:upload_excel_v2'),
+            {'excel_file': self._xlsx_upload_with_object_specs([a, a, a, b, c, c])},
+        )
+        self.assertContains(upload_response, 'Создать партию из 3 заявок')
+
+        post_data = self._post_data_from_preview(upload_response)
+        self.client.post(reverse('insurance_requests:upload_excel_v2'), post_data)
+
+        siblings = list(InsuranceRequest.objects.order_by('item_no'))
+        self.assertEqual(len(siblings), 3)
+        self.assertEqual([s.brand for s in siblings], ['LADA', 'Toyota', 'Haval'])
+        self.assertEqual([s.source_object_count for s in siblings], [3, 1, 2])
+        self.assertEqual([s.item_no for s in siblings], [1, 2, 3])
+        for s in siblings:
+            self.assertEqual(s.item_count, 3)
+        self.assertEqual(len({s.source_batch_id for s in siblings}), 1)
+
+    def test_parser_v2_operator_can_override_multiplicity_in_preview(self):
+        """Parser sets source_object_count=3; operator edits it to 2."""
+        self.client.login(username='parser_v2_root', password='pwd')
+        identical = ('LADA Largus KS045L', 2024, 'б/у', '78.05', 1490000)
+        upload_response = self.client.post(
+            reverse('insurance_requests:upload_excel_v2'),
+            {'excel_file': self._xlsx_upload_with_object_specs([identical, identical, identical])},
+        )
+        post_data = self._post_data_from_preview(upload_response)
+        post_data['objects-0-source_object_count'] = '2'
+
+        self.client.post(reverse('insurance_requests:upload_excel_v2'), post_data)
+
+        created = InsuranceRequest.objects.get()
+        self.assertEqual(created.source_object_count, 2)
+
+    def test_parser_v2_skip_after_grouping_leaves_single_request(self):
+        """A, A, B → two cards (A×2, B×1); skipping A leaves one request."""
+        self.client.login(username='parser_v2_root', password='pwd')
+        a = ('LADA Largus KS045L', 2024, 'б/у', '78.05', 1490000)
+        b = ('Toyota Camry XV70', 2023, 'новое', '249', 4500000)
+        upload_response = self.client.post(
+            reverse('insurance_requests:upload_excel_v2'),
+            {'excel_file': self._xlsx_upload_with_object_specs([a, a, b])},
+        )
+        # Two cards: A×2 and B×1.
+        self.assertContains(upload_response, 'Создать партию из 2 заявок')
+        self.assertContains(upload_response, 'Одинаковых строк: 2')
+
+        post_data = self._post_data_from_preview(upload_response)
+        post_data['objects-0-skip'] = 'on'  # drop the A×2 card
+
+        self.client.post(reverse('insurance_requests:upload_excel_v2'), post_data)
+
+        created = InsuranceRequest.objects.get()
+        self.assertEqual(created.brand, 'Toyota')
+        self.assertEqual(created.source_object_count, 1)
+        self.assertIsNone(created.source_batch_id)
+        self.assertIsNone(created.item_count)
 
     def test_parser_v2_can_create_minimal_request_after_unreadable_file(self):
         self.client.login(username='parser_v2_root', password='pwd')

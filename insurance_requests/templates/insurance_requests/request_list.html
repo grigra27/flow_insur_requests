@@ -207,6 +207,12 @@
                                     <i class="bi bi-collection"></i> {{ request.item_no }}/{{ request.item_count }}
                                 </span>
                             {% endif %}
+                            {% if request.source_object_count and request.source_object_count > 1 %}
+                                <span class="badge bg-warning text-dark ms-1"
+                                      title="Эта позиция представляет {{ request.source_object_count }} полностью одинаковых строк исходной Excel-заявки.">
+                                    ×{{ request.source_object_count }}
+                                </span>
+                            {% endif %}
                         </td>
                         <td>{{ request.client_name }}</td>
                         <td>
