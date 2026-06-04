@@ -2092,6 +2092,13 @@ class ExcelRequestParserV2:
         normalized = normalize_text(value)
         if len(normalized) < 3:
             return False
+        # Reject purely numeric/date-shaped values. In the property IP
+        # template D7='ИП ' (too short, dropped above) and D8 holds the
+        # birth date '12.06.80' — without this check the parser used to
+        # pick the birth date as the client name.
+        raw = clean_value(value)
+        if re.fullmatch(r"[\d.\-/\s]+", raw):
+            return False
         blocked_values = {
             "лизингодатель",
             "лизингополучатель",
