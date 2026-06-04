@@ -3,6 +3,7 @@
 db.sqlite3
 
 # Media files with real data
+media/
 media/attachments/
 
 # Logs
