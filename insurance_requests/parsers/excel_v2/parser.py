@@ -1527,6 +1527,14 @@ class ExcelRequestParserV2:
         )
         if value:
             return value, source
+        # The coordinate-based fallback below is calibrated for the KASKO/
+        # equipment layout (column K = condition in object rows 43/45/47/49).
+        # On the property form column K holds the manufacturing year, not the
+        # condition — taking it as asset_status produced strings like
+        # '2025 2025 2025'. Property condition is already captured per object
+        # in _extract_objects_property (column L); skip the global fallback.
+        if self._is_property_form(cells):
+            return "", ""
         # 2) Fallback by coordinates: column K (11) in object rows 43/45/47/49,
         # shifted by +1 for individual entrepreneur applications. Some templates
         # have an extra leading column, so we also try column L (12) as a backup.
