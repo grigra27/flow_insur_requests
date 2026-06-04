@@ -153,10 +153,16 @@ _OBJECT_TYPE_PREFIXES = (
     ("грузовой", "автомобиль"),
     ("седельный", "тягач"),
     ("экскаватор-погрузчик",),
+    ("полуприцеп-самосвал",),
+    ("автотопливозаправщик",),
+    ("асфальтоукладчик",),
     ("автомобиль",),
+    ("автобус",),
     ("трактор",),
     ("тягач",),
     ("погрузчик",),
+    ("экскаватор",),
+    ("а/м",),
 )
 
 
@@ -245,14 +251,16 @@ def split_brand_model(
     #   - fractional numbers (powers like 78.05, 147,51).
     # Short integers (G 400, X5, A4, Prado 250) stay — they belong to the model name.
     tokens: List[str] = []
-    for raw in cleaned.split():
+    raw_tokens = cleaned.split()
+    for index, raw in enumerate(raw_tokens):
         token_norm = normalize_text(raw).strip(" .")
         if not token_norm:
             continue
         if token_norm in _CURRENCY_MAP or token_norm in _CONDITION_MAP:
             continue
         normalized_number = raw.replace(",", ".")
-        if re.fullmatch(r"\d{4,}", raw):  # long integer = price
+        next_raw = raw_tokens[index + 1] if index + 1 < len(raw_tokens) else None
+        if _looks_like_price_token(raw, next_raw):
             continue
         if re.fullmatch(r"\d+\.\d+", normalized_number):  # fractional = power
             continue
@@ -263,6 +271,17 @@ def split_brand_model(
     if len(tokens) == 1:
         return None, tokens[0]
     return tokens[0], " ".join(tokens[1:])
+
+
+def _looks_like_price_token(raw: str, next_raw: Optional[str] = None) -> bool:
+    if not re.fullmatch(r"\d{4,}", raw):
+        return False
+    if normalize_currency(next_raw):
+        return True
+    try:
+        return Decimal(raw) >= Decimal("1000000")
+    except (InvalidOperation, ValueError):
+        return False
 
 
 def _strip_object_type_prefix(tokens: List[str]) -> List[str]:

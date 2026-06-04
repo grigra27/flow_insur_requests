@@ -115,6 +115,30 @@ class ObjectRowHelpersTests(TestCase):
             split_brand_model('экскаватор-погрузчик LOVOL FB878X-LMD 2025 новое 9320000 руб', '2025'),
             ('LOVOL', 'FB878X-LMD'),
         )
+        self.assertEqual(
+            split_brand_model('А/м ГАЗель БИЗНЕС 330232 2026 новое 106,73 2687000 руб', '2026'),
+            ('ГАЗель', 'БИЗНЕС 330232'),
+        )
+        self.assertEqual(
+            split_brand_model('автобус НЕФАЗ 5299-0000040-52 2026 новое', '2026'),
+            ('НЕФАЗ', '5299-0000040-52'),
+        )
+        self.assertEqual(
+            split_brand_model('Автотопливозаправщик ГРАЗ 36139-0000011 2018 б/у', '2018'),
+            ('ГРАЗ', '36139-0000011'),
+        )
+        self.assertEqual(
+            split_brand_model('Б/у асфальтоукладчик VOGELE SUPER 1300-3 2017 б/у', '2017'),
+            ('VOGELE', 'SUPER 1300-3'),
+        )
+        self.assertEqual(
+            split_brand_model('полуприцеп-самосвал GRUNWALD 9453-0000011-60 2025 новое 4025000 руб', '2025'),
+            ('GRUNWALD', '9453-0000011-60'),
+        )
+        self.assertEqual(
+            split_brand_model('экскаватор LOVOL FR225E2-N 2025 новое', '2025'),
+            ('LOVOL', 'FR225E2-N'),
+        )
 
 
 class CustomerDealHelpersTests(TestCase):
