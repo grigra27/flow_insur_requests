@@ -2,15 +2,20 @@
 Tests for insurance_requests app
 """
 import uuid
+from email.header import decode_header, make_header
+from io import BytesIO
 from datetime import date
 from decimal import Decimal
 
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.contrib.auth.models import User, Group
 from django.test import TestCase, Client, override_settings
 from django.urls import reverse
-from .models import InsuranceRequest
+from openpyxl import load_workbook
+
+from .models import InsuranceRequest, RequestAttachment
 
 
 class RequestDetailViewTest(TestCase):
@@ -94,6 +99,97 @@ class RequestDetailViewTest(TestCase):
         self.assertEqual(response.status_code, 200)
         # With the new logic, emails_sent status should show create summary button
         self.assertContains(response, 'Создать свод')
+
+
+class RequestDatabaseExportTest(TestCase):
+    """Tests for XLSX export of the request card data."""
+
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user(
+            username='exportuser',
+            password='testpass123',
+            first_name='Иван',
+            last_name='Иванов',
+        )
+        user_group, _ = Group.objects.get_or_create(name='Пользователи')
+        self.user.groups.add(user_group)
+        self.client.login(username='exportuser', password='testpass123')
+
+        self.request = InsuranceRequest.objects.create(
+            client_name='ООО Тестовый клиент',
+            inn='1234567890',
+            insurance_type='страхование имущества',
+            insurance_period='на весь срок лизинга',
+            dfa_number='ДФА-EXPORT-001',
+            branch='Москва',
+            manager_name='Петров Петр',
+            deal_status='new',
+            vehicle_info='Линия по производству тестов',
+            franchise_type='with_franchise',
+            has_transportation=True,
+            transportation_departure='Москва',
+            transportation_destination='Казань',
+            transportation_days=5,
+            notes='Внутренний комментарий',
+            created_by=self.user,
+            additional_data={
+                'application_type': 'legal_entity',
+                'application_format': 'property',
+                'parser_v2': {
+                    'confidence': 0.94,
+                    'warnings': ['Проверить адрес'],
+                },
+            },
+        )
+        RequestAttachment.objects.create(
+            request=self.request,
+            file=SimpleUploadedFile(
+                'source.xlsx',
+                b'test-export-content',
+                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            ),
+            original_filename='source.xlsx',
+            file_type='.xlsx',
+        )
+
+    def test_request_detail_shows_database_export_button(self):
+        response = self.client.get(
+            reverse('insurance_requests:request_detail', kwargs={'pk': self.request.pk})
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Скачать карточку заявки (.xlsx)')
+        self.assertContains(
+            response,
+            reverse('insurance_requests:export_request_database', kwargs={'pk': self.request.pk}),
+        )
+
+    def test_export_request_database_returns_xlsx_with_request_data(self):
+        response = self.client.get(
+            reverse('insurance_requests:export_request_database', kwargs={'pk': self.request.pk})
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response['Content-Type'],
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        )
+        decoded_disposition = str(make_header(decode_header(response['Content-Disposition'])))
+        self.assertIn('.xlsx', decoded_disposition)
+
+        workbook = load_workbook(BytesIO(response.content))
+        worksheet = workbook['Карточка заявки']
+        rows = [row for row in worksheet.iter_rows(values_only=True) if row[1]]
+
+        exported_pairs = {(row[1], row[2]) for row in rows}
+
+        self.assertIn(('Имя клиента [client_name]', 'ООО Тестовый клиент'), exported_pairs)
+        self.assertIn(('Статус [status]', 'Загружено [uploaded]'), exported_pairs)
+        self.assertIn(('Тип франшизы [franchise_type]', 'Только с франшизой [with_franchise]'), exported_pairs)
+        self.assertIn(('additional_data.application_format', 'property'), exported_pairs)
+        self.assertIn(('additional_data.parser_v2.warnings[1]', 'Проверить адрес'), exported_pairs)
+        self.assertIn(('attachments[1].original_filename', 'source.xlsx'), exported_pairs)
 
 
 class RequestV1V2DisplayCompatibilityTest(TestCase):

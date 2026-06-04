@@ -31,6 +31,10 @@ from .forms import (
     parser_v2_object_initial_from_payload,
 )
 from .decorators import user_required
+from .exporters import (
+    build_request_export_filename,
+    build_request_export_workbook,
+)
 from .security import (
     clear_login_failures,
     format_lockout_message,
@@ -1066,6 +1070,51 @@ def request_detail(request, pk):
         'status_form': status_form,
         'batch_siblings': batch_siblings,
     })
+
+
+@user_required
+def export_request_database(request, pk):
+    """Скачивание полной выгрузки данных заявки из базы в XLSX."""
+    insurance_request = get_object_or_404(
+        InsuranceRequest.objects.select_related('created_by').prefetch_related('attachments'),
+        pk=pk,
+    )
+
+    format_context = "Format: unknown, Type: unknown"
+    if insurance_request.additional_data:
+        application_type = insurance_request.additional_data.get('application_type')
+        application_format = insurance_request.additional_data.get('application_format')
+        format_context = _get_format_context_for_logging(application_type, application_format)
+
+    try:
+        workbook_bytes = build_request_export_workbook(insurance_request)
+        filename = build_request_export_filename(insurance_request)
+    except Exception as exc:
+        logger.error(
+            "Request database export failed for request %s by user %s: %s | %s",
+            pk,
+            request.user.username,
+            exc,
+            format_context,
+            exc_info=True,
+        )
+        messages.error(request, 'Не удалось сформировать выгрузку карточки заявки.')
+        return redirect('insurance_requests:request_detail', pk=pk)
+
+    response = HttpResponse(
+        workbook_bytes,
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+    logger.info(
+        "Request database export generated for request %s by user %s: %s | %s",
+        pk,
+        request.user.username,
+        filename,
+        format_context,
+    )
+    return response
 
 
 @user_required

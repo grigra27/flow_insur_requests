@@ -443,6 +443,12 @@
                 <h6 class="mb-0"><i class="bi bi-paperclip"></i> Вложения</h6>
             </div>
             <div class="card-body">
+                <a href="{% url 'insurance_requests:export_request_database' request.pk %}" class="btn btn-outline-success w-100 mb-3">
+                    <i class="bi bi-file-earmark-spreadsheet"></i> Скачать карточку заявки (.xlsx)
+                </a>
+                <p class="small text-muted">
+                    Выгрузка включает все данные этой заявки, которые сохранены в нашей базе.
+                </p>
                 {% if request.attachments.all %}
                 {% for attachment in request.attachments.all %}
                 <div class="d-flex align-items-center mb-2">
