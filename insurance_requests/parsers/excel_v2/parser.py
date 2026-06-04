@@ -480,7 +480,10 @@ class ExcelRequestParserV2:
         if franchise_details.get("source"):
             source_map["franchise_type"] = franchise_details["source"]
         data["has_autostart"] = self._extract_autostart(cells, rows)
-        data["has_casco_ce"] = self._contains_any(cells, ["категори c", "категории c", "кат с", "кат. c", "c/e"])
+        has_casco_ce, casco_ce_source = self._extract_casco_ce_from_objects(insured_objects)
+        data["has_casco_ce"] = has_casco_ce
+        if casco_ce_source:
+            source_map["has_casco_ce"] = casco_ce_source
         has_transportation, transportation_source = self._extract_transportation_required(cells, rows)
         data["has_transportation"] = has_transportation
         if transportation_source:
@@ -930,7 +933,7 @@ class ExcelRequestParserV2:
             return "1 год", self._first_source_containing(cells, ["1 год", "12 мес", "один год"])
         return "", ""
 
-    def _extract_objects(self, cells: List[GridCell], rows: Dict[int, List[GridCell]]) -> List[Dict[str, str]]:
+    def _extract_objects(self, cells: List[GridCell], rows: Dict[int, List[GridCell]]) -> List[Dict[str, Any]]:
         start_rows = [
             row_number
             for row_number, row_cells in rows.items()
@@ -940,11 +943,13 @@ class ExcelRequestParserV2:
                 and self._row_matches(row_cells, ["год", "стоимость", "vin", "заводской"])
             )
         ]
-        objects: List[Dict[str, str]] = []
+        objects: List[Dict[str, Any]] = []
         seen = set()
 
         for start_row in start_rows[:3]:
             blank_rows = 0
+            current_category: Optional[str] = None
+            current_category_source = ""
             for row_number in range(start_row, start_row + 35):
                 row_cells = rows.get(row_number, [])
                 row_text = self._row_text(row_cells)
@@ -957,6 +962,11 @@ class ExcelRequestParserV2:
                 blank_rows = 0
                 if row_number != start_row and self._is_object_stop_row(row_norm):
                     break
+                category = self._object_section_category(row_norm)
+                if category:
+                    current_category = category
+                    current_category_source = self._row_source(row_cells)
+                    continue
                 if self._is_object_header_or_label(row_norm) or self._is_object_template_row(row_norm):
                     continue
                 if len(row_text) < 8:
@@ -964,7 +974,11 @@ class ExcelRequestParserV2:
                 if row_text in seen:
                     continue
                 seen.add(row_text)
-                objects.append(self._build_object_payload(row_cells, row_text))
+                payload = self._build_object_payload(row_cells, row_text)
+                if current_category:
+                    payload["vehicle_category"] = current_category
+                    payload["vehicle_category_source"] = current_category_source
+                objects.append(payload)
 
         if not objects:
             value, source = self._extract_labeled_value(cells, rows, label_groups=[("предмет", "лизинга"), ("объект", "страхования")])
@@ -981,10 +995,29 @@ class ExcelRequestParserV2:
                         "power_or_capacity": None,
                         "acquisition_cost_value": None,
                         "acquisition_cost_currency": None,
+                        "vehicle_category": None,
+                        "vehicle_category_source": "",
                     }
                 )
 
         return objects[:50]
+
+    def _object_section_category(self, row_norm: str) -> Optional[str]:
+        if "транспортные средства категории c" in row_norm or "транспортные средства категории c/e" in row_norm:
+            return "C"
+        if "транспортные средства категории b" in row_norm:
+            return "B"
+        if "транспортные средства категории d" in row_norm:
+            return "D"
+        if "специальная техника" in row_norm:
+            return "special_equipment"
+        return None
+
+    def _extract_casco_ce_from_objects(self, insured_objects: List[Dict[str, Any]]) -> Tuple[bool, str]:
+        for obj in insured_objects:
+            if obj.get("vehicle_category") == "C":
+                return True, obj.get("vehicle_category_source") or obj.get("source", "")
+        return False, ""
 
     def _build_object_payload(self, row_cells: List[GridCell], row_text: str) -> Dict[str, Any]:
         """Turn one object row into a structured payload (stage 3.1).

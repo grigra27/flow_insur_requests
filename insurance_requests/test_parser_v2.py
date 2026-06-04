@@ -225,6 +225,49 @@ class ObjectRowPayloadIntegrationTests(TestCase):
         self.assertEqual(obj['acquisition_cost_currency'], 'USD')
         self.assertEqual(obj['acquisition_cost_value'], '25000')
 
+    def test_casco_ce_uses_object_section_not_empty_template_header(self):
+        wb = self._build_minimal_workbook_with_object_row()
+        sheet = wb.active
+        sheet['B42'] = 'Транспортные средства категории B'
+        sheet['B44'] = 'Транспортные средства категории C'
+
+        result = self._parse_workbook(wb)
+        obj = result.data['parser_v2_payload']['insured_objects'][0]
+        self.assertEqual(obj.get('vehicle_category'), 'B')
+        self.assertEqual(obj.get('vehicle_category_source'), 'B42:B42')
+        self.assertFalse(result.data.get('has_casco_ce'))
+        self.assertNotIn('has_casco_ce', result.source_map)
+
+    def test_casco_ce_is_selected_for_object_under_category_c(self):
+        wb = self._build_minimal_workbook_with_object_row()
+        sheet = wb.active
+        sheet['B42'] = 'Транспортные средства категории C'
+
+        result = self._parse_workbook(wb)
+        obj = result.data['parser_v2_payload']['insured_objects'][0]
+        self.assertEqual(obj.get('vehicle_category'), 'C')
+        self.assertTrue(result.data.get('has_casco_ce'))
+        self.assertEqual(result.source_map.get('has_casco_ce'), 'B42:B42')
+
+    def test_casco_ce_is_selected_when_any_object_is_under_category_c(self):
+        wb = self._build_minimal_workbook_with_object_row()
+        sheet = wb.active
+        sheet['B42'] = 'Транспортные средства категории B'
+        sheet['B44'] = 'Транспортные средства категории C'
+        sheet['B45'] = 2
+        sheet['C45'] = 'Грузовой автомобиль MAN TGS'
+        sheet['J45'] = 2024
+        sheet['K45'] = 'новое'
+        sheet['L45'] = '12'
+        sheet['M45'] = 9800000
+        sheet['N45'] = 'руб'
+
+        result = self._parse_workbook(wb)
+        objects = result.data['parser_v2_payload']['insured_objects']
+        self.assertEqual([obj.get('vehicle_category') for obj in objects], ['B', 'C'])
+        self.assertTrue(result.data.get('has_casco_ce'))
+        self.assertEqual(result.source_map.get('has_casco_ce'), 'B44:B44')
+
 
 class CustomerDealPayloadIntegrationTests(TestCase):
     """Stages 3.2 / 3.3: customer + deal fields must surface in parse() result."""
