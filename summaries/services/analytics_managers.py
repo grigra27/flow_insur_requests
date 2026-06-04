@@ -63,6 +63,16 @@ FIELDS_PROPERTY = ('insurance_territory',)
 CASCO_INSURANCE_TYPES = {'КАСКО', 'страхование спецтехники'}
 PROPERTY_INSURANCE_TYPES = {'страхование имущества'}
 
+# Поля completeness, у которых V2-флоу хранит значение в другом
+# (структурированном) поле, поэтому legacy-атрибут на V2-заявке пуст.
+# Поле считается заполненным, если заполнен исходный атрибут ИЛИ любой
+# из перечисленных V2-альтернатив. См. аналогичный V1/V2-контракт в
+# summaries.services.excel_services._is_new_object.
+COMPLETENESS_FIELD_FALLBACKS = {
+    # V1: asset_status (свободный текст), V2: condition ('new'/'used').
+    'asset_status': ('condition',),
+}
+
 HEATMAP_TOP_LIMIT = 8  # сколько значений измерения показывать в heatmap’е
 HEATMAP_OUTLIER_LIMIT = 50
 
@@ -229,6 +239,23 @@ def _is_field_filled(value) -> bool:
     return True
 
 
+def _is_request_field_filled(req: InsuranceRequest, field_name: str) -> bool:
+    """Заполнено ли поле заявки для completeness, с учётом V1/V2-альтернатив.
+
+    Некоторые legacy-поля (например, asset_status) в V2-флоу пусты, потому
+    что данные переехали в структурированное поле (condition). Считаем поле
+    заполненным, если заполнен исходный атрибут ИЛИ любая из его V2-альтернатив
+    из COMPLETENESS_FIELD_FALLBACKS, чтобы V2-заявки не штрафовались за
+    «пустое» legacy-поле при заполненном структурированном.
+    """
+    if _is_field_filled(getattr(req, field_name, None)):
+        return True
+    for alt in COMPLETENESS_FIELD_FALLBACKS.get(field_name, ()):
+        if _is_field_filled(getattr(req, alt, None)):
+            return True
+    return False
+
+
 def _is_inn_valid(inn: str) -> bool:
     """Проверка длины ИНН: 10 (юрлицо) или 12 (ИП/физлицо)."""
     if not inn:
@@ -250,14 +277,14 @@ def _completeness_for_request(req: InsuranceRequest) -> dict[str, Any]:
             'edited_after_create': bool,
         }
     """
-    base_filled = sum(1 for f in FIELDS_BASE if _is_field_filled(getattr(req, f, None)))
+    base_filled = sum(1 for f in FIELDS_BASE if _is_request_field_filled(req, f))
     casco_filled = casco_total = None
     property_filled = property_total = None
     if req.insurance_type in CASCO_INSURANCE_TYPES:
-        casco_filled = sum(1 for f in FIELDS_CASCO if _is_field_filled(getattr(req, f, None)))
+        casco_filled = sum(1 for f in FIELDS_CASCO if _is_request_field_filled(req, f))
         casco_total = len(FIELDS_CASCO)
     if req.insurance_type in PROPERTY_INSURANCE_TYPES:
-        property_filled = sum(1 for f in FIELDS_PROPERTY if _is_field_filled(getattr(req, f, None)))
+        property_filled = sum(1 for f in FIELDS_PROPERTY if _is_request_field_filled(req, f))
         property_total = len(FIELDS_PROPERTY)
 
     edited = False

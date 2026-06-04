@@ -51,6 +51,45 @@ class CompletenessAndPortfolioTests(TestCase):
         self.assertEqual(c['casco_total'], 7)
         self.assertEqual(c['casco_filled'], 2)
 
+    def test_completeness_casco_asset_status_via_condition_v2(self):
+        """V2: asset_status пуст, но condition='new' — поле зачитывается как
+        заполненное через COMPLETENESS_FIELD_FALLBACKS (не штрафуем V2)."""
+        user = User.objects.create_user(username='ccv2', password='p')
+        req = InsuranceRequest.objects.create(
+            client_name='X', inn='1234567890',
+            insurance_type='КАСКО', created_by=user,
+            key_completeness='2 ключа', pts_psm='ПТС',
+            condition='new',  # asset_status пуст — новизна в структурном поле
+        )
+        c = analytics_managers._completeness_for_request(req)
+        self.assertEqual(c['casco_total'], 7)
+        # key_completeness, pts_psm + asset_status (через condition) = 3
+        self.assertEqual(c['casco_filled'], 3)
+
+    def test_completeness_casco_asset_status_legacy_v1(self):
+        """V1: condition пуст, asset_status заполнен — работает по-старому."""
+        user = User.objects.create_user(username='ccv1', password='p')
+        req = InsuranceRequest.objects.create(
+            client_name='X', inn='1234567890',
+            insurance_type='КАСКО', created_by=user,
+            key_completeness='2 ключа', pts_psm='ПТС',
+            asset_status='б/у',  # legacy-текст, condition пуст
+        )
+        c = analytics_managers._completeness_for_request(req)
+        self.assertEqual(c['casco_filled'], 3)
+
+    def test_completeness_casco_object_condition_both_empty(self):
+        """Если и asset_status, и condition пусты — поле не заполнено."""
+        user = User.objects.create_user(username='ccnone', password='p')
+        req = InsuranceRequest.objects.create(
+            client_name='X', inn='1234567890',
+            insurance_type='КАСКО', created_by=user,
+            key_completeness='2 ключа', pts_psm='ПТС',
+            # asset_status и condition оба пусты
+        )
+        c = analytics_managers._completeness_for_request(req)
+        self.assertEqual(c['casco_filled'], 2)
+
     def test_aggregate_completeness_pct(self):
         user = User.objects.create_user(username='ag', password='p')
         # 1 заявка КАСКО, 1 имущественная
