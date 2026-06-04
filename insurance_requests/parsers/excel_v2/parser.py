@@ -614,7 +614,7 @@ class ExcelRequestParserV2:
             source_map["has_transportation"] = transportation_source
         data["has_construction_work"] = self._contains_any(cells, ["смр", "строительно монтаж"])
 
-        manufacturing_year, source = self._extract_manufacturing_year(cells)
+        manufacturing_year, source = self._extract_manufacturing_year(cells, insured_objects)
         if manufacturing_year:
             data["manufacturing_year"] = manufacturing_year
             source_map["manufacturing_year"] = source
@@ -1512,15 +1512,23 @@ class ExcelRequestParserV2:
                 return True
         return False
 
-    def _extract_manufacturing_year(self, cells: List[GridCell]) -> Tuple[str, str]:
+    def _extract_manufacturing_year(
+        self,
+        cells: List[GridCell],
+        insured_objects: Optional[List[Dict[str, Any]]] = None,
+    ) -> Tuple[str, str]:
         value, source = self._extract_labeled_value(cells, self._rows(cells), label_groups=[("год", "выпуск")])
         year = self._year_from_text(value)
         if year:
             return year, source
-        for cell in cells:
-            year = self._year_from_text(cell.value)
-            if year:
-                return year, cell.coordinate
+        # Trust the year captured per object during table extraction over a
+        # global cell sweep — otherwise the fallback below would happily pick
+        # up the submission date in M2 or the contract start date in M15.
+        if insured_objects:
+            for obj in insured_objects:
+                obj_year = (obj.get("year") or "").strip()
+                if obj_year:
+                    return obj_year, obj.get("source") or ""
         return "", ""
 
     def _ip_row_offset(self, application_type: str, base_row: int) -> int:
