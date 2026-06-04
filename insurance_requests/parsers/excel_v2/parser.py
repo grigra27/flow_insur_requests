@@ -1059,6 +1059,13 @@ class ExcelRequestParserV2:
         return "", ""
 
     def _extract_objects(self, cells: List[GridCell], rows: Dict[int, List[GridCell]]) -> List[Dict[str, Any]]:
+        # Property applications use a distinct, narrow object table
+        # (single description column C, fixed K/L/M/N for year/condition/cost/
+        # currency) and a footer block we must not walk into. Detect early
+        # and dispatch to the dedicated extractor.
+        if self._is_property_form(cells):
+            return self._extract_objects_property(cells, rows)
+
         start_rows = [
             row_number
             for row_number, row_cells in rows.items()
@@ -1141,6 +1148,114 @@ class ExcelRequestParserV2:
                         "duplicate_sources": [source] if source else [],
                     }
                 )
+
+        return objects[:50]
+
+    def _is_property_form(self, cells: List[GridCell]) -> bool:
+        """Detect the property insurance form by the «имуществ»-bearing
+        label in B22 (B23 for IP). KASKO/equipment templates leave B22
+        empty (the type is selected via an X-mark in column D)."""
+        for cell in cells:
+            if cell.col != 2:  # column B
+                continue
+            if cell.row not in (22, 23):
+                continue
+            if "имуществ" in cell.normalized:
+                return True
+        return False
+
+    def _extract_objects_property(
+        self,
+        cells: List[GridCell],
+        rows: Dict[int, List[GridCell]],
+    ) -> List[Dict[str, Any]]:
+        """Property-form object extractor.
+
+        Layout (стабильно по 10 файлам im_request/):
+          - header row: B='№ п/п', C='Наименование...', K='Год выпуска',
+            M='Стоимость', N='Валюта' (row 41 for юр.лицо, 42 for ИП).
+          - object rows directly below: B=<число>, C=<описание>, K=<год>,
+            L=<новое/б.у>, M=<цена>, N=<валюта>.
+          - the table ends at the first row where B is empty / non-numeric,
+            or at a stop-marker row (e.g. «Дополнительные виды страхования»).
+
+        Description is taken **only from column C**, never from row_text,
+        so price/year/currency don't leak into the email body.
+        """
+        header_row: Optional[int] = None
+        for row_number in sorted(rows.keys()):
+            row_cells = rows[row_number]
+            row_by_col = {c.col: c for c in row_cells}
+            b_cell = row_by_col.get(2)
+            if not b_cell:
+                continue
+            # normalize_text turns «№ п/п» into «no п/п» (replace + collapse).
+            if "no п/п" not in b_cell.normalized:
+                continue
+            if not self._row_matches(row_cells, ["наименование"]):
+                continue
+            header_row = row_number
+            break
+
+        if header_row is None:
+            return []
+
+        objects: List[Dict[str, Any]] = []
+        for row_number in range(header_row + 1, header_row + 25):
+            row_cells = rows.get(row_number, [])
+            if not row_cells:
+                break
+            row_by_col = {c.col: c for c in row_cells}
+            b_cell = row_by_col.get(2)
+            c_cell = row_by_col.get(3)
+
+            # Stop on the property-footer block («Дополнительные виды
+            # страхования»). _is_object_stop_row already covers its
+            # phrases since stage 1.
+            row_norm = normalize_text(self._row_text(row_cells))
+            if self._is_object_stop_row(row_norm):
+                break
+
+            # An object row must have a numeric ordinal in B and a
+            # non-empty description in C. Anything else is either a
+            # spacer or already past the table.
+            if not b_cell or not re.fullmatch(r"\d+", b_cell.value.strip()):
+                break
+            if not c_cell or not c_cell.value.strip():
+                break
+
+            description = c_cell.value.strip()
+            year_cell = row_by_col.get(11)  # K
+            condition_cell = row_by_col.get(12)  # L
+            cost_cell = row_by_col.get(13)  # M
+            currency_cell = row_by_col.get(14)  # N
+
+            year = self._year_from_text(year_cell.value) if year_cell else ""
+            condition = normalize_condition(condition_cell.value) if condition_cell else None
+            cost_value = parse_cost_value(cost_cell.value) if cost_cell else None
+            currency = normalize_currency(currency_cell.value) if currency_cell else None
+
+            brand, model = split_brand_model(description, year)
+            source = self._row_source(row_cells)
+
+            objects.append(
+                {
+                    "description": description,
+                    "year": year,
+                    "source": source,
+                    "brand": brand,
+                    "model": model,
+                    "condition": condition,
+                    "equipment_type": None,
+                    "power_or_capacity": None,
+                    "acquisition_cost_value": str(cost_value) if cost_value is not None else None,
+                    "acquisition_cost_currency": currency,
+                    "vehicle_category": None,
+                    "vehicle_category_source": "",
+                    "source_object_count": 1,
+                    "duplicate_sources": [source] if source else [],
+                }
+            )
 
         return objects[:50]
 
