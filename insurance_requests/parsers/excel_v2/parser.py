@@ -1965,10 +1965,36 @@ class ExcelRequestParserV2:
     def _vehicle_summary(self, insured_objects: List[Dict[str, str]]) -> str:
         if not insured_objects:
             return MISSING_VEHICLE
-        descriptions = [obj["description"] for obj in insured_objects if obj.get("description")]
-        if len(descriptions) == 1:
-            return descriptions[0][:1000]
-        return "\n".join(descriptions[:8])[:1000]
+        lines = [self._format_object_summary(obj) for obj in insured_objects[:8]]
+        lines = [line for line in lines if line]
+        if not lines:
+            return MISSING_VEHICLE
+        if len(lines) == 1:
+            return lines[0][:1000]
+        return "\n".join(lines)[:1000]
+
+    def _format_object_summary(self, obj: Dict[str, Any]) -> str:
+        """Build a one-line summary of an insured object for vehicle_info.
+
+        If the description is short (property layout — column C only),
+        append year and cost so the email body has the full picture.
+        For KASKO/equipment the description is the whole row_text and
+        already contains year/cost — keep it as-is to avoid duplicates.
+        """
+        description = (obj.get("description") or "").strip()
+        if not description:
+            return ""
+        if len(description) > 80:
+            return description
+        parts = [description]
+        year = (obj.get("year") or "").strip()
+        if year:
+            parts.append(f"{year} г.")
+        cost = (obj.get("acquisition_cost_value") or "").strip()
+        currency = (obj.get("acquisition_cost_currency") or "").strip()
+        if cost:
+            parts.append(f"{cost} {currency}".strip())
+        return ", ".join(parts)
 
     def _detect_application_format(self, data: Dict[str, Any]) -> str:
         if data.get("insurance_type") == "страхование имущества":
