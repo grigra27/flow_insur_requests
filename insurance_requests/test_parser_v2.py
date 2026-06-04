@@ -823,6 +823,13 @@ class ParserV2UploadTests(TestCase):
         )
         self.regular_user.groups.add(user_group)
 
+        self.admin_user = User.objects.create_user(
+            username='parser_v2_admin',
+            email='admin@example.com',
+            password='pwd',
+        )
+        self.admin_user.groups.add(admin_group)
+
     def tearDown(self):
         self.settings_override.disable()
         shutil.rmtree(self.media_root, ignore_errors=True)
@@ -990,7 +997,7 @@ class ParserV2UploadTests(TestCase):
                         data[key] = '' if initial is None else initial
         return data
 
-    def test_parser_v2_access_is_superuser_only(self):
+    def test_parser_v2_access_matches_v1_user_required_groups(self):
         url = reverse('insurance_requests:upload_excel_v2')
 
         anonymous_response = self.client.get(url)
@@ -998,7 +1005,14 @@ class ParserV2UploadTests(TestCase):
 
         self.client.login(username='parser_v2_user', password='pwd')
         regular_response = self.client.get(url)
-        self.assertEqual(regular_response.status_code, 403)
+        self.assertEqual(regular_response.status_code, 200)
+        self.assertTemplateUsed(regular_response, 'insurance_requests/upload_excel_v2.html')
+
+        self.client.logout()
+        self.client.login(username='parser_v2_admin', password='pwd')
+        admin_response = self.client.get(url)
+        self.assertEqual(admin_response.status_code, 200)
+        self.assertTemplateUsed(admin_response, 'insurance_requests/upload_excel_v2.html')
 
         self.client.logout()
         self.client.login(username='parser_v2_root', password='pwd')
@@ -1006,14 +1020,20 @@ class ParserV2UploadTests(TestCase):
         self.assertEqual(superuser_response.status_code, 200)
         self.assertTemplateUsed(superuser_response, 'insurance_requests/upload_excel_v2.html')
 
-    def test_parser_v2_link_is_visible_only_for_superuser_on_request_list(self):
+    def test_parser_v2_link_is_visible_for_all_users_with_v1_access(self):
         request_list_url = reverse('insurance_requests:request_list')
         parser_v2_url = reverse('insurance_requests:upload_excel_v2')
 
         self.client.login(username='parser_v2_user', password='pwd')
         regular_response = self.client.get(request_list_url)
         self.assertEqual(regular_response.status_code, 200)
-        self.assertNotContains(regular_response, parser_v2_url)
+        self.assertContains(regular_response, parser_v2_url)
+
+        self.client.logout()
+        self.client.login(username='parser_v2_admin', password='pwd')
+        admin_response = self.client.get(request_list_url)
+        self.assertEqual(admin_response.status_code, 200)
+        self.assertContains(admin_response, parser_v2_url)
 
         self.client.logout()
         self.client.login(username='parser_v2_root', password='pwd')
@@ -1022,7 +1042,7 @@ class ParserV2UploadTests(TestCase):
         self.assertContains(superuser_response, parser_v2_url)
 
     def test_parser_v2_upload_renders_editable_preview(self):
-        self.client.login(username='parser_v2_root', password='pwd')
+        self.client.login(username='parser_v2_user', password='pwd')
 
         response = self.client.post(
             reverse('insurance_requests:upload_excel_v2'),

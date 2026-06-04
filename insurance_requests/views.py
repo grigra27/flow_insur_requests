@@ -30,7 +30,7 @@ from .forms import (
     ParserV2ObjectFormSet,
     parser_v2_object_initial_from_payload,
 )
-from .decorators import user_required, admin_required, superuser_required
+from .decorators import user_required
 from .security import (
     clear_login_failures,
     format_lockout_message,
@@ -902,7 +902,7 @@ def upload_excel(request):
     })
 
 
-@superuser_required
+@user_required
 def upload_excel_v2(request):
     """Экспериментальный Parser V2: upload -> preview -> best-effort create."""
     if request.method == 'POST' and request.POST.get('draft_id'):
