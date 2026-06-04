@@ -147,6 +147,18 @@ _CONDITION_MAP = {
     "used": "used",
 }
 
+_OBJECT_TYPE_PREFIXES = (
+    ("погрузчик", "с", "бортовым", "поворотом"),
+    ("легковой", "автомобиль"),
+    ("грузовой", "автомобиль"),
+    ("седельный", "тягач"),
+    ("экскаватор-погрузчик",),
+    ("автомобиль",),
+    ("трактор",),
+    ("тягач",),
+    ("погрузчик",),
+)
+
 
 def normalize_currency(value: Any) -> Optional[str]:
     """Map a raw currency cell value to one of RUB/USD/EUR. Returns None if unknown."""
@@ -216,6 +228,7 @@ def split_brand_model(
     Strategy:
       - drop the year and any obvious price tokens (numbers with 4+ digits);
       - drop currency / condition markers and fractional numbers (engine power);
+      - drop a generic object type prefix (e.g. 'Автомобиль', 'Трактор');
       - the first remaining token is the brand, the rest is the model;
       - if only one token survives, brand=None, model=that token (we won't guess).
     """
@@ -244,11 +257,20 @@ def split_brand_model(
         if re.fullmatch(r"\d+\.\d+", normalized_number):  # fractional = power
             continue
         tokens.append(raw)
+    tokens = _strip_object_type_prefix(tokens)
     if not tokens:
         return None, None
     if len(tokens) == 1:
         return None, tokens[0]
     return tokens[0], " ".join(tokens[1:])
+
+
+def _strip_object_type_prefix(tokens: List[str]) -> List[str]:
+    normalized_tokens = [normalize_text(token).strip(" .") for token in tokens]
+    for prefix in _OBJECT_TYPE_PREFIXES:
+        if tuple(normalized_tokens[:len(prefix)]) == prefix:
+            return tokens[len(prefix):]
+    return tokens
 
 
 # --- Customer/deal field extractors (stages 3.2 / 3.3) ----------------------

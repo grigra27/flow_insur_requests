@@ -94,6 +94,28 @@ class ObjectRowHelpersTests(TestCase):
         self.assertEqual(split_brand_model('', None), (None, None))
         self.assertEqual(split_brand_model(None, None), (None, None))
 
+    def test_split_brand_model_ignores_generic_object_type_prefixes(self):
+        self.assertEqual(
+            split_brand_model('Автомобиль JAC T9 2026 новое 163,15 3919000 руб', '2026'),
+            ('JAC', 'T9'),
+        )
+        self.assertEqual(
+            split_brand_model('б/у Автомобиль Mercedes-Benz CLA 200 4MATIC 2021 б/у 149,56 3750000 руб', '2021'),
+            ('Mercedes-Benz', 'CLA 200 4MATIC'),
+        )
+        self.assertEqual(
+            split_brand_model('Трактор LS R36iHT 2022 новое 3050000 руб', '2022'),
+            ('LS', 'R36iHT'),
+        )
+        self.assertEqual(
+            split_brand_model('Погрузчик с бортовым поворотом LIUGONG CLG385B 2026 новое 4780000 руб', '2026'),
+            ('LIUGONG', 'CLG385B'),
+        )
+        self.assertEqual(
+            split_brand_model('экскаватор-погрузчик LOVOL FB878X-LMD 2025 новое 9320000 руб', '2025'),
+            ('LOVOL', 'FB878X-LMD'),
+        )
+
 
 class CustomerDealHelpersTests(TestCase):
     """Stages 3.2 / 3.3: low-level extractors for customer and deal fields."""
