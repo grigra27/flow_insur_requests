@@ -910,6 +910,14 @@ class ExcelRequestParserV2:
         value, source = self._extract_labeled_value(cells, rows, label_groups=[("филиал",)])
         if value:
             return value, source
+
+        # Property forms sometimes hold a bare city name in C4 with no
+        # «филиал» suffix («Санкт-Петербург»). Take it as the branch and
+        # let map_branch_name normalize it downstream.
+        if self._is_property_form(cells):
+            c4 = self._cell_by_coordinate(cells, "C4")
+            if c4 and c4.value.strip():
+                return c4.value, c4.coordinate
         return "", ""
 
     def _extract_dfa_number(self, cells: List[GridCell], original_filename: str) -> Tuple[str, str]:
