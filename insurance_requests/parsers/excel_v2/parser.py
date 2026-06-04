@@ -913,7 +913,14 @@ class ExcelRequestParserV2:
         return "", ""
 
     def _extract_dfa_number(self, cells: List[GridCell], original_filename: str) -> Tuple[str, str]:
-        pattern = re.compile(r"\b\d{4,6}(?:[-/][0-9A-Za-zА-Яа-яЁё]+){1,5}\b")
+        # Match: optional 1–3 letter prefix («ОБ-», «ОБ_», …), the 4–6 digit
+        # base number, and zero or more short uppercase region suffixes
+        # («-ЛО», «-КР», «_СПб»). Lookahead `(?![а-яёa-z])` keeps the regex
+        # from greedily eating long lowercase words like «Невский» that may
+        # follow the number in filenames.
+        pattern = re.compile(
+            r"(?:[A-ZА-ЯЁ]{1,3}[-_])?\d{4,6}(?:[-_/][A-ZА-ЯЁ0-9]{1,5}(?![а-яёa-z]))*"
+        )
         for cell in cells:
             match = pattern.search(cell.value)
             if match:
