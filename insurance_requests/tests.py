@@ -178,6 +178,8 @@ class RequestV1V2DisplayCompatibilityTest(TestCase):
         response = self.client.get(reverse('insurance_requests:request_list'))
 
         self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse('insurance_requests:upload_excel'))
+        self.assertNotContains(response, reverse('insurance_requests:upload_excel_v2'))
         self.assertContains(response, 'Старое описание предмета лизинга V1')
         self.assertContains(response, 'LADA Largus KS045L')
         self.assertContains(response, '1 490 000 RUB')
@@ -203,7 +205,7 @@ class RequestV1V2DisplayCompatibilityTest(TestCase):
         self.assertContains(v2_response, 'LADA Largus KS045L')
         self.assertContains(v2_response, 'Стоимость приобретения')
         self.assertContains(v2_response, '1 490 000 RUB')
-        self.assertContains(v2_response, 'Parser V2')
+        self.assertContains(v2_response, 'Alla Borisovna Magic Parser')
         self.assertContains(v2_response, '88%')
 
     def test_edit_request_renders_v2_fields_without_breaking_v1(self):

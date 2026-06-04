@@ -997,8 +997,8 @@ class ParserV2UploadTests(TestCase):
                         data[key] = '' if initial is None else initial
         return data
 
-    def test_parser_v2_access_matches_v1_user_required_groups(self):
-        url = reverse('insurance_requests:upload_excel_v2')
+    def test_primary_upload_route_uses_new_parser_for_all_v1_users(self):
+        url = reverse('insurance_requests:upload_excel')
 
         anonymous_response = self.client.get(url)
         self.assertEqual(anonymous_response.status_code, 302)
@@ -1020,32 +1020,45 @@ class ParserV2UploadTests(TestCase):
         self.assertEqual(superuser_response.status_code, 200)
         self.assertTemplateUsed(superuser_response, 'insurance_requests/upload_excel_v2.html')
 
-    def test_parser_v2_link_is_visible_for_all_users_with_v1_access(self):
+    def test_old_loader_has_dedicated_fallback_route(self):
+        self.client.login(username='parser_v2_user', password='pwd')
+
+        response = self.client.get(reverse('insurance_requests:upload_excel_legacy'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'insurance_requests/upload_excel.html')
+        self.assertContains(response, 'Старый загрузчик')
+
+    def test_request_list_uses_primary_upload_route_without_extra_parser_v2_button(self):
         request_list_url = reverse('insurance_requests:request_list')
+        primary_upload_url = reverse('insurance_requests:upload_excel')
         parser_v2_url = reverse('insurance_requests:upload_excel_v2')
 
         self.client.login(username='parser_v2_user', password='pwd')
         regular_response = self.client.get(request_list_url)
         self.assertEqual(regular_response.status_code, 200)
-        self.assertContains(regular_response, parser_v2_url)
+        self.assertContains(regular_response, primary_upload_url)
+        self.assertNotContains(regular_response, parser_v2_url)
 
         self.client.logout()
         self.client.login(username='parser_v2_admin', password='pwd')
         admin_response = self.client.get(request_list_url)
         self.assertEqual(admin_response.status_code, 200)
-        self.assertContains(admin_response, parser_v2_url)
+        self.assertContains(admin_response, primary_upload_url)
+        self.assertNotContains(admin_response, parser_v2_url)
 
         self.client.logout()
         self.client.login(username='parser_v2_root', password='pwd')
         superuser_response = self.client.get(request_list_url)
         self.assertEqual(superuser_response.status_code, 200)
-        self.assertContains(superuser_response, parser_v2_url)
+        self.assertContains(superuser_response, primary_upload_url)
+        self.assertNotContains(superuser_response, parser_v2_url)
 
     def test_parser_v2_upload_renders_editable_preview(self):
         self.client.login(username='parser_v2_user', password='pwd')
 
         response = self.client.post(
-            reverse('insurance_requests:upload_excel_v2'),
+            reverse('insurance_requests:upload_excel'),
             {'excel_file': self._xlsx_upload()},
         )
 
@@ -1056,6 +1069,25 @@ class ParserV2UploadTests(TestCase):
         self.assertIn('draft_id', response.context)
         self.assertEqual(response.context['form'].initial['client_name'], 'ООО Ромашка')
         self.assertEqual(response.context['form'].initial['manager_name'], 'Иванов Иван')
+
+    def test_primary_upload_page_links_to_old_loader(self):
+        self.client.login(username='parser_v2_user', password='pwd')
+
+        response = self.client.get(reverse('insurance_requests:upload_excel'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse('insurance_requests:upload_excel_legacy'))
+
+    def test_primary_upload_page_uses_magic_context_label(self):
+        self.client.login(username='parser_v2_user', password='pwd')
+
+        response = self.client.get(reverse('insurance_requests:upload_excel'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.context['app_navigation']['current_context_label'],
+            'Заявки / Alla Borisovna Magic Parser',
+        )
 
     def test_parser_v2_unrecognized_branch_preserves_raw_value_and_warns(self):
         self.client.login(username='parser_v2_root', password='pwd')

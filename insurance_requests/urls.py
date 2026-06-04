@@ -9,7 +9,8 @@ app_name = 'insurance_requests'
 urlpatterns = [
     # Main application URLs
     path('', views.request_list, name='request_list'),
-    path('upload/', views.upload_excel, name='upload_excel'),
+    path('upload/', views.upload_excel_v2, name='upload_excel'),
+    path('upload-old/', views.upload_excel, name='upload_excel_legacy'),
     path('upload-v2/', views.upload_excel_v2, name='upload_excel_v2'),
     path('<int:pk>/', views.request_detail, name='request_detail'),
     path('<int:pk>/edit/', views.edit_request, name='edit_request'),

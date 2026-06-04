@@ -1,57 +1,420 @@
 {% extends 'base.html' %}
 
-{% block title %}Parser V2 - {{ block.super }}{% endblock %}
+{% block title %}Загрузить заявку - {{ block.super }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.magic-upload-page {
+    padding-bottom: 2rem;
+}
+
+.magic-upload-shell {
+    width: 100%;
+}
+
+.magic-upload-hero {
+    align-items: center;
+    display: flex;
+    gap: 1.25rem;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+}
+
+.magic-upload-hero__copy {
+    max-width: 680px;
+}
+
+.magic-upload-hero__title {
+    align-items: center;
+    display: flex;
+    gap: 0.75rem;
+    margin: 0;
+}
+
+.magic-upload-hero__title i {
+    color: var(--app-primary);
+    font-size: 1.65rem;
+}
+
+.magic-upload-card {
+    background:
+        radial-gradient(900px 280px at -5% -15%, rgba(11, 122, 117, 0.14), transparent 56%),
+        radial-gradient(880px 320px at 102% -20%, rgba(24, 52, 90, 0.12), transparent 58%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.97) 0%, rgba(247, 250, 253, 0.98) 100%);
+    border: 1px solid rgba(11, 122, 117, 0.13);
+    border-radius: 20px;
+    box-shadow: 0 18px 36px rgba(17, 31, 52, 0.1);
+    overflow: hidden;
+    position: relative;
+}
+
+.magic-upload-card__topline {
+    background: linear-gradient(90deg, #18345a 0%, #12606d 54%, #0b7a75 100%);
+    height: 6px;
+}
+
+.magic-upload-card__body {
+    padding: 1.35rem;
+}
+
+.magic-upload-panel {
+    background: rgba(255, 255, 255, 0.72);
+    border: 1px solid rgba(217, 229, 239, 0.96);
+    border-radius: 18px;
+    margin: 0 auto;
+    max-width: 980px;
+    padding: 1.1rem 1.15rem 1.2rem;
+}
+
+.magic-upload-panel__header {
+    align-items: flex-start;
+    display: flex;
+    gap: 1rem;
+    justify-content: space-between;
+    margin-bottom: 0.9rem;
+}
+
+.magic-upload-panel__title {
+    font-size: 1.05rem;
+    font-weight: 800;
+    margin: 0;
+}
+
+.magic-upload-panel__sub {
+    color: var(--app-muted);
+    font-size: 0.86rem;
+    margin: 0.22rem 0 0;
+}
+
+.magic-upload-hints {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.55rem;
+    justify-content: flex-end;
+}
+
+.magic-upload-hint {
+    background: rgba(229, 244, 242, 0.9);
+    border: 1px solid rgba(11, 122, 117, 0.12);
+    border-radius: 999px;
+    color: var(--app-primary-dark);
+    font-size: 0.74rem;
+    font-weight: 700;
+    padding: 0.4rem 0.65rem;
+    white-space: nowrap;
+}
+
+.magic-upload-dropzone {
+    align-items: center;
+    background:
+        linear-gradient(180deg, rgba(250, 252, 253, 0.95) 0%, rgba(241, 247, 249, 0.95) 100%);
+    border: 2px dashed rgba(91, 109, 132, 0.28);
+    border-radius: 18px;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    min-height: 290px;
+    padding: 1.4rem;
+    position: relative;
+    text-align: center;
+    transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.magic-upload-dropzone:hover,
+.magic-upload-dropzone.drag-over {
+    background:
+        linear-gradient(180deg, rgba(229, 244, 242, 0.92) 0%, rgba(239, 248, 247, 0.96) 100%);
+    border-color: rgba(11, 122, 117, 0.55);
+    box-shadow: inset 0 0 0 1px rgba(11, 122, 117, 0.12);
+    transform: translateY(-1px);
+}
+
+.magic-upload-dropzone.has-file {
+    background:
+        linear-gradient(180deg, rgba(240, 250, 245, 0.96) 0%, rgba(233, 247, 239, 0.98) 100%);
+    border-color: rgba(25, 135, 84, 0.55);
+    border-style: solid;
+}
+
+.magic-upload-dropzone input[type="file"] {
+    display: none;
+}
+
+.magic-upload-dropzone__inner {
+    margin: 0 auto;
+    max-width: 520px;
+}
+
+.magic-upload-dropzone__icon {
+    color: rgba(11, 122, 117, 0.78);
+    display: block;
+    font-size: 3rem;
+    margin-bottom: 0.8rem;
+    transition: color 0.2s ease;
+}
+
+.magic-upload-dropzone.has-file .magic-upload-dropzone__icon {
+    color: #198754;
+}
+
+.magic-upload-dropzone__label {
+    color: var(--app-primary-dark);
+    font-size: 0.74rem;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+}
+
+.magic-upload-dropzone__title {
+    color: var(--app-text);
+    font-family: 'Space Grotesk', 'Trebuchet MS', sans-serif;
+    font-size: clamp(1.45rem, 2.2vw, 2rem);
+    font-weight: 700;
+    line-height: 1.1;
+    margin-bottom: 0.55rem;
+}
+
+.magic-upload-dropzone__lead {
+    color: var(--app-muted);
+    font-size: 0.92rem;
+    line-height: 1.55;
+    margin: 0 auto;
+    max-width: 28rem;
+}
+
+.magic-upload-dropzone__sub {
+    color: var(--app-muted);
+    font-size: 0.82rem;
+    margin: 0.7rem 0 0.7rem;
+}
+
+.magic-upload-browse {
+    border-radius: 999px;
+    font-size: 0.88rem;
+    font-weight: 800;
+    padding: 0.62rem 1rem;
+}
+
+.magic-upload-dropzone__hint {
+    color: var(--app-muted);
+    font-size: 0.76rem;
+    margin-top: 0.8rem;
+}
+
+.magic-upload-dropzone__filename {
+    align-items: center;
+    color: #198754;
+    display: inline-flex;
+    font-size: 0.88rem;
+    font-weight: 700;
+    gap: 0.5rem;
+    margin-top: 0.8rem;
+}
+
+.magic-upload-errors {
+    margin-top: 1rem;
+}
+
+.magic-upload-actions {
+    display: flex;
+    justify-content: center;
+    margin-top: 1rem;
+}
+
+.magic-upload-submit {
+    align-items: center;
+    border-radius: 999px;
+    box-shadow: 0 12px 22px rgba(11, 122, 117, 0.2);
+    display: inline-flex;
+    font-size: 0.94rem;
+    font-weight: 800;
+    gap: 0.7rem;
+    justify-content: center;
+    min-width: 220px;
+    padding: 0.82rem 1.4rem;
+}
+
+.magic-upload-submit:disabled {
+    box-shadow: none;
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+@media (max-width: 991.98px) {
+    .magic-upload-hero {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .magic-upload-panel__header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .magic-upload-hints {
+        justify-content: flex-start;
+    }
+
+    .magic-upload-dropzone {
+        min-height: 260px;
+        padding: 1.15rem;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .magic-upload-card__body {
+        padding: 1.1rem;
+    }
+
+    .magic-upload-panel {
+        padding: 1rem;
+    }
+
+    .magic-upload-dropzone {
+        min-height: 235px;
+        padding: 1rem;
+    }
+
+    .magic-upload-submit {
+        width: 100%;
+    }
+}
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <div>
-        <h1 class="mb-1"><i class="bi bi-magic"></i> Parser V2</h1>
-        <div class="text-muted">Экспериментальная загрузка заявки через предварительную проверку</div>
-    </div>
-    <a href="{% url 'insurance_requests:upload_excel' %}" class="btn btn-outline-secondary">
-        <i class="bi bi-arrow-left"></i> Старый загрузчик
-    </a>
-</div>
-
-<div class="row">
-    <div class="col-lg-8">
-        <div class="card">
-            <div class="card-header bg-primary text-white">
-                <i class="bi bi-file-earmark-excel"></i> Загрузка Excel
+<section class="magic-upload-page">
+    <div class="magic-upload-shell">
+        <div class="magic-upload-hero">
+            <div class="magic-upload-hero__copy">
+                <h1 class="magic-upload-hero__title">
+                    <i class="bi bi-magic"></i>
+                    <span>Загрузить заявку</span>
+                </h1>
             </div>
-            <div class="card-body">
-                <form method="post" enctype="multipart/form-data" novalidate>
-                    {% csrf_token %}
-                    <div class="mb-3">
-                        <label for="{{ form.excel_file.id_for_label }}" class="form-label fw-semibold">
-                            {{ form.excel_file.label }}
-                        </label>
-                        {{ form.excel_file }}
-                        {% if form.excel_file.help_text %}
-                            <div class="form-text">{{ form.excel_file.help_text }}</div>
-                        {% endif %}
-                        {% for error in form.excel_file.errors %}
-                            <div class="invalid-feedback d-block">{{ error }}</div>
-                        {% endfor %}
+            <a href="{% url 'insurance_requests:upload_excel_legacy' %}" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-arrow-left"></i> Старый загрузчик
+            </a>
+        </div>
+
+        <div class="magic-upload-card">
+            <div class="magic-upload-card__topline"></div>
+            <div class="magic-upload-card__body">
+                <div class="magic-upload-panel">
+                    <div class="magic-upload-panel__header">
+                        <div>
+                            <h2 class="magic-upload-panel__title">Загрузка Excel</h2>
+                            <p class="magic-upload-panel__sub">Формат и тип заявки определятся автоматически.</p>
+                        </div>
+                        <div class="magic-upload-hints">
+                            <span class="magic-upload-hint">.xls / .xlsx / .xltx</span>
+                            <span class="magic-upload-hint">до 10 МБ</span>
+                        </div>
                     </div>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="bi bi-search"></i> Разобрать файл
-                    </button>
-                </form>
-            </div>
-        </div>
-    </div>
 
-    <div class="col-lg-4">
-        <div class="card border-info">
-            <div class="card-header bg-info text-dark">
-                <i class="bi bi-shield-lock"></i> Доступ
-            </div>
-            <div class="card-body">
-                <p class="mb-2">Раздел доступен тем же пользователям, что и старый загрузчик.</p>
-                <p class="text-muted mb-0">Parser V1 и Parser V2 работают параллельно, старый сценарий не меняется.</p>
+                    <form method="post" enctype="multipart/form-data" novalidate>
+                    {% csrf_token %}
+
+                        <label class="magic-upload-dropzone" id="dropzone" for="{{ form.excel_file.id_for_label }}">
+                            <div class="magic-upload-dropzone__inner">
+                                <i class="bi bi-cloud-arrow-up magic-upload-dropzone__icon" id="dropzone-icon"></i>
+                                <div class="magic-upload-dropzone__label">{{ form.excel_file.label }}</div>
+                                <div class="magic-upload-dropzone__title" id="dropzone-text">Перетащите файл сюда</div>
+                                <p class="magic-upload-dropzone__lead">Или просто нажмите на зону, чтобы выбрать файл.</p>
+                                <span class="btn btn-outline-primary magic-upload-browse">
+                                    <i class="bi bi-folder2-open"></i> Выбрать файл
+                                </span>
+                                {{ form.excel_file }}
+                                {% if form.excel_file.help_text %}
+                                    <div class="magic-upload-dropzone__hint">{{ form.excel_file.help_text }}</div>
+                                {% endif %}
+                                <div class="magic-upload-dropzone__filename d-none" id="selected-filename">
+                                    <i class="bi bi-file-earmark-check"></i>
+                                    <span id="filename-text"></span>
+                                </div>
+                            </div>
+                        </label>
+
+                        {% if form.excel_file.errors %}
+                            <div class="magic-upload-errors alert alert-danger mb-0">
+                                {% for error in form.excel_file.errors %}
+                                    <div>{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+
+                        <div class="magic-upload-actions">
+                            <button type="submit" class="btn btn-primary magic-upload-submit" id="parse-submit" disabled>
+                                <i class="bi bi-stars"></i> Разобрать файл
+                            </button>
+                        </div>
+                    </form>
+                </div>
             </div>
         </div>
     </div>
-</div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const dropzone = document.getElementById('dropzone');
+    const fileInput = dropzone ? dropzone.querySelector('input[type="file"]') : null;
+    const filenameEl = document.getElementById('selected-filename');
+    const filenameText = document.getElementById('filename-text');
+    const dropzoneText = document.getElementById('dropzone-text');
+    const dropzoneIcon = document.getElementById('dropzone-icon');
+    const submitButton = document.getElementById('parse-submit');
+
+    function showFile(file) {
+        if (!file || !dropzone || !filenameEl || !filenameText || !dropzoneText || !dropzoneIcon) {
+            return;
+        }
+        filenameText.textContent = file.name;
+        filenameEl.classList.remove('d-none');
+        dropzoneText.textContent = 'Файл выбран';
+        dropzoneIcon.className = 'bi bi-file-earmark-check magic-upload-dropzone__icon';
+        dropzone.classList.add('has-file');
+        dropzone.classList.remove('drag-over');
+        if (submitButton) {
+            submitButton.disabled = false;
+        }
+    }
+
+    if (fileInput) {
+        fileInput.addEventListener('change', function () {
+            if (this.files && this.files[0]) {
+                showFile(this.files[0]);
+            }
+        });
+    }
+
+    if (dropzone) {
+        dropzone.addEventListener('dragover', function (event) {
+            event.preventDefault();
+            this.classList.add('drag-over');
+        });
+
+        dropzone.addEventListener('dragleave', function (event) {
+            if (!this.contains(event.relatedTarget)) {
+                this.classList.remove('drag-over');
+            }
+        });
+
+        dropzone.addEventListener('drop', function (event) {
+            event.preventDefault();
+            this.classList.remove('drag-over');
+            const file = event.dataTransfer.files[0];
+            if (file && fileInput) {
+                const dt = new DataTransfer();
+                dt.items.add(file);
+                fileInput.files = dt.files;
+                showFile(file);
+            }
+        });
+    }
+});
+</script>
 {% endblock %}

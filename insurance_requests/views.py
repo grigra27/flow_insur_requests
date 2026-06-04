@@ -904,13 +904,13 @@ def upload_excel(request):
 
 @user_required
 def upload_excel_v2(request):
-    """Экспериментальный Parser V2: upload -> preview -> best-effort create."""
+    """Основной загрузчик заявок на Parser V2 с предварительной проверкой."""
     if request.method == 'POST' and request.POST.get('draft_id'):
         draft_id = request.POST.get('draft_id')
         draft = _get_parser_v2_draft(request, draft_id)
         if not draft:
-            messages.error(request, 'Черновик Parser V2 не найден. Загрузите файл еще раз.')
-            return redirect('insurance_requests:upload_excel_v2')
+            messages.error(request, 'Черновик загрузки не найден. Загрузите файл еще раз.')
+            return redirect('insurance_requests:upload_excel')
 
         form = ParserV2PreviewForm(request.POST)
         parse_result = draft.get('parse_result', {})
@@ -966,20 +966,20 @@ def upload_excel_v2(request):
             if batch_size > 1:
                 messages.success(
                     request,
-                    f'Создана партия из {batch_size} заявок через Parser V2. '
+                    f'Создана партия из {batch_size} заявок через новый загрузчик. '
                     f'Первая: {primary.get_display_name()}.'
                 )
             else:
                 if warning_count:
                     messages.warning(
                         request,
-                        f'Заявка {primary.get_display_name()} создана через Parser V2. '
+                        f'Заявка {primary.get_display_name()} создана через новый загрузчик. '
                         f'Предупреждений разбора: {warning_count}. Проверьте данные перед дальнейшей работой.'
                     )
                 else:
                     messages.success(
                         request,
-                        f'Заявка {primary.get_display_name()} успешно создана через Parser V2.'
+                        f'Заявка {primary.get_display_name()} успешно создана через новый загрузчик.'
                     )
 
             logger.info(
@@ -1027,13 +1027,13 @@ def upload_excel_v2(request):
 
             messages.info(
                 request,
-                'Файл разобран Parser V2. Проверьте распознанные данные и создайте заявку.'
+                'Файл разобран. Проверьте распознанные данные и создайте заявку.'
             )
             return _render_parser_v2_preview(request, draft_id, draft)
 
         for field, errors in upload_form.errors.items():
             for error in errors:
-                messages.error(request, f'Ошибка загрузки Parser V2 ({field}): {error}')
+                messages.error(request, f'Ошибка загрузки файла ({field}): {error}')
     else:
         upload_form = ParserV2ExcelUploadForm()
 

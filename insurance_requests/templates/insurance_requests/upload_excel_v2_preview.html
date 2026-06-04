@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}Предварительная проверка Parser V2 - {{ block.super }}{% endblock %}
+{% block title %}Предварительная проверка заявки - {{ block.super }}{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -47,7 +47,7 @@
         <h1 class="mb-1"><i class="bi bi-clipboard-check"></i> Предварительная проверка</h1>
         <div class="text-muted">{{ original_filename }}</div>
     </div>
-    <a href="{% url 'insurance_requests:upload_excel_v2' %}" class="btn btn-outline-secondary">
+    <a href="{% url 'insurance_requests:upload_excel' %}" class="btn btn-outline-secondary">
         <i class="bi bi-arrow-clockwise"></i> Загрузить другой файл
     </a>
 </div>
@@ -441,7 +441,7 @@
                         Создать заявку
                     {% endif %}
                 </button>
-                <a href="{% url 'insurance_requests:upload_excel_v2' %}" class="btn btn-outline-secondary btn-lg">
+                <a href="{% url 'insurance_requests:upload_excel' %}" class="btn btn-outline-secondary btn-lg">
                     Отмена
                 </a>
             </div>

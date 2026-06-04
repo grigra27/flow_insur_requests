@@ -17,7 +17,7 @@ MAIN_NAV_ITEMS = [
         'icon': 'bi-upload',
         'route': 'insurance_requests:upload_excel',
         'match_app': 'insurance_requests',
-        'include_urls': {'upload_excel'},
+        'include_urls': {'upload_excel', 'upload_excel_v2', 'upload_excel_legacy'},
         'nav_style': 'action',
     },
     {
@@ -25,7 +25,7 @@ MAIN_NAV_ITEMS = [
         'icon': 'bi-list-ul',
         'route': 'insurance_requests:request_list',
         'match_app': 'insurance_requests',
-        'exclude_urls': {'upload_excel'},
+        'exclude_urls': {'upload_excel', 'upload_excel_v2', 'upload_excel_legacy'},
     },
     {
         'label': 'Своды',
@@ -83,8 +83,7 @@ SECTION_CONFIG = {
         'root': 'insurance_requests:request_list',
         'links': [
             ('Все заявки', 'insurance_requests:request_list'),
-            ('Загрузить Excel', 'insurance_requests:upload_excel'),
-            ('Parser V2', 'insurance_requests:upload_excel_v2'),
+            ('Загрузить заявку', 'insurance_requests:upload_excel'),
         ],
     },
     'summaries': {
@@ -132,9 +131,7 @@ ADMIN_ONLY_ROUTES = {
 }
 
 
-SUPERUSER_ONLY_ROUTES = {
-    'insurance_requests:upload_excel_v2',
-}
+SUPERUSER_ONLY_ROUTES = set()
 
 
 SECTION_ROUTE_OVERRIDES = {
@@ -152,8 +149,9 @@ SECTION_ROUTE_OVERRIDES = {
 
 PAGE_LABELS = {
     ('insurance_requests', 'request_list'): 'Список заявок',
-    ('insurance_requests', 'upload_excel'): 'Загрузка заявок',
-    ('insurance_requests', 'upload_excel_v2'): 'Parser V2',
+    ('insurance_requests', 'upload_excel'): 'Загрузить заявку',
+    ('insurance_requests', 'upload_excel_v2'): 'Загрузить заявку',
+    ('insurance_requests', 'upload_excel_legacy'): 'Старый загрузчик',
     ('insurance_requests', 'request_detail'): 'Карточка заявки',
     ('insurance_requests', 'edit_request'): 'Редактирование заявки',
     ('insurance_requests', 'preview_email'): 'Предпросмотр письма',
@@ -182,11 +180,15 @@ BREADCRUMB_TEMPLATES = {
     ('insurance_requests', 'request_list'): [('Заявки', None)],
     ('insurance_requests', 'upload_excel'): [
         ('Заявки', 'insurance_requests:request_list'),
-        ('Загрузка заявок', None),
+        ('Загрузить заявку', None),
     ],
     ('insurance_requests', 'upload_excel_v2'): [
         ('Заявки', 'insurance_requests:request_list'),
-        ('Parser V2', None),
+        ('Загрузить заявку', None),
+    ],
+    ('insurance_requests', 'upload_excel_legacy'): [
+        ('Заявки', 'insurance_requests:request_list'),
+        ('Старый загрузчик', None),
     ],
     ('insurance_requests', 'request_detail'): [
         ('Заявки', 'insurance_requests:request_list'),
@@ -278,6 +280,7 @@ LAYOUT_MODE_BY_PAGE = {
     ('insurance_requests', 'request_list'): 'wide',
     ('insurance_requests', 'upload_excel'): 'wide',
     ('insurance_requests', 'upload_excel_v2'): 'wide',
+    ('insurance_requests', 'upload_excel_legacy'): 'wide',
     ('insurance_requests', 'request_detail'): 'wide',
     ('summaries', 'summary_list'): 'wide',
     ('summaries', 'deal_list'): 'wide',
@@ -298,6 +301,12 @@ LAYOUT_CLASS_BY_MODE = {
     'default': 'container app-layout-default',
     'wide': 'container app-layout-wide',
     'full': 'container-fluid app-layout-full',
+}
+
+
+CONTEXT_LABEL_OVERRIDES = {
+    ('insurance_requests', 'upload_excel'): 'Заявки / Alla Borisovna Magic Parser',
+    ('insurance_requests', 'upload_excel_v2'): 'Заявки / Alla Borisovna Magic Parser',
 }
 
 
@@ -427,6 +436,10 @@ def navigation_context(request):
         trailing_label = breadcrumbs[-1]['label']
         if trailing_label and trailing_label != section['label']:
             current_context_label = f"{section['label']} / {trailing_label}"
+    current_context_label = CONTEXT_LABEL_OVERRIDES.get(
+        (app_name, url_name),
+        current_context_label,
+    )
 
     return {
         'app_navigation': {
