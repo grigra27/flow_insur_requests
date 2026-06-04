@@ -481,7 +481,10 @@ class ExcelRequestParserV2:
             source_map["franchise_type"] = franchise_details["source"]
         data["has_autostart"] = self._extract_autostart(cells, rows)
         data["has_casco_ce"] = self._contains_any(cells, ["категори c", "категории c", "кат с", "кат. c", "c/e"])
-        data["has_transportation"] = self._contains_any(cells, ["перевоз", "транспортиров"])
+        has_transportation, transportation_source = self._extract_transportation_required(cells, rows)
+        data["has_transportation"] = has_transportation
+        if transportation_source:
+            source_map["has_transportation"] = transportation_source
         data["has_construction_work"] = self._contains_any(cells, ["смр", "строительно монтаж"])
 
         manufacturing_year, source = self._extract_manufacturing_year(cells)
@@ -1283,6 +1286,111 @@ class ExcelRequestParserV2:
                 if is_value(cell):
                     return cell.value, cell.coordinate
         return "", ""
+
+    def _extract_transportation_required(
+        self,
+        cells: List[GridCell],
+        rows: Dict[int, List[GridCell]],
+    ) -> Tuple[bool, str]:
+        """Detect the additional transportation insurance option.
+
+        Usage-purpose and business-activity cells often mention перевозка
+        without requesting the extra transportation risk. Treat only the
+        dedicated additional-insurance block as a reliable signal.
+        """
+        for cell in cells:
+            if not self._looks_like_transportation_option(cell):
+                continue
+            if not self._near_additional_insurance_block(cell, rows):
+                continue
+
+            mark_source = self._transportation_mark_source(cell, rows)
+            if mark_source:
+                return True, mark_source
+
+            detail_source = self._transportation_detail_source(cell, rows)
+            if detail_source:
+                return True, detail_source
+
+        return False, ""
+
+    def _looks_like_transportation_option(self, cell: GridCell) -> bool:
+        text = cell.normalized
+        if "перевоз" not in text and "транспортиров" not in text:
+            return False
+        if self._matches_any_group(
+            text,
+            [
+                ("цель", "использ"),
+                ("цели", "использ"),
+                ("вид", "деятельност"),
+                ("оквэд",),
+            ],
+        ):
+            return False
+        return any(
+            marker in text
+            for marker in [
+                "погруз",
+                "выгруз",
+                "поставщик",
+                "лизингополучател",
+                "пункт отправления",
+                "пункт назначения",
+                "срок перевоз",
+            ]
+        )
+
+    def _near_additional_insurance_block(
+        self,
+        cell: GridCell,
+        rows: Dict[int, List[GridCell]],
+    ) -> bool:
+        for row_number in range(max(1, cell.row - 3), cell.row + 1):
+            row_text = normalize_text(self._row_text(rows.get(row_number, [])))
+            if (
+                "дополнительн" in row_text
+                and "страхован" in row_text
+                and ("оборудован" in row_text or "имуществ" in row_text or "вид" in row_text)
+            ):
+                return True
+        return False
+
+    def _transportation_mark_source(
+        self,
+        option_cell: GridCell,
+        rows: Dict[int, List[GridCell]],
+    ) -> str:
+        for cell in rows.get(option_cell.row, []):
+            if cell is option_cell:
+                continue
+            if abs(cell.col - option_cell.col) > 4:
+                continue
+            if self._is_mark(cell):
+                return cell.coordinate
+        return ""
+
+    def _transportation_detail_source(
+        self,
+        option_cell: GridCell,
+        rows: Dict[int, List[GridCell]],
+    ) -> str:
+        detail_label_groups = [
+            ("пункт", "отправлен"),
+            ("пункт", "назначен"),
+            ("срок", "перевоз"),
+        ]
+        for row_number in range(option_cell.row + 1, option_cell.row + 7):
+            for label_cell in rows.get(row_number, []):
+                if not self._matches_any_group(label_cell.normalized, detail_label_groups):
+                    continue
+                inline = self._inline_value_after_label(label_cell.value)
+                if inline:
+                    return label_cell.coordinate
+                value_cell = self._first_value_right(rows, label_cell)
+                if value_cell:
+                    return value_cell.coordinate
+        return ""
 
     def _extract_marker_choice(
         self,

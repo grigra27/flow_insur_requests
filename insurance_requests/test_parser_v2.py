@@ -299,6 +299,56 @@ class CustomerDealPayloadIntegrationTests(TestCase):
         self.assertEqual(result.data.get('guard_conditions'), 'без ограничений')
         self.assertEqual(result.data.get('property_location_right_holder'), 'lessee_owner')
 
+    def test_transportation_ignores_usage_purpose_text(self):
+        wb = self._build_workbook()
+        sheet = wb.active
+        sheet['C37'] = 'Цели использования'
+        sheet['D37'] = 'Перевозка сотрудников, инструментов, материалов к месту проведения работ'
+        result = self._parse_workbook(wb)
+        self.assertFalse(result.data.get('has_transportation'))
+        self.assertNotIn('has_transportation', result.source_map)
+
+    def test_transportation_ignores_business_activity_text(self):
+        wb = self._build_workbook()
+        sheet = wb.active
+        sheet['D11'] = 'Деятельность автомобильного грузового транспорта и услуги по перевозкам'
+        result = self._parse_workbook(wb)
+        self.assertFalse(result.data.get('has_transportation'))
+        self.assertNotIn('has_transportation', result.source_map)
+
+    def test_transportation_template_without_mark_or_details_is_not_selected(self):
+        wb = self._build_workbook()
+        sheet = wb.active
+        sheet['B44'] = 'Дополнительные виды страхования оборудования(отметьте знаком "Х")'
+        sheet['D44'] = 'Перевозка (с погрузкой, выгрузкой) от поставщика к лизингополучателю'
+        sheet['C45'] = 'Пункт отправления'
+        sheet['C46'] = 'Пункт назначения'
+        sheet['C47'] = 'Ориентировочный срок перевозки, в днях'
+        result = self._parse_workbook(wb)
+        self.assertFalse(result.data.get('has_transportation'))
+        self.assertNotIn('has_transportation', result.source_map)
+
+    def test_transportation_mark_in_additional_insurance_block_selects_option(self):
+        wb = self._build_workbook()
+        sheet = wb.active
+        sheet['B44'] = 'Дополнительные виды страхования оборудования(отметьте знаком "Х")'
+        sheet['D44'] = 'Перевозка (с погрузкой, выгрузкой) от поставщика к лизингополучателю'
+        sheet['E44'] = 'Х'
+        result = self._parse_workbook(wb)
+        self.assertTrue(result.data.get('has_transportation'))
+        self.assertEqual(result.source_map.get('has_transportation'), 'E44')
+
+    def test_transportation_filled_details_select_option(self):
+        wb = self._build_workbook()
+        sheet = wb.active
+        sheet['B44'] = 'Дополнительные виды страхования оборудования(отметьте знаком "Х")'
+        sheet['D44'] = 'Перевозка (с погрузкой, выгрузкой) от поставщика к лизингополучателю'
+        sheet['C45'] = 'Пункт отправления'
+        sheet['D45'] = 'Москва'
+        result = self._parse_workbook(wb)
+        self.assertTrue(result.data.get('has_transportation'))
+        self.assertEqual(result.source_map.get('has_transportation'), 'D45')
+
     def test_insurance_type_uses_d21_mark_for_casco(self):
         wb = self._build_workbook()
         sheet = wb.active
