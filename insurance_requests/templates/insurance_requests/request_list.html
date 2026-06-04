@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load tz %}
+{% load summary_extras %}
 
 {% block title %}Список заявок - {{ block.super }}{% endblock %}
 
@@ -16,6 +17,15 @@
     }
     .request-row--batch-first {
         border-top: 2px solid var(--bs-info);
+    }
+    .request-object-title {
+        max-width: 34rem;
+    }
+    .request-object-meta {
+        line-height: 1.35;
+    }
+    .request-condition-badges {
+        min-width: 10rem;
     }
 </style>
 {% endblock %}
@@ -186,7 +196,7 @@
                     <th scope="col">Филиал</th>
                     <th scope="col">Статус</th>
                     <th scope="col">Дата создания</th>
-                    <th scope="col">Особенности</th>
+                    <th scope="col">Условия</th>
                     <th scope="col">Действия</th>
                 </tr>
             </thead>
@@ -207,27 +217,52 @@
                                     <i class="bi bi-collection"></i> {{ request.item_no }}/{{ request.item_count }}
                                 </span>
                             {% endif %}
-                            {% if request.source_object_count and request.source_object_count > 1 %}
-                                <span class="badge bg-warning text-dark ms-1"
-                                      title="Эта позиция представляет {{ request.source_object_count }} полностью одинаковых строк исходной Excel-заявки.">
-                                    ×{{ request.source_object_count }}
-                                </span>
-                            {% endif %}
-                        </td>
-                        <td>{{ request.client_name }}</td>
-                        <td>
-                            <i class="bi bi-box-seam text-muted"></i>
-                            <span class="d-none d-lg-inline">{{ request.vehicle_info|default:"Не указан" }}</span>
-                            <span class="d-lg-none">{{ request.vehicle_info|default:"Не указан"|truncatechars:15 }}</span>
-                        </td>
+	                            {% if request.source_object_count and request.source_object_count > 1 %}
+	                                <span class="badge bg-warning text-dark ms-1"
+	                                      title="Эта позиция представляет {{ request.source_object_count }} полностью одинаковых строк исходной Excel-заявки.">
+	                                    ×{{ request.source_object_count }}
+	                                </span>
+	                            {% endif %}
+	                            {% if request.is_parser_v2 and request.parser_v2_warning_count %}
+	                                <span class="badge bg-warning text-dark ms-1"
+	                                      title="Parser V2: предупреждений разбора {{ request.parser_v2_warning_count }}">
+	                                    Проверить
+	                                </span>
+	                            {% endif %}
+	                        </td>
+	                        <td>{{ request.client_name }}</td>
+	                        <td>
+	                            <div class="d-flex gap-2">
+	                                <i class="bi bi-box-seam text-muted mt-1"></i>
+	                                <div class="request-object-title">
+	                                    {% if request.has_structured_object_data %}
+	                                        <div class="fw-semibold d-none d-lg-block">
+	                                            {{ request.object_display_name|default:"Объект не указан" }}
+	                                        </div>
+	                                        <div class="small text-muted request-object-meta d-none d-lg-block">
+	                                            {% if request.manufacturing_year %}{{ request.manufacturing_year }}{% endif %}
+	                                            {% if request.condition %}{% if request.manufacturing_year %} · {% endif %}{{ request.get_condition_display }}{% endif %}
+	                                            {% if request.equipment_type %}{% if request.manufacturing_year or request.condition %} · {% endif %}{{ request.equipment_type }}{% endif %}
+	                                            {% if request.acquisition_cost_display %}{% if request.manufacturing_year or request.condition or request.equipment_type %} · {% endif %}{{ request.acquisition_cost_display }}{% endif %}
+	                                        </div>
+	                                        {% if request.vehicle_info and request.vehicle_info != request.object_display_name %}
+	                                            <div class="small text-muted d-none d-xl-block">{{ request.vehicle_info|truncatechars:110 }}</div>
+	                                        {% endif %}
+	                                        <span class="d-lg-none">{{ request.object_display_name|default:"Объект"|truncatechars:24 }}</span>
+	                                    {% else %}
+	                                        <span class="d-none d-lg-inline">{{ request.vehicle_info|default:"Не указан" }}</span>
+	                                        <span class="d-lg-none">{{ request.vehicle_info|default:"Не указан"|truncatechars:24 }}</span>
+	                                    {% endif %}
+	                                </div>
+	                            </div>
+	                        </td>
                         <td>
                             <i class="bi bi-building text-muted"></i>
                             <span class="d-none d-lg-inline">{{ request.branch|default:"Не указан" }}</span>
                             <span class="d-lg-none">{{ request.branch|default:"Не указан"|truncatechars:15 }}</span>
                         </td>
                         <td>
-                            {% load summary_extras %}
-                            <span class="badge {{ request.status|status_badge_class }}">
+	                            <span class="badge {{ request.status|status_badge_class }}">
                                 <span class="d-none d-sm-inline">{{ request.get_status_display }}</span>
                                 <span class="d-sm-none">
                                     {% if request.status == 'emails_sent' %}✓
@@ -243,20 +278,31 @@
                             <small class="text-muted d-none d-lg-inline">(МСК)</small>
                         </td>
                         <td>
-                            <div class="d-flex flex-wrap gap-1">
-                                {% if request.franchise_type != 'none' %}
-                                    <span class="badge bg-warning text-dark" title="{{ request.get_franchise_type_display }}">
-                                        <span class="d-none d-xl-inline">Франшиза</span>
-                                        <span class="d-xl-none">Ф</span>
-                                    </span>
-                                {% endif %}
-                                {% if request.has_installment %}
-                                    <span class="badge bg-info text-dark" title="Рассрочка">
-                                        <span class="d-none d-xl-inline">Рассрочка</span>
-                                        <span class="d-xl-none">Р</span>
-                                    </span>
-                                {% endif %}
-                                {% if request.has_autostart %}
+	                            <div class="d-flex flex-wrap gap-1 request-condition-badges">
+	                                {% if request.franchise_type != 'none' %}
+	                                    <span class="badge bg-warning text-dark" title="{{ request.get_franchise_type_display }}">
+	                                        <span class="d-none d-xl-inline">Франшиза</span>
+	                                        <span class="d-xl-none">Ф</span>
+	                                    </span>
+	                                {% endif %}
+	                                {% if request.premium_frequency %}
+	                                    <span class="badge bg-info text-dark" title="Частота уплаты премии: {{ request.get_premium_frequency_display }}">
+	                                        <span class="d-none d-xl-inline">{{ request.get_premium_frequency_display }}</span>
+	                                        <span class="d-xl-none">Прем.</span>
+	                                    </span>
+	                                {% elif request.has_installment %}
+	                                    <span class="badge bg-info text-dark" title="Рассрочка">
+	                                        <span class="d-none d-xl-inline">Рассрочка</span>
+	                                        <span class="d-xl-none">Р</span>
+	                                    </span>
+	                                {% endif %}
+	                                {% if request.insured_party %}
+	                                    <span class="badge bg-secondary" title="Страхователь: {{ request.get_insured_party_display }}">
+	                                        <span class="d-none d-xl-inline">{{ request.get_insured_party_display }}</span>
+	                                        <span class="d-xl-none">Стр.</span>
+	                                    </span>
+	                                {% endif %}
+	                                {% if request.has_autostart %}
                                     <span class="badge req-param-badge--autostart" title="Автозапуск">
                                         <span class="d-none d-xl-inline">Автозапуск</span>
                                         <span class="d-xl-none">А</span>
@@ -274,13 +320,16 @@
                                         <span class="d-xl-none">П</span>
                                     </span>
                                 {% endif %}
-                                {% if request.has_construction_work %}
-                                    <span class="badge bg-dark text-light" title="СМР">
-                                        <span class="d-none d-xl-inline">СМР</span>
-                                        <span class="d-xl-none">СМР</span>
-                                    </span>
-                                {% endif %}
-                            </div>
+	                                {% if request.has_construction_work %}
+	                                    <span class="badge bg-dark text-light" title="СМР">
+	                                        <span class="d-none d-xl-inline">СМР</span>
+	                                        <span class="d-xl-none">СМР</span>
+	                                    </span>
+	                                {% endif %}
+	                                {% if request.franchise_type == 'none' and not request.premium_frequency and not request.has_installment and not request.insured_party and not request.has_autostart and not request.has_casco_ce and not request.has_transportation and not request.has_construction_work %}
+	                                    <span class="text-muted small">Без особенностей</span>
+	                                {% endif %}
+	                            </div>
                         </td>
                         <td>
                             <a href="{% url 'insurance_requests:request_detail' request.pk %}" 

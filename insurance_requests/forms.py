@@ -731,6 +731,14 @@ class InsuranceRequestForm(forms.ModelForm):
             'vehicle_info', 'dfa_number', 'branch', 'manager_name', 'deal_status', 'franchise_type',
             'has_installment', 'has_autostart', 'has_casco_ce', 'has_transportation',
             'has_construction_work', 'manufacturing_year', 'asset_status', 'response_deadline', 'notes',
+            # Структурированные поля объекта Parser V2
+            'brand', 'model', 'condition', 'equipment_type', 'power_or_capacity',
+            'acquisition_cost_value', 'acquisition_cost_currency', 'source_object_count',
+            # Реквизиты страхователя Parser V2
+            'legal_address', 'postal_address', 'business_activity', 'birth_date', 'submission_date',
+            # Параметры сделки и страхования Parser V2
+            'insured_party', 'insured_sum_type', 'guard_conditions',
+            'property_location_right_holder', 'premium_frequency',
             # Дополнительные параметры КАСКО/спецтехника
             'key_completeness', 'pts_psm', 'creditor_bank', 'usage_purposes', 'telematics_complex',
             # Дополнительные параметры для страхования имущества
@@ -769,6 +777,44 @@ class InsuranceRequestForm(forms.ModelForm):
                 'placeholder': 'Статус имущества предмета лизинга',
                 'maxlength': '255'
             }),
+            'brand': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Марка',
+                'maxlength': '128'
+            }),
+            'model': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Модель',
+                'maxlength': '255'
+            }),
+            'condition': forms.Select(
+                choices=[('', '-- Не указано --')] + InsuranceRequest.OBJECT_CONDITION_CHOICES,
+                attrs={'class': 'form-control'}
+            ),
+            'equipment_type': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Тип/категория техники',
+                'maxlength': '128'
+            }),
+            'power_or_capacity': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Мощность/производительность',
+                'maxlength': '64'
+            }),
+            'acquisition_cost_value': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Стоимость',
+                'step': '0.01'
+            }),
+            'acquisition_cost_currency': forms.Select(
+                choices=[('', '-- Не указано --')] + InsuranceRequest.ACQUISITION_COST_CURRENCY_CHOICES,
+                attrs={'class': 'form-control'}
+            ),
+            'source_object_count': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'min': '1',
+                'step': '1'
+            }),
             'notes': forms.Textarea(attrs={
                 'class': 'form-control',
                 'rows': 4,
@@ -781,6 +827,50 @@ class InsuranceRequestForm(forms.ModelForm):
             'has_transportation': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'has_construction_work': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'response_deadline': DateTimeLocalWidget(),
+            'legal_address': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 2,
+                'placeholder': 'Юридический адрес'
+            }),
+            'postal_address': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 2,
+                'placeholder': 'Почтовый адрес'
+            }),
+            'business_activity': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 2,
+                'placeholder': 'Основной вид деятельности'
+            }),
+            'birth_date': forms.DateInput(format='%Y-%m-%d', attrs={
+                'class': 'form-control',
+                'type': 'date'
+            }),
+            'submission_date': forms.DateInput(format='%Y-%m-%d', attrs={
+                'class': 'form-control',
+                'type': 'date'
+            }),
+            'insured_party': forms.Select(
+                choices=[('', '-- Не указано --')] + InsuranceRequest.INSURED_PARTY_CHOICES,
+                attrs={'class': 'form-control'}
+            ),
+            'insured_sum_type': forms.Select(
+                choices=[('', '-- Не указано --')] + InsuranceRequest.INSURED_SUM_TYPE_CHOICES,
+                attrs={'class': 'form-control'}
+            ),
+            'guard_conditions': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 2,
+                'placeholder': 'Условия охраны/хранения'
+            }),
+            'property_location_right_holder': forms.Select(
+                choices=[('', '-- Не указано --')] + InsuranceRequest.PROPERTY_LOCATION_RIGHT_HOLDER_CHOICES,
+                attrs={'class': 'form-control'}
+            ),
+            'premium_frequency': forms.Select(
+                choices=[('', '-- Не указано --')] + InsuranceRequest.PREMIUM_FREQUENCY_CHOICES,
+                attrs={'class': 'form-control'}
+            ),
             # Дополнительные параметры КАСКО/спецтехника
             'key_completeness': forms.TextInput(attrs={
                 'class': 'form-control',

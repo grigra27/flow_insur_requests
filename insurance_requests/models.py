@@ -325,6 +325,74 @@ class InsuranceRequest(models.Model):
         if self.item_count and self.item_count > 1 and self.item_no:
             return f"{base} / объект {self.item_no} из {self.item_count}"
         return base
+
+    @property
+    def parser_v2_data(self):
+        """Возвращает технический блок Parser V2 из additional_data."""
+        if isinstance(self.additional_data, dict):
+            parser_data = self.additional_data.get('parser_v2')
+            if isinstance(parser_data, dict):
+                return parser_data
+        return {}
+
+    @property
+    def is_parser_v2(self):
+        """True для заявок, созданных новым парсером."""
+        if not isinstance(self.additional_data, dict):
+            return False
+        return (
+            self.additional_data.get('parser_version') == 'v2'
+            or bool(self.additional_data.get('parser_v2'))
+        )
+
+    @property
+    def parser_v2_warning_count(self):
+        warnings = self.parser_v2_data.get('warnings', [])
+        return len(warnings) if isinstance(warnings, list) else 0
+
+    @property
+    def parser_v2_confidence_percent(self):
+        confidence = self.parser_v2_data.get('confidence')
+        try:
+            return int(round(float(confidence) * 100))
+        except (TypeError, ValueError):
+            return None
+
+    @property
+    def parser_v2_source_file_name(self):
+        return self.parser_v2_data.get('source_file_name', '')
+
+    @property
+    def has_structured_object_data(self):
+        return any([
+            self.brand,
+            self.model,
+            self.condition,
+            self.equipment_type,
+            self.power_or_capacity,
+            self.acquisition_cost_value,
+            self.acquisition_cost_currency,
+        ])
+
+    @property
+    def object_display_name(self):
+        parts = [part.strip() for part in [self.brand or '', self.model or ''] if part and part.strip()]
+        if parts:
+            return ' '.join(parts)
+        return self.vehicle_info or ''
+
+    @property
+    def acquisition_cost_display(self):
+        if self.acquisition_cost_value is None:
+            return ''
+        value = self.acquisition_cost_value
+        if value == value.to_integral_value():
+            amount = f"{value:,.0f}".replace(",", " ")
+        else:
+            amount = f"{value:,.2f}".replace(",", " ")
+        if self.acquisition_cost_currency:
+            return f"{amount} {self.acquisition_cost_currency}"
+        return amount
     
 
     
@@ -431,4 +499,3 @@ class RequestAttachment(models.Model):
     
     def __str__(self):
         return f"{self.original_filename} (Заявка {self.request.get_display_name()})"
-

@@ -96,6 +96,103 @@ class RequestDetailViewTest(TestCase):
         self.assertContains(response, 'Создать свод')
 
 
+class RequestV1V2DisplayCompatibilityTest(TestCase):
+    """Old V1 requests and structured Parser V2 requests render side by side."""
+
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user(username='compatuser', password='pwd')
+        user_group, _ = Group.objects.get_or_create(name='Пользователи')
+        self.user.groups.add(user_group)
+        self.client.login(username='compatuser', password='pwd')
+
+        self.v1_request = InsuranceRequest.objects.create(
+            client_name='Старый клиент',
+            inn='1111111111',
+            insurance_type='КАСКО',
+            insurance_period='1 год',
+            dfa_number='V1-001',
+            vehicle_info='Старое описание предмета лизинга V1',
+            created_by=self.user,
+        )
+        self.v2_request = InsuranceRequest.objects.create(
+            client_name='Новый клиент',
+            inn='2222222222',
+            insurance_type='КАСКО',
+            insurance_period='1 год',
+            dfa_number='V2-001',
+            vehicle_info='Автомобиль LADA Largus KS045L 2024 б/у',
+            brand='LADA',
+            model='Largus KS045L',
+            condition='used',
+            equipment_type='Категория B',
+            acquisition_cost_value=Decimal('1490000'),
+            acquisition_cost_currency='RUB',
+            premium_frequency='quarterly',
+            insured_party='lessor',
+            additional_data={
+                'parser_version': 'v2',
+                'parser_v2': {
+                    'confidence': 0.88,
+                    'warnings': [
+                        {
+                            'level': 'manual_required',
+                            'field': 'insured_party',
+                            'message': 'Проверьте страхователя.',
+                        }
+                    ],
+                    'source_file_name': 'request-v2.xlsx',
+                },
+            },
+            created_by=self.user,
+        )
+
+    def test_request_list_uses_structured_v2_object_and_v1_fallback(self):
+        response = self.client.get(reverse('insurance_requests:request_list'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Старое описание предмета лизинга V1')
+        self.assertContains(response, 'LADA Largus KS045L')
+        self.assertContains(response, '1 490 000 RUB')
+        self.assertContains(response, 'Поквартально')
+        self.assertContains(response, 'Лизингодатель')
+        self.assertContains(response, 'Проверить')
+
+    def test_request_detail_keeps_v1_simple_and_shows_v2_diagnostics(self):
+        v1_response = self.client.get(
+            reverse('insurance_requests:request_detail', kwargs={'pk': self.v1_request.pk})
+        )
+        self.assertEqual(v1_response.status_code, 200)
+        self.assertContains(v1_response, 'Старое описание предмета лизинга V1')
+        self.assertNotContains(v1_response, 'Parser V2')
+
+        v2_response = self.client.get(
+            reverse('insurance_requests:request_detail', kwargs={'pk': self.v2_request.pk})
+        )
+        self.assertEqual(v2_response.status_code, 200)
+        self.assertContains(v2_response, 'LADA Largus KS045L')
+        self.assertContains(v2_response, 'Стоимость приобретения')
+        self.assertContains(v2_response, '1 490 000 RUB')
+        self.assertContains(v2_response, 'Parser V2')
+        self.assertContains(v2_response, '88%')
+
+    def test_edit_request_renders_v2_fields_without_breaking_v1(self):
+        v1_response = self.client.get(
+            reverse('insurance_requests:edit_request', kwargs={'pk': self.v1_request.pk})
+        )
+        self.assertEqual(v1_response.status_code, 200)
+        self.assertContains(v1_response, 'Старое описание предмета лизинга V1')
+        self.assertContains(v1_response, 'Структурированные данные объекта')
+
+        v2_response = self.client.get(
+            reverse('insurance_requests:edit_request', kwargs={'pk': self.v2_request.pk})
+        )
+        self.assertEqual(v2_response.status_code, 200)
+        self.assertContains(v2_response, 'LADA')
+        self.assertContains(v2_response, 'Частота уплаты премии')
+        self.assertContains(v2_response, 'Страхователь')
+
+
 class DisplayNameBatchTest(TestCase):
     """Tests for get_display_name() with batch fields (V2 splitting)."""
 
