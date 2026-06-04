@@ -117,33 +117,36 @@ a:hover {
 }
 
 .app-navbar .navbar-brand {
-    font-weight: 500;
-    letter-spacing: 0.02em;
+    font-family: 'Space Grotesk', 'Trebuchet MS', sans-serif;
+    font-size: 1.32rem;
+    font-weight: 700;
+    line-height: 1.08;
+    letter-spacing: -0.03em;
     display: inline-flex;
     align-items: center;
-    gap: 0.32rem;
+    gap: 0.12rem;
     white-space: nowrap;
 }
 
 .app-brand::before {
-    content: "";
-    display: inline-block;
-    width: 1.7rem;
+    content: none;
 }
 
 .app-brand-flow {
-    font-weight: 800;
+    font-weight: 700;
+    letter-spacing: -0.04em;
     color: #ffffff;
 }
 
 .app-brand-separator {
-    font-weight: 300;
-    opacity: 0.5;
-    letter-spacing: 0.05em;
+    font-weight: 400;
+    opacity: 0.38;
+    letter-spacing: -0.1em;
 }
 
 .app-brand-tail {
     font-weight: 400;
+    letter-spacing: -0.02em;
     color: rgba(255, 255, 255, 0.94);
 }
 
@@ -321,6 +324,10 @@ a:hover {
 }
 
 @media (max-width: 991px) {
+    .app-navbar .navbar-brand {
+        font-size: 1.22rem;
+    }
+
     .app-context-bar {
         flex-direction: column;
         align-items: flex-start;
@@ -338,6 +345,13 @@ a:hover {
 
     .app-nav-item-action::after {
         content: none;
+    }
+}
+
+@media (max-width: 576px) {
+    .app-navbar .navbar-brand {
+        font-size: 1.12rem;
+        gap: 0.1rem;
     }
 }
 
