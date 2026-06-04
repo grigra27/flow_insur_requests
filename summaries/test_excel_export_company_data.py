@@ -838,6 +838,44 @@ class AssetStatusNotesTests(ExcelExportServiceCompanyDataTests):
 
         self.assertIsNone(result)
 
+    def test_get_additional_note_for_new_object_via_condition(self):
+        """V2: новизна объекта в condition='new' — примечание не добавляется,
+        даже если legacy-поле asset_status пустое"""
+        self.insurance_request.condition = 'new'
+        self.insurance_request.asset_status = ''
+
+        result = self.service._get_additional_note_for_asset_status(self.insurance_summary)
+
+        self.assertIsNone(result)
+
+    def test_get_additional_note_for_used_object_via_condition(self):
+        """V2: condition='used' — объект б/у, примечание добавляется"""
+        self.insurance_request.condition = 'used'
+        self.insurance_request.asset_status = ''
+
+        result = self.service._get_additional_note_for_asset_status(self.insurance_summary)
+
+        self.assertEqual(result, self.service.ASSET_STATUS_ADDITIONAL_NOTE)
+
+    def test_condition_new_takes_priority_over_legacy_asset_status(self):
+        """V2: condition='new' имеет приоритет над сырым asset_status='новое новое'
+        (склейка нескольких объектов в парсере V2)"""
+        self.insurance_request.condition = 'new'
+        self.insurance_request.asset_status = 'новое новое'
+
+        result = self.service._get_additional_note_for_asset_status(self.insurance_summary)
+
+        self.assertIsNone(result)
+
+    def test_legacy_asset_status_used_when_condition_empty(self):
+        """V1: при пустом condition признак новизны берётся из asset_status='новое'"""
+        self.insurance_request.condition = None
+        self.insurance_request.asset_status = 'новое'
+
+        result = self.service._get_additional_note_for_asset_status(self.insurance_summary)
+
+        self.assertIsNone(result)
+
     def test_build_export_notes_combines_offer_and_additional_notes(self):
         """Доп. примечание должно добавляться к комментарию страховщика"""
         result = self.service._build_export_notes('Специальные условия', 'Доп. условие')

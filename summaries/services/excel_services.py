@@ -811,13 +811,40 @@ class ExcelExportService:
             logger.error(error_msg, exc_info=True)
             raise ExcelExportServiceError(error_msg) from e
 
+    def _is_new_object(self, request) -> bool:
+        """
+        Определяет, является ли застрахованный объект новым.
+
+        Признак новизны хранится по-разному в двух флоу:
+        - V2: в структурированном поле ``condition`` (значения 'new'/'used').
+        - V1 (legacy): свободным текстом в ``asset_status`` ('новое').
+
+        Приоритет у ``condition``; при его отсутствии (исторические V1-заявки)
+        используется legacy-сравнение по ``asset_status``.
+
+        Args:
+            request: Объект InsuranceRequest
+
+        Returns:
+            bool: True, если объект признан новым
+        """
+        condition = getattr(request, 'condition', None)
+        if condition:
+            return str(condition).strip().lower() == 'new'
+
+        raw_asset_status = getattr(request, 'asset_status', '')
+        return str(raw_asset_status).strip().lower() == 'новое'
+
     def _get_additional_note_for_asset_status(self, summary: InsuranceSummary) -> Optional[str]:
         """
         Формирует дополнительное примечание по статусу имущества для Excel-выгрузки.
 
         Правила:
-        - Если статус имущества равен "новое", примечание не добавляется.
+        - Если объект новый, примечание не добавляется.
         - Во всех остальных случаях примечание добавляется.
+
+        Новизна определяется через :meth:`_is_new_object` с учётом обоих флоу:
+        V2 (поле ``condition``) и legacy V1 (поле ``asset_status``).
 
         Args:
             summary: Объект свода
@@ -829,19 +856,19 @@ class ExcelExportService:
         if request is None:
             return None
 
-        raw_asset_status = getattr(request, 'asset_status', '')
-        normalized_asset_status = str(raw_asset_status).strip().lower()
-
-        if normalized_asset_status == 'новое':
+        if self._is_new_object(request):
             logger.debug(
-                f"Свод ID {summary.id}: статус имущества '{raw_asset_status}', "
+                f"Свод ID {summary.id}: объект новый "
+                f"(condition='{getattr(request, 'condition', None)}', "
+                f"asset_status='{getattr(request, 'asset_status', '')}'), "
                 "дополнительное примечание не требуется"
             )
             return None
 
         logger.info(
             f"Свод ID {summary.id}: добавляем примечание по статусу имущества "
-            f"(значение: '{raw_asset_status}')"
+            f"(condition='{getattr(request, 'condition', None)}', "
+            f"asset_status='{getattr(request, 'asset_status', '')}')"
         )
         return self.ASSET_STATUS_ADDITIONAL_NOTE
 
