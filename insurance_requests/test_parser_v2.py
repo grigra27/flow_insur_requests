@@ -808,6 +808,9 @@ class CustomerDealPayloadIntegrationTests(TestCase):
         # B18..G17 left empty (creditor unknown yet)
         sheet['H17'] = 'Необходимый период страхования'
         sheet['L17'] = '1 год'
+        # The cell below the label belongs to another attribute and must not be
+        # taken as the creditor value.
+        sheet['B18'] = 'Вид страхования'
         result = self._parse_workbook(wb)
         self.assertEqual(result.data.get('creditor_bank', ''), '')
 

@@ -657,7 +657,6 @@ class ExcelRequestParserV2:
         for field_name, label_groups in {
             "key_completeness": [("комплект", "ключ")],
             "pts_psm": [("птс",), ("псм",)],
-            "creditor_bank": [("банк", "кредитор")],
             "usage_purposes": [("цель", "использ"), ("цели", "использ")],
             "insurance_territory": [("территор", "страх")],
         }.items():
@@ -665,6 +664,17 @@ class ExcelRequestParserV2:
             if value:
                 data[field_name] = value
                 source_map[field_name] = source
+
+        # The «Банк-кредитор» value always sits to the right of the label; the
+        # cell below belongs to a different attribute («Вид страхования»). When
+        # the creditor is not known yet the value is simply empty — never look
+        # below for it.
+        creditor_value, creditor_source = self._extract_labeled_value(
+            cells, rows, label_groups=[("банк", "кредитор")], allow_below=False
+        )
+        if creditor_value:
+            data["creditor_bank"] = creditor_value
+            source_map["creditor_bank"] = creditor_source
 
         asset_value, asset_source = self._extract_asset_status(cells, rows, application_type)
         if asset_value:
@@ -872,6 +882,7 @@ class ExcelRequestParserV2:
         rows: Dict[int, List[GridCell]],
         label_groups: List[Tuple[str, ...]],
         fallback_coordinate: str = "",
+        allow_below: bool = True,
     ) -> Tuple[str, str]:
         fallback_cell = self._cell_by_coordinate(cells, fallback_coordinate) if fallback_coordinate else None
 
@@ -887,9 +898,10 @@ class ExcelRequestParserV2:
             if right:
                 return right.value, right.coordinate
 
-            below = self._first_value_below(rows, cell)
-            if below:
-                return below.value, below.coordinate
+            if allow_below:
+                below = self._first_value_below(rows, cell)
+                if below:
+                    return below.value, below.coordinate
 
         if fallback_cell and fallback_cell.value:
             return fallback_cell.value, fallback_cell.coordinate
