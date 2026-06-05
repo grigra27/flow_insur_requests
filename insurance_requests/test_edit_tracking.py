@@ -322,7 +322,7 @@ class PostCreationComparisonTests(TestCase):
         return ev
 
     def test_changed_after_create_flagged_with_author(self):
-        user = User.objects.create_user('operator1')
+        user = User.objects.create_user('operator1', last_name='Петров', first_name='Иван')
         req = InsuranceRequest.objects.create(
             client_name='ООО Текущее',
             inn='1234567890',
@@ -347,7 +347,7 @@ class PostCreationComparisonTests(TestCase):
         self.assertEqual(client['original'], 'ООО Распознано')   # точка 1
         self.assertEqual(client['current'], 'ООО Текущее')       # точка 3
         self.assertTrue(client['changed_after_create'])
-        self.assertEqual(client['changed_by'], 'operator1')
+        self.assertEqual(client['changed_by'], 'Петров Иван')
         # Поле, которое не трогали после создания, не подсвечено.
         self.assertFalse(rows['inn']['changed_after_create'])
         self.assertEqual(req.parser_v2_post_creation_count, 1)

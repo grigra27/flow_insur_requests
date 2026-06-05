@@ -468,6 +468,14 @@ class InsuranceRequest(models.Model):
     # edited_after_create в аналитике.
     _POST_CREATE_EPSILON = timedelta(seconds=5)
 
+    @staticmethod
+    def _user_display_name(user):
+        """Фамилия Имя пользователя; username — только как запасной вариант."""
+        if user is None:
+            return ''
+        full = f"{(user.last_name or '').strip()} {(user.first_name or '').strip()}".strip()
+        return full or user.username
+
     def parser_v2_post_creation_changes(self):
         """Поля, изменённые ПОСЛЕ создания заявки (точка 3 vs точка 2).
 
@@ -505,11 +513,11 @@ class InsuranceRequest(models.Model):
                     continue
                 if not isinstance(delta, dict):
                     continue
-                username = getattr(evt.user, 'username', '') or '' if evt.user_id else ''
+                editor = self._user_display_name(evt.user) if evt.user_id else ''
                 for field_name in delta:
                     if field_name in {'updated_at', 'status'} or field_name in changes:
                         continue
-                    changes[field_name] = {'by': username, 'at': evt.datetime}
+                    changes[field_name] = {'by': editor, 'at': evt.datetime}
             return changes
         except Exception:  # noqa: BLE001
             return {}
