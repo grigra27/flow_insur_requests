@@ -8,27 +8,71 @@
 <style>
     /* Multi-object V2 requests are shown as one soft group without hiding
        individual clickable rows. */
+    .request-row--batch {
+        --request-batch-rgb: 22, 163, 74;
+        --request-batch-rgb-soft: 134, 239, 172;
+        --request-batch-text: #166534;
+    }
     .request-row--batch > * {
-        --bs-table-bg: rgba(var(--bs-info-rgb), 0.045);
-        border-color: rgba(var(--bs-info-rgb), 0.16);
+        --bs-table-bg: rgba(var(--request-batch-rgb), 0.026);
+        border-color: rgba(var(--request-batch-rgb), 0.10);
+        transition: background-color 0.18s ease, border-color 0.18s ease;
     }
     .table-striped > tbody > tr.request-row--batch:nth-of-type(odd) > * {
-        --bs-table-accent-bg: rgba(var(--bs-info-rgb), 0.055);
+        --bs-table-accent-bg: rgba(var(--request-batch-rgb), 0.036);
     }
-    .table-hover > tbody > tr.request-row--batch:hover > * {
-        --bs-table-accent-bg: rgba(var(--bs-info-rgb), 0.09);
-    }
-    .request-row--batch > *:first-child {
-        box-shadow: inset 3px 0 0 var(--bs-info);
+    .table-hover > tbody > tr.request-row--batch:hover > *,
+    .request-row--batch.request-row--batch-hover > * {
+        --bs-table-accent-bg: rgba(var(--request-batch-rgb), 0.060);
+        border-color: rgba(var(--request-batch-rgb), 0.16);
     }
     .request-row--batch-first > * {
-        border-top: 2px solid var(--bs-info);
+        border-top-color: rgba(var(--request-batch-rgb), 0.18);
     }
     .request-row--batch-last > * {
-        border-bottom: 2px solid var(--bs-info);
+        border-bottom-color: rgba(var(--request-batch-rgb), 0.18);
     }
     .request-row--batch + .request-row:not(.request-row--batch) > * {
         border-top-color: var(--bs-border-color-translucent);
+    }
+    .request-row--batch > td:first-child {
+        position: relative;
+        padding-left: 2.2rem;
+    }
+    .request-row--batch > td:first-child::before {
+        content: "";
+        position: absolute;
+        left: 0.95rem;
+        top: -1px;
+        bottom: -1px;
+        width: 2px;
+        border-radius: 999px;
+        background: linear-gradient(180deg, rgba(var(--request-batch-rgb), 0.14) 0%, rgba(var(--request-batch-rgb-soft), 0.52) 50%, rgba(var(--request-batch-rgb), 0.14) 100%);
+    }
+    .request-row--batch-first > td:first-child::before {
+        top: 1.15rem;
+    }
+    .request-row--batch-last > td:first-child::before {
+        bottom: 1.15rem;
+    }
+    .request-row--batch > td:first-child::after {
+        content: "";
+        position: absolute;
+        left: 0.62rem;
+        top: 50%;
+        width: 0.72rem;
+        height: 0.72rem;
+        border-radius: 999px;
+        border: 2px solid rgba(var(--request-batch-rgb), 0.28);
+        background: #ffffff;
+        transform: translateY(-50%);
+        box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.92);
+    }
+    .request-row--batch-first > td:first-child::after {
+        width: 0.84rem;
+        height: 0.84rem;
+        left: 0.56rem;
+        border-color: rgba(var(--request-batch-rgb), 0.44);
     }
     .request-object-title {
         max-width: 34rem;
@@ -38,6 +82,35 @@
     }
     .request-condition-badges {
         min-width: 10rem;
+    }
+    .request-title-stack {
+        display: flex;
+        flex-direction: column;
+        gap: 0.2rem;
+    }
+    .request-title-line {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.4rem;
+    }
+    .request-batch-caption {
+        color: #5f6f65;
+        font-size: 0.78rem;
+        line-height: 1.25;
+    }
+    .request-batch-index {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.14rem 0.48rem;
+        border-radius: 999px;
+        border: 1px solid rgba(var(--request-batch-rgb), 0.14);
+        background: rgba(var(--request-batch-rgb), 0.08);
+        color: var(--request-batch-text);
+        font-size: 0.76rem;
+        font-weight: 700;
+        line-height: 1;
+        vertical-align: middle;
     }
     .request-list-badge {
         display: inline-flex;
@@ -65,14 +138,18 @@
         min-width: 1.35rem;
         padding: 0.1rem 0.38rem;
         border-radius: 999px;
-        background: rgba(255, 255, 255, 0.18);
         box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
-        backdrop-filter: blur(6px);
     }
     .request-list-badge--batch {
-        background: linear-gradient(135deg, #2563eb 0%, #0ea5e9 100%);
-        color: #ffffff;
-        box-shadow: 0 8px 18px rgba(37, 99, 235, 0.22);
+        background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+        color: var(--request-batch-text);
+        border: 1px solid rgba(var(--request-batch-rgb), 0.12);
+        box-shadow: 0 4px 10px rgba(var(--request-batch-rgb), 0.08);
+    }
+    .request-list-badge--batch .request-list-badge__count {
+        background: rgba(var(--request-batch-rgb), 0.10);
+        box-shadow: inset 0 0 0 1px rgba(var(--request-batch-rgb), 0.10);
+        color: var(--request-batch-text);
     }
     .request-list-badge--duplicate {
         background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
@@ -278,27 +355,55 @@
                         role="link"
                         aria-label="Открыть заявку {{ request.get_display_name }}">
                         <td>
-                            <strong>{{ request.get_display_name }}</strong>
-                            {% if request.item_count and request.item_count > 1 %}
-                                <span class="badge request-list-badge request-list-badge--batch ms-1"
-                                      title="Партия из {{ request.item_count }} заявок. Эта запись — объект {{ request.item_no }} из {{ request.item_count }}.">
-                                    <i class="bi bi-collection"></i> {{ request.item_no }}/{{ request.item_count }}
-                                </span>
-                            {% endif %}
-	                            {% if request.source_object_count and request.source_object_count > 1 %}
-	                                <span class="badge request-list-badge request-list-badge--duplicate ms-1"
-	                                      title="Эта позиция представляет {{ request.source_object_count }} полностью одинаковых строк исходной Excel-заявки.">
-	                                    <i class="bi bi-layers-fill"></i>
-	                                    {{ request.source_object_count }} штук
-	                                </span>
-	                            {% endif %}
-	                            {% if request.is_parser_v2 and request.parser_v2_warning_count %}
-	                                <span class="badge request-list-badge request-list-badge--review ms-1"
-	                                      title="Parser V2: предупреждений разбора {{ request.parser_v2_warning_count }}">
-	                                    <i class="bi bi-exclamation-triangle-fill"></i>
-	                                    Проверить
-	                                </span>
-	                            {% endif %}
+                            <div class="request-title-stack">
+                                <div class="request-title-line">
+                                    <strong>
+                                        {% if request.item_count and request.item_count > 1 %}
+                                            {% if request.dfa_number and request.dfa_number != 'Номер ДФА не указан' %}
+                                                {{ request.dfa_number }}
+                                            {% else %}
+                                                #{{ request.id }}
+                                            {% endif %}
+                                        {% else %}
+                                            {{ request.get_display_name }}
+                                        {% endif %}
+                                    </strong>
+                                    {% if request.item_count and request.item_count > 1 %}
+                                        {% if request.item_no == 1 %}
+                                            <span class="badge request-list-badge request-list-badge--batch"
+                                                  title="Партия из {{ request.item_count }} заявок. Эта запись — объект {{ request.item_no }} из {{ request.item_count }}.">
+                                                <i class="bi bi-collection"></i>
+                                                <span class="d-none d-lg-inline">Партия</span>
+                                                <span class="request-list-badge__count">{{ request.item_no }}/{{ request.item_count }}</span>
+                                            </span>
+                                        {% else %}
+                                            <span class="request-batch-index"
+                                                  title="Объект {{ request.item_no }} из {{ request.item_count }} в партии">
+                                                {{ request.item_no }}/{{ request.item_count }}
+                                            </span>
+                                        {% endif %}
+                                    {% endif %}
+	                                {% if request.source_object_count and request.source_object_count > 1 %}
+	                                    <span class="badge request-list-badge request-list-badge--duplicate"
+	                                          title="Эта позиция представляет {{ request.source_object_count }} полностью одинаковых строк исходной Excel-заявки.">
+	                                        <i class="bi bi-layers-fill"></i>
+	                                        {{ request.source_object_count }} штук
+	                                    </span>
+	                                {% endif %}
+	                                {% if request.is_parser_v2 and request.parser_v2_warning_count %}
+	                                    <span class="badge request-list-badge request-list-badge--review"
+	                                          title="Parser V2: предупреждений разбора {{ request.parser_v2_warning_count }}">
+	                                        <i class="bi bi-exclamation-triangle-fill"></i>
+	                                        Проверить
+	                                    </span>
+	                                {% endif %}
+                                </div>
+                                {% if request.item_no == 1 and request.item_count and request.item_count > 1 %}
+                                    <div class="request-batch-caption d-none d-lg-block">
+                                        Единая партия объектов. Связанные позиции идут следующими строками.
+                                    </div>
+                                {% endif %}
+                            </div>
 	                        </td>
 	                        <td>{{ request.client_name }}</td>
 	                        <td>
@@ -620,8 +725,33 @@
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const requestRows = document.querySelectorAll('.request-row[data-href]');
+    const batchRowsMap = new Map();
 
     requestRows.forEach(function (row) {
+        const batchId = row.dataset.batchId;
+        if (!batchId) {
+            return;
+        }
+
+        if (!batchRowsMap.has(batchId)) {
+            batchRowsMap.set(batchId, []);
+        }
+        batchRowsMap.get(batchId).push(row);
+    });
+
+    function toggleBatchHover(batchId, isActive) {
+        if (!batchId || !batchRowsMap.has(batchId)) {
+            return;
+        }
+
+        batchRowsMap.get(batchId).forEach(function (row) {
+            row.classList.toggle('request-row--batch-hover', isActive);
+        });
+    }
+
+    requestRows.forEach(function (row) {
+        const batchId = row.dataset.batchId;
+
         row.addEventListener('click', function (e) {
             if (e.target.closest('a, button, .btn, .btn-group')) {
                 return;
@@ -638,6 +768,24 @@ document.addEventListener('DOMContentLoaded', function () {
                 window.location.href = this.getAttribute('data-href');
             }
         });
+
+        if (batchId) {
+            row.addEventListener('mouseenter', function () {
+                toggleBatchHover(batchId, true);
+            });
+
+            row.addEventListener('mouseleave', function () {
+                toggleBatchHover(batchId, false);
+            });
+
+            row.addEventListener('focusin', function () {
+                toggleBatchHover(batchId, true);
+            });
+
+            row.addEventListener('focusout', function () {
+                toggleBatchHover(batchId, false);
+            });
+        }
     });
 });
 </script>
