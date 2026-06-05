@@ -529,6 +529,53 @@ class InsuranceRequest(models.Model):
         tracked = set(get_scalar_field_meta()) | set(get_object_field_meta())
         return sum(1 for f in self.parser_v2_post_creation_changes() if f in tracked)
 
+    @classmethod
+    def post_creation_counts_for(cls, requests):
+        """Батч-подсчёт правок после создания: {request_id: число полей}.
+
+        Один запрос к CRUDEvent на весь список (без N+1) — для бейджа в списке
+        заявок. Считаются уникальные отслеживаемые поля, изменённые после
+        создания (хвост создания в пределах эпсилона отсекается).
+        """
+        items = [r for r in requests if getattr(r, 'pk', None)]
+        if not items:
+            return {}
+        try:
+            from easyaudit.models import CRUDEvent
+            from django.contrib.contenttypes.models import ContentType
+        except Exception:  # noqa: BLE001
+            return {}
+        from .edit_tracking import get_scalar_field_meta, get_object_field_meta
+        tracked = set(get_scalar_field_meta()) | set(get_object_field_meta())
+        created_map = {str(r.pk): r.created_at for r in items}
+        try:
+            ct = ContentType.objects.get_for_model(cls)
+            events = CRUDEvent.objects.filter(
+                content_type=ct, event_type=CRUDEvent.UPDATE,
+                object_id__in=list(created_map.keys()),
+            ).values('object_id', 'changed_fields', 'datetime')
+            per_request = {}
+            for evt in events:
+                oid = evt['object_id']
+                created = created_map.get(oid)
+                edt = evt['datetime']
+                if created and edt and edt <= created + cls._POST_CREATE_EPSILON:
+                    continue
+                try:
+                    delta = json.loads(evt['changed_fields']) if evt['changed_fields'] else {}
+                except (TypeError, ValueError):
+                    continue
+                if not isinstance(delta, dict):
+                    continue
+                fields = per_request.setdefault(oid, set())
+                for field_name in delta:
+                    if field_name in {'updated_at', 'status'} or field_name not in tracked:
+                        continue
+                    fields.add(field_name)
+            return {int(oid): len(fields) for oid, fields in per_request.items() if fields}
+        except Exception:  # noqa: BLE001
+            return {}
+
     def _enrich_with_current(self, rows, meta):
         """Дополнить строки сравнения текущим значением модели (точка 3).
 

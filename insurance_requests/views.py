@@ -635,7 +635,12 @@ def request_list(request):
     except EmptyPage:
         # Если номер страницы больше максимального, показываем последнюю страницу
         requests = paginator.get_page(paginator.num_pages)
-    
+
+    # Правки после создания (этап 2→3) одним запросом на всю страницу — без N+1.
+    post_creation_counts = InsuranceRequest.post_creation_counts_for(requests.object_list)
+    for req in requests.object_list:
+        req.post_creation_count = post_creation_counts.get(req.id, 0)
+
     # Генерируем данные для фильтров
     # Получаем все доступные филиалы
     available_branches = InsuranceRequest.objects.values_list('branch', flat=True)\
