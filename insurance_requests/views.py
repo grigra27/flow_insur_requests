@@ -31,6 +31,7 @@ from .forms import (
     parser_v2_object_initial_from_payload,
 )
 from .decorators import superuser_required, user_required
+from .edit_tracking import build_edit_tracking
 from .exporters import (
     build_request_export_filename,
     build_request_export_workbook,
@@ -147,9 +148,10 @@ def _json_safe_value(value):
     return value
 
 
-def _build_parser_v2_additional_data(draft, request_fields, user):
+def _build_parser_v2_additional_data(draft, request_fields, user, tracking=None):
     parse_result = draft.get('parse_result', {})
-    parsed_payload = parse_result.get('data', {}).get('parser_v2_payload', {})
+    full_data = parse_result.get('data', {}) or {}
+    parsed_payload = full_data.get('parser_v2_payload', {})
     application_type = parsed_payload.get('application_type', 'legal_entity')
     application_format = parsed_payload.get('application_format', 'casco_equipment')
     format_context = _get_format_context_for_logging(application_type, application_format)
@@ -174,7 +176,11 @@ def _build_parser_v2_additional_data(draft, request_fields, user):
             'source_map': parse_result.get('source_map', {}),
             'raw_debug': parse_result.get('raw_debug', {}),
             'parsed_payload': parsed_payload,
+            # Полный снимок распознанных данных («до» правок оператора) —
+            # нужен для diff по основным полям и для страницы сравнения.
+            'original_data': _json_safe_value(full_data),
             'preview_fields': _json_safe_value(request_fields),
+            'tracking': tracking or {},
             'source_file_name': draft.get('original_filename', ''),
             'created_from_preview': True,
             'created_by_user': user.username,
@@ -931,18 +937,34 @@ def upload_excel_v2(request):
 
         if form.is_valid() and formset_valid:
             request_fields = form.to_request_fields()
-            additional_data = _build_parser_v2_additional_data(draft, request_fields, request.user)
 
             # Stage 4.2: per-object data comes from the formset (operator may
             # have edited fields). Skipped forms are dropped before creation.
+            # object_pairs aligns each created object with its parsed «before»
+            # snapshot, in creation order (position == item_no), for the
+            # manual-edit tracking computed below.
+            object_initials = parser_v2_object_initial_from_payload(insured_objects)
+            object_pairs = []
             if object_formset is None:
                 selected_object_kwargs = []
             else:
-                selected_object_kwargs = [
-                    obj_form.to_object_kwargs()
-                    for obj_form in object_formset
-                    if not obj_form.cleaned_data.get('skip')
-                ]
+                selected_object_kwargs = []
+                for idx, obj_form in enumerate(object_formset):
+                    if obj_form.cleaned_data.get('skip'):
+                        continue
+                    selected_object_kwargs.append(obj_form.to_object_kwargs())
+                    before_obj = object_initials[idx] if idx < len(object_initials) else {}
+                    object_pairs.append((before_obj, obj_form.cleaned_data))
+
+            tracking = build_edit_tracking(
+                parse_result=parse_result,
+                scalar_after=form.cleaned_data,
+                object_pairs=object_pairs,
+                has_objects=bool(insured_objects),
+            )
+            additional_data = _build_parser_v2_additional_data(
+                draft, request_fields, request.user, tracking=tracking
+            )
 
             if insured_objects and not selected_object_kwargs:
                 messages.error(

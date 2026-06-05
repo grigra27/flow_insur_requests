@@ -378,6 +378,44 @@ class InsuranceRequest(models.Model):
         return self.parser_v2_data.get('source_file_name', '')
 
     @property
+    def parser_v2_tracking(self):
+        """Блок ручных правок оператора (tracking) из parser_v2."""
+        tracking = self.parser_v2_data.get('tracking')
+        return tracking if isinstance(tracking, dict) else {}
+
+    @property
+    def parser_v2_field_edits(self):
+        """Правки общих полей заявки (одинаковы для всех сестёр партии)."""
+        edits = self.parser_v2_tracking.get('field_edits')
+        return edits if isinstance(edits, list) else []
+
+    @property
+    def parser_v2_object_edits(self):
+        """Правки объектных полей именно этой заявки (по её позиции в партии).
+
+        object_edits хранится одинаково на каждой сестре как список по
+        позициям; позиция = item_no (1-based). Для одиночных заявок
+        item_no пуст — берётся первый (единственный) объект.
+        """
+        all_object_edits = self.parser_v2_tracking.get('object_edits')
+        if not isinstance(all_object_edits, list) or not all_object_edits:
+            return []
+        position = (self.item_no or 1) - 1
+        if 0 <= position < len(all_object_edits):
+            edits = all_object_edits[position]
+            return edits if isinstance(edits, list) else []
+        return []
+
+    @property
+    def parser_v2_all_edits(self):
+        """Все ручные правки этой заявки: общие + объектные."""
+        return list(self.parser_v2_field_edits) + list(self.parser_v2_object_edits)
+
+    @property
+    def parser_v2_edit_count(self):
+        return len(self.parser_v2_field_edits) + len(self.parser_v2_object_edits)
+
+    @property
     def list_premium_frequency_display(self):
         """List view only: show within-year frequencies, hide single/annual noise."""
         if self.premium_frequency in {'quarterly', 'biannual'}:

@@ -1259,6 +1259,79 @@ class ParserV2UploadTests(TestCase):
         self.assertEqual(created_request.additional_data['parser_v2']['version'], '2.0.0')
         self.assertTrue(RequestAttachment.objects.filter(request=created_request).exists())
 
+    def test_parser_v2_tracks_scalar_edit_and_stores_original_snapshot(self):
+        """Фаза 1: ручная правка основного поля попадает в tracking, полный
+        снимок распознанных данных сохраняется, а блок виден в карточке."""
+        self.client.login(username='parser_v2_root', password='pwd')
+        upload_response = self.client.post(
+            reverse('insurance_requests:upload_excel_v2'),
+            {'excel_file': self._xlsx_upload()},
+        )
+        post_data = self._post_data_from_preview(upload_response)
+        post_data['client_name'] = 'ООО Лютик'
+
+        self.client.post(reverse('insurance_requests:upload_excel_v2'), post_data)
+
+        created = InsuranceRequest.objects.get()
+        # Полный снимок «до» сохранён.
+        self.assertEqual(
+            created.additional_data['parser_v2']['original_data']['client_name'],
+            'ООО Ромашка',
+        )
+        # Правка отслежена.
+        edits = created.parser_v2_field_edits
+        client_edits = [e for e in edits if e['field'] == 'client_name']
+        self.assertEqual(len(client_edits), 1)
+        self.assertEqual(client_edits[0]['original'], 'ООО Ромашка')
+        self.assertEqual(client_edits[0]['modified'], 'ООО Лютик')
+        self.assertEqual(client_edits[0]['edit_type'], 'changed')
+        self.assertGreaterEqual(created.parser_v2_edit_count, 1)
+
+        # Блок «Ручные правки оператора» рендерится в карточке заявки.
+        detail = self.client.get(
+            reverse('insurance_requests:request_detail', kwargs={'pk': created.pk})
+        )
+        self.assertContains(detail, 'Ручные правки оператора')
+        self.assertContains(detail, 'ООО Лютик')
+
+    def test_parser_v2_no_false_positive_edits_when_unchanged(self):
+        """Фаза 1: если оператор ничего не правил, tracking пуст — плейсхолдеры
+        to_request_fields() не создают ложных правок."""
+        self.client.login(username='parser_v2_root', password='pwd')
+        upload_response = self.client.post(
+            reverse('insurance_requests:upload_excel_v2'),
+            {'excel_file': self._xlsx_upload()},
+        )
+        post_data = self._post_data_from_preview(upload_response)
+
+        self.client.post(reverse('insurance_requests:upload_excel_v2'), post_data)
+
+        created = InsuranceRequest.objects.get()
+        self.assertEqual(
+            created.parser_v2_edit_count, 0,
+            msg=f'Неожиданные правки: {created.parser_v2_all_edits}',
+        )
+
+    def test_parser_v2_tracks_object_edit_per_sibling(self):
+        """Фаза 1: объектная правка привязана к нужной заявке партии по item_no."""
+        self.client.login(username='parser_v2_root', password='pwd')
+        upload_response = self.client.post(
+            reverse('insurance_requests:upload_excel_v2'),
+            {'excel_file': self._xlsx_upload_with_multiple_objects(object_count=2)},
+        )
+        post_data = self._post_data_from_preview(upload_response)
+        post_data['objects-0-brand'] = 'LADA (исправлено)'
+
+        self.client.post(reverse('insurance_requests:upload_excel_v2'), post_data)
+
+        first = InsuranceRequest.objects.get(item_no=1)
+        second = InsuranceRequest.objects.get(item_no=2)
+        first_brand_edits = [e for e in first.parser_v2_object_edits if e['field'] == 'brand']
+        self.assertEqual(len(first_brand_edits), 1)
+        self.assertEqual(first_brand_edits[0]['modified'], 'LADA (исправлено)')
+        # Вторая сестра не правилась.
+        self.assertEqual(second.parser_v2_object_edits, [])
+
     def _xlsx_upload_with_multiple_objects(self, object_count=3, filename='partia.xlsx'):
         """Build a synthetic xlsx with several object rows so the parser
         finds an N-object batch."""

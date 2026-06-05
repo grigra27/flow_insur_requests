@@ -564,6 +564,56 @@
         </div>
         {% endif %}
 
+        {% if request.is_parser_v2 and request.parser_v2_edit_count %}
+        <!-- Ручные правки оператора относительно распознанного Excel -->
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0"><i class="bi bi-pencil-square"></i> Ручные правки оператора</h6>
+                <span class="badge bg-secondary" title="Сколько полей оператор изменил относительно распознанного Excel">
+                    {{ request.parser_v2_edit_count }}
+                </span>
+            </div>
+            <div class="card-body">
+                <p class="small text-muted mb-2">
+                    Сравнение распознанного из Excel и того, что сохранил оператор.
+                </p>
+                <div class="table-responsive">
+                    <table class="table table-sm small mb-0 align-middle">
+                        <thead>
+                            <tr>
+                                <th>Поле</th>
+                                <th>Распознано из Excel</th>
+                                <th>Внёс оператор</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for edit in request.parser_v2_all_edits %}
+                            <tr>
+                                <th class="fw-normal">
+                                    {{ edit.label }}
+                                    {% if edit.edit_type == 'filled' %}
+                                        <span class="badge bg-info text-dark" title="Парсер не распознал — оператор дозаполнил">дозаполнено</span>
+                                    {% elif edit.edit_type == 'cleared' %}
+                                        <span class="badge bg-secondary" title="Оператор очистил распознанное значение">очищено</span>
+                                    {% else %}
+                                        <span class="badge bg-warning text-dark" title="Оператор исправил распознанное значение">исправлено</span>
+                                    {% endif %}
+                                </th>
+                                <td class="text-muted">
+                                    {% if edit.original %}<del>{{ edit.original }}</del>{% else %}<span class="text-muted">—</span>{% endif %}
+                                </td>
+                                <td>
+                                    {% if edit.modified %}<strong>{{ edit.modified }}</strong>{% else %}<span class="text-muted">—</span>{% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
         <!-- Управление статусом -->
         <div class="card mb-4">
             <div class="card-header">
