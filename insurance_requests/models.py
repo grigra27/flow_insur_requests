@@ -133,6 +133,17 @@ class InsuranceRequest(models.Model):
     
     # Дополнительные данные в JSON формате
     additional_data = models.JSONField(default=dict, blank=True, verbose_name='Дополнительные данные')
+
+    # Денормализованный счётчик ручных правок оператора относительно
+    # распознанного парсером (для бейджей в списке и аналитики без разбора
+    # JSON). Заполняется при создании заявки из V2-превью; для V1 и
+    # исторических заявок остаётся 0.
+    manual_edits_count = models.PositiveIntegerField(
+        default=0,
+        db_index=True,
+        verbose_name='Ручных правок оператора',
+        help_text='Сколько полей оператор изменил относительно распознанного из Excel'
+    )
     
     # Примечание
     notes = models.TextField(blank=True, verbose_name='Примечание')

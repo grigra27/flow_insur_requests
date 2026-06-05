@@ -1372,6 +1372,84 @@ class ParserV2UploadTests(TestCase):
             reverse('insurance_requests:request_detail', kwargs={'pk': legacy.pk}),
         )
 
+    def test_parser_v2_sets_manual_edits_count_per_sibling(self):
+        """Фаза 3: денормализованный счётчик правок выставляется на каждую заявку."""
+        self.client.login(username='parser_v2_root', password='pwd')
+        upload_response = self.client.post(
+            reverse('insurance_requests:upload_excel_v2'),
+            {'excel_file': self._xlsx_upload_with_multiple_objects(object_count=2)},
+        )
+        post_data = self._post_data_from_preview(upload_response)
+        # Одна общая правка + одна объектная правка у первой сестры.
+        post_data['client_name'] = 'ООО Лютик'
+        post_data['objects-0-brand'] = 'LADA (исправлено)'
+
+        self.client.post(reverse('insurance_requests:upload_excel_v2'), post_data)
+
+        first = InsuranceRequest.objects.get(item_no=1)
+        second = InsuranceRequest.objects.get(item_no=2)
+        # Первая: общая (client_name) + объектная (brand) = 2.
+        self.assertEqual(first.manual_edits_count, 2)
+        self.assertEqual(first.manual_edits_count, first.parser_v2_edit_count)
+        # Вторая: только общая правка = 1.
+        self.assertEqual(second.manual_edits_count, 1)
+
+    def test_parser_v2_zero_edits_count_when_unchanged(self):
+        """Фаза 3: без правок счётчик 0."""
+        self.client.login(username='parser_v2_root', password='pwd')
+        upload_response = self.client.post(
+            reverse('insurance_requests:upload_excel_v2'),
+            {'excel_file': self._xlsx_upload()},
+        )
+        post_data = self._post_data_from_preview(upload_response)
+        self.client.post(reverse('insurance_requests:upload_excel_v2'), post_data)
+
+        created = InsuranceRequest.objects.get()
+        self.assertEqual(created.manual_edits_count, 0)
+
+    def test_request_list_shows_manual_edits_badge(self):
+        """Фаза 3: бейдж правок в списке ведёт на страницу сравнения."""
+        self.client.login(username='parser_v2_root', password='pwd')
+        upload_response = self.client.post(
+            reverse('insurance_requests:upload_excel_v2'),
+            {'excel_file': self._xlsx_upload()},
+        )
+        post_data = self._post_data_from_preview(upload_response)
+        post_data['client_name'] = 'ООО Лютик'
+        self.client.post(reverse('insurance_requests:upload_excel_v2'), post_data)
+        created = InsuranceRequest.objects.get()
+
+        response = self.client.get(reverse('insurance_requests:request_list'))
+        self.assertContains(
+            response,
+            reverse('insurance_requests:request_comparison', kwargs={'pk': created.pk}),
+        )
+
+    def test_admin_shows_edits_and_filter(self):
+        """Фаза 3: админка фильтрует по правкам и показывает их таблицу."""
+        self.client.login(username='parser_v2_root', password='pwd')
+        upload_response = self.client.post(
+            reverse('insurance_requests:upload_excel_v2'),
+            {'excel_file': self._xlsx_upload()},
+        )
+        post_data = self._post_data_from_preview(upload_response)
+        post_data['client_name'] = 'ООО Лютик'
+        self.client.post(reverse('insurance_requests:upload_excel_v2'), post_data)
+        created = InsuranceRequest.objects.get()
+
+        # Read-only таблица правок на странице заявки в админке.
+        change_url = reverse('admin:insurance_requests_insurancerequest_change', args=[created.pk])
+        change_response = self.client.get(change_url)
+        self.assertEqual(change_response.status_code, 200)
+        self.assertContains(change_response, 'ООО Лютик')
+
+        # Фильтр «С правками» оставляет заявку, «Без правок» — скрывает.
+        changelist_url = reverse('admin:insurance_requests_insurancerequest_changelist')
+        with_edits = self.client.get(changelist_url, {'has_manual_edits': 'yes'})
+        self.assertContains(with_edits, created.get_display_name())
+        without_edits = self.client.get(changelist_url, {'has_manual_edits': 'no'})
+        self.assertNotContains(without_edits, 'ООО Лютик')
+
     def _xlsx_upload_with_multiple_objects(self, object_count=3, filename='partia.xlsx'):
         """Build a synthetic xlsx with several object rows so the parser
         finds an N-object batch."""

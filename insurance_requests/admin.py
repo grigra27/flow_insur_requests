@@ -1,5 +1,5 @@
 from django.contrib import admin
-from django.utils.html import format_html
+from django.utils.html import format_html, format_html_join
 from django.urls import reverse
 from django.utils import timezone
 from datetime import timedelta
@@ -7,18 +7,38 @@ import pytz
 from .models import InsuranceRequest, RequestAttachment
 
 
+class HasManualEditsFilter(admin.SimpleListFilter):
+    """Фильтр по наличию ручных правок оператора относительно распознанного."""
+    title = 'Ручные правки оператора'
+    parameter_name = 'has_manual_edits'
+
+    def lookups(self, request, model_admin):
+        return (
+            ('yes', 'С правками'),
+            ('no', 'Без правок'),
+        )
+
+    def queryset(self, request, queryset):
+        if self.value() == 'yes':
+            return queryset.filter(manual_edits_count__gt=0)
+        if self.value() == 'no':
+            return queryset.filter(manual_edits_count=0)
+        return queryset
+
+
 @admin.register(InsuranceRequest)
 class InsuranceRequestAdmin(admin.ModelAdmin):
     # Расширенный список отображения с ключевыми полями
     list_display = [
-        'get_display_name', 'client_name', 'inn', 'branch', 
-        'insurance_type', 'status', 'created_at_moscow', 
+        'get_display_name', 'client_name', 'inn', 'branch',
+        'insurance_type', 'status', 'manual_edits_count', 'created_at_moscow',
         'response_deadline_moscow', 'created_by'
     ]
-    
+
     # Улучшенные фильтры по ключевым полям
     list_filter = [
         'status', 'insurance_type', 'branch', 'franchise_type',
+        HasManualEditsFilter,
         'has_installment', 'has_autostart', 'has_casco_ce', 'has_transportation',
         'has_construction_work', 'created_at'
     ]
@@ -32,7 +52,7 @@ class InsuranceRequestAdmin(admin.ModelAdmin):
     # Поля только для чтения
     readonly_fields = [
         'created_at', 'updated_at',
-        'get_attachments_count'
+        'get_attachments_count', 'manual_edits_count', 'get_manual_edits'
     ]
     
     # Массовые операции для управления статусами и сроками ответа
@@ -93,6 +113,10 @@ class InsuranceRequestAdmin(admin.ModelAdmin):
             ),
             'classes': ('collapse',)
         }),
+        ('Ручные правки оператора', {
+            'fields': ('manual_edits_count', 'get_manual_edits'),
+            'classes': ('collapse',)
+        }),
         ('Дополнительные данные', {
             'fields': ('additional_data', 'get_attachments_count'),
             'classes': ('collapse',)
@@ -123,6 +147,39 @@ class InsuranceRequestAdmin(admin.ModelAdmin):
     
 
     
+    def get_manual_edits(self, obj):
+        """Таблица ручных правок оператора относительно распознанного из Excel."""
+        edits = obj.parser_v2_all_edits
+        if not edits:
+            return 'Ручных правок нет'
+        type_labels = {'filled': 'дозаполнено', 'cleared': 'очищено', 'changed': 'исправлено'}
+        rows = format_html_join(
+            '',
+            '<tr><th style="text-align:left;padding-right:12px;">{}</th>'
+            '<td style="padding-right:12px;"><del>{}</del></td>'
+            '<td style="padding-right:12px;"><strong>{}</strong></td>'
+            '<td>{}</td></tr>',
+            (
+                (
+                    edit.get('label', edit.get('field', '')),
+                    edit.get('original') or '—',
+                    edit.get('modified') or '—',
+                    type_labels.get(edit.get('edit_type'), edit.get('edit_type', '')),
+                )
+                for edit in edits
+            ),
+        )
+        return format_html(
+            '<table><thead><tr>'
+            '<th style="text-align:left;padding-right:12px;">Поле</th>'
+            '<th style="text-align:left;padding-right:12px;">Распознано</th>'
+            '<th style="text-align:left;padding-right:12px;">Внёс оператор</th>'
+            '<th style="text-align:left;">Тип</th>'
+            '</tr></thead><tbody>{}</tbody></table>',
+            rows,
+        )
+    get_manual_edits.short_description = 'Что правил оператор'
+
     def get_attachments_count(self, obj):
         """Отображает количество вложений с ссылкой на них"""
         count = obj.attachments.count()

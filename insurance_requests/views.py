@@ -318,17 +318,36 @@ def _create_requests_with_splitting(*, request_fields, additional_data, object_k
     common = _build_common_request_kwargs(request_fields, additional_data, user)
     created: list = []
 
+    # Per-request manual-edit count = common field edits + this sibling's
+    # object edits (by creation position). Denormalized into
+    # manual_edits_count so the list/admin/analytics avoid parsing JSON.
+    tracking = (additional_data.get('parser_v2') or {}).get('tracking') or {}
+    field_edit_count = len(tracking.get('field_edits') or [])
+    object_edits = tracking.get('object_edits') or []
+
+    def _edit_count_for(position):
+        count = field_edit_count
+        index = position - 1
+        if 0 <= index < len(object_edits):
+            count += len(object_edits[index])
+        return count
+
     with transaction.atomic():
         if not object_kwargs_list:
             # Legacy fallback — no objects parsed, use the form values.
             instance = InsuranceRequest.objects.create(
                 vehicle_info=request_fields['vehicle_info'],
                 manufacturing_year=request_fields['manufacturing_year'],
+                manual_edits_count=_edit_count_for(1),
                 **common,
             )
             created.append(instance)
         elif len(object_kwargs_list) == 1:
-            instance = InsuranceRequest.objects.create(**object_kwargs_list[0], **common)
+            instance = InsuranceRequest.objects.create(
+                manual_edits_count=_edit_count_for(1),
+                **object_kwargs_list[0],
+                **common,
+            )
             created.append(instance)
         else:
             batch_id = uuid.uuid4()
@@ -338,6 +357,7 @@ def _create_requests_with_splitting(*, request_fields, additional_data, object_k
                     source_batch_id=batch_id,
                     item_no=idx,
                     item_count=item_count,
+                    manual_edits_count=_edit_count_for(idx),
                     **object_kwargs,
                     **common,
                 )
