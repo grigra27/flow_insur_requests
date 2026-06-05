@@ -20,9 +20,20 @@
 """
 from __future__ import annotations
 
+import datetime as _dt
 import re
 from decimal import Decimal, InvalidOperation
 from typing import Any, Dict, List, Tuple
+
+# Плейсхолдеры, которыми to_request_fields() заполняет пустые обязательные
+# поля модели. В пространстве распознанных данных («до») их нет, поэтому при
+# сравнении с текущим значением модели (точка 3) их нужно свести к пустоте —
+# иначе пустое распознавание давало бы ложную «правку после создания».
+_PLACEHOLDER_VALUES = {
+    'Клиент не указан',
+    'Предмет лизинга не указан',
+    'Номер ДФА не указан',
+}
 
 # Скалярные поля формы, которые не участвуют в сравнении как «правки».
 _SCALAR_FIELDS_EXCLUDED = {'draft_id'}
@@ -116,6 +127,29 @@ def _display_value(field_name: str, value: Any, meta: Dict[str, Dict[str, Any]])
     if choices and text in choices:
         return choices[text]
     return text
+
+
+def current_display_value(field_name: str, value: Any, meta: Dict[str, Dict[str, Any]]) -> str:
+    """Человекочитаемое ТЕКУЩЕЕ значение поля модели (точка 3) для показа.
+
+    В отличие от `_display_value`, который работает с «сырыми» значениями
+    формы, это значение приходит прямо из модели и потому может быть:
+    - плейсхолдером (`Клиент не указан` …) — сводим к пустоте, чтобы не
+      показывать его как осмысленное значение;
+    - объектом date/datetime — форматируем по-московски, иначе str() даёт
+      длинную ISO-строку с таймзоной.
+    Остальные типы обслуживает общий `_display_value`.
+    """
+    if isinstance(value, str) and value.strip() in _PLACEHOLDER_VALUES:
+        value = ''
+    if isinstance(value, _dt.datetime):
+        from django.utils import timezone as djtz
+        if djtz.is_aware(value):
+            value = djtz.localtime(value)
+        return value.strftime('%d.%m.%Y %H:%M')
+    if isinstance(value, _dt.date):
+        return value.strftime('%d.%m.%Y')
+    return _display_value(field_name, value, meta)
 
 
 def _edit_type(before_canonical: str, after_canonical: str) -> str:

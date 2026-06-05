@@ -14,15 +14,22 @@
 </div>
 
 <p class="text-muted">
-    Заявка <strong>{{ request.get_display_name }}</strong> · слева — что распознал
-    парсер из Excel, справа — что сохранил оператор. Изменённые строки выделены.
+    Заявка <strong>{{ request.get_display_name }}</strong>. Три состояния поля:
+    что распознал парсер из Excel, что сохранил оператор при создании и что в
+    заявке сейчас. <span class="badge bg-warning text-dark">Правка парсера</span>
+    — оператор поправил распознанное на входе;
+    <span class="badge" style="background-color:#cfe2ff;color:#084298;">изменено после создания</span>
+    — поле меняли уже после сохранения.
 </p>
 
 <div class="d-flex flex-wrap gap-2 align-items-center mb-4">
     {% if changed_count %}
-        <span class="badge bg-warning text-dark fs-6">Изменено полей: {{ changed_count }}</span>
+        <span class="badge bg-warning text-dark fs-6">Правка парсера: {{ changed_count }}</span>
     {% else %}
-        <span class="badge bg-success fs-6">Оператор ничего не правил</span>
+        <span class="badge bg-success fs-6">Парсер отработал без правок на входе</span>
+    {% endif %}
+    {% if changed_after_count %}
+        <span class="badge fs-6" style="background-color:#cfe2ff;color:#084298;">Изменено после создания: {{ changed_after_count }}</span>
     {% endif %}
     {% if request.parser_v2_confidence_percent != None %}
         <span class="badge bg-light text-dark border">Уверенность разбора: {{ request.parser_v2_confidence_percent }}%</span>
@@ -48,41 +55,7 @@
         <h6 class="mb-0"><i class="bi bi-card-list"></i> Общие поля заявки</h6>
     </div>
     <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table table-sm mb-0 align-middle">
-                <thead class="table-light">
-                    <tr>
-                        <th style="width: 28%;">Поле</th>
-                        <th style="width: 36%;">Распознано из Excel</th>
-                        <th style="width: 36%;">Сохранил оператор</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for row in scalar_rows %}
-                    <tr class="{% if row.changed %}table-warning{% endif %}">
-                        <th class="fw-normal">
-                            {{ row.label }}
-                            {% if row.changed %}
-                                {% if row.edit_type == 'filled' %}
-                                    <span class="badge bg-info text-dark">дозаполнено</span>
-                                {% elif row.edit_type == 'cleared' %}
-                                    <span class="badge bg-secondary">очищено</span>
-                                {% else %}
-                                    <span class="badge bg-warning text-dark">исправлено</span>
-                                {% endif %}
-                            {% endif %}
-                        </th>
-                        <td class="{% if row.changed %}text-muted{% endif %}">
-                            {% if row.original %}{% if row.changed %}<del>{{ row.original }}</del>{% else %}{{ row.original }}{% endif %}{% else %}<span class="text-muted">—</span>{% endif %}
-                        </td>
-                        <td>
-                            {% if row.modified %}{% if row.changed %}<strong>{{ row.modified }}</strong>{% else %}{{ row.modified }}{% endif %}{% else %}<span class="text-muted">—</span>{% endif %}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
+        {% include 'insurance_requests/_comparison_table.html' with rows=scalar_rows %}
     </div>
 </div>
 {% endif %}
@@ -93,41 +66,7 @@
         <h6 class="mb-0"><i class="bi bi-box-seam"></i> Поля объекта{% if request.item_count and request.item_count > 1 %} (объект {{ request.item_no }} из {{ request.item_count }}){% endif %}</h6>
     </div>
     <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table table-sm mb-0 align-middle">
-                <thead class="table-light">
-                    <tr>
-                        <th style="width: 28%;">Поле</th>
-                        <th style="width: 36%;">Распознано из Excel</th>
-                        <th style="width: 36%;">Сохранил оператор</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for row in object_rows %}
-                    <tr class="{% if row.changed %}table-warning{% endif %}">
-                        <th class="fw-normal">
-                            {{ row.label }}
-                            {% if row.changed %}
-                                {% if row.edit_type == 'filled' %}
-                                    <span class="badge bg-info text-dark">дозаполнено</span>
-                                {% elif row.edit_type == 'cleared' %}
-                                    <span class="badge bg-secondary">очищено</span>
-                                {% else %}
-                                    <span class="badge bg-warning text-dark">исправлено</span>
-                                {% endif %}
-                            {% endif %}
-                        </th>
-                        <td class="{% if row.changed %}text-muted{% endif %}">
-                            {% if row.original %}{% if row.changed %}<del>{{ row.original }}</del>{% else %}{{ row.original }}{% endif %}{% else %}<span class="text-muted">—</span>{% endif %}
-                        </td>
-                        <td>
-                            {% if row.modified %}{% if row.changed %}<strong>{{ row.modified }}</strong>{% else %}{{ row.modified }}{% endif %}{% else %}<span class="text-muted">—</span>{% endif %}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
+        {% include 'insurance_requests/_comparison_table.html' with rows=object_rows %}
     </div>
 </div>
 {% endif %}

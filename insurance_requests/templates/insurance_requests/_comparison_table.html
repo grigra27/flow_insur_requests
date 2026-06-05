@@ -1,0 +1,53 @@
+{% load tz %}
+{# Таблица сравнения одного блока полей: распознано (1) / при создании (2) / текущее (3). #}
+<div class="table-responsive">
+    <table class="table table-sm mb-0 align-middle">
+        <thead class="table-light">
+            <tr>
+                <th style="width: 22%;">Поле</th>
+                <th style="width: 26%;">Распознано из Excel</th>
+                <th style="width: 26%;">Оператор при создании</th>
+                <th style="width: 26%;">Текущее значение</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in rows %}
+            <tr class="{% if row.changed %}table-warning{% elif row.changed_after_create %}table-info{% endif %}">
+                <th class="fw-normal">
+                    {{ row.label }}
+                    {% if row.changed %}
+                        {% if row.edit_type == 'filled' %}
+                            <span class="badge bg-info text-dark" title="Парсер не распознал — оператор дозаполнил на входе">дозаполнено</span>
+                        {% elif row.edit_type == 'cleared' %}
+                            <span class="badge bg-secondary" title="Оператор очистил распознанное на входе">очищено</span>
+                        {% else %}
+                            <span class="badge bg-warning text-dark" title="Оператор исправил распознанное на входе">Правка парсера</span>
+                        {% endif %}
+                    {% endif %}
+                    {% if row.changed_after_create %}
+                        <span class="badge" style="background-color:#cfe2ff;color:#084298;"
+                              title="Поле меняли после создания заявки{% if row.changed_by %} ({{ row.changed_by }}){% endif %}">изменено после создания</span>
+                    {% endif %}
+                </th>
+                {# 1. Распознано #}
+                <td class="text-muted">
+                    {% if row.original %}{% if row.changed %}<del>{{ row.original }}</del>{% else %}{{ row.original }}{% endif %}{% else %}<span class="text-muted">—</span>{% endif %}
+                </td>
+                {# 2. Оператор при создании #}
+                <td>
+                    {% if row.modified %}{% if row.changed %}<strong>{{ row.modified }}</strong>{% else %}{{ row.modified }}{% endif %}{% else %}<span class="text-muted">—</span>{% endif %}
+                </td>
+                {# 3. Текущее значение #}
+                <td>
+                    {% if row.current %}{% if row.changed_after_create %}<strong class="text-primary">{{ row.current }}</strong>{% else %}{{ row.current }}{% endif %}{% else %}<span class="text-muted">—</span>{% endif %}
+                    {% if row.changed_after_create and row.changed_at %}
+                        <div class="small text-muted">
+                            {% if row.changed_by %}{{ row.changed_by }}, {% endif %}{{ row.changed_at|date:"d.m.Y H:i" }}
+                        </div>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>

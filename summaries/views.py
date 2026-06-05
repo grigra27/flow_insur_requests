@@ -26,6 +26,7 @@ from .services.analytics_insurance_companies import (
 )
 from .services import analytics_managers as analytics_managers_service
 from .services import analytics_parser_edits as analytics_parser_edits_service
+from .services import analytics_post_creation as analytics_post_creation_service
 
 logger = logging.getLogger(__name__)
 
@@ -3127,6 +3128,14 @@ def analytics_parser_edits(request):
     filters = analytics_parser_edits_service.parse_filters(request.GET)
     payload = analytics_parser_edits_service.build_payload(filters)
     return render(request, 'summaries/analytics_parser_edits.html', payload)
+
+
+@admin_required
+def analytics_post_creation(request):
+    """Аналитика правок после создания заявки (контроль операторов/процесса)."""
+    filters = analytics_post_creation_service.parse_filters(request.GET)
+    payload = analytics_post_creation_service.build_payload(filters)
+    return render(request, 'summaries/analytics_post_creation.html', payload)
 
 
 @admin_required

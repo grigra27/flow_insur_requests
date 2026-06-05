@@ -1,10 +1,14 @@
 """Тесты трекинга ручных правок оператора (фаза 1)."""
+import datetime as dt
+import json
 from decimal import Decimal
 
-from django.test import SimpleTestCase
+from django.contrib.auth.models import User
+from django.test import SimpleTestCase, TestCase
 
 from .edit_tracking import (
     build_edit_tracking,
+    current_display_value,
     diff_fields,
     get_object_field_meta,
     get_scalar_field_meta,
@@ -266,3 +270,103 @@ class ModelEditPropertiesTests(SimpleTestCase):
         self.assertEqual(req.parser_v2_field_edits, [])
         self.assertEqual(req.parser_v2_object_edits, [])
         self.assertEqual(req.parser_v2_edit_count, 0)
+
+
+class CurrentDisplayValueTests(SimpleTestCase):
+    """Точка 3: форматирование текущего значения поля модели для показа."""
+
+    def setUp(self):
+        self.meta = get_scalar_field_meta()
+
+    def test_placeholder_neutralized_to_empty(self):
+        # to_request_fields() кладёт плейсхолдеры в пустые обязательные поля —
+        # в сравнении они должны читаться как пустота, а не как значение.
+        self.assertEqual(current_display_value('client_name', 'Клиент не указан', self.meta), '')
+        self.assertEqual(current_display_value('vehicle_info', 'Предмет лизинга не указан', self.meta), '')
+        self.assertEqual(current_display_value('dfa_number', 'Номер ДФА не указан', self.meta), '')
+
+    def test_datetime_localized_and_formatted(self):
+        from django.utils import timezone as djtz
+        value = djtz.make_aware(dt.datetime(2025, 1, 2, 9, 30), djtz.utc)
+        # Europe/Moscow = UTC+3 → 12:30.
+        self.assertEqual(current_display_value('response_deadline', value, self.meta), '02.01.2025 12:30')
+
+    def test_date_formatted(self):
+        self.assertEqual(current_display_value('birth_date', dt.date(1990, 5, 7), self.meta), '07.05.1990')
+
+    def test_choice_code_rendered_as_label(self):
+        self.assertEqual(current_display_value('deal_status', 'new', self.meta), 'Новая сделка')
+
+    def test_plain_text_passthrough(self):
+        self.assertEqual(current_display_value('manager_name', 'Иванов И.И.', self.meta), 'Иванов И.И.')
+
+
+class PostCreationComparisonTests(TestCase):
+    """Точка 3 в сравнении: правки после создания (из CRUDEvent)."""
+
+    def _make_crud_update(self, req, changed_fields, *, user, when):
+        from easyaudit.models import CRUDEvent
+        from django.contrib.contenttypes.models import ContentType
+        ct = ContentType.objects.get_for_model(InsuranceRequest)
+        ev = CRUDEvent.objects.create(
+            event_type=CRUDEvent.UPDATE,
+            object_id=str(req.pk),
+            content_type=ct,
+            object_repr='req',
+            changed_fields=json.dumps(changed_fields),
+            user=user,
+        )
+        # datetime — auto_now_add, выставляем явно: правка должна быть позже
+        # создания заявки, иначе попадёт в «хвост создания».
+        CRUDEvent.objects.filter(pk=ev.pk).update(datetime=when)
+        return ev
+
+    def test_changed_after_create_flagged_with_author(self):
+        user = User.objects.create_user('operator1', last_name='Петров', first_name='Иван')
+        req = InsuranceRequest.objects.create(
+            client_name='ООО Текущее',
+            inn='1234567890',
+            insurance_type='КАСКО',
+            status='uploaded',
+            created_by=user,
+            additional_data={
+                'parser_version': 'v2',
+                'parser_v2': {
+                    'original_data': {'client_name': 'ООО Распознано'},
+                    'tracking': {'field_edits': []},
+                },
+            },
+        )
+        self._make_crud_update(
+            req, {'client_name': ['ООО Распознано', 'ООО Текущее']},
+            user=user, when=req.created_at + dt.timedelta(hours=1),
+        )
+
+        rows = {r['field']: r for r in req.parser_v2_scalar_comparison()}
+        client = rows['client_name']
+        self.assertEqual(client['original'], 'ООО Распознано')   # точка 1
+        self.assertEqual(client['current'], 'ООО Текущее')       # точка 3
+        self.assertTrue(client['changed_after_create'])
+        self.assertEqual(client['changed_by'], 'Петров Иван')
+        # Поле, которое не трогали после создания, не подсвечено.
+        self.assertFalse(rows['inn']['changed_after_create'])
+        self.assertEqual(req.parser_v2_post_creation_count, 1)
+
+    def test_creation_burst_not_counted_as_late_edit(self):
+        user = User.objects.create_user('operator2')
+        req = InsuranceRequest.objects.create(
+            client_name='ООО А', inn='1', insurance_type='КАСКО',
+            status='uploaded', created_by=user,
+            additional_data={
+                'parser_version': 'v2',
+                'parser_v2': {'original_data': {'client_name': 'ООО А'}, 'tracking': {'field_edits': []}},
+            },
+        )
+        # Правка «в момент создания» (в пределах эпсилона) — не считается поздней.
+        self._make_crud_update(
+            req, {'client_name': ['x', 'ООО А']},
+            user=user, when=req.created_at + dt.timedelta(seconds=1),
+        )
+        self.assertEqual(req.parser_v2_post_creation_count, 0)
+        rows = {r['field']: r for r in req.parser_v2_scalar_comparison()}
+        self.assertFalse(rows['client_name']['changed_after_create'])

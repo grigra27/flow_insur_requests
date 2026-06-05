@@ -635,7 +635,12 @@ def request_list(request):
     except EmptyPage:
         # Если номер страницы больше максимального, показываем последнюю страницу
         requests = paginator.get_page(paginator.num_pages)
-    
+
+    # Правки после создания (этап 2→3) одним запросом на всю страницу — без N+1.
+    post_creation_counts = InsuranceRequest.post_creation_counts_for(requests.object_list)
+    for req in requests.object_list:
+        req.post_creation_count = post_creation_counts.get(req.id, 0)
+
     # Генерируем данные для фильтров
     # Получаем все доступные филиалы
     available_branches = InsuranceRequest.objects.values_list('branch', flat=True)\
@@ -1178,10 +1183,9 @@ def request_comparison(request, pk):
 
     scalar_rows = insurance_request.parser_v2_scalar_comparison()
     object_rows = insurance_request.parser_v2_object_comparison()
-    changed_count = (
-        sum(1 for row in scalar_rows if row['changed'])
-        + sum(1 for row in object_rows if row['changed'])
-    )
+    all_rows = list(scalar_rows) + list(object_rows)
+    changed_count = sum(1 for row in all_rows if row['changed'])
+    changed_after_count = sum(1 for row in all_rows if row.get('changed_after_create'))
     original_attachment = insurance_request.attachments.first()
 
     return render(request, 'insurance_requests/request_comparison.html', {
@@ -1189,6 +1193,7 @@ def request_comparison(request, pk):
         'scalar_rows': scalar_rows,
         'object_rows': object_rows,
         'changed_count': changed_count,
+        'changed_after_count': changed_after_count,
         'has_snapshot': insurance_request.parser_v2_has_original_snapshot,
         'original_attachment': original_attachment,
     })

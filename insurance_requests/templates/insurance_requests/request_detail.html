@@ -537,9 +537,22 @@
                 </details>
                 {% endif %}
 
+                <div class="d-flex flex-wrap gap-1 mt-3">
+                    {% if request.parser_v2_edit_count %}
+                        <span class="badge bg-warning text-dark" title="Оператор поправил распознанное парсером при создании">
+                            Правка парсера: {{ request.parser_v2_edit_count }}
+                        </span>
+                    {% endif %}
+                    {% if request.parser_v2_post_creation_count %}
+                        <span class="badge" style="background-color:#cfe2ff;color:#084298;" title="Поля меняли после создания заявки">
+                            Изменено после создания: {{ request.parser_v2_post_creation_count }}
+                        </span>
+                    {% endif %}
+                </div>
+
                 <a href="{% url 'insurance_requests:request_comparison' request.pk %}"
-                   class="btn btn-outline-secondary btn-sm w-100 mt-3">
-                    <i class="bi bi-layout-split"></i> Сравнить с Excel
+                   class="btn btn-outline-secondary btn-sm w-100 mt-2">
+                    <i class="bi bi-layout-split"></i> Сравнить с Excel (3 состояния)
                 </a>
 
                 {% if user.is_superuser and request.parser_v2_data.source_map %}
@@ -565,14 +578,16 @@
         <!-- Ручные правки оператора относительно распознанного Excel -->
         <div class="card mb-4">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <h6 class="mb-0"><i class="bi bi-pencil-square"></i> Ручные правки оператора</h6>
-                <span class="badge bg-secondary" title="Сколько полей оператор изменил относительно распознанного Excel">
+                <h6 class="mb-0"><i class="bi bi-pencil-square"></i> Правки оператора при создании</h6>
+                <span class="badge bg-secondary" title="Сколько полей оператор изменил относительно распознанного Excel при создании">
                     {{ request.parser_v2_edit_count }}
                 </span>
             </div>
             <div class="card-body">
                 <p class="small text-muted mb-2">
-                    Сравнение распознанного из Excel и того, что сохранил оператор.
+                    Что оператор поправил в распознанном из Excel при создании заявки.
+                    Изменения после создания — на странице
+                    <a href="{% url 'insurance_requests:request_comparison' request.pk %}">сравнения (3 состояния)</a>.
                 </p>
                 <div class="table-responsive">
                     <table class="table table-sm small mb-0 align-middle">
@@ -580,7 +595,7 @@
                             <tr>
                                 <th>Поле</th>
                                 <th>Распознано из Excel</th>
-                                <th>Внёс оператор</th>
+                                <th>Оператор при создании</th>
                             </tr>
                         </thead>
                         <tbody>

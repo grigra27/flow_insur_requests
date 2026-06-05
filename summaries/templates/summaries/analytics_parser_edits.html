@@ -60,19 +60,94 @@
 </div>
 {% endif %}
 
-<div class="row g-4">
-    {# Top fields #}
+{% if selected_field %}
+<div class="card mb-4 border-primary">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="mb-0">Примеры правок поля «{{ selected_field_label|default:selected_field }}»</h6>
+        <a href="?days={{ filters.days }}" class="btn btn-sm btn-outline-secondary">Сбросить</a>
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+            <thead class="table-light">
+                <tr><th>Заявка</th><th>Распознано парсером</th><th>Исправил оператор</th><th>Тип</th><th class="text-end">Когда</th></tr>
+            </thead>
+            <tbody>
+                {% for ex in field_examples %}
+                <tr>
+                    <td><a href="{% url 'insurance_requests:request_comparison' ex.request_id %}">#{{ ex.request_id }}</a></td>
+                    <td class="text-muted">{% if ex.original_value %}<del>{{ ex.original_value }}</del>{% else %}—{% endif %}</td>
+                    <td><strong>{% if ex.modified_value %}{{ ex.modified_value }}{% else %}—{% endif %}</strong></td>
+                    <td><span class="small text-muted">{{ ex.edit_type_label }}</span></td>
+                    <td class="text-end small text-muted">{{ ex.created_at|date:"d.m.Y H:i" }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="5" class="text-muted">За период правок этого поля нет.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{# Качество парсера по шаблону заявки #}
+<div class="row g-4 mb-4">
     <div class="col-lg-6">
         <div class="card h-100">
-            <div class="card-header"><h6 class="mb-0">Чаще всего правят</h6></div>
+            <div class="card-header"><h6 class="mb-0">По формату заявки</h6></div>
             <div class="card-body p-0">
                 <table class="table table-sm mb-0">
-                    <thead class="table-light"><tr><th>Поле</th><th class="text-end">Правок</th></tr></thead>
+                    <thead class="table-light"><tr><th>Формат</th><th class="text-end">Заявок</th><th class="text-end">С правками</th><th class="text-end">~правок/заявку</th></tr></thead>
+                    <tbody>
+                        {% for row in by_format %}
+                        <tr><td>{{ row.label }}</td><td class="text-end">{{ row.requests }}</td><td class="text-end">{{ row.error_rate_percent }}%</td><td class="text-end">{{ row.avg_edits }}</td></tr>
+                        {% empty %}
+                        <tr><td colspan="4" class="text-muted">Нет данных</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header"><h6 class="mb-0">По типу страхователя</h6></div>
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0">
+                    <thead class="table-light"><tr><th>Тип</th><th class="text-end">Заявок</th><th class="text-end">С правками</th><th class="text-end">~правок/заявку</th></tr></thead>
+                    <tbody>
+                        {% for row in by_app_type %}
+                        <tr><td>{{ row.label }}</td><td class="text-end">{{ row.requests }}</td><td class="text-end">{{ row.error_rate_percent }}%</td><td class="text-end">{{ row.avg_edits }}</td></tr>
+                        {% empty %}
+                        <tr><td colspan="4" class="text-muted">Нет данных</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    {# Top fields — точность парсера по полям #}
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header">
+                <h6 class="mb-0">Где парсер чаще ошибается</h6>
+                <small class="text-muted">Доля V2-заявок, где поле поправили на входе. Клик — примеры правок.</small>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0">
+                    <thead class="table-light"><tr><th>Поле</th><th class="text-end">Заявок</th><th class="text-end">Доля</th><th class="text-end">Правок</th></tr></thead>
                     <tbody>
                         {% for row in top_fields %}
-                        <tr><td>{{ row.field_label }}</td><td class="text-end">{{ row.count }}</td></tr>
+                        <tr{% if row.field_name == selected_field %} class="table-active"{% endif %}>
+                            <td><a href="?days={{ filters.days }}&field={{ row.field_name }}">{{ row.field_label }}</a></td>
+                            <td class="text-end">{{ row.requests }}</td>
+                            <td class="text-end">{{ row.error_rate_percent }}%</td>
+                            <td class="text-end">{{ row.count }}</td>
+                        </tr>
                         {% empty %}
-                        <tr><td colspan="2" class="text-muted">Нет данных</td></tr>
+                        <tr><td colspan="4" class="text-muted">Нет данных</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>

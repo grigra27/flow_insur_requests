@@ -74,6 +74,58 @@ class AnalyticsParserEditsServiceTests(TestCase):
         self.assertEqual(payload['totals']['edited_share_percent'], 0.0)
         self.assertEqual(payload['top_fields'], [])
 
+    def test_top_field_accuracy(self):
+        # inn правили в 1 из 2 V2-заявок → error_rate 50%.
+        req = _make_request(edits_count=2, created_by=self.operator)
+        _make_request(edits_count=0)
+        RequestFieldEdit.objects.create(
+            request=req, scope='common', field_name='inn', field_label='ИНН',
+            original_value='1', modified_value='2', edit_type='changed',
+        )
+        RequestFieldEdit.objects.create(
+            request=req, scope='common', field_name='inn', field_label='ИНН',
+            original_value='2', modified_value='3', edit_type='changed',
+        )
+        payload = service.build_payload(service.parse_filters({}))
+        inn = next(r for r in payload['top_fields'] if r['field_name'] == 'inn')
+        self.assertEqual(inn['count'], 2)        # всего правок
+        self.assertEqual(inn['requests'], 1)     # затронута 1 заявка
+        self.assertEqual(inn['error_rate_percent'], 50.0)
+
+    def test_segmentation_by_template(self):
+        InsuranceRequest.objects.create(
+            client_name='c', inn='1', parser_confidence=0.8, manual_edits_count=3,
+            additional_data={'parser_version': 'v2', 'application_format': 'casco_equipment',
+                             'application_type': 'legal_entity'},
+        )
+        InsuranceRequest.objects.create(
+            client_name='c', inn='2', parser_confidence=0.9, manual_edits_count=0,
+            additional_data={'parser_version': 'v2', 'application_format': 'property',
+                             'application_type': 'individual_entrepreneur'},
+        )
+        payload = service.build_payload(service.parse_filters({}))
+        by_format = {r['value']: r for r in payload['by_format']}
+        self.assertEqual(by_format['casco_equipment']['error_rate_percent'], 100.0)
+        self.assertEqual(by_format['casco_equipment']['avg_edits'], 3.0)
+        self.assertEqual(by_format['property']['error_rate_percent'], 0.0)
+        by_type = {r['value']: r for r in payload['by_app_type']}
+        self.assertEqual(by_type['legal_entity']['requests'], 1)
+
+    def test_field_drilldown_examples(self):
+        req = _make_request(edits_count=1, created_by=self.operator)
+        RequestFieldEdit.objects.create(
+            request=req, scope='object', field_name='brand', field_label='Марка',
+            original_value='ЛАДА', modified_value='LADA', edit_type='changed',
+        )
+        payload = service.build_payload(service.parse_filters({'field': 'brand'}))
+        self.assertEqual(payload['selected_field'], 'brand')
+        self.assertEqual(payload['selected_field_label'], 'Марка')
+        self.assertEqual(len(payload['field_examples']), 1)
+        example = payload['field_examples'][0]
+        self.assertEqual(example['original_value'], 'ЛАДА')
+        self.assertEqual(example['modified_value'], 'LADA')
+        self.assertEqual(example['request_id'], req.id)
+
 
 class AnalyticsParserEditsAccessTests(TestCase):
     def setUp(self):

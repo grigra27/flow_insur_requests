@@ -840,3 +840,47 @@ class LoginSecurityTest(TestCase):
         self.assertContains(locked_response, 'Слишком много неудачных попыток входа')
 
         self.assertNotIn('_auth_user_id', self.client.session)
+
+
+class RequestListEditBadgesTest(TestCase):
+    """Список заявок: бейджи правок обоих этапов (при создании и после)."""
+
+    def setUp(self):
+        import datetime as _dt
+        import json as _json
+        from django.contrib.contenttypes.models import ContentType
+        from easyaudit.models import CRUDEvent
+
+        self.client = Client()
+        self.user = User.objects.create_user(
+            username='badgeuser', password='pwd', last_name='Сидоров', first_name='Пётр'
+        )
+        user_group, _ = Group.objects.get_or_create(name='Пользователи')
+        self.user.groups.add(user_group)
+        self.client.login(username='badgeuser', password='pwd')
+
+        self.req = InsuranceRequest.objects.create(
+            client_name='ООО Бейдж', inn='1', insurance_type='КАСКО',
+            parser_confidence=0.8, manual_edits_count=2, created_by=self.user,
+            additional_data={'parser_version': 'v2',
+                             'parser_v2': {'original_data': {'client_name': 'ООО Бейдж'},
+                                           'tracking': {'field_edits': []}}},
+        )
+        ct = ContentType.objects.get_for_model(InsuranceRequest)
+        ev = CRUDEvent.objects.create(
+            event_type=CRUDEvent.UPDATE, object_id=str(self.req.pk), content_type=ct,
+            object_repr='r', changed_fields=_json.dumps({'inn': ['1', '2']}), user=self.user,
+        )
+        CRUDEvent.objects.filter(pk=ev.pk).update(
+            datetime=self.req.created_at + _dt.timedelta(hours=1)
+        )
+
+    def test_batch_counts_helper(self):
+        counts = InsuranceRequest.post_creation_counts_for([self.req])
+        self.assertEqual(counts.get(self.req.id), 1)
+
+    def test_list_shows_both_stage_badges(self):
+        response = self.client.get(reverse('insurance_requests:request_list'))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'При создании')
+        self.assertContains(response, 'После создания')
