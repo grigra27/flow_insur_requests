@@ -1,0 +1,176 @@
+{% extends 'base.html' %}
+
+{% block title %}Ручные правки распознавания - {{ block.super }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h1 class="h3 mb-1"><i class="bi bi-pencil-square"></i> Ручные правки распознавания</h1>
+        <p class="text-muted mb-0">
+            Где операторы поправляют парсер V2 за последние {{ filters.days }} дн.
+        </p>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        <form method="get" class="d-flex align-items-center gap-2">
+            <label for="days" class="form-label mb-0 small text-muted">Период, дней:</label>
+            <input type="number" min="1" max="3650" name="days" id="days"
+                   value="{{ filters.days }}" class="form-control form-control-sm" style="width: 100px;">
+            <button type="submit" class="btn btn-sm btn-primary">Применить</button>
+        </form>
+        <a href="{% url 'summaries:analytics' %}" class="btn btn-sm btn-secondary">К аналитике</a>
+    </div>
+</div>
+
+{# KPI #}
+<div class="row g-3 mb-4">
+    <div class="col-md-3 col-6">
+        <div class="card h-100"><div class="card-body">
+            <div class="text-muted small">V2-заявок за период</div>
+            <div class="h4 mb-0">{{ totals.total_v2 }}</div>
+        </div></div>
+    </div>
+    <div class="col-md-3 col-6">
+        <div class="card h-100"><div class="card-body">
+            <div class="text-muted small">С ручными правками</div>
+            <div class="h4 mb-0">{{ totals.requests_with_edits }} <small class="text-muted">({{ totals.edited_share_percent }}%)</small></div>
+        </div></div>
+    </div>
+    <div class="col-md-3 col-6">
+        <div class="card h-100"><div class="card-body">
+            <div class="text-muted small">Всего правок полей</div>
+            <div class="h4 mb-0">{{ totals.total_edits }} <small class="text-muted">~{{ totals.avg_edits_per_request }}/заявку</small></div>
+        </div></div>
+    </div>
+    <div class="col-md-3 col-6">
+        <div class="card h-100"><div class="card-body">
+            <div class="text-muted small">Средняя уверенность парсера</div>
+            <div class="h4 mb-0">{% if totals.avg_confidence_percent != None %}{{ totals.avg_confidence_percent }}%{% else %}—{% endif %}</div>
+            <div class="small text-muted">
+                с правками: {% if totals.avg_confidence_with_edits_percent != None %}{{ totals.avg_confidence_with_edits_percent }}%{% else %}—{% endif %} ·
+                без: {% if totals.avg_confidence_without_edits_percent != None %}{{ totals.avg_confidence_without_edits_percent }}%{% else %}—{% endif %}
+            </div>
+        </div></div>
+    </div>
+</div>
+
+{% if totals.total_edits == 0 %}
+<div class="alert alert-info">
+    За выбранный период правок не зафиксировано. Они начинают копиться с момента
+    внедрения трекинга — увеличьте период или подождите новых загрузок.
+</div>
+{% endif %}
+
+<div class="row g-4">
+    {# Top fields #}
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header"><h6 class="mb-0">Чаще всего правят</h6></div>
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0">
+                    <thead class="table-light"><tr><th>Поле</th><th class="text-end">Правок</th></tr></thead>
+                    <tbody>
+                        {% for row in top_fields %}
+                        <tr><td>{{ row.field_label }}</td><td class="text-end">{{ row.count }}</td></tr>
+                        {% empty %}
+                        <tr><td colspan="2" class="text-muted">Нет данных</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    {# By type + scope #}
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header"><h6 class="mb-0">По типу и области правки</h6></div>
+            <div class="card-body">
+                <div class="small text-muted mb-1">Тип правки</div>
+                <table class="table table-sm mb-3">
+                    <tbody>
+                        {% for row in by_type %}
+                        <tr><td>{{ row.label }}</td><td class="text-end">{{ row.count }}</td></tr>
+                        {% empty %}
+                        <tr><td colspan="2" class="text-muted">Нет данных</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                <div class="small text-muted mb-1">Область поля</div>
+                <table class="table table-sm mb-0">
+                    <tbody>
+                        {% for row in by_scope %}
+                        <tr><td>{{ row.label }}</td><td class="text-end">{{ row.count }}</td></tr>
+                        {% empty %}
+                        <tr><td colspan="2" class="text-muted">Нет данных</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    {# By branch #}
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header"><h6 class="mb-0">По филиалам</h6></div>
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0">
+                    <thead class="table-light"><tr><th>Филиал</th><th class="text-end">Правок</th><th class="text-end">Заявок</th></tr></thead>
+                    <tbody>
+                        {% for row in by_branch %}
+                        <tr><td>{{ row.branch }}</td><td class="text-end">{{ row.count }}</td><td class="text-end">{{ row.requests }}</td></tr>
+                        {% empty %}
+                        <tr><td colspan="3" class="text-muted">Нет данных</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    {# By operator #}
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header"><h6 class="mb-0">По операторам</h6></div>
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0">
+                    <thead class="table-light"><tr><th>Оператор</th><th class="text-end">Правок</th></tr></thead>
+                    <tbody>
+                        {% for row in by_operator %}
+                        <tr><td>{{ row.operator }}</td><td class="text-end">{{ row.count }}</td></tr>
+                        {% empty %}
+                        <tr><td colspan="2" class="text-muted">Нет данных</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    {# Timeline #}
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header"><h6 class="mb-0">Помесячная динамика</h6></div>
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0">
+                    <thead class="table-light">
+                        <tr><th>Месяц</th><th class="text-end">Правок</th><th class="text-end">V2-заявок</th><th class="text-end">Средняя уверенность</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for row in timeline %}
+                        <tr>
+                            <td>{{ row.label }}</td>
+                            <td class="text-end">{{ row.edits }}</td>
+                            <td class="text-end">{{ row.requests }}</td>
+                            <td class="text-end">{% if row.avg_confidence_percent != None %}{{ row.avg_confidence_percent }}%{% else %}—{% endif %}</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="4" class="text-muted">Нет данных</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

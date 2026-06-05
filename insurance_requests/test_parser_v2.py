@@ -1425,6 +1425,50 @@ class ParserV2UploadTests(TestCase):
             reverse('insurance_requests:request_comparison', kwargs={'pk': created.pk}),
         )
 
+    def test_parser_v2_records_field_edit_rows(self):
+        """Фаза 4: строки RequestFieldEdit пишутся (общие — раз на партию)."""
+        from .models import RequestFieldEdit
+        self.client.login(username='parser_v2_root', password='pwd')
+        upload_response = self.client.post(
+            reverse('insurance_requests:upload_excel_v2'),
+            {'excel_file': self._xlsx_upload_with_multiple_objects(object_count=2)},
+        )
+        post_data = self._post_data_from_preview(upload_response)
+        post_data['client_name'] = 'ООО Лютик'           # общая правка
+        post_data['objects-0-brand'] = 'LADA (исправлено)'  # объектная правка первой сестры
+
+        self.client.post(reverse('insurance_requests:upload_excel_v2'), post_data)
+
+        first = InsuranceRequest.objects.get(item_no=1)
+        second = InsuranceRequest.objects.get(item_no=2)
+        # Общая правка записана один раз — к первой заявке партии.
+        common = RequestFieldEdit.objects.filter(scope='common')
+        self.assertEqual(common.count(), 1)
+        self.assertEqual(common.first().request_id, first.pk)
+        self.assertEqual(common.first().field_name, 'client_name')
+        # Объектная правка — у своей сестры.
+        object_rows = RequestFieldEdit.objects.filter(scope='object')
+        self.assertEqual(object_rows.count(), 1)
+        self.assertEqual(object_rows.first().request_id, first.pk)
+        self.assertEqual(object_rows.first().field_name, 'brand')
+        # У второй сестры собственных правок нет.
+        self.assertFalse(RequestFieldEdit.objects.filter(request=second).exists())
+
+    def test_parser_v2_sets_parser_confidence(self):
+        """Фаза 4: денормализованная уверенность парсера сохраняется на заявке."""
+        self.client.login(username='parser_v2_root', password='pwd')
+        upload_response = self.client.post(
+            reverse('insurance_requests:upload_excel_v2'),
+            {'excel_file': self._xlsx_upload()},
+        )
+        post_data = self._post_data_from_preview(upload_response)
+        self.client.post(reverse('insurance_requests:upload_excel_v2'), post_data)
+
+        created = InsuranceRequest.objects.get()
+        self.assertIsNotNone(created.parser_confidence)
+        self.assertGreaterEqual(created.parser_confidence, 0.0)
+        self.assertLessEqual(created.parser_confidence, 1.0)
+
     def test_admin_shows_edits_and_filter(self):
         """Фаза 3: админка фильтрует по правкам и показывает их таблицу."""
         self.client.login(username='parser_v2_root', password='pwd')

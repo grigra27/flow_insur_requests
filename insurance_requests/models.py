@@ -144,6 +144,16 @@ class InsuranceRequest(models.Model):
         verbose_name='Ручных правок оператора',
         help_text='Сколько полей оператор изменил относительно распознанного из Excel'
     )
+
+    # Денормализованная уверенность парсера (0..1) на момент создания —
+    # для аналитики динамики качества распознавания без разбора JSON.
+    # NULL для V1 и исторических заявок.
+    parser_confidence = models.FloatField(
+        null=True,
+        blank=True,
+        verbose_name='Уверенность парсера',
+        help_text='Уверенность распознавания парсером V2 на момент создания (0..1)'
+    )
     
     # Примечание
     notes = models.TextField(blank=True, verbose_name='Примечание')
@@ -615,3 +625,56 @@ class RequestAttachment(models.Model):
     
     def __str__(self):
         return f"{self.original_filename} (Заявка {self.request.get_display_name()})"
+
+
+class RequestFieldEdit(models.Model):
+    """Одна ручная правка оператора относительно распознанного парсером.
+
+    Нормализованный источник для аналитики качества парсера (какие поля
+    операторы правят чаще всего, по филиалам/операторам, динамика). Строки
+    создаются пакетно при сохранении заявки из V2-превью. Общие (scope=
+    'common') правки записываются один раз на партию (к первой заявке),
+    объектные (scope='object') — к своей заявке-сестре.
+    """
+
+    SCOPE_CHOICES = [
+        ('common', 'Общее поле'),
+        ('object', 'Поле объекта'),
+    ]
+    EDIT_TYPE_CHOICES = [
+        ('filled', 'Дозаполнено'),
+        ('cleared', 'Очищено'),
+        ('changed', 'Исправлено'),
+    ]
+
+    request = models.ForeignKey(
+        InsuranceRequest,
+        on_delete=models.CASCADE,
+        related_name='field_edits',
+        verbose_name='Заявка',
+    )
+    scope = models.CharField(
+        max_length=10, choices=SCOPE_CHOICES, default='common',
+        verbose_name='Область поля',
+    )
+    field_name = models.CharField(max_length=100, db_index=True, verbose_name='Поле')
+    field_label = models.CharField(max_length=255, verbose_name='Подпись поля')
+    original_value = models.TextField(blank=True, verbose_name='Распознано из Excel')
+    modified_value = models.TextField(blank=True, verbose_name='Внёс оператор')
+    edit_type = models.CharField(
+        max_length=10, choices=EDIT_TYPE_CHOICES, default='changed',
+        db_index=True, verbose_name='Тип правки',
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True, verbose_name='Дата правки')
+
+    class Meta:
+        verbose_name = 'Ручная правка поля'
+        verbose_name_plural = 'Ручные правки полей'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['field_name', 'edit_type']),
+            models.Index(fields=['created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.field_label}: {self.original_value!r} → {self.modified_value!r}"

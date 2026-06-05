@@ -374,6 +374,9 @@ DJANGO_EASY_AUDIT_UNREGISTERED_CLASSES_EXTRA = [
     'contenttypes.ContentType',
     'auth.Permission',
     'summaries.StatusEvent',
+    # Строки правок создаются пакетно при сохранении заявки; отдельный аудит
+    # их дублировал бы и так уже трекаемое создание заявки.
+    'insurance_requests.RequestFieldEdit',
 ]
 
 # Не пишем RequestEvent на статику, healthcheck и landing-health,

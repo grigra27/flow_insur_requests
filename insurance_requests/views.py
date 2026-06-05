@@ -18,7 +18,7 @@ import tempfile
 import logging
 import uuid
 
-from .models import InsuranceRequest, RequestAttachment
+from .models import InsuranceRequest, RequestAttachment, RequestFieldEdit
 from .forms import (
     ExcelUploadForm,
     InsuranceRequestForm,
@@ -292,8 +292,42 @@ def _build_common_request_kwargs(request_fields, additional_data, user):
         'property_location_right_holder': request_fields.get('property_location_right_holder'),
         'premium_frequency': request_fields.get('premium_frequency'),
         'additional_data': additional_data,
+        'parser_confidence': (additional_data.get('parser_v2') or {}).get('confidence'),
         'created_by': user,
     }
+
+
+def _record_request_field_edits(created, tracking):
+    """Создать строки RequestFieldEdit для аналитики качества парсера.
+
+    Общие правки (field_edits) записываются один раз на партию — к первой
+    заявке, чтобы не множить их по сёстрам и не искажать агрегаты.
+    Объектные правки (object_edits) пишутся к своей заявке по позиции.
+    """
+    field_edits = tracking.get('field_edits') or []
+    object_edits = tracking.get('object_edits') or []
+    if not field_edits and not object_edits:
+        return
+
+    def _row(instance, scope, edit):
+        return RequestFieldEdit(
+            request=instance,
+            scope=scope,
+            field_name=edit.get('field', ''),
+            field_label=edit.get('label', ''),
+            original_value=edit.get('original') or '',
+            modified_value=edit.get('modified') or '',
+            edit_type=edit.get('edit_type') or 'changed',
+        )
+
+    rows = [_row(created[0], 'common', edit) for edit in field_edits]
+    for instance in created:
+        position = (instance.item_no or 1) - 1
+        if 0 <= position < len(object_edits):
+            rows.extend(_row(instance, 'object', edit) for edit in object_edits[position])
+
+    if rows:
+        RequestFieldEdit.objects.bulk_create(rows)
 
 
 def _create_requests_with_splitting(*, request_fields, additional_data, object_kwargs_list, draft, user):
@@ -374,6 +408,9 @@ def _create_requests_with_splitting(*, request_fields, additional_data, object_k
             )
             for r in created:
                 r.created_at = batch_created_at
+
+        # Записываем нормализованные строки правок для аналитики (фаза 4).
+        _record_request_field_edits(created, tracking)
 
     # Attach the original Excel to every sibling, clean storage at the end.
     last_index = len(created) - 1

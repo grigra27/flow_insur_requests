@@ -15,6 +15,7 @@ urlpatterns = [
     path('statistics/', views.summary_statistics, name='statistics'),
     path('statistics/export/', views.export_statistics_widget, name='export_statistics_widget'),
     path('analytics/', views.analytics_placeholder, name='analytics'),
+    path('analytics/parser-edits/', views.analytics_parser_edits, name='analytics_parser_edits'),
     path('analytics/insurance-offers/', views.analytics_insurance_offers, name='analytics_insurance_offers'),
     path('analytics/insurance-companies/', views.analytics_insurance_companies, name='analytics_insurance_companies'),
     path('analytics/insurance-companies/export/', views.export_analytics_insurance_companies_widget, name='export_analytics_insurance_companies_widget'),

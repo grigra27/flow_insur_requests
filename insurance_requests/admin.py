@@ -4,7 +4,7 @@ from django.urls import reverse
 from django.utils import timezone
 from datetime import timedelta
 import pytz
-from .models import InsuranceRequest, RequestAttachment
+from .models import InsuranceRequest, RequestAttachment, RequestFieldEdit
 
 
 class HasManualEditsFilter(admin.SimpleListFilter):
@@ -222,4 +222,30 @@ class RequestAttachmentAdmin(admin.ModelAdmin):
         return moscow_time.strftime('%d.%m.%Y %H:%M')
     uploaded_at_moscow.short_description = 'Загружено (МСК)'
     uploaded_at_moscow.admin_order_field = 'uploaded_at'
+
+
+@admin.register(RequestFieldEdit)
+class RequestFieldEditAdmin(admin.ModelAdmin):
+    list_display = [
+        'field_label', 'scope', 'edit_type',
+        'original_value', 'modified_value', 'get_request_display', 'created_at'
+    ]
+    list_filter = ['scope', 'edit_type', 'field_name', 'created_at']
+    search_fields = [
+        'field_name', 'field_label', 'original_value', 'modified_value',
+        'request__client_name', 'request__dfa_number'
+    ]
+    readonly_fields = [
+        'request', 'scope', 'field_name', 'field_label',
+        'original_value', 'modified_value', 'edit_type', 'created_at'
+    ]
+
+    def get_request_display(self, obj):
+        url = reverse('admin:insurance_requests_insurancerequest_change', args=[obj.request_id])
+        return format_html('<a href="{}">{}</a>', url, obj.request.get_display_name())
+    get_request_display.short_description = 'Заявка'
+
+    def has_add_permission(self, request):
+        # Строки создаются только при сохранении заявки из превью.
+        return False
 

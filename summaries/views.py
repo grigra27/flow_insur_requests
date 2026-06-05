@@ -25,6 +25,7 @@ from .services.analytics_insurance_companies import (
     build_analytics_insurance_companies_payload,
 )
 from .services import analytics_managers as analytics_managers_service
+from .services import analytics_parser_edits as analytics_parser_edits_service
 
 logger = logging.getLogger(__name__)
 
@@ -3118,6 +3119,14 @@ def export_analytics_insurance_companies_widget(request):
 def analytics_placeholder(request):
     """Индексный экран раздела аналитики со списком вложенных отчетов."""
     return render(request, 'summaries/analytics_placeholder.html')
+
+
+@admin_required
+def analytics_parser_edits(request):
+    """Аналитика ручных правок оператора над распознаванием парсера V2."""
+    filters = analytics_parser_edits_service.parse_filters(request.GET)
+    payload = analytics_parser_edits_service.build_payload(filters)
+    return render(request, 'summaries/analytics_parser_edits.html', payload)
 
 
 @admin_required
