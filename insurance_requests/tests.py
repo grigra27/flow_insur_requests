@@ -105,7 +105,6 @@ class RequestDatabaseExportTest(TestCase):
     """Tests for XLSX export of the request card data."""
 
     def setUp(self):
-        self.client = Client()
         self.user = User.objects.create_user(
             username='exportuser',
             password='testpass123',
@@ -114,7 +113,21 @@ class RequestDatabaseExportTest(TestCase):
         )
         user_group, _ = Group.objects.get_or_create(name='Пользователи')
         self.user.groups.add(user_group)
-        self.client.login(username='exportuser', password='testpass123')
+        admin_group, _ = Group.objects.get_or_create(name='Администраторы')
+
+        self.superuser = User.objects.create_superuser(
+            username='exportsuper',
+            password='testpass123',
+            email='exportsuper@example.com',
+            first_name='Петр',
+            last_name='Петров',
+        )
+        self.superuser.groups.add(admin_group)
+
+        self.user_client = Client()
+        self.user_client.login(username='exportuser', password='testpass123')
+        self.superuser_client = Client()
+        self.superuser_client.login(username='exportsuper', password='testpass123')
 
         self.request = InsuranceRequest.objects.create(
             client_name='ООО Тестовый клиент',
@@ -154,19 +167,31 @@ class RequestDatabaseExportTest(TestCase):
         )
 
     def test_request_detail_shows_database_export_button(self):
-        response = self.client.get(
+        response = self.superuser_client.get(
             reverse('insurance_requests:request_detail', kwargs={'pk': self.request.pk})
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Скачать карточку заявки (.xlsx)')
+        self.assertContains(response, 'Скачать карточку заявки')
         self.assertContains(
             response,
             reverse('insurance_requests:export_request_database', kwargs={'pk': self.request.pk}),
         )
 
+    def test_request_detail_hides_database_export_button_for_regular_user(self):
+        response = self.user_client.get(
+            reverse('insurance_requests:request_detail', kwargs={'pk': self.request.pk})
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'Скачать карточку заявки')
+        self.assertNotContains(
+            response,
+            reverse('insurance_requests:export_request_database', kwargs={'pk': self.request.pk}),
+        )
+
     def test_export_request_database_returns_xlsx_with_request_data(self):
-        response = self.client.get(
+        response = self.superuser_client.get(
             reverse('insurance_requests:export_request_database', kwargs={'pk': self.request.pk})
         )
 
@@ -190,6 +215,14 @@ class RequestDatabaseExportTest(TestCase):
         self.assertIn(('additional_data.application_format', 'property'), exported_pairs)
         self.assertIn(('additional_data.parser_v2.warnings[1]', 'Проверить адрес'), exported_pairs)
         self.assertIn(('attachments[1].original_filename', 'source.xlsx'), exported_pairs)
+
+    def test_export_request_database_forbidden_for_regular_user(self):
+        response = self.user_client.get(
+            reverse('insurance_requests:export_request_database', kwargs={'pk': self.request.pk})
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertContains(response, 'Superuser', status_code=403)
 
 
 class RequestV1V2DisplayCompatibilityTest(TestCase):

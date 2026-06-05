@@ -30,7 +30,7 @@ from .forms import (
     ParserV2ObjectFormSet,
     parser_v2_object_initial_from_payload,
 )
-from .decorators import user_required
+from .decorators import superuser_required, user_required
 from .exporters import (
     build_request_export_filename,
     build_request_export_workbook,
@@ -1072,7 +1072,7 @@ def request_detail(request, pk):
     })
 
 
-@user_required
+@superuser_required
 def export_request_database(request, pk):
     """Скачивание полной выгрузки данных заявки из базы в XLSX."""
     insurance_request = get_object_or_404(
