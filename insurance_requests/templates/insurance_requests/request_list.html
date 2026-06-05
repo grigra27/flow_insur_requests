@@ -41,19 +41,33 @@
     }
     .request-list-badge {
         display: inline-flex;
+        position: relative;
         align-items: center;
         gap: 0.35rem;
         padding: 0.24rem 0.58rem;
+        overflow: hidden;
         border-radius: 999px;
         font-weight: 700;
         letter-spacing: 0.01em;
         line-height: 1;
         vertical-align: middle;
         box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+        transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
     }
     .request-list-badge i {
         font-size: 0.85em;
         line-height: 1;
+    }
+    .request-list-badge__count {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 1.35rem;
+        padding: 0.1rem 0.38rem;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.18);
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+        backdrop-filter: blur(6px);
     }
     .request-list-badge--batch {
         background: linear-gradient(135deg, #2563eb 0%, #0ea5e9 100%);
@@ -69,6 +83,23 @@
         background: linear-gradient(135deg, #fb7185 0%, #f97316 100%);
         color: #ffffff;
         box-shadow: 0 8px 18px rgba(249, 115, 22, 0.22);
+    }
+    .request-list-badge--manual-edits {
+        background: linear-gradient(135deg, #f8fafc 0%, #ecfeff 100%);
+        color: #0f766e;
+        border: 1px solid rgba(15, 118, 110, 0.16);
+        box-shadow: 0 2px 6px rgba(15, 23, 42, 0.05);
+    }
+    .request-list-badge--manual-edits .request-list-badge__count {
+        background: rgba(15, 118, 110, 0.10);
+        box-shadow: inset 0 0 0 1px rgba(15, 118, 110, 0.10);
+        color: #115e59;
+    }
+    .request-list-badge--manual-edits:hover,
+    .request-list-badge--manual-edits:focus-visible {
+        color: #115e59;
+        box-shadow: 0 3px 8px rgba(15, 23, 42, 0.08);
+        filter: none;
     }
 </style>
 {% endblock %}
@@ -268,14 +299,6 @@
 	                                    Проверить
 	                                </span>
 	                            {% endif %}
-	                            {% if request.manual_edits_count %}
-	                                <a href="{% url 'insurance_requests:request_comparison' request.pk %}"
-	                                   class="badge bg-secondary ms-1 text-decoration-none"
-	                                   title="Оператор вручную изменил полей: {{ request.manual_edits_count }} (относительно распознанного из Excel). Открыть сравнение.">
-	                                    <i class="bi bi-pencil-square"></i>
-	                                    {{ request.manual_edits_count }}
-	                                </a>
-	                            {% endif %}
 	                        </td>
 	                        <td>{{ request.client_name }}</td>
 	                        <td>
@@ -306,14 +329,25 @@
                             <span class="d-lg-none">{{ request.branch|default:"Не указан"|truncatechars:15 }}</span>
                         </td>
                         <td>
-	                            <span class="badge {{ request.status|status_badge_class }}">
-                                <span class="d-none d-sm-inline">{{ request.get_status_display }}</span>
-                                <span class="d-sm-none">
-                                    {% if request.status == 'emails_sent' %}✓
-                                    {% elif request.status == 'email_generated' %}✉️
-                                    {% else %}⏳{% endif %}
+                            <div class="d-flex flex-column align-items-start gap-1">
+	                                <span class="badge {{ request.status|status_badge_class }}">
+                                    <span class="d-none d-sm-inline">{{ request.get_status_display }}</span>
+                                    <span class="d-sm-none">
+                                        {% if request.status == 'emails_sent' %}✓
+                                        {% elif request.status == 'email_generated' %}✉️
+                                        {% else %}⏳{% endif %}
+                                    </span>
                                 </span>
-                            </span>
+                                {% if request.manual_edits_count %}
+                                    <a href="{% url 'insurance_requests:request_comparison' request.pk %}"
+                                       class="badge request-list-badge request-list-badge--manual-edits text-decoration-none"
+                                       title="Оператор вручную изменил полей: {{ request.manual_edits_count }} (относительно распознанного из Excel). Открыть сравнение.">
+                                        <i class="bi bi-pencil-square"></i>
+                                        <span class="d-none d-xl-inline">Правки</span>
+                                        <span class="request-list-badge__count">{{ request.manual_edits_count }}</span>
+                                    </a>
+                                {% endif %}
+                            </div>
                         </td>
                         <td>
                             <i class="bi bi-calendar text-muted"></i>
