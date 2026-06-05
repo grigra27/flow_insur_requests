@@ -258,7 +258,7 @@
 	                                <span class="badge request-list-badge request-list-badge--duplicate ms-1"
 	                                      title="Эта позиция представляет {{ request.source_object_count }} полностью одинаковых строк исходной Excel-заявки.">
 	                                    <i class="bi bi-layers-fill"></i>
-	                                    ×{{ request.source_object_count }}
+	                                    {{ request.source_object_count }} штук
 	                                </span>
 	                            {% endif %}
 	                            {% if request.is_parser_v2 and request.parser_v2_warning_count %}
@@ -294,8 +294,8 @@
 	                                        </div>
                                         <span class="d-lg-none">{{ request.object_display_name|default:"Объект"|truncatechars:24 }}</span>
                                     {% else %}
-                                        <span class="d-none d-lg-inline">{{ request.vehicle_info|default:"Не указан" }}</span>
-	                                        <span class="d-lg-none">{{ request.vehicle_info|default:"Не указан"|truncatechars:24 }}</span>
+                                        <span class="d-none d-lg-inline">{{ request.object_display_name|default:"Не указан" }}</span>
+	                                        <span class="d-lg-none">{{ request.object_display_name|default:"Не указан"|truncatechars:24 }}</span>
 	                                    {% endif %}
 	                                </div>
 	                            </div>
