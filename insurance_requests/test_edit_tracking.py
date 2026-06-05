@@ -8,6 +8,8 @@ from .edit_tracking import (
     diff_fields,
     get_object_field_meta,
     get_scalar_field_meta,
+    object_comparison_rows,
+    scalar_comparison_rows,
 )
 from .models import InsuranceRequest
 
@@ -132,6 +134,88 @@ class BuildEditTrackingTests(SimpleTestCase):
         self.assertEqual(tracking['object_edits'][0], [])
         self.assertEqual(len(tracking['object_edits'][1]), 1)
         self.assertEqual(tracking['summary']['total_object_edits'], 1)
+
+
+class FieldComparisonTests(SimpleTestCase):
+    def test_scalar_comparison_excludes_object_level_fields_with_objects(self):
+        original = {'client_name': 'ООО А', 'manufacturing_year': '2020'}
+        fields = {row['field'] for row in scalar_comparison_rows(original, [], has_objects=True)}
+        self.assertIn('client_name', fields)
+        self.assertNotIn('manufacturing_year', fields)
+        self.assertNotIn('vehicle_info', fields)
+
+    def test_scalar_comparison_marks_changed_from_edits(self):
+        original = {'client_name': 'ООО А'}
+        edits = [{'field': 'client_name', 'label': 'Клиент', 'original': 'ООО А',
+                  'modified': 'ООО Б', 'edit_type': 'changed'}]
+        rows = scalar_comparison_rows(original, edits, has_objects=False)
+        by_field = {row['field']: row for row in rows}
+        self.assertTrue(by_field['client_name']['changed'])
+        self.assertEqual(by_field['client_name']['modified'], 'ООО Б')
+        # Прочие поля присутствуют и не отмечены изменёнными.
+        self.assertFalse(by_field['inn']['changed'])
+
+    def test_object_comparison_rows_cover_object_fields(self):
+        original = {'brand': 'КамАЗ', 'model': '5490'}
+        edits = [{'field': 'model', 'label': 'Модель', 'original': '5490',
+                  'modified': '54901', 'edit_type': 'changed'}]
+        rows = object_comparison_rows(original, edits)
+        by_field = {row['field']: row for row in rows}
+        self.assertFalse(by_field['brand']['changed'])
+        self.assertEqual(by_field['brand']['original'], 'КамАЗ')
+        self.assertTrue(by_field['model']['changed'])
+
+
+class ModelComparisonMethodsTests(SimpleTestCase):
+    def test_scalar_comparison_from_snapshot(self):
+        req = InsuranceRequest(additional_data={
+            'parser_version': 'v2',
+            'parser_v2': {
+                'original_data': {'client_name': 'ООО А'},
+                'tracking': {
+                    'field_edits': [{'field': 'client_name', 'label': 'Клиент',
+                                     'original': 'ООО А', 'modified': 'ООО Б',
+                                     'edit_type': 'changed'}],
+                },
+            },
+        })
+        rows = req.parser_v2_scalar_comparison()
+        client_rows = [r for r in rows if r['field'] == 'client_name']
+        self.assertEqual(len(client_rows), 1)
+        self.assertTrue(client_rows[0]['changed'])
+        self.assertEqual(client_rows[0]['modified'], 'ООО Б')
+        self.assertTrue(req.parser_v2_has_original_snapshot)
+
+    def test_object_comparison_reads_edits_and_snapshot(self):
+        req = InsuranceRequest(
+            additional_data={
+                'parser_version': 'v2',
+                'parser_v2': {
+                    'original_data': {},
+                    'tracking': {
+                        'object_originals': [{'brand': 'LADA', 'model': 'Largus'}],
+                        'object_edits': [[
+                            {'field': 'brand', 'label': 'Марка', 'original': 'LADA',
+                             'modified': 'LADA (исправлено)', 'edit_type': 'changed'}
+                        ]],
+                    },
+                },
+            },
+        )
+        rows = req.parser_v2_object_comparison()
+        by_field = {r['field']: r for r in rows}
+        self.assertTrue(by_field['brand']['changed'])
+        self.assertEqual(by_field['brand']['original'], 'LADA')
+        self.assertEqual(by_field['brand']['modified'], 'LADA (исправлено)')
+        # Неизменённое поле показывается из снимка в обеих колонках.
+        self.assertFalse(by_field['model']['changed'])
+        self.assertEqual(by_field['model']['original'], 'Largus')
+        self.assertEqual(by_field['model']['modified'], 'Largus')
+
+    def test_no_snapshot_reports_false(self):
+        req = InsuranceRequest(additional_data={'parser_version': 'v2', 'parser_v2': {}})
+        self.assertFalse(req.parser_v2_has_original_snapshot)
+        self.assertEqual(req.parser_v2_object_comparison(), [])
 
 
 class ModelEditPropertiesTests(SimpleTestCase):

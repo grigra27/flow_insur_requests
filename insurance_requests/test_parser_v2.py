@@ -1332,6 +1332,46 @@ class ParserV2UploadTests(TestCase):
         # Вторая сестра не правилась.
         self.assertEqual(second.parser_v2_object_edits, [])
 
+    def test_parser_v2_comparison_page_renders_two_columns(self):
+        """Фаза 2: страница сравнения показывает обе колонки и исходный Excel."""
+        self.client.login(username='parser_v2_root', password='pwd')
+        upload_response = self.client.post(
+            reverse('insurance_requests:upload_excel_v2'),
+            {'excel_file': self._xlsx_upload()},
+        )
+        post_data = self._post_data_from_preview(upload_response)
+        post_data['client_name'] = 'ООО Лютик'
+
+        self.client.post(reverse('insurance_requests:upload_excel_v2'), post_data)
+        created = InsuranceRequest.objects.get()
+
+        response = self.client.get(
+            reverse('insurance_requests:request_comparison', kwargs={'pk': created.pk})
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'insurance_requests/request_comparison.html')
+        # Обе стороны видны: распознанное и итог.
+        self.assertContains(response, 'ООО Ромашка')
+        self.assertContains(response, 'ООО Лютик')
+        self.assertContains(response, 'Изменено полей')
+        # Ссылка на исходный Excel присутствует.
+        self.assertContains(response, 'Исходный Excel')
+        self.assertEqual(response.context['changed_count'], 1)
+
+    def test_parser_v2_comparison_redirects_for_non_v2_request(self):
+        """Фаза 2: для не-V2 заявки страница сравнения уводит на карточку."""
+        self.client.login(username='parser_v2_root', password='pwd')
+        legacy = InsuranceRequest.objects.create(
+            client_name='Старая заявка', inn='1', additional_data={}
+        )
+        response = self.client.get(
+            reverse('insurance_requests:request_comparison', kwargs={'pk': legacy.pk})
+        )
+        self.assertRedirects(
+            response,
+            reverse('insurance_requests:request_detail', kwargs={'pk': legacy.pk}),
+        )
+
     def _xlsx_upload_with_multiple_objects(self, object_count=3, filename='partia.xlsx'):
         """Build a synthetic xlsx with several object rows so the parser
         finds an N-object batch."""

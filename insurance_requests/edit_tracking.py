@@ -204,10 +204,16 @@ def build_edit_tracking(
             diff_fields(before_obj, after_obj, object_field_names, object_meta)
         )
 
+    # «Before»-снимок каждого создаваемого объекта (в порядке создания =
+    # item_no). Нужен странице сравнения, чтобы показать полную объектную
+    # таблицу «распознано / итог» без обратного восстановления позиций.
+    object_originals = [dict(before_obj) for before_obj, _ in object_pairs]
+
     total_object_edits = sum(len(edits) for edits in object_edits)
     return {
         'field_edits': field_edits,
         'object_edits': object_edits,
+        'object_originals': object_originals,
         'summary': {
             'total_field_edits': len(field_edits),
             'total_object_edits': total_object_edits,
@@ -215,3 +221,65 @@ def build_edit_tracking(
             'edited_field_names': [edit['field'] for edit in field_edits],
         },
     }
+
+
+def _comparison_rows(
+    original: Dict[str, Any],
+    edits: List[Dict[str, str]],
+    field_names: List[str],
+    meta: Dict[str, Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """Полная таблица сравнения поверх уже посчитанных правок.
+
+    Источник истины для флага «изменено» — список edits (field_edits или
+    object_edits), посчитанный при сохранении из «сырых» значений формы.
+    Так страница строго согласована с блоком правок в карточке и не ловит
+    ложных расхождений из-за нормализации to_request_fields(). Неизменённые
+    поля показываются из снимка распознанных данных (одинаково в обеих
+    колонках — оператор их не трогал).
+    """
+    edits_by_field = {edit['field']: edit for edit in edits}
+    rows: List[Dict[str, Any]] = []
+    for name in field_names:
+        edit = edits_by_field.get(name)
+        if edit is not None:
+            rows.append({
+                'field': name,
+                'label': edit['label'],
+                'original': edit['original'],
+                'modified': edit['modified'],
+                'changed': True,
+                'edit_type': edit['edit_type'],
+            })
+        else:
+            display = _display_value(name, (original or {}).get(name), meta)
+            rows.append({
+                'field': name,
+                'label': meta.get(name, {}).get('label', name),
+                'original': display,
+                'modified': display,
+                'changed': False,
+                'edit_type': '',
+            })
+    return rows
+
+
+def scalar_comparison_rows(
+    original_data: Dict[str, Any],
+    field_edits: List[Dict[str, str]],
+    has_objects: bool,
+) -> List[Dict[str, Any]]:
+    """Строки сравнения общих (скалярных) полей для страницы сравнения."""
+    meta = get_scalar_field_meta()
+    field_names = _scalar_field_names(meta, has_objects)
+    return _comparison_rows(original_data, field_edits, field_names, meta)
+
+
+def object_comparison_rows(
+    object_original: Dict[str, Any],
+    object_edits: List[Dict[str, str]],
+) -> List[Dict[str, Any]]:
+    """Строки сравнения объектных полей одной заявки."""
+    meta = get_object_field_meta()
+    field_names = [name for name in meta if name not in _OBJECT_FIELDS_EXCLUDED]
+    return _comparison_rows(object_original, object_edits, field_names, meta)

@@ -1,0 +1,135 @@
+{% extends 'base.html' %}
+{% load tz %}
+
+{% block title %}Сравнение с Excel — {{ request.get_display_name }} - {{ block.super }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="bi bi-layout-split"></i> Сравнение с Excel</h1>
+    <div>
+        <a href="{% url 'insurance_requests:request_detail' request.pk %}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> К заявке
+        </a>
+    </div>
+</div>
+
+<p class="text-muted">
+    Заявка <strong>{{ request.get_display_name }}</strong> · слева — что распознал
+    парсер из Excel, справа — что сохранил оператор. Изменённые строки выделены.
+</p>
+
+<div class="d-flex flex-wrap gap-2 align-items-center mb-4">
+    {% if changed_count %}
+        <span class="badge bg-warning text-dark fs-6">Изменено полей: {{ changed_count }}</span>
+    {% else %}
+        <span class="badge bg-success fs-6">Оператор ничего не правил</span>
+    {% endif %}
+    {% if request.parser_v2_confidence_percent != None %}
+        <span class="badge bg-light text-dark border">Уверенность разбора: {{ request.parser_v2_confidence_percent }}%</span>
+    {% endif %}
+    {% if original_attachment %}
+        <a href="{{ original_attachment.file.url }}" class="btn btn-outline-primary btn-sm" download>
+            <i class="bi bi-download"></i> Исходный Excel ({{ original_attachment.original_filename }})
+        </a>
+    {% endif %}
+</div>
+
+{% if not has_snapshot %}
+<div class="alert alert-info">
+    <i class="bi bi-info-circle"></i>
+    Для этой заявки не сохранён полный снимок распознанных данных (она создана
+    до внедрения трекинга правок). Сравнение по основным полям недоступно.
+</div>
+{% endif %}
+
+{% if scalar_rows %}
+<div class="card mb-4">
+    <div class="card-header">
+        <h6 class="mb-0"><i class="bi bi-card-list"></i> Общие поля заявки</h6>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-sm mb-0 align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 28%;">Поле</th>
+                        <th style="width: 36%;">Распознано из Excel</th>
+                        <th style="width: 36%;">Сохранил оператор</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in scalar_rows %}
+                    <tr class="{% if row.changed %}table-warning{% endif %}">
+                        <th class="fw-normal">
+                            {{ row.label }}
+                            {% if row.changed %}
+                                {% if row.edit_type == 'filled' %}
+                                    <span class="badge bg-info text-dark">дозаполнено</span>
+                                {% elif row.edit_type == 'cleared' %}
+                                    <span class="badge bg-secondary">очищено</span>
+                                {% else %}
+                                    <span class="badge bg-warning text-dark">исправлено</span>
+                                {% endif %}
+                            {% endif %}
+                        </th>
+                        <td class="{% if row.changed %}text-muted{% endif %}">
+                            {% if row.original %}{% if row.changed %}<del>{{ row.original }}</del>{% else %}{{ row.original }}{% endif %}{% else %}<span class="text-muted">—</span>{% endif %}
+                        </td>
+                        <td>
+                            {% if row.modified %}{% if row.changed %}<strong>{{ row.modified }}</strong>{% else %}{{ row.modified }}{% endif %}{% else %}<span class="text-muted">—</span>{% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if object_rows %}
+<div class="card mb-4">
+    <div class="card-header">
+        <h6 class="mb-0"><i class="bi bi-box-seam"></i> Поля объекта{% if request.item_count and request.item_count > 1 %} (объект {{ request.item_no }} из {{ request.item_count }}){% endif %}</h6>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-sm mb-0 align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 28%;">Поле</th>
+                        <th style="width: 36%;">Распознано из Excel</th>
+                        <th style="width: 36%;">Сохранил оператор</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in object_rows %}
+                    <tr class="{% if row.changed %}table-warning{% endif %}">
+                        <th class="fw-normal">
+                            {{ row.label }}
+                            {% if row.changed %}
+                                {% if row.edit_type == 'filled' %}
+                                    <span class="badge bg-info text-dark">дозаполнено</span>
+                                {% elif row.edit_type == 'cleared' %}
+                                    <span class="badge bg-secondary">очищено</span>
+                                {% else %}
+                                    <span class="badge bg-warning text-dark">исправлено</span>
+                                {% endif %}
+                            {% endif %}
+                        </th>
+                        <td class="{% if row.changed %}text-muted{% endif %}">
+                            {% if row.original %}{% if row.changed %}<del>{{ row.original }}</del>{% else %}{{ row.original }}{% endif %}{% else %}<span class="text-muted">—</span>{% endif %}
+                        </td>
+                        <td>
+                            {% if row.modified %}{% if row.changed %}<strong>{{ row.modified }}</strong>{% else %}{{ row.modified }}{% endif %}{% else %}<span class="text-muted">—</span>{% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}

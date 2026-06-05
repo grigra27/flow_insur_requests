@@ -416,6 +416,43 @@ class InsuranceRequest(models.Model):
         return len(self.parser_v2_field_edits) + len(self.parser_v2_object_edits)
 
     @property
+    def parser_v2_has_original_snapshot(self):
+        """True, если сохранён полный снимок распознанных данных («до»).
+
+        Заявки, созданные до внедрения трекинга, его не имеют — страница
+        сравнения для них показывает соответствующее уведомление.
+        """
+        return bool(self.parser_v2_data.get('original_data'))
+
+    @property
+    def parser_v2_object_original(self):
+        """«Before»-снимок объекта именно этой заявки (по позиции в партии)."""
+        originals = self.parser_v2_tracking.get('object_originals')
+        if not isinstance(originals, list) or not originals:
+            return {}
+        position = (self.item_no or 1) - 1
+        if 0 <= position < len(originals):
+            obj = originals[position]
+            return obj if isinstance(obj, dict) else {}
+        return {}
+
+    def parser_v2_scalar_comparison(self):
+        """Строки сравнения общих полей «распознано / итог» для страницы."""
+        from .edit_tracking import scalar_comparison_rows
+        original = self.parser_v2_data.get('original_data') or {}
+        return scalar_comparison_rows(
+            original, self.parser_v2_field_edits, bool(self.parser_v2_object_original)
+        )
+
+    def parser_v2_object_comparison(self):
+        """Строки сравнения объектных полей этой заявки «распознано / итог»."""
+        from .edit_tracking import object_comparison_rows
+        original = self.parser_v2_object_original
+        if not original:
+            return []
+        return object_comparison_rows(original, self.parser_v2_object_edits)
+
+    @property
     def list_premium_frequency_display(self):
         """List view only: show within-year frequencies, hide single/annual noise."""
         if self.premium_frequency in {'quarterly', 'biannual'}:

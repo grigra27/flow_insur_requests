@@ -1094,6 +1094,44 @@ def request_detail(request, pk):
     })
 
 
+@user_required
+def request_comparison(request, pk):
+    """Страница сравнения «распознано из Excel / итог оператора» (фаза 2).
+
+    Полная двухколоночная таблица всех полей заявки с подсветкой изменённых,
+    плюс ссылка на исходный Excel-файл. Доступна только для заявок нового
+    загрузчика, у которых сохранён снимок распознанных данных.
+    """
+    insurance_request = get_object_or_404(
+        InsuranceRequest.objects.prefetch_related('attachments'),
+        pk=pk,
+    )
+
+    if not insurance_request.is_parser_v2:
+        messages.info(
+            request,
+            'Сравнение доступно только для заявок нового загрузчика (Parser V2).'
+        )
+        return redirect('insurance_requests:request_detail', pk=pk)
+
+    scalar_rows = insurance_request.parser_v2_scalar_comparison()
+    object_rows = insurance_request.parser_v2_object_comparison()
+    changed_count = (
+        sum(1 for row in scalar_rows if row['changed'])
+        + sum(1 for row in object_rows if row['changed'])
+    )
+    original_attachment = insurance_request.attachments.first()
+
+    return render(request, 'insurance_requests/request_comparison.html', {
+        'request': insurance_request,
+        'scalar_rows': scalar_rows,
+        'object_rows': object_rows,
+        'changed_count': changed_count,
+        'has_snapshot': insurance_request.parser_v2_has_original_snapshot,
+        'original_attachment': original_attachment,
+    })
+
+
 @superuser_required
 def export_request_database(request, pk):
     """Скачивание полной выгрузки данных заявки из базы в XLSX."""

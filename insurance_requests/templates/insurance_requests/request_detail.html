@@ -545,6 +545,11 @@
                 </details>
                 {% endif %}
 
+                <a href="{% url 'insurance_requests:request_comparison' request.pk %}"
+                   class="btn btn-outline-secondary btn-sm w-100 mt-3">
+                    <i class="bi bi-layout-split"></i> Сравнить с Excel
+                </a>
+
                 {% if user.is_superuser and request.parser_v2_data.source_map %}
                 <details class="mt-3">
                     <summary class="small text-muted">Источники полей</summary>
