@@ -798,6 +798,27 @@ class CustomerDealPayloadIntegrationTests(TestCase):
             self.assertNotIn('Основной вид деятельности', value or '')
             self.assertNotIn('ПАРАМЕТРЫ', value or '')
 
+    def test_empty_creditor_bank_does_not_borrow_neighbour_value(self):
+        # «Банк-кредитор» label with an empty value column, followed a few
+        # columns over by the next field's label. The empty creditor must NOT
+        # capture «Необходимый период страхования».
+        wb = Workbook()
+        sheet = wb.active
+        sheet['B17'] = 'Банк-кредитор'
+        # B18..G17 left empty (creditor unknown yet)
+        sheet['H17'] = 'Необходимый период страхования'
+        sheet['L17'] = '1 год'
+        result = self._parse_workbook(wb)
+        self.assertEqual(result.data.get('creditor_bank', ''), '')
+
+    def test_filled_creditor_bank_is_still_extracted(self):
+        wb = Workbook()
+        sheet = wb.active
+        sheet['B17'] = 'Банк-кредитор'
+        sheet['C17'] = 'ВТБ'
+        result = self._parse_workbook(wb)
+        self.assertEqual(result.data.get('creditor_bank', ''), 'ВТБ')
+
 
 class ParserV2UploadTests(TestCase):
     def setUp(self):

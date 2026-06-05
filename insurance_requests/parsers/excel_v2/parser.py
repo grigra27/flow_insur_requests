@@ -26,6 +26,33 @@ MISSING_DFA = "Номер ДФА не указан"
 MISSING_VEHICLE = "Предмет лизинга не указан"
 CLIENT_COORDINATES = ("D7", "D8")
 CLIENT_MAX_LABEL_ROW = 10
+# Multi-word labels of *neighbouring* fields. The right-scan stops when it
+# reaches one of these, so an empty field (e.g. «Банк-кредитор» before the
+# creditor is known) is reported as empty instead of borrowing the next
+# field's text (e.g. «Необходимый период страхования»). Only specific,
+# multi-word phrases are listed to avoid mistaking a real value for a label.
+FIELD_LABEL_GROUPS: List[Tuple[str, ...]] = [
+    ("банк", "кредитор"),
+    ("комплект", "ключ"),
+    ("цель", "использ"),
+    ("цели", "использ"),
+    ("период", "страхов"),
+    ("территор", "страх"),
+    ("страхов", "сумма"),
+    ("юридическ", "адрес"),
+    ("юр", "адрес"),
+    ("почтов", "адрес"),
+    ("фактическ", "адрес"),
+    ("вид", "деятельност"),
+    ("дата", "рождени"),
+    ("дата", "подачи"),
+    ("год", "выпуск"),
+    ("условия", "охран"),
+    ("предмет", "лизинга"),
+    ("объект", "страхования"),
+    ("статус", "имуществ"),
+    ("наименование", "лизингополучател"),
+]
 OBJECT_TEMPLATE_ROW_MARKERS = [
     "транспортные средства категории b",
     "транспортные средства категории c",
@@ -2141,7 +2168,16 @@ class ExcelRequestParserV2:
         same_row = rows.get(cell.row, [])
         for offset in range(1, max_offset + 1):
             candidate = next((item for item in same_row if item.col == cell.col + offset), None)
-            if candidate and not self._looks_like_empty_or_label(candidate.value):
+            if candidate is None:
+                # Empty/merged gap between the label and its value column — the
+                # value may still sit a couple of columns over, so keep scanning.
+                continue
+            # A present cell that is itself another field's label means the
+            # value column is empty. Stop here instead of skipping the label
+            # and borrowing the neighbouring field's text.
+            if self._matches_any_group(candidate.normalized, FIELD_LABEL_GROUPS):
+                return None
+            if not self._looks_like_empty_or_label(candidate.value):
                 return candidate
         return None
 
