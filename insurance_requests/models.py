@@ -3,6 +3,7 @@ from django.core.validators import MinValueValidator
 from django.contrib.auth.models import User
 from django.utils import timezone
 from datetime import timedelta
+from decimal import Decimal, InvalidOperation
 from typing import Dict, Any
 import json
 import pytz
@@ -273,6 +274,10 @@ class InsuranceRequest(models.Model):
         null=True,
         verbose_name='Валюта стоимости',
     )
+    object_description = models.TextField(
+        blank=True,
+        verbose_name='Описание объекта (исходное)',
+    )
     source_object_count = models.PositiveIntegerField(
         default=1,
         validators=[MinValueValidator(1)],
@@ -505,10 +510,72 @@ class InsuranceRequest(models.Model):
         return self.vehicle_info or ''
 
     @property
+    def condition_label(self):
+        if self.condition:
+            return self.get_condition_display()
+        return (self.asset_status or '').strip()
+
+    @property
+    def is_new_object(self):
+        if self.condition:
+            return self.condition == 'new'
+        return (self.asset_status or '').strip().lower() == 'новое'
+
+    @property
+    def object_summary(self):
+        has_object_source = self.has_structured_object_data or bool((self.object_description or '').strip())
+        if has_object_source:
+            base_name = ' '.join(
+                part.strip()
+                for part in [self.brand or '', self.model or '']
+                if part and part.strip()
+            )
+            if not base_name:
+                base_name = (self.object_description or '').strip()
+
+            parts = []
+            if base_name:
+                parts.append(base_name)
+
+            year = (self.manufacturing_year or '').strip()
+            if year:
+                parts.append(f'{year} г.')
+
+            condition_label = self.condition_label
+            if condition_label:
+                parts.append(condition_label)
+
+            acquisition_cost = self.acquisition_cost_display
+            if acquisition_cost:
+                parts.append(acquisition_cost)
+
+            if (self.source_object_count or 0) > 1:
+                parts.append(f'×{self.source_object_count}')
+
+            summary = ', '.join(part for part in parts if part).strip()
+            if summary:
+                return summary[:1000]
+
+        fallback = (self.vehicle_info or '').strip()
+        if fallback:
+            return fallback[:1000]
+
+        fallback = (self.object_description or '').strip()
+        if fallback:
+            return fallback[:1000]
+
+        return ''
+
+    @property
     def acquisition_cost_display(self):
         if self.acquisition_cost_value is None:
             return ''
         value = self.acquisition_cost_value
+        if not hasattr(value, 'to_integral_value'):
+            try:
+                value = Decimal(str(value))
+            except (InvalidOperation, TypeError, ValueError):
+                return ''
         if value == value.to_integral_value():
             amount = f"{value:,.0f}".replace(",", " ")
         else:
@@ -562,6 +629,9 @@ class InsuranceRequest(models.Model):
             'insurance_type': self.insurance_type,
             'insurance_period': self.insurance_period or 'не указан',
             'vehicle_info': self.vehicle_info,
+            'object_display_name': self.object_display_name,
+            'object_summary': self.object_summary,
+            'object_description': self.object_description,
             'dfa_number': self.dfa_number,
             'branch': self.branch,
             'franchise_type': self.franchise_type,
@@ -587,6 +657,7 @@ class InsuranceRequest(models.Model):
             'manufacturing_year': self.manufacturing_year or 'не указан',
             # Статус имущества предмета лизинга
             'asset_status': self.asset_status or 'не указан',
+            'condition_label': self.condition_label or 'не указан',
             # ФИО Менеджера
             'manager_name': self.manager_name or 'не указано',
             # Статус сделки

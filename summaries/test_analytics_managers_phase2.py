@@ -90,6 +90,20 @@ class CompletenessAndPortfolioTests(TestCase):
         c = analytics_managers._completeness_for_request(req)
         self.assertEqual(c['casco_filled'], 2)
 
+    def test_completeness_counts_structured_object_summary_without_vehicle_info(self):
+        user = User.objects.create_user(username='cstruct', password='p')
+        req = InsuranceRequest.objects.create(
+            client_name='X', inn='1234567890',
+            insurance_type='другое',
+            created_by=user, status='uploaded',
+            dfa_number='DFA2', branch='Москва',
+            manager_name='Иванов', vehicle_info='',
+            brand='LADA', model='Vesta',
+            notes='заметки', insurance_period='1 год',
+        )
+        c = analytics_managers._completeness_for_request(req)
+        self.assertEqual(c['base_filled'], 7)
+
     def test_aggregate_completeness_pct(self):
         user = User.objects.create_user(username='ag', password='p')
         # 1 заявка КАСКО, 1 имущественная

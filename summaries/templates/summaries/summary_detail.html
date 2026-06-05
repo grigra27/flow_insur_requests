@@ -66,13 +66,13 @@
                         <i class="bi bi-truck-front-fill req-object-block__icon"></i>
                         <span class="req-object-block__title">Объект страхования</span>
                     </div>
-                    <div class="req-object-block__vehicle">{{ summary.request.vehicle_info|default:"Не указано" }}</div>
+                    <div class="req-object-block__vehicle">{{ summary.request.object_summary|default:"Не указано" }}</div>
                     <dl class="row mb-0 mt-2">
                         <dt class="col-sm-4">Год выпуска:</dt>
                         <dd class="col-sm-8">{{ summary.request.manufacturing_year|default:"Не указано" }}</dd>
 
                         <dt class="col-sm-4">Статус имущества:</dt>
-                        <dd class="col-sm-8">{{ summary.request.asset_status|default:"Не указано" }}</dd>
+                        <dd class="col-sm-8">{{ summary.request.condition_label|default:"Не указано" }}</dd>
                     </dl>
                 </div>
             </div>

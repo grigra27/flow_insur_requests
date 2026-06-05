@@ -1198,6 +1198,7 @@ class ExcelRequestParserV2:
                 objects.append(
                     {
                         "description": value,
+                        "object_description": value,
                         "year": self._year_from_text(value),
                         "source": source,
                         "brand": None,
@@ -1306,6 +1307,7 @@ class ExcelRequestParserV2:
             objects.append(
                 {
                     "description": description,
+                    "object_description": description,
                     "year": year,
                     "source": source,
                     "brand": brand,
@@ -1420,6 +1422,7 @@ class ExcelRequestParserV2:
 
         return {
             "description": row_text,
+            "object_description": row_text,
             "year": year,
             "source": self._row_source(row_cells),
             "brand": brand,

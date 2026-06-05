@@ -235,7 +235,11 @@ def _parser_v2_object_fields(payload_object):
         except (InvalidOperation, ValueError, TypeError):
             return None
 
-    description = payload_object.get('description') or 'Предмет лизинга не указан'
+    description = (
+        payload_object.get('object_description')
+        or payload_object.get('description')
+        or 'Предмет лизинга не указан'
+    )
     return {
         'brand': payload_object.get('brand') or None,
         'model': payload_object.get('model') or None,
@@ -245,6 +249,7 @@ def _parser_v2_object_fields(payload_object):
         'acquisition_cost_value': _decimal(payload_object.get('acquisition_cost_value')),
         'acquisition_cost_currency': payload_object.get('acquisition_cost_currency') or None,
         'vehicle_info': description[:5000],
+        'object_description': description[:5000],
         'manufacturing_year': (payload_object.get('year') or '')[:255],
         'source_object_count': payload_object.get('source_object_count') or 1,
     }

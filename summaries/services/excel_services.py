@@ -208,8 +208,8 @@ class ExcelExportService:
             if not request.dfa_number or request.dfa_number.strip() == '':
                 missing_fields.append("номер заявки (dfa_number)")
             
-            if not request.vehicle_info or request.vehicle_info.strip() == '':
-                missing_fields.append("информация о предмете лизинга (vehicle_info)")
+            if not request.object_summary or request.object_summary.strip() == '':
+                missing_fields.append("объект страхования (object_summary)")
             
             if not request.client_name or request.client_name.strip() == '':
                 missing_fields.append("название клиента (client_name)")
@@ -275,12 +275,20 @@ class ExcelExportService:
             self._set_merged_cell_value(worksheet, 'C1', request.dfa_number)
             logger.debug(f"Записан номер заявки в C1: {request.dfa_number}")
             
-            # CDE2 - информация о предмете лизинга с годом выпуска
-            vehicle_info_with_year = request.vehicle_info
+            # CDE2 - информация об объекте страхования с годом выпуска
+            vehicle_info_with_year = request.object_summary
             if request.manufacturing_year and request.manufacturing_year.strip():
-                vehicle_info_with_year = f"{request.vehicle_info}, {request.manufacturing_year}"
+                year = request.manufacturing_year.strip()
+                if (
+                    year not in vehicle_info_with_year
+                    and f'{year} г.' not in vehicle_info_with_year
+                ):
+                    vehicle_info_with_year = (
+                        f"{vehicle_info_with_year}, {year}"
+                        if vehicle_info_with_year else year
+                    )
             self._set_merged_cell_value(worksheet, 'C2', vehicle_info_with_year)
-            logger.debug(f"Записана информация о предмете лизинга в C2: {vehicle_info_with_year[:50]}...")
+            logger.debug(f"Записана информация об объекте страхования в C2: {vehicle_info_with_year[:50]}...")
             
             # CDE3 - название клиента
             self._set_merged_cell_value(worksheet, 'C3', request.client_name)
@@ -676,7 +684,7 @@ class ExcelExportService:
                                request.get_insurance_type_display(), 'тип страхования')
             
             self._fill_tech_cell(tech_sheet, self.TECH_INFO_CELLS['vehicle_info'], 
-                               request.vehicle_info, 'информация о предмете лизинга')
+                               request.object_summary, 'информация об объекте страхования')
             
             # Заполняем описание страхования (вместо полного текста письма)
             insurance_description = self._get_insurance_description_for_tech_info(request)
@@ -828,12 +836,7 @@ class ExcelExportService:
         Returns:
             bool: True, если объект признан новым
         """
-        condition = getattr(request, 'condition', None)
-        if condition:
-            return str(condition).strip().lower() == 'new'
-
-        raw_asset_status = getattr(request, 'asset_status', '')
-        return str(raw_asset_status).strip().lower() == 'новое'
+        return bool(getattr(request, 'is_new_object', False))
 
     def _get_additional_note_for_asset_status(self, summary: InsuranceSummary) -> Optional[str]:
         """
@@ -860,6 +863,7 @@ class ExcelExportService:
             logger.debug(
                 f"Свод ID {summary.id}: объект новый "
                 f"(condition='{getattr(request, 'condition', None)}', "
+                f"condition_label='{getattr(request, 'condition_label', '')}', "
                 f"asset_status='{getattr(request, 'asset_status', '')}'), "
                 "дополнительное примечание не требуется"
             )
@@ -868,6 +872,7 @@ class ExcelExportService:
         logger.info(
             f"Свод ID {summary.id}: добавляем примечание по статусу имущества "
             f"(condition='{getattr(request, 'condition', None)}', "
+            f"condition_label='{getattr(request, 'condition_label', '')}', "
             f"asset_status='{getattr(request, 'asset_status', '')}')"
         )
         return self.ASSET_STATUS_ADDITIONAL_NOTE

@@ -1150,6 +1150,21 @@ class ParserV2UploadTests(TestCase):
         self.assertNotIn('Противоугонные системы', vehicle_info)
         self.assertNotIn('Сигнализация', vehicle_info)
 
+    def test_parser_v2_keeps_raw_object_description_for_persistence(self):
+        self.client.login(username='parser_v2_root', password='pwd')
+
+        response = self.client.post(
+            reverse('insurance_requests:upload_excel_v2'),
+            {'excel_file': self._xlsx_upload_with_template_object_rows()},
+        )
+
+        insured_object = response.context['insured_objects'][0]
+        self.assertEqual(
+            insured_object['object_description'],
+            insured_object['description'],
+        )
+        self.assertIn('Lixiang L9', insured_object['object_description'])
+
     def test_parser_v2_does_not_take_name_header_as_telematics_complex(self):
         self.client.login(username='parser_v2_root', password='pwd')
 

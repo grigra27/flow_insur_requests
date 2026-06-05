@@ -147,9 +147,6 @@
                                 <div class="req-object-block__vehicle">
                                     {{ request.object_display_name|default:"Не указано" }}
                                 </div>
-                                {% if request.has_structured_object_data and request.vehicle_info and request.vehicle_info != request.object_display_name %}
-                                <div class="small text-muted mt-2">{{ request.vehicle_info }}</div>
-                                {% endif %}
                                 <dl class="row mb-0 mt-3">
                                     {% if request.brand %}
                                     <dt class="col-sm-5">Марка:</dt>
@@ -164,10 +161,8 @@
                                     <dt class="col-sm-5">Год выпуска:</dt>
                                     <dd class="col-sm-7">{{ request.manufacturing_year|default:"Не указан" }}</dd>
 
-                                    {% if request.condition %}
                                     <dt class="col-sm-5">Состояние:</dt>
-                                    <dd class="col-sm-7">{{ request.get_condition_display }}</dd>
-                                    {% endif %}
+                                    <dd class="col-sm-7">{{ request.condition_label|default:"Не указано" }}</dd>
 
                                     {% if request.equipment_type %}
                                     <dt class="col-sm-5">Тип/категория:</dt>
@@ -190,9 +185,6 @@
                                         <span class="badge bg-warning text-dark">{{ request.source_object_count }}</span>
                                     </dd>
                                     {% endif %}
-
-                                    <dt class="col-sm-5">Статус имущества:</dt>
-                                    <dd class="col-sm-7">{{ request.asset_status|default:"Не указан" }}</dd>
 
                                     <dt class="col-sm-5">Цели использования:</dt>
                                     <dd class="col-sm-7">{{ request.usage_purposes|default:"Не указано" }}</dd>

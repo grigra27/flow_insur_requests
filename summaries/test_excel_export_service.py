@@ -171,7 +171,25 @@ class ExcelExportServiceValidationTests(TestCase):
         with self.assertRaises(InvalidSummaryDataError) as context:
             self.service._validate_summary_data(summary)
         
-        self.assertIn('информация о предмете лизинга (vehicle_info)', str(context.exception))
+        self.assertIn('объект страхования (object_summary)', str(context.exception))
+
+    def test_validate_summary_data_accepts_structured_object_without_vehicle_info(self):
+        request = InsuranceRequest.objects.create(
+            client_name='ООО "ТЕСТОВАЯ КОМПАНИЯ"',
+            inn='1234567890',
+            vehicle_info='',
+            brand='SCANIA',
+            model='R440A4X2NA',
+            condition='used',
+            dfa_number='ТС-19827-ГА-ВН',
+        )
+
+        summary = InsuranceSummary.objects.create(
+            request=request,
+            status='ready'
+        )
+
+        self.service._validate_summary_data(summary)
     
     def test_validate_summary_data_missing_client_name(self):
         """Тест валидации заявки без названия клиента"""
@@ -211,7 +229,7 @@ class ExcelExportServiceValidationTests(TestCase):
         
         error_message = str(context.exception)
         self.assertIn('название клиента (client_name)', error_message)
-        self.assertIn('информация о предмете лизинга (vehicle_info)', error_message)
+        self.assertIn('объект страхования (object_summary)', error_message)
     
     def test_validate_summary_data_whitespace_only_fields(self):
         """Тест валидации заявки с полями, содержащими только пробелы"""
@@ -357,6 +375,32 @@ class ExcelExportServiceExcelOperationsTests(TestCase):
         self.assertEqual(worksheet['C1'].value, 'ТС-19827-ГА-ВН')
         self.assertEqual(worksheet['C2'].value, 'б/у грузовой тягач седельный SCANIA R440A4X2NA')
         self.assertEqual(worksheet['C3'].value, 'ООО "ТЕСТОВАЯ КОМПАНИЯ"')
+
+    def test_fill_template_data_uses_object_summary_when_vehicle_info_empty(self):
+        workbook = Workbook()
+        worksheet = workbook.active
+        worksheet.title = 'summary_template_sheet'
+
+        request = InsuranceRequest.objects.create(
+            client_name='ООО "СТРУКТУРНАЯ КОМПАНИЯ"',
+            inn='1234567890',
+            vehicle_info='',
+            brand='LADA',
+            model='Largus KS045L',
+            condition='used',
+            manufacturing_year='2024',
+            acquisition_cost_value=1490000,
+            acquisition_cost_currency='RUB',
+            dfa_number='ТС-STRUCT-001',
+        )
+        summary = InsuranceSummary.objects.create(request=request, status='ready')
+
+        self.service._fill_template_data(workbook, summary)
+
+        self.assertEqual(
+            worksheet['C2'].value,
+            'LADA Largus KS045L, 2024 г., Б/у, 1 490 000 RUB',
+        )
     
     @patch.object(ExcelExportService, '_get_target_worksheet')
     def test_fill_template_data_worksheet_error(self, mock_get_worksheet):

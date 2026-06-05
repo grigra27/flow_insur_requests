@@ -11,10 +11,11 @@ from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.contrib.auth.models import User, Group
-from django.test import TestCase, Client, override_settings
+from django.test import TestCase, Client, SimpleTestCase, override_settings
 from django.urls import reverse
 from openpyxl import load_workbook
 
+from core.templates import EmailTemplateGenerator
 from .models import InsuranceRequest, RequestAttachment
 
 
@@ -211,6 +212,7 @@ class RequestDatabaseExportTest(TestCase):
 
         self.assertIn(('Имя клиента [client_name]', 'ООО Тестовый клиент'), exported_pairs)
         self.assertIn(('Статус [status]', 'Загружено [uploaded]'), exported_pairs)
+        self.assertIn(('Сводка объекта [object_summary]', 'Линия по производству тестов'), exported_pairs)
         self.assertIn(('Тип франшизы [franchise_type]', 'Только с франшизой [with_franchise]'), exported_pairs)
         self.assertIn(('additional_data.application_format', 'property'), exported_pairs)
         self.assertIn(('additional_data.parser_v2.warnings[1]', 'Проверить адрес'), exported_pairs)
@@ -334,6 +336,9 @@ class RequestV1V2DisplayCompatibilityTest(TestCase):
         self.assertContains(v2_response, 'LADA Largus KS045L')
         self.assertContains(v2_response, 'Стоимость приобретения')
         self.assertContains(v2_response, '1 490 000 RUB')
+        self.assertContains(v2_response, 'Состояние:')
+        self.assertContains(v2_response, 'Б/у')
+        self.assertNotContains(v2_response, 'Автомобиль LADA Largus KS045L 2024 б/у')
         self.assertContains(v2_response, 'Alla Borisovna Magic Parser')
         self.assertContains(v2_response, '88%')
 
@@ -365,6 +370,68 @@ class DisplayNameBatchTest(TestCase):
             dfa_number='ДФА 18022',
         )
         self.assertEqual(req.get_display_name(), 'ДФА 18022')
+
+
+class InsuranceRequestObjectPropertiesTest(SimpleTestCase):
+    def test_object_summary_prefers_structured_fields(self):
+        request = InsuranceRequest(
+            brand='LADA',
+            model='Largus KS045L',
+            condition='used',
+            acquisition_cost_value=Decimal('1490000'),
+            acquisition_cost_currency='RUB',
+            manufacturing_year='2024',
+            source_object_count=2,
+            vehicle_info='legacy value',
+        )
+
+        self.assertEqual(
+            request.object_summary,
+            'LADA Largus KS045L, 2024 г., Б/у, 1 490 000 RUB, ×2',
+        )
+
+    def test_object_summary_uses_object_description_when_brand_model_missing(self):
+        request = InsuranceRequest(
+            object_description='Линия порошковой окраски с конвейером',
+            manufacturing_year='2020',
+            asset_status='б/у',
+        )
+
+        self.assertEqual(
+            request.object_summary,
+            'Линия порошковой окраски с конвейером, 2020 г., б/у',
+        )
+
+    def test_object_summary_falls_back_to_vehicle_info_for_legacy_v1(self):
+        request = InsuranceRequest(vehicle_info='Старое описание предмета лизинга')
+
+        self.assertEqual(request.object_summary, 'Старое описание предмета лизинга')
+
+    def test_condition_helpers_support_v2_and_legacy(self):
+        structured_request = InsuranceRequest(condition='new')
+        legacy_request = InsuranceRequest(asset_status='новое')
+
+        self.assertEqual(structured_request.condition_label, 'Новое')
+        self.assertTrue(structured_request.is_new_object)
+        self.assertEqual(legacy_request.condition_label, 'новое')
+        self.assertTrue(legacy_request.is_new_object)
+
+
+class EmailTemplateGeneratorTest(TestCase):
+    def test_generate_subject_uses_object_display_name_for_structured_request(self):
+        request = InsuranceRequest(
+            dfa_number='ДФА-123',
+            branch='Москва',
+            insurance_period='1 год',
+            brand='LADA',
+            model='Vesta Cross',
+            vehicle_info='Очень длинное legacy-описание, которое не должно попасть в тему письма',
+        )
+
+        subject = EmailTemplateGenerator().generate_subject(request.to_dict())
+
+        self.assertIn('LADA Vesta Cross', subject)
+        self.assertNotIn('legacy-описание', subject)
 
     def test_display_name_for_single_item_batch_omits_suffix(self):
         # item_count == 1 means «партия из одной заявки» — суффикс не нужен.

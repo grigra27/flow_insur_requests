@@ -51,7 +51,7 @@ EDIT_THRESHOLD_SECONDS = 60  # updated_at - created_at > порог → заяв
 
 # Группы полей для completeness-score
 FIELDS_BASE = (
-    'dfa_number', 'branch', 'manager_name', 'vehicle_info',
+    'dfa_number', 'branch', 'manager_name', 'object_summary',
     'notes', 'insurance_period', 'response_deadline',
 )
 FIELDS_CASCO = (
@@ -70,7 +70,7 @@ PROPERTY_INSURANCE_TYPES = {'страхование имущества'}
 # summaries.services.excel_services._is_new_object.
 COMPLETENESS_FIELD_FALLBACKS = {
     # V1: asset_status (свободный текст), V2: condition ('new'/'used').
-    'asset_status': ('condition',),
+    'asset_status': ('condition_label', 'condition'),
 }
 
 HEATMAP_TOP_LIMIT = 8  # сколько значений измерения показывать в heatmap’е

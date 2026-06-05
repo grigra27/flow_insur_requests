@@ -40,6 +40,8 @@ FIELD_SECTION_MAP = {
     'deal_status': 'client',
     'submission_date': 'client',
     'vehicle_info': 'object',
+    'object_summary': 'object',
+    'object_description': 'object',
     'brand': 'object',
     'model': 'object',
     'condition': 'object',
@@ -100,6 +102,8 @@ FIELD_ORDER = [
     'deal_status',
     'submission_date',
     'vehicle_info',
+    'object_summary',
+    'object_description',
     'brand',
     'model',
     'condition',
@@ -144,6 +148,10 @@ FIELD_ORDER = [
     'email_body',
     'notes',
 ]
+
+COMPUTED_FIELD_VERBOSE_NAMES = {
+    'object_summary': 'Сводка объекта',
+}
 
 
 def _format_decimal(value: Decimal) -> str:
@@ -226,6 +234,12 @@ def _build_request_rows(insurance_request):
     handled_fields = set()
 
     for field_name in FIELD_ORDER:
+        if field_name in COMPUTED_FIELD_VERBOSE_NAMES:
+            handled_fields.add(field_name)
+            section_key = FIELD_SECTION_MAP.get(field_name, 'other')
+            key = f'{COMPUTED_FIELD_VERBOSE_NAMES[field_name]} [{field_name}]'
+            rows_by_section[section_key].append((key, _format_scalar(getattr(insurance_request, field_name, None))))
+            continue
         field = model_fields.get(field_name)
         if field is None:
             continue

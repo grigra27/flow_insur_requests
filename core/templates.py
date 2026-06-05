@@ -280,7 +280,7 @@ ${franshiza_text}${installment_text}${avtozapusk_text}${transportation_text}${co
         # Получаем значения с fallback для пустых/None значений
         dfa_number = data.get('dfa_number') or 'ДФА не указан'
         branch = data.get('branch') or 'Филиал не указан'
-        vehicle_info = data.get('vehicle_info') or 'Предмет лизинга не указан'
+        object_display_name = data.get('object_display_name') or 'Предмет лизинга не указан'
         
         # Получаем срок страхования с fallback значением
         insurance_period = data.get('insurance_period')
@@ -293,11 +293,11 @@ ${franshiza_text}${installment_text}${avtozapusk_text}${transportation_text}${co
             insurance_period = 'не указан'
         
         # Ограничиваем длину информации о предмете лизинга для темы письма
-        if len(vehicle_info) > 50:
-            vehicle_info = vehicle_info[:47] + '...'
+        if len(object_display_name) > 50:
+            object_display_name = object_display_name[:47] + '...'
         
         # Логируем использование устаревшего параметра для отладки
         if sequence_number is not None:
             logger.debug(f"sequence_number parameter is deprecated and ignored: {sequence_number}")
         
-        return f"заявка {dfa_number} - {branch} - {vehicle_info} - {insurance_period}"
+        return f"заявка {dfa_number} - {branch} - {object_display_name} - {insurance_period}"

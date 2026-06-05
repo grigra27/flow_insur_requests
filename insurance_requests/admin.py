@@ -46,7 +46,7 @@ class InsuranceRequestAdmin(admin.ModelAdmin):
     # Расширенный поиск по ключевым полям
     search_fields = [
         'dfa_number', 'client_name', 'inn', 'branch', 
-        'email_subject', 'vehicle_info'
+        'email_subject', 'vehicle_info', 'brand', 'model'
     ]
     
     # Поля только для чтения
@@ -72,7 +72,13 @@ class InsuranceRequestAdmin(admin.ModelAdmin):
         }),
         ('Страхование', {
             'fields': (
-                'insurance_type', 'insurance_period', 'vehicle_info', 'manufacturing_year', 'asset_status'
+                'insurance_type', 'insurance_period',
+                'brand', 'model', 'condition', 'equipment_type',
+                'power_or_capacity', 'acquisition_cost_value',
+                'acquisition_cost_currency', 'manufacturing_year',
+                'object_description',
+                # legacy-поля храним до полной миграции потребителей
+                'vehicle_info', 'asset_status',
             )
         }),
         ('Параметры', {
@@ -248,4 +254,3 @@ class RequestFieldEditAdmin(admin.ModelAdmin):
     def has_add_permission(self, request):
         # Строки создаются только при сохранении заявки из превью.
         return False
-

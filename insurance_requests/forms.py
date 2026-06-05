@@ -626,6 +626,7 @@ class ParserV2ObjectForm(forms.Form):
         cleaned form data instead of parser payload.
         """
         cleaned = self.cleaned_data
+        description = (cleaned.get('vehicle_info') or 'Предмет лизинга не указан')[:5000]
         return {
             'brand': cleaned.get('brand') or None,
             'model': cleaned.get('model') or None,
@@ -634,7 +635,8 @@ class ParserV2ObjectForm(forms.Form):
             'power_or_capacity': cleaned.get('power_or_capacity') or None,
             'acquisition_cost_value': cleaned.get('acquisition_cost_value'),
             'acquisition_cost_currency': cleaned.get('acquisition_cost_currency') or None,
-            'vehicle_info': (cleaned.get('vehicle_info') or 'Предмет лизинга не указан')[:5000],
+            'vehicle_info': description,
+            'object_description': description,
             'manufacturing_year': (cleaned.get('manufacturing_year') or '')[:255],
             'source_object_count': cleaned.get('source_object_count') or 1,
         }
@@ -651,6 +653,7 @@ def parser_v2_object_initial_from_payload(insured_objects):
     """Build initial data for ParserV2ObjectFormSet from parser payload."""
     initial = []
     for obj in insured_objects:
+        description = obj.get('object_description') or obj.get('description') or ''
         initial.append({
             'brand': obj.get('brand') or '',
             'model': obj.get('model') or '',
@@ -660,7 +663,7 @@ def parser_v2_object_initial_from_payload(insured_objects):
             'acquisition_cost_value': obj.get('acquisition_cost_value') or '',
             'acquisition_cost_currency': obj.get('acquisition_cost_currency') or '',
             'manufacturing_year': obj.get('year') or '',
-            'vehicle_info': obj.get('description') or '',
+            'vehicle_info': description,
             'source_object_count': obj.get('source_object_count') or 1,
             'skip': False,
         })
