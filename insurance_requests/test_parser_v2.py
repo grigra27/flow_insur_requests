@@ -1347,8 +1347,8 @@ class ParserV2UploadTests(TestCase):
         # Вторая сестра не правилась.
         self.assertEqual(second.parser_v2_object_edits, [])
 
-    def test_parser_v2_comparison_page_renders_two_columns(self):
-        """Фаза 2: страница сравнения показывает обе колонки и исходный Excel."""
+    def test_parser_v2_comparison_page_renders_three_columns(self):
+        """Страница сравнения показывает три состояния поля и исходный Excel."""
         self.client.login(username='parser_v2_root', password='pwd')
         upload_response = self.client.post(
             reverse('insurance_requests:upload_excel_v2'),
@@ -1365,13 +1365,16 @@ class ParserV2UploadTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, 'insurance_requests/request_comparison.html')
-        # Обе стороны видны: распознанное и итог.
+        # Видны все три колонки и значения распознанного/текущего.
+        self.assertContains(response, 'Распознано из Excel')
+        self.assertContains(response, 'Оператор при создании')
+        self.assertContains(response, 'Текущее значение')
         self.assertContains(response, 'ООО Ромашка')
         self.assertContains(response, 'ООО Лютик')
-        self.assertContains(response, 'Изменено полей')
         # Ссылка на исходный Excel присутствует.
         self.assertContains(response, 'Исходный Excel')
         self.assertEqual(response.context['changed_count'], 1)
+        self.assertEqual(response.context['changed_after_count'], 0)
 
     def test_parser_v2_comparison_redirects_for_non_v2_request(self):
         """Фаза 2: для не-V2 заявки страница сравнения уводит на карточку."""

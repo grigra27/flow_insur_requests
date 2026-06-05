@@ -462,21 +462,101 @@ class InsuranceRequest(models.Model):
             return obj if isinstance(obj, dict) else {}
         return {}
 
+    # Изменения в первые секунды после создания (статусные сейвы V2-флоу,
+    # сохранение в одной транзакции) — это не «правки после создания»,
+    # а хвост самого создания. Отсекаем их по тому же принципу, что и
+    # edited_after_create в аналитике.
+    _POST_CREATE_EPSILON = timedelta(seconds=5)
+
+    def parser_v2_post_creation_changes(self):
+        """Поля, изменённые ПОСЛЕ создания заявки (точка 3 vs точка 2).
+
+        Источник — журнал django-easy-audit (CRUDEvent, UPDATE). Возвращает
+        ``{field_name: {'by': username, 'at': datetime}}`` с самым свежим
+        изменением по каждому полю. Пусто для несохранённых записей и когда
+        audit недоступен (graceful degradation: текущее значение всё равно
+        показывается, просто без подсветки «изменено после создания»).
+        """
+        if not self.pk:
+            return {}
+        try:
+            from easyaudit.models import CRUDEvent
+            from django.contrib.contenttypes.models import ContentType
+        except Exception:  # noqa: BLE001
+            return {}
+        try:
+            ct = ContentType.objects.get_for_model(InsuranceRequest)
+            cutoff = None
+            if self.created_at:
+                cutoff = self.created_at + self._POST_CREATE_EPSILON
+            events = (
+                CRUDEvent.objects
+                .filter(content_type=ct, object_id=str(self.pk), event_type=CRUDEvent.UPDATE)
+                .select_related('user')
+                .order_by('-datetime')
+            )
+            changes: Dict[str, Any] = {}
+            for evt in events:
+                if cutoff and evt.datetime and evt.datetime <= cutoff:
+                    continue
+                try:
+                    delta = json.loads(evt.changed_fields) if evt.changed_fields else {}
+                except (TypeError, ValueError):
+                    continue
+                if not isinstance(delta, dict):
+                    continue
+                username = getattr(evt.user, 'username', '') or '' if evt.user_id else ''
+                for field_name in delta:
+                    if field_name in {'updated_at', 'status'} or field_name in changes:
+                        continue
+                    changes[field_name] = {'by': username, 'at': evt.datetime}
+            return changes
+        except Exception:  # noqa: BLE001
+            return {}
+
+    @property
+    def parser_v2_post_creation_count(self):
+        """Сколько отслеживаемых полей правили после создания (для бейджа)."""
+        from .edit_tracking import get_scalar_field_meta, get_object_field_meta
+        tracked = set(get_scalar_field_meta()) | set(get_object_field_meta())
+        return sum(1 for f in self.parser_v2_post_creation_changes() if f in tracked)
+
+    def _enrich_with_current(self, rows, meta):
+        """Дополнить строки сравнения текущим значением модели (точка 3).
+
+        К строкам «распознано (1) / оператор при создании (2)» добавляет:
+        current — текущее значение поля; changed_after_create — менялось ли
+        оно после создания (из CRUDEvent); changed_by / changed_at — кто и
+        когда внёс последнюю такую правку.
+        """
+        from .edit_tracking import current_display_value
+        post_changes = self.parser_v2_post_creation_changes()
+        for row in rows:
+            name = row['field']
+            row['current'] = current_display_value(name, getattr(self, name, None), meta)
+            change = post_changes.get(name)
+            row['changed_after_create'] = change is not None
+            row['changed_by'] = change['by'] if change else ''
+            row['changed_at'] = change['at'] if change else None
+        return rows
+
     def parser_v2_scalar_comparison(self):
-        """Строки сравнения общих полей «распознано / итог» для страницы."""
-        from .edit_tracking import scalar_comparison_rows
+        """Строки сравнения общих полей «распознано / при создании / текущее»."""
+        from .edit_tracking import scalar_comparison_rows, get_scalar_field_meta
         original = self.parser_v2_data.get('original_data') or {}
-        return scalar_comparison_rows(
+        rows = scalar_comparison_rows(
             original, self.parser_v2_field_edits, bool(self.parser_v2_object_original)
         )
+        return self._enrich_with_current(rows, get_scalar_field_meta())
 
     def parser_v2_object_comparison(self):
-        """Строки сравнения объектных полей этой заявки «распознано / итог»."""
-        from .edit_tracking import object_comparison_rows
+        """Строки сравнения объектных полей «распознано / при создании / текущее»."""
+        from .edit_tracking import object_comparison_rows, get_object_field_meta
         original = self.parser_v2_object_original
         if not original:
             return []
-        return object_comparison_rows(original, self.parser_v2_object_edits)
+        rows = object_comparison_rows(original, self.parser_v2_object_edits)
+        return self._enrich_with_current(rows, get_object_field_meta())
 
     @property
     def list_premium_frequency_display(self):
