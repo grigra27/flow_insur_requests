@@ -1,0 +1,132 @@
+{% extends 'base.html' %}
+
+{% block title %}Правки после создания - {{ block.super }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h1 class="h3 mb-1"><i class="bi bi-clock-history"></i> Правки после создания</h1>
+        <p class="text-muted mb-0">
+            Что меняют в V2-заявках уже после сохранения за последние {{ filters.days }} дн.
+            Контроль операторов и процесса; источник — журнал аудита.
+        </p>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        <form method="get" class="d-flex align-items-center gap-2">
+            <label for="days" class="form-label mb-0 small text-muted">Период, дней:</label>
+            <input type="number" min="1" max="3650" name="days" id="days"
+                   value="{{ filters.days }}" class="form-control form-control-sm" style="width: 100px;">
+            <button type="submit" class="btn btn-sm btn-primary">Применить</button>
+        </form>
+        <a href="{% url 'summaries:analytics' %}" class="btn btn-sm btn-secondary">К аналитике</a>
+    </div>
+</div>
+
+{% if not audit_available %}
+<div class="alert alert-warning">
+    <i class="bi bi-exclamation-triangle"></i>
+    Журнал аудита (django-easy-audit) недоступен — данные по правкам после
+    создания собрать нельзя.
+</div>
+{% endif %}
+
+{# KPI #}
+<div class="row g-3 mb-4">
+    <div class="col-md-4 col-6">
+        <div class="card h-100"><div class="card-body">
+            <div class="text-muted small">Заявок правили после создания</div>
+            <div class="h4 mb-0">{{ totals.requests_with_post_edits }}</div>
+        </div></div>
+    </div>
+    <div class="col-md-4 col-6">
+        <div class="card h-100"><div class="card-body">
+            <div class="text-muted small">Всего поздних правок полей</div>
+            <div class="h4 mb-0">{{ totals.total_post_edits }}</div>
+        </div></div>
+    </div>
+    <div class="col-md-4 col-6">
+        <div class="card h-100 border-warning"><div class="card-body">
+            <div class="text-muted small">Подозрений на пропущенную ошибку</div>
+            <div class="h4 mb-0">{{ totals.suspected_count }}</div>
+        </div></div>
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    {# По полям #}
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header">
+                <h6 class="mb-0">Какие поля меняют после создания</h6>
+                <small class="text-muted">Волатильность данных: где заявка «живёт» после ввода.</small>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0">
+                    <thead class="table-light"><tr><th>Поле</th><th class="text-end">Заявок</th><th class="text-end">Правок</th></tr></thead>
+                    <tbody>
+                        {% for row in by_field %}
+                        <tr><td>{{ row.field_label }}</td><td class="text-end">{{ row.requests }}</td><td class="text-end">{{ row.edits }}</td></tr>
+                        {% empty %}
+                        <tr><td colspan="3" class="text-muted">Нет данных</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    {# По авторам правок #}
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header">
+                <h6 class="mb-0">Кто правит после создания</h6>
+                <small class="text-muted">Автор поздней правки (из журнала аудита).</small>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0">
+                    <thead class="table-light"><tr><th>Сотрудник</th><th class="text-end">Заявок</th><th class="text-end">Правок</th></tr></thead>
+                    <tbody>
+                        {% for row in by_editor %}
+                        <tr><td>{{ row.editor }}</td><td class="text-end">{{ row.requests }}</td><td class="text-end">{{ row.edits }}</td></tr>
+                        {% empty %}
+                        <tr><td colspan="3" class="text-muted">Нет данных</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# Подозрения на пропущенную ошибку парсера #}
+<div class="card">
+    <div class="card-header">
+        <h6 class="mb-0">Подозрения на пропущенную ошибку парсера</h6>
+        <small class="text-muted">
+            Поле НЕ правили на входе (оператор принял значение парсера), но изменили позже.
+            Это либо ошибка парсера, пропущенная при проверке, либо бизнес-изменение — нужна ручная разметка.
+        </small>
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+            <thead class="table-light">
+                <tr><th>Заявка</th><th>Поле</th><th>Было (принято с парсера)</th><th>Стало</th><th>Кто</th><th class="text-end">Когда</th></tr>
+            </thead>
+            <tbody>
+                {% for row in suspected %}
+                <tr>
+                    <td><a href="{% url 'insurance_requests:request_comparison' row.request_id %}">#{{ row.request_id }}</a></td>
+                    <td>{{ row.field_label }}</td>
+                    <td class="text-muted">{% if row.old_value %}<del>{{ row.old_value }}</del>{% else %}—{% endif %}</td>
+                    <td><strong>{% if row.new_value %}{{ row.new_value }}{% else %}—{% endif %}</strong></td>
+                    <td class="small">{{ row.editor }}</td>
+                    <td class="text-end small text-muted">{{ row.changed_at|date:"d.m.Y H:i" }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="6" class="text-muted">Подозрений за период нет.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -107,5 +107,23 @@
             </a>
         </div>
     </div>
+
+    <div class="card analytics-index-card">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <h2 class="h5 mb-0">Правки после создания</h2>
+                <span class="badge bg-success">Доступно</span>
+            </div>
+            <p class="text-muted mb-3">
+                Что меняют в заявках уже после сохранения: волатильность полей, авторы поздних правок и подозрения на пропущенные при проверке ошибки парсера.
+            </p>
+            <div class="analytics-index-meta mb-3">
+                Контроль операторов и процесса
+            </div>
+            <a href="{% url 'summaries:analytics_post_creation' %}" class="btn btn-primary">
+                Открыть раздел
+            </a>
+        </div>
+    </div>
 </div>
 {% endblock %}
