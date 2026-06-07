@@ -1,7 +1,27 @@
 from django import template
+from django.http import QueryDict
 from decimal import Decimal
 
 register = template.Library()
+
+
+@register.simple_tag(takes_context=True)
+def qs_replace(context, **kwargs):
+    """Возвращает строку запроса текущего URL с переопределёнными параметрами.
+
+    Передача значения None или '' удаляет параметр. Удобно для пагинации и
+    фильтров: сохраняет все активные GET-параметры (филиал, ДФА, период,
+    per_page), меняя лишь нужные. Возвращает строку вида '?a=1&b=2'.
+    """
+    request = context.get('request')
+    params = request.GET.copy() if request is not None else QueryDict(mutable=True)
+    for key, value in kwargs.items():
+        if value in (None, ''):
+            params.pop(key, None)
+        else:
+            params[key] = value
+    encoded = params.urlencode()
+    return ('?' + encoded) if encoded else '?'
 
 @register.filter
 def lookup(dictionary, key):

@@ -112,20 +112,21 @@
         line-height: 1;
         vertical-align: middle;
     }
+    /* Плоские бейджи: однотонные заливки, тонкие бордеры, без «надутых» теней. */
     .request-list-badge {
         display: inline-flex;
         position: relative;
         align-items: center;
         gap: 0.35rem;
-        padding: 0.24rem 0.58rem;
+        padding: 0.22rem 0.55rem;
         overflow: hidden;
         border-radius: 999px;
-        font-weight: 700;
+        font-weight: 600;
         letter-spacing: 0.01em;
         line-height: 1;
         vertical-align: middle;
-        box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
-        transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
+        box-shadow: none;
+        transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
     }
     .request-list-badge i {
         font-size: 0.85em;
@@ -135,66 +136,122 @@
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        min-width: 1.35rem;
-        padding: 0.1rem 0.38rem;
+        min-width: 1.3rem;
+        padding: 0.1rem 0.36rem;
         border-radius: 999px;
-        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+        font-weight: 700;
     }
     .request-list-badge--batch {
-        background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+        background: rgba(var(--request-batch-rgb), 0.08);
         color: var(--request-batch-text);
-        border: 1px solid rgba(var(--request-batch-rgb), 0.12);
-        box-shadow: 0 4px 10px rgba(var(--request-batch-rgb), 0.08);
+        border: 1px solid rgba(var(--request-batch-rgb), 0.22);
     }
     .request-list-badge--batch .request-list-badge__count {
-        background: rgba(var(--request-batch-rgb), 0.10);
-        box-shadow: inset 0 0 0 1px rgba(var(--request-batch-rgb), 0.10);
+        background: rgba(var(--request-batch-rgb), 0.12);
         color: var(--request-batch-text);
     }
     .request-list-badge--duplicate {
-        background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
-        color: #1f2937;
-        box-shadow: 0 8px 18px rgba(245, 158, 11, 0.20);
+        background: #fef3c7;
+        color: #92400e;
+        border: 1px solid rgba(217, 119, 6, 0.32);
     }
     .request-list-badge--review {
-        background: linear-gradient(135deg, #fb7185 0%, #f97316 100%);
-        color: #ffffff;
-        box-shadow: 0 8px 18px rgba(249, 115, 22, 0.22);
+        background: #fff1ec;
+        color: #c2410c;
+        border: 1px solid rgba(234, 88, 12, 0.38);
     }
     .request-list-badge--manual-edits {
-        background: linear-gradient(135deg, #f8fafc 0%, #ecfeff 100%);
-        color: #0f766e;
-        border: 1px solid rgba(15, 118, 110, 0.16);
-        box-shadow: 0 2px 6px rgba(15, 23, 42, 0.05);
+        background: var(--app-primary-soft);
+        color: var(--app-primary-dark);
+        border: 1px solid rgba(11, 122, 117, 0.26);
     }
     .request-list-badge--manual-edits .request-list-badge__count {
-        background: rgba(15, 118, 110, 0.10);
-        box-shadow: inset 0 0 0 1px rgba(15, 118, 110, 0.10);
-        color: #115e59;
+        background: rgba(11, 122, 117, 0.12);
+        color: var(--app-primary-dark);
     }
     .request-list-badge--manual-edits:hover,
     .request-list-badge--manual-edits:focus-visible {
-        color: #115e59;
-        box-shadow: 0 3px 8px rgba(15, 23, 42, 0.08);
-        filter: none;
+        background: rgba(11, 122, 117, 0.14);
+        color: var(--app-primary-dark);
     }
     .request-list-badge--post-edits {
-        background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+        background: #eef4ff;
         color: #1d4ed8;
-        border: 1px solid rgba(29, 78, 216, 0.18);
-        box-shadow: 0 2px 6px rgba(15, 23, 42, 0.05);
+        border: 1px solid rgba(29, 78, 216, 0.26);
     }
     .request-list-badge--post-edits .request-list-badge__count {
-        background: rgba(29, 78, 216, 0.10);
-        box-shadow: inset 0 0 0 1px rgba(29, 78, 216, 0.12);
+        background: rgba(29, 78, 216, 0.12);
         color: #1e40af;
     }
     .request-list-badge--post-edits:hover,
     .request-list-badge--post-edits:focus-visible {
+        background: rgba(29, 78, 216, 0.12);
         color: #1e40af;
-        box-shadow: 0 3px 8px rgba(15, 23, 42, 0.08);
-        filter: none;
     }
+
+    /* (5) Залипающая шапка таблицы + единый фон у строк партии (зебра — только
+       у обычных строк). На широких экранах снимаем горизонтальный скролл-контекст,
+       иначе sticky не сработает; на узких — оставляем скролл, шапка не липнет. */
+    .request-table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 5;
+    }
+    @media (min-width: 992px) {
+        .request-table-responsive { overflow: visible; }
+    }
+    .table-striped > tbody > tr.request-row--batch:nth-of-type(odd) > * {
+        --bs-table-accent-bg: rgba(var(--request-batch-rgb), 0.026);
+    }
+
+    /* (9) Видимый аффорданс кликабельной строки: подсветка фона + стрелка. */
+    .request-row { transition: background-color 0.15s ease; }
+    .request-row:focus-visible {
+        outline: 2px solid rgba(11, 122, 117, 0.55);
+        outline-offset: -2px;
+    }
+    .request-go-col { width: 1%; }
+    .request-go-cell {
+        text-align: right;
+        white-space: nowrap;
+        color: var(--app-muted);
+        opacity: 0.32;
+        transition: opacity 0.16s ease, transform 0.16s ease, color 0.16s ease;
+    }
+    .table-hover > tbody > tr.request-row:hover .request-go-cell,
+    .request-row:focus-visible .request-go-cell {
+        opacity: 1;
+        color: var(--app-primary);
+        transform: translateX(3px);
+    }
+
+    /* (10) Чипы-пресеты периода и переключатель размера страницы. */
+    .period-presets { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
+    .period-preset-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 0.3rem 0.7rem;
+        border-radius: 999px;
+        border: 1px solid var(--app-border);
+        background: var(--app-surface);
+        color: var(--app-muted);
+        font-size: 0.82rem;
+        font-weight: 600;
+        text-decoration: none;
+        transition: all 0.16s ease;
+    }
+    .period-preset-chip:hover {
+        border-color: rgba(11, 122, 117, 0.4);
+        color: var(--app-primary-dark);
+        background: var(--app-primary-soft);
+    }
+    .period-preset-chip.active {
+        border-color: var(--app-primary);
+        background: var(--app-primary-soft);
+        color: var(--app-primary-dark);
+    }
+    .per-page-switch .btn { --bs-btn-padding-y: 0.2rem; }
 </style>
 {% endblock %}
 
@@ -213,8 +270,8 @@
 <div class="branch-filter-tabs mb-4">
     <ul class="nav nav-tabs">
         <li class="nav-item">
-            <a class="nav-link {% if not current_branch %}active{% endif %}" 
-               href="?{% if current_dfa_filter %}dfa_filter={{ current_dfa_filter|urlencode }}&{% endif %}{% if current_month %}month={{ current_month }}&{% endif %}{% if current_year %}year={{ current_year }}{% endif %}"
+            <a class="nav-link {% if not current_branch %}active{% endif %}"
+               href="{% qs_replace branch=None page=None %}"
                >
                 <i class="bi bi-list-ul"></i> Все
                 {% if not current_branch %}
@@ -224,8 +281,8 @@
         </li>
         {% for branch in available_branches %}
         <li class="nav-item">
-            <a class="nav-link {% if current_branch == branch %}active{% endif %}" 
-               href="?branch={{ branch|urlencode }}{% if current_dfa_filter %}&dfa_filter={{ current_dfa_filter|urlencode }}{% endif %}{% if current_month %}&month={{ current_month }}{% endif %}{% if current_year %}&year={{ current_year }}{% endif %}"
+            <a class="nav-link {% if current_branch == branch %}active{% endif %}"
+               href="{% qs_replace branch=branch page=None %}"
                >
                 {{ branch }}
                 {% if current_branch == branch %}
@@ -298,59 +355,79 @@
                     <i class="bi bi-arrow-clockwise"></i> Сбросить
                 </a>
             </div>
-            
-            {% if has_filters %}
-            <div class="col-md-3">
-                <small class="text-muted">
-                    <i class="bi bi-info-circle"></i> 
-                    Показано заявок: <strong>{{ total_requests }}</strong>
-                    {% if current_branch %}<br>Филиал: <strong>{{ current_branch|escape }}</strong>{% endif %}
-                    {% if current_month and current_year %}<br>Период: <strong>{{ current_month|date:"F" }} {{ current_year }}</strong>{% elif current_year %}<br>Год: <strong>{{ current_year }}</strong>{% elif current_month %}<br>Месяц: <strong>{{ current_month|date:"F" }}</strong>{% endif %}
-                    {% if current_dfa_filter %}<br>Номер ДФА содержит: <strong>{{ current_dfa_filter|escape }}</strong>{% endif %}
-                </small>
-            </div>
+
+            {% if current_per_page != default_per_page %}
+                <input type="hidden" name="per_page" value="{{ current_per_page }}">
             {% endif %}
+
+            <div class="col-12">
+                <div class="period-presets">
+                    <span class="text-muted small me-1"><i class="bi bi-lightning-charge"></i> Быстрый период:</span>
+                    <a class="period-preset-chip{% if current_month == period_presets.this_month.month and current_year == period_presets.this_month.year %} active{% endif %}"
+                       href="{% qs_replace month=period_presets.this_month.month year=period_presets.this_month.year page=None %}">Этот месяц</a>
+                    <a class="period-preset-chip{% if current_month == period_presets.last_month.month and current_year == period_presets.last_month.year %} active{% endif %}"
+                       href="{% qs_replace month=period_presets.last_month.month year=period_presets.last_month.year page=None %}">Прошлый месяц</a>
+                    <a class="period-preset-chip{% if not current_month and current_year == period_presets.this_year.year %} active{% endif %}"
+                       href="{% qs_replace year=period_presets.this_year.year month=None page=None %}">Этот год</a>
+                </div>
+            </div>
         </form>
     </div>
 </div>
 {% endif %}
 
 {% if requests %}
-    <!-- Active Filters Summary -->
+    <!-- Active filters: one chip per filter with its own remove control -->
     {% if has_filters %}
-    <div class="alert alert-info mb-3" role="alert">
-        <div class="d-flex align-items-center">
-            <i class="bi bi-funnel me-2"></i>
-            <div class="flex-grow-1">
-                <strong>Активные фильтры:</strong>
-                <span class="ms-2">
-                    {% if current_branch %}
-                        <span class="badge app-filter-chip me-1">Филиал: {{ current_branch|escape }}</span>
-                    {% endif %}
-                    {% if current_month and current_year %}
-                        <span class="badge app-filter-chip me-1">Период: {{ current_month|date:"F" }} {{ current_year }}</span>
-                    {% elif current_year %}
-                        <span class="badge app-filter-chip me-1">Год: {{ current_year }}</span>
-                    {% elif current_month %}
-                        <span class="badge app-filter-chip me-1">Месяц: {{ current_month|date:"F" }}</span>
-                    {% endif %}
-                    {% if current_dfa_filter %}
-                        <span class="badge bg-success me-1">ДФА: {{ current_dfa_filter|escape }}</span>
-                    {% endif %}
-                </span>
-                <span class="text-muted ms-2">
-                    (найдено: <strong>{{ total_requests }}</strong> {{ total_requests|pluralize:"заявка,заявки,заявок" }})
-                </span>
-            </div>
-            <a href="{% url 'insurance_requests:request_list' %}" class="btn btn-outline-secondary btn-sm">
-                <i class="bi bi-x-circle"></i> Сбросить все
-            </a>
-        </div>
+    <div class="active-filters d-flex flex-wrap align-items-center gap-2 mb-3">
+        <span class="text-muted small"><i class="bi bi-funnel-fill"></i> Фильтры:</span>
+        {% if current_branch %}
+            <span class="badge app-filter-chip d-inline-flex align-items-center gap-1">
+                Филиал: {{ current_branch|escape }}
+                <a href="{% qs_replace branch=None page=None %}" class="text-reset text-decoration-none lh-1" aria-label="Убрать фильтр по филиалу"><i class="bi bi-x-circle"></i></a>
+            </span>
+        {% endif %}
+        {% if current_month and current_year %}
+            <span class="badge app-filter-chip d-inline-flex align-items-center gap-1">
+                Период: {{ current_month|date:"F" }} {{ current_year }}
+                <a href="{% qs_replace month=None year=None page=None %}" class="text-reset text-decoration-none lh-1" aria-label="Убрать фильтр по периоду"><i class="bi bi-x-circle"></i></a>
+            </span>
+        {% elif current_year %}
+            <span class="badge app-filter-chip d-inline-flex align-items-center gap-1">
+                Год: {{ current_year }}
+                <a href="{% qs_replace year=None page=None %}" class="text-reset text-decoration-none lh-1" aria-label="Убрать фильтр по году"><i class="bi bi-x-circle"></i></a>
+            </span>
+        {% elif current_month %}
+            <span class="badge app-filter-chip d-inline-flex align-items-center gap-1">
+                Месяц: {{ current_month|date:"F" }}
+                <a href="{% qs_replace month=None page=None %}" class="text-reset text-decoration-none lh-1" aria-label="Убрать фильтр по месяцу"><i class="bi bi-x-circle"></i></a>
+            </span>
+        {% endif %}
+        {% if current_dfa_filter %}
+            <span class="badge bg-success d-inline-flex align-items-center gap-1">
+                ДФА: {{ current_dfa_filter|escape }}
+                <a href="{% qs_replace dfa_filter=None page=None %}" class="text-reset text-decoration-none lh-1" aria-label="Убрать фильтр по номеру ДФА"><i class="bi bi-x-circle"></i></a>
+            </span>
+        {% endif %}
+        <span class="text-muted small ms-1">найдено: <strong>{{ total_requests }}</strong> {{ total_requests|pluralize:"заявка,заявки,заявок" }}</span>
+        <a href="{% url 'insurance_requests:request_list' %}" class="btn btn-outline-secondary btn-sm ms-auto">
+            <i class="bi bi-x-circle"></i> Сбросить все
+        </a>
     </div>
     {% endif %}
-    
-    <div class="table-responsive">
-        <table class="table table-striped table-hover">
+
+    <div class="d-flex justify-content-end align-items-center gap-2 mb-2">
+        <span class="text-muted small">На странице:</span>
+        <div class="per-page-switch btn-group btn-group-sm" role="group" aria-label="Количество заявок на странице">
+            {% for opt in per_page_options %}
+                <a class="btn {% if opt == current_per_page %}btn-primary{% else %}btn-outline-secondary{% endif %}"
+                   href="{% qs_replace per_page=opt page=None %}">{{ opt }}</a>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="table-responsive request-table-responsive">
+        <table class="table table-striped table-hover request-table">
             <thead class="table-dark">
                 <tr>
                     <th scope="col">Заявка</th>
@@ -360,6 +437,7 @@
                     <th scope="col">Статус</th>
                     <th scope="col">Дата создания</th>
                     <th scope="col">Условия</th>
+                    <th scope="col" class="request-go-col" aria-hidden="true"></th>
                 </tr>
             </thead>
             <tbody>
@@ -534,6 +612,7 @@
 	                                {% endif %}
 	                            </div>
                         </td>
+                        <td class="request-go-cell"><i class="bi bi-chevron-right"></i></td>
                     </tr>
                 {% endfor %}
             </tbody>
@@ -561,7 +640,7 @@
             <!-- Previous Button -->
             {% if page_obj.has_previous %}
                 <li class="page-item">
-                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if current_branch %}&branch={{ current_branch|urlencode }}{% endif %}{% if current_dfa_filter %}&dfa_filter={{ current_dfa_filter|urlencode }}{% endif %}{% if current_month %}&month={{ current_month }}{% endif %}{% if current_year %}&year={{ current_year }}{% endif %}" aria-label="Предыдущая">
+                    <a class="page-link" href="{% qs_replace page=page_obj.previous_page_number %}" aria-label="Предыдущая">
                         <span aria-hidden="true">&laquo;</span>
                         <span class="d-none d-sm-inline ms-1">Предыдущая</span>
                     </a>
@@ -585,7 +664,7 @@
                         </li>
                     {% else %}
                         <li class="page-item">
-                            <a class="page-link" href="?page={{ num }}{% if current_branch %}&branch={{ current_branch|urlencode }}{% endif %}{% if current_dfa_filter %}&dfa_filter={{ current_dfa_filter|urlencode }}{% endif %}{% if current_month %}&month={{ current_month }}{% endif %}{% if current_year %}&year={{ current_year }}{% endif %}">{{ num }}</a>
+                            <a class="page-link" href="{% qs_replace page=num %}">{{ num }}</a>
                         </li>
                     {% endif %}
                 {% endfor %}
@@ -594,7 +673,7 @@
                 <!-- Always show first page -->
                 {% if page_obj.number != 1 %}
                     <li class="page-item">
-                        <a class="page-link" href="?page=1{% if current_branch %}&branch={{ current_branch|urlencode }}{% endif %}{% if current_dfa_filter %}&dfa_filter={{ current_dfa_filter|urlencode }}{% endif %}{% if current_month %}&month={{ current_month }}{% endif %}{% if current_year %}&year={{ current_year }}{% endif %}">1</a>
+                        <a class="page-link" href="{% qs_replace page=1 %}">1</a>
                     </li>
                 {% else %}
                     <li class="page-item active" aria-current="page">
@@ -619,7 +698,7 @@
                                 </li>
                             {% else %}
                                 <li class="page-item">
-                                    <a class="page-link" href="?page={{ num }}{% if current_branch %}&branch={{ current_branch|urlencode }}{% endif %}{% if current_dfa_filter %}&dfa_filter={{ current_dfa_filter|urlencode }}{% endif %}{% if current_month %}&month={{ current_month }}{% endif %}{% if current_year %}&year={{ current_year }}{% endif %}">{{ num }}</a>
+                                    <a class="page-link" href="{% qs_replace page=num %}">{{ num }}</a>
                                 </li>
                             {% endif %}
                         {% endif %}
@@ -637,7 +716,7 @@
                 {% if paginator.num_pages > 1 %}
                     {% if page_obj.number != paginator.num_pages %}
                         <li class="page-item">
-                            <a class="page-link" href="?page={{ paginator.num_pages }}{% if current_branch %}&branch={{ current_branch|urlencode }}{% endif %}{% if current_dfa_filter %}&dfa_filter={{ current_dfa_filter|urlencode }}{% endif %}{% if current_month %}&month={{ current_month }}{% endif %}{% if current_year %}&year={{ current_year }}{% endif %}">{{ paginator.num_pages }}</a>
+                            <a class="page-link" href="{% qs_replace page=paginator.num_pages %}">{{ paginator.num_pages }}</a>
                         </li>
                     {% else %}
                         <li class="page-item active" aria-current="page">
@@ -650,7 +729,7 @@
             <!-- Next Button -->
             {% if page_obj.has_next %}
                 <li class="page-item">
-                    <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if current_branch %}&branch={{ current_branch|urlencode }}{% endif %}{% if current_dfa_filter %}&dfa_filter={{ current_dfa_filter|urlencode }}{% endif %}{% if current_month %}&month={{ current_month }}{% endif %}{% if current_year %}&year={{ current_year }}{% endif %}" aria-label="Следующая">
+                    <a class="page-link" href="{% qs_replace page=page_obj.next_page_number %}" aria-label="Следующая">
                         <span class="d-none d-sm-inline me-1">Следующая</span>
                         <span aria-hidden="true">&raquo;</span>
                     </a>
@@ -681,7 +760,10 @@
                 {% if current_year %}
                     <input type="hidden" name="year" value="{{ current_year }}">
                 {% endif %}
-                
+                {% if current_per_page != default_per_page %}
+                    <input type="hidden" name="per_page" value="{{ current_per_page }}">
+                {% endif %}
+
                 <div class="input-group" style="max-width: 200px;">
                     <span class="input-group-text">Стр.</span>
                     <input type="number" name="page" class="form-control" 

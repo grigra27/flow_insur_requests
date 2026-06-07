@@ -623,8 +623,18 @@ def request_list(request):
     # блоком. Заявки без партии (V1 и одиночные V2) — без вторичной сортировки.
     queryset = queryset.order_by('-created_at', 'source_batch_id', 'item_no')
     
-    # Применяем пагинацию
-    paginator = Paginator(queryset, 30)  # 30 заявок на страницу
+    # Применяем пагинацию. Размер страницы выбирается оператором из белого
+    # списка, чтобы нельзя было запросить произвольно большой объём данных.
+    PER_PAGE_OPTIONS = [30, 50, 100]
+    DEFAULT_PER_PAGE = 30
+    try:
+        per_page = int(request.GET.get('per_page', DEFAULT_PER_PAGE))
+    except (TypeError, ValueError):
+        per_page = DEFAULT_PER_PAGE
+    if per_page not in PER_PAGE_OPTIONS:
+        per_page = DEFAULT_PER_PAGE
+
+    paginator = Paginator(queryset, per_page)
     page_number = request.GET.get('page')
     
     try:
@@ -677,7 +687,19 @@ def request_list(request):
             current_year = int(year_filter)
         except ValueError:
             pass
-    
+
+    # Быстрые пресеты периода (по московскому времени) для чипов над таблицей.
+    now_msk = timezone.localtime()
+    if now_msk.month == 1:
+        prev_month, prev_month_year = 12, now_msk.year - 1
+    else:
+        prev_month, prev_month_year = now_msk.month - 1, now_msk.year
+    period_presets = {
+        'this_month': {'month': now_msk.month, 'year': now_msk.year},
+        'last_month': {'month': prev_month, 'year': prev_month_year},
+        'this_year': {'year': now_msk.year},
+    }
+
     context = {
         'requests': requests,
         'available_branches': available_branches,
@@ -695,6 +717,10 @@ def request_list(request):
         'paginator': paginator,
         'page_obj': requests,
         'is_paginated': paginator.num_pages > 1,
+        'current_per_page': per_page,
+        'per_page_options': PER_PAGE_OPTIONS,
+        'default_per_page': DEFAULT_PER_PAGE,
+        'period_presets': period_presets,
     }
     
     return render(request, 'insurance_requests/request_list.html', context)
