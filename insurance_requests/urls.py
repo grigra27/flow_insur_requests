@@ -15,6 +15,7 @@ urlpatterns = [
     path('<int:pk>/', views.request_detail, name='request_detail'),
     path('<int:pk>/comparison/', views.request_comparison, name='request_comparison'),
     path('<int:pk>/export-card/', views.export_request_database, name='export_request_database'),
+    path('<int:pk>/export-application/', views.export_request_application, name='export_request_application'),
     path('<int:pk>/edit/', views.edit_request, name='edit_request'),
     path('<int:pk>/generate-email/', views.generate_email, name='generate_email'),
     path('<int:pk>/preview-email/', views.preview_email, name='preview_email'),

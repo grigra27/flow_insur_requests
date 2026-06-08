@@ -1,0 +1,134 @@
+{% load static %}<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <style>
+        /* Кириллица: reportlab/xhtml2pdf не имеет её в стандартных шрифтах.
+           Шрифты подставляются через _link_callback (см. application_export.py). */
+        @font-face {
+            font-family: 'DejaVu';
+            src: url(fonts/DejaVuSans.ttf);
+        }
+        @font-face {
+            font-family: 'DejaVu';
+            src: url(fonts/DejaVuSans-Bold.ttf);
+            font-weight: bold;
+        }
+
+        @page {
+            size: a4 portrait;
+            margin: 1.8cm 1.6cm 2cm 1.6cm;
+            @frame footer {
+                -pdf-frame-content: pageFooter;
+                bottom: 0.9cm;
+                margin-left: 1.6cm;
+                margin-right: 1.6cm;
+                height: 1cm;
+            }
+        }
+
+        body {
+            font-family: 'DejaVu';
+            font-size: 9.5pt;
+            color: #1a1a1a;
+            line-height: 1.35;
+        }
+
+        .doc-header {
+            border-bottom: 2pt solid #1F4E78;
+            padding-bottom: 6pt;
+            margin-bottom: 12pt;
+        }
+        .brand {
+            font-size: 8pt;
+            color: #1F4E78;
+            font-weight: bold;
+            letter-spacing: 1pt;
+        }
+        .doc-title {
+            font-size: 15pt;
+            font-weight: bold;
+            color: #1F4E78;
+            margin-top: 2pt;
+        }
+        .doc-subtitle {
+            font-size: 10pt;
+            color: #444;
+            margin-top: 1pt;
+        }
+
+        .deadline {
+            background-color: #FFF3CD;
+            border: 0.75pt solid #E0C97A;
+            padding: 5pt 8pt;
+            margin-bottom: 12pt;
+            font-size: 9.5pt;
+        }
+        .deadline b { color: #8a6d00; }
+
+        .section-title {
+            background-color: #1F4E78;
+            color: #ffffff;
+            font-weight: bold;
+            font-size: 9.5pt;
+            padding: 4pt 7pt;
+            margin-top: 8pt;
+        }
+
+        table.section {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 4pt;
+        }
+        table.section td {
+            border-bottom: 0.5pt solid #D9E2EC;
+            padding: 3.5pt 7pt;
+            vertical-align: top;
+        }
+        td.label {
+            width: 38%;
+            color: #555;
+        }
+        td.value {
+            width: 62%;
+            font-weight: bold;
+        }
+
+        #pageFooter {
+            font-size: 7.5pt;
+            color: #888;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="doc-header">
+        <div class="brand">ОН-ЛАЙН БРОКЕР</div>
+        <div class="doc-title">Заявка на расчёт страхования</div>
+        <div class="doc-subtitle">{{ title }}</div>
+    </div>
+
+    {% if deadline %}
+    <div class="deadline">
+        Просим направить предложение по страховым суммам и премиям по годам до
+        <b>{{ deadline }}</b> (время московское). Данные просим внести в прилагаемую таблицу.
+    </div>
+    {% endif %}
+
+    {% for section in sections %}
+    <div class="section-title">{{ section.title }}</div>
+    <table class="section" repeat="1">
+        {% for row in section.rows %}
+        <tr>
+            <td class="label">{{ row.label }}</td>
+            <td class="value">{{ row.value }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% endfor %}
+
+    <div id="pageFooter">
+        Сформировано {{ generated_at }} (МСК) · ОН-ЛАЙН брокер · стр. <pdf:pagenumber> из <pdf:pagecount>
+    </div>
+</body>
+</html>

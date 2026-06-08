@@ -227,6 +227,106 @@ class RequestDatabaseExportTest(TestCase):
         self.assertContains(response, 'Superuser', status_code=403)
 
 
+class RequestApplicationPdfExportTest(TestCase):
+    """Tests for the "Заявка для страховой" PDF export (insurer-facing subset)."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username='appuser', password='testpass123')
+        user_group, _ = Group.objects.get_or_create(name='Пользователи')
+        self.user.groups.add(user_group)
+        admin_group, _ = Group.objects.get_or_create(name='Администраторы')
+
+        self.superuser = User.objects.create_superuser(
+            username='appsuper', password='testpass123', email='appsuper@example.com',
+        )
+        self.superuser.groups.add(admin_group)
+
+        self.user_client = Client()
+        self.user_client.login(username='appuser', password='testpass123')
+        self.superuser_client = Client()
+        self.superuser_client.login(username='appsuper', password='testpass123')
+
+        # КАСКО-заявка с доп. рисками и внутренними полями, которые НЕ должны
+        # попасть в заявку для страховой (notes, status).
+        self.request = InsuranceRequest.objects.create(
+            client_name='ООО Ромашка',
+            inn='7701234567',
+            insurance_type='КАСКО',
+            insurance_period='1 год',
+            dfa_number='ДФА-APP-001',
+            branch='Московский филиал',
+            franchise_type='both_variants',
+            has_autostart=True,
+            has_transportation=True,
+            transportation_departure='Москва',
+            transportation_destination='Казань',
+            transportation_days=3,
+            brand='КАМАЗ',
+            model='65115',
+            manufacturing_year='2023',
+            condition='new',
+            notes='Внутренний комментарий брокера',
+            created_by=self.user,
+        )
+
+    def _extract_text(self, pdf_bytes):
+        from pypdf import PdfReader
+        reader = PdfReader(BytesIO(pdf_bytes))
+        return "\n".join(page.extract_text() for page in reader.pages)
+
+    def test_request_detail_shows_application_pdf_button(self):
+        response = self.superuser_client.get(
+            reverse('insurance_requests:request_detail', kwargs={'pk': self.request.pk})
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Скачать заявку (PDF)')
+        self.assertContains(
+            response,
+            reverse('insurance_requests:export_request_application', kwargs={'pk': self.request.pk}),
+        )
+
+    def test_request_detail_hides_application_pdf_button_for_regular_user(self):
+        response = self.user_client.get(
+            reverse('insurance_requests:request_detail', kwargs={'pk': self.request.pk})
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'Скачать заявку (PDF)')
+
+    def test_export_application_returns_pdf_with_insurer_fields(self):
+        response = self.superuser_client.get(
+            reverse('insurance_requests:export_request_application', kwargs={'pk': self.request.pk})
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'application/pdf')
+        self.assertTrue(response.content.startswith(b'%PDF-'))
+        decoded_disposition = str(make_header(decode_header(response['Content-Disposition'])))
+        self.assertIn('.pdf', decoded_disposition)
+
+        text = self._extract_text(response.content)
+        # Поля, нужные страховой (кириллица рендерится корректно).
+        self.assertIn('ООО Ромашка', text)
+        self.assertIn('КАМАЗ', text)
+        self.assertIn('Автозапуск', text)
+        self.assertIn('Москва', text)  # маршрут перевозки
+        # both_variants → явная просьба о двух расчётах.
+        self.assertIn('оба варианта', text)
+
+    def test_export_application_excludes_internal_fields(self):
+        response = self.superuser_client.get(
+            reverse('insurance_requests:export_request_application', kwargs={'pk': self.request.pk})
+        )
+        text = self._extract_text(response.content)
+        # Внутреннее примечание брокера и статус не должны уходить в страховую.
+        self.assertNotIn('Внутренний комментарий', text)
+        self.assertNotIn('Загружено', text)
+
+    def test_export_application_forbidden_for_regular_user(self):
+        response = self.user_client.get(
+            reverse('insurance_requests:export_request_application', kwargs={'pk': self.request.pk})
+        )
+        self.assertEqual(response.status_code, 403)
+
+
 class RequestV1V2DisplayCompatibilityTest(TestCase):
     """Old V1 requests and structured Parser V2 requests render side by side."""
 

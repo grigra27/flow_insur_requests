@@ -36,6 +36,10 @@ from .exporters import (
     build_request_export_filename,
     build_request_export_workbook,
 )
+from .application_export import (
+    build_application_filename,
+    render_application_pdf,
+)
 from .security import (
     clear_login_failures,
     format_lockout_message,
@@ -1266,6 +1270,45 @@ def export_request_database(request, pk):
         request.user.username,
         filename,
         format_context,
+    )
+    return response
+
+
+@superuser_required
+def export_request_application(request, pk):
+    """Скачивание «Заявки для страховой» в PDF — только нужные поля.
+
+    В отличие от export_request_database (полный дамп карточки), здесь
+    выгружается чистый документ с набором данных для отправки заявки в
+    страховую компанию (см. application_export.build_application_context).
+    """
+    insurance_request = get_object_or_404(
+        InsuranceRequest.objects.select_related('created_by'),
+        pk=pk,
+    )
+
+    try:
+        pdf_bytes = render_application_pdf(insurance_request)
+        filename = build_application_filename(insurance_request)
+    except Exception as exc:
+        logger.error(
+            "Request application PDF export failed for request %s by user %s: %s",
+            pk,
+            request.user.username,
+            exc,
+            exc_info=True,
+        )
+        messages.error(request, 'Не удалось сформировать PDF заявки для страховой.')
+        return redirect('insurance_requests:request_detail', pk=pk)
+
+    response = HttpResponse(pdf_bytes, content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+    logger.info(
+        "Request application PDF export generated for request %s by user %s: %s",
+        pk,
+        request.user.username,
+        filename,
     )
     return response
 
