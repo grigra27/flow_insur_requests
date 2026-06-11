@@ -7,7 +7,7 @@
 | Выгрузка | Что отдаёт | Формат | Доступ | Карточка / кнопка |
 |---|---|---|---|---|
 | **Карточка заявки** (старая) | ВСЕ поля заявки из БД, включая системные, парсерные, технические (`additional_data`, `source_batch_id`, история, метаданные парсера) | XLSX | Только суперпользователь (`is_superuser`) | блок «Выгрузка карточки» → «Скачать карточку заявки» |
-| **Заявка для страховой** (эта фича) | Только подмножество полей, нужное андеррайтеру для расчёта тарифа | PDF | Все, кто видит карточку: группы `Пользователи` или `Администраторы` (`@user_required`) | отдельный блок «Заявка для страховой» → «Скачать заявку (PDF)» |
+| **Заявка для страховой** (эта фича) | Только подмножество полей, нужное андеррайтеру для расчёта тарифа | PDF | Только суперпользователь (`is_superuser`) | отдельный блок «Заявка для страховой» → «Скачать заявку (PDF)» |
 
 Карточка — это «дамп для отладки». Заявка для страховой — чистый документ, который можно отправить в страховую компанию: ничего лишнего и внутреннего туда не попадает.
 
@@ -41,9 +41,9 @@
 | `insurance_requests/application_export.py` | Ядро фичи: декларативный манифест секций `SECTIONS`, сборка контекста `build_application_context`, имя файла `build_application_filename`, рендер `render_application_pdf` + `_link_callback` для шрифтов |
 | `insurance_requests/templates/insurance_requests/application_pdf.html` | PDF-шаблон бланка (`@font-face`, шапка, выделенный срок ответа, секции, подвал с нумерацией страниц) |
 | `core/fonts/DejaVuSans.ttf`, `DejaVuSans-Bold.ttf`, `LICENSE` | Шрифты с кириллицей (reportlab/xhtml2pdf не имеют её в стандартных шрифтах) |
-| `insurance_requests/views.py` → `export_request_application` | View (`@user_required` — как сама карточка), отдаёт `application/pdf` |
+| `insurance_requests/views.py` → `export_request_application` | View (`@superuser_required`), отдаёт `application/pdf` |
 | `insurance_requests/urls.py` | Маршрут `<int:pk>/export-application/` → `name='export_request_application'` |
-| `insurance_requests/templates/insurance_requests/request_detail.html` | Кнопка «Скачать заявку (PDF)» в отдельном блоке «Заявка для страховой» (доступен всем, кто видит карточку). XLSX-дамп остаётся в отдельном блоке «Выгрузка карточки» под `{% if user.is_superuser %}` |
+| `insurance_requests/templates/insurance_requests/request_detail.html` | Кнопка «Скачать заявку (PDF)» в отдельном блоке «Заявка для страховой» под `{% if user.is_superuser %}`. XLSX-дамп — в отдельном блоке «Выгрузка карточки», тоже под `{% if user.is_superuser %}` |
 | `insurance_requests/tests.py` → `RequestApplicationPdfExportTest` | Тесты: кнопка видна/скрыта, PDF с нужными полями и кириллицей, исключение внутренних полей, 403 для обычного пользователя |
 | `requirements.txt` | `xhtml2pdf==0.2.16`, `svglib==1.5.1` |
 

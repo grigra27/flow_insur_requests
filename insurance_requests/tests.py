@@ -241,15 +241,10 @@ class RequestApplicationPdfExportTest(TestCase):
         )
         self.superuser.groups.add(admin_group)
 
-        # Пользователь без групп — не имеет доступа к карточке и выгрузкам.
-        self.nogroup = User.objects.create_user(username='appnogroup', password='testpass123')
-
         self.user_client = Client()
         self.user_client.login(username='appuser', password='testpass123')
         self.superuser_client = Client()
         self.superuser_client.login(username='appsuper', password='testpass123')
-        self.nogroup_client = Client()
-        self.nogroup_client.login(username='appnogroup', password='testpass123')
 
         # КАСКО-заявка с доп. рисками и внутренними полями, которые НЕ должны
         # попасть в заявку для страховой (notes, status).
@@ -279,10 +274,8 @@ class RequestApplicationPdfExportTest(TestCase):
         reader = PdfReader(BytesIO(pdf_bytes))
         return "\n".join(page.extract_text() for page in reader.pages)
 
-    def test_request_detail_shows_application_pdf_button_for_regular_user(self):
-        # Кнопка доступна всем, кто видит карточку (группа Пользователи), а не
-        # только суперпользователю.
-        response = self.user_client.get(
+    def test_request_detail_shows_application_pdf_button_for_superuser(self):
+        response = self.superuser_client.get(
             reverse('insurance_requests:request_detail', kwargs={'pk': self.request.pk})
         )
         self.assertEqual(response.status_code, 200)
@@ -292,9 +285,17 @@ class RequestApplicationPdfExportTest(TestCase):
             reverse('insurance_requests:export_request_application', kwargs={'pk': self.request.pk}),
         )
 
-    def test_export_application_returns_pdf_with_insurer_fields(self):
-        # Обычный пользователь (не суперюзер) может скачать заявку.
+    def test_request_detail_hides_application_pdf_button_for_regular_user(self):
+        # Выгрузка заявки — инструмент суперпользователя; обычный пользователь
+        # кнопку не видит.
         response = self.user_client.get(
+            reverse('insurance_requests:request_detail', kwargs={'pk': self.request.pk})
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'Скачать заявку (PDF)')
+
+    def test_export_application_returns_pdf_with_insurer_fields(self):
+        response = self.superuser_client.get(
             reverse('insurance_requests:export_request_application', kwargs={'pk': self.request.pk})
         )
         self.assertEqual(response.status_code, 200)
@@ -313,7 +314,7 @@ class RequestApplicationPdfExportTest(TestCase):
         self.assertIn('оба варианта', text)
 
     def test_export_application_excludes_internal_fields(self):
-        response = self.user_client.get(
+        response = self.superuser_client.get(
             reverse('insurance_requests:export_request_application', kwargs={'pk': self.request.pk})
         )
         text = self._extract_text(response.content)
@@ -321,10 +322,10 @@ class RequestApplicationPdfExportTest(TestCase):
         self.assertNotIn('Внутренний комментарий', text)
         self.assertNotIn('Загружено', text)
 
-    def test_export_application_forbidden_without_group(self):
-        # Пользователь без групп (не Пользователи и не Администраторы) не имеет
-        # доступа — как и к самой карточке.
-        response = self.nogroup_client.get(
+    def test_export_application_forbidden_for_regular_user(self):
+        # Только суперпользователь: обычный пользователь группы Пользователи
+        # получает 403.
+        response = self.user_client.get(
             reverse('insurance_requests:export_request_application', kwargs={'pk': self.request.pk})
         )
         self.assertEqual(response.status_code, 403)
