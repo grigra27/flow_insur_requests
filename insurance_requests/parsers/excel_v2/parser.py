@@ -618,8 +618,7 @@ class ExcelRequestParserV2:
         insured_objects = self._extract_objects(cells, rows)
         insured_objects, object_grouping = group_identical_objects(insured_objects)
         if insured_objects:
-            data["vehicle_info"] = self._vehicle_summary(insured_objects)
-            source_map["vehicle_info"] = insured_objects[0].get("source", "")
+            data["vehicle_info"] = ""
             source_map["insured_objects"] = ", ".join(
                 obj["source"] for obj in insured_objects[:10] if obj.get("source")
             )

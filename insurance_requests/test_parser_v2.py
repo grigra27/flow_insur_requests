@@ -1089,7 +1089,8 @@ class ParserV2UploadTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, 'insurance_requests/upload_excel_v2_preview.html')
         self.assertContains(response, 'ООО Ромашка')
-        self.assertContains(response, 'Мини-погрузчик Sunward SWL 4028')
+        object_form = response.context['object_formset'].forms[0]
+        self.assertIn('Мини-погрузчик Sunward SWL 4028', object_form.initial['object_description'])
         self.assertIn('draft_id', response.context)
         self.assertEqual(response.context['form'].initial['client_name'], 'ООО Ромашка')
         self.assertEqual(response.context['form'].initial['manager_name'], 'Иванов Иван')
@@ -1136,7 +1137,7 @@ class ParserV2UploadTests(TestCase):
         self.assertFalse(form.is_valid())
         self.assertIn('branch', form.errors)
 
-    def test_parser_v2_does_not_take_template_rows_as_vehicle_info(self):
+    def test_parser_v2_keeps_raw_description_out_of_vehicle_info(self):
         self.client.login(username='parser_v2_root', password='pwd')
 
         response = self.client.post(
@@ -1144,11 +1145,14 @@ class ParserV2UploadTests(TestCase):
             {'excel_file': self._xlsx_upload_with_template_object_rows()},
         )
 
-        vehicle_info = response.context['form'].initial['vehicle_info']
-        self.assertIn('Lixiang L9', vehicle_info)
-        self.assertNotIn('Транспортные средства категории B', vehicle_info)
-        self.assertNotIn('Противоугонные системы', vehicle_info)
-        self.assertNotIn('Сигнализация', vehicle_info)
+        self.assertEqual(response.context['form'].initial['vehicle_info'], '')
+        object_form = response.context['object_formset'].forms[0]
+        self.assertNotIn('vehicle_info', object_form.fields)
+        object_description = object_form.initial['object_description']
+        self.assertIn('Lixiang L9', object_description)
+        self.assertNotIn('Транспортные средства категории B', object_description)
+        self.assertNotIn('Противоугонные системы', object_description)
+        self.assertNotIn('Сигнализация', object_description)
 
     def test_parser_v2_keeps_raw_object_description_for_persistence(self):
         self.client.login(username='parser_v2_root', password='pwd')
@@ -1164,6 +1168,20 @@ class ParserV2UploadTests(TestCase):
             insured_object['description'],
         )
         self.assertIn('Lixiang L9', insured_object['object_description'])
+
+    def test_parser_v2_persists_object_description_without_vehicle_info(self):
+        self.client.login(username='parser_v2_root', password='pwd')
+
+        upload_response = self.client.post(
+            reverse('insurance_requests:upload_excel_v2'),
+            {'excel_file': self._xlsx_upload_with_template_object_rows()},
+        )
+        post_data = self._post_data_from_preview(upload_response)
+        self.client.post(reverse('insurance_requests:upload_excel_v2'), post_data)
+
+        created = InsuranceRequest.objects.get()
+        self.assertEqual(created.vehicle_info, '')
+        self.assertIn('Lixiang L9', created.object_description)
 
     def test_parser_v2_does_not_take_name_header_as_telematics_complex(self):
         self.client.login(username='parser_v2_root', password='pwd')

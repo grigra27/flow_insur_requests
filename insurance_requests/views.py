@@ -242,7 +242,7 @@ def _parser_v2_object_fields(payload_object):
     description = (
         payload_object.get('object_description')
         or payload_object.get('description')
-        or 'Предмет лизинга не указан'
+        or ''
     )
     return {
         'brand': payload_object.get('brand') or None,
@@ -252,7 +252,6 @@ def _parser_v2_object_fields(payload_object):
         'power_or_capacity': payload_object.get('power_or_capacity') or None,
         'acquisition_cost_value': _decimal(payload_object.get('acquisition_cost_value')),
         'acquisition_cost_currency': payload_object.get('acquisition_cost_currency') or None,
-        'vehicle_info': description[:5000],
         'object_description': description[:5000],
         'manufacturing_year': (payload_object.get('year') or '')[:255],
         'source_object_count': payload_object.get('source_object_count') or 1,
@@ -379,7 +378,7 @@ def _create_requests_with_splitting(*, request_fields, additional_data, object_k
         if not object_kwargs_list:
             # Legacy fallback — no objects parsed, use the form values.
             instance = InsuranceRequest.objects.create(
-                vehicle_info=request_fields['vehicle_info'],
+                vehicle_info=request_fields['vehicle_info'] or 'Предмет лизинга не указан',
                 manufacturing_year=request_fields['manufacturing_year'],
                 manual_edits_count=_edit_count_for(1),
                 **common,

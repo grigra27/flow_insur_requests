@@ -134,7 +134,6 @@ SECTIONS: List[Section] = [
         Row('Стоимость приобретения', lambda r: _text(r.acquisition_cost_display)),
         Row('Количество одинаковых объектов',
             lambda r: str(r.source_object_count) if (r.source_object_count or 0) > 1 else None),
-        Row('Описание объекта', lambda r: _text(r.object_description)),
     ]),
     Section('Условия страхования', [
         Row('Тип страхования', lambda r: _text(r.insurance_type)),

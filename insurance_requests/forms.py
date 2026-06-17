@@ -498,7 +498,7 @@ class ParserV2PreviewForm(forms.Form):
             'inn': self._limit(cleaned.get('inn') or '', 12),
             'insurance_type': insurance_type,
             'insurance_period': cleaned.get('insurance_period') or '',
-            'vehicle_info': cleaned.get('vehicle_info') or 'Предмет лизинга не указан',
+            'vehicle_info': cleaned.get('vehicle_info') or '',
             'dfa_number': self._limit(cleaned.get('dfa_number') or 'Номер ДФА не указан', 100),
             'branch': self._normalize_branch(cleaned.get('branch')),
             'manager_name': self._limit(cleaned.get('manager_name') or '', 255),
@@ -563,9 +563,10 @@ class ParserV2ObjectForm(forms.Form):
     The fields mirror the per-object columns introduced by stage 2.1
     (brand, model, condition, equipment_type, power_or_capacity,
     acquisition_cost_value, acquisition_cost_currency) plus the textual
-    `manufacturing_year` and the free-form `vehicle_info` description for
-    that object. The `skip` checkbox lets the operator drop a sibling
-    before it is created.
+    `manufacturing_year`. The raw `object_description` stays in the parser
+    payload and is persisted server-side; the operator edits structured
+    fields here. The `skip` checkbox lets the operator drop a sibling before
+    it is created.
     """
 
     skip = forms.BooleanField(
@@ -607,10 +608,6 @@ class ParserV2ObjectForm(forms.Form):
         label='Год выпуска', required=False, max_length=255,
         widget=forms.TextInput(attrs={'class': 'form-control'})
     )
-    vehicle_info = forms.CharField(
-        label='Описание объекта', required=False,
-        widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 2})
-    )
     source_object_count = forms.IntegerField(
         label='Количество одинаковых объектов',
         min_value=1,
@@ -626,7 +623,11 @@ class ParserV2ObjectForm(forms.Form):
         cleaned form data instead of parser payload.
         """
         cleaned = self.cleaned_data
-        description = (cleaned.get('vehicle_info') or 'Предмет лизинга не указан')[:5000]
+        description = (
+            self.initial.get('object_description')
+            or self.initial.get('description')
+            or ''
+        )[:5000]
         return {
             'brand': cleaned.get('brand') or None,
             'model': cleaned.get('model') or None,
@@ -635,7 +636,6 @@ class ParserV2ObjectForm(forms.Form):
             'power_or_capacity': cleaned.get('power_or_capacity') or None,
             'acquisition_cost_value': cleaned.get('acquisition_cost_value'),
             'acquisition_cost_currency': cleaned.get('acquisition_cost_currency') or None,
-            'vehicle_info': description,
             'object_description': description,
             'manufacturing_year': (cleaned.get('manufacturing_year') or '')[:255],
             'source_object_count': cleaned.get('source_object_count') or 1,
@@ -663,7 +663,7 @@ def parser_v2_object_initial_from_payload(insured_objects):
             'acquisition_cost_value': obj.get('acquisition_cost_value') or '',
             'acquisition_cost_currency': obj.get('acquisition_cost_currency') or '',
             'manufacturing_year': obj.get('year') or '',
-            'vehicle_info': description,
+            'object_description': description,
             'source_object_count': obj.get('source_object_count') or 1,
             'skip': False,
         })

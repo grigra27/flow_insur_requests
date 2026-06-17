@@ -642,6 +642,9 @@ class InsuranceRequest(models.Model):
         parts = [part.strip() for part in [self.brand or '', self.model or ''] if part and part.strip()]
         if parts:
             return ' '.join(parts)
+        fallback = (self.object_description or '').strip()
+        if fallback:
+            return fallback
         return self.vehicle_info or ''
 
     @property

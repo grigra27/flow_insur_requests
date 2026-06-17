@@ -423,7 +423,6 @@ class RequestV1V2DisplayCompatibilityTest(TestCase):
         self.assertContains(response, 'Рассрочка')
         self.assertNotContains(response, 'Ежегодно')
         self.assertNotContains(response, 'Единовременно')
-        self.assertContains(response, 'Проверить')
 
     def test_request_detail_keeps_v1_simple_and_shows_v2_diagnostics(self):
         v1_response = self.client.get(
@@ -519,6 +518,10 @@ class InsuranceRequestObjectPropertiesTest(SimpleTestCase):
         self.assertEqual(
             request.object_summary,
             'Линия порошковой окраски с конвейером, 2020 г., б/у',
+        )
+        self.assertEqual(
+            request.object_display_name,
+            'Линия порошковой окраски с конвейером',
         )
 
     def test_object_summary_falls_back_to_vehicle_info_for_legacy_v1(self):
