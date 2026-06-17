@@ -493,6 +493,21 @@ class InsuranceRequestObjectPropertiesTest(SimpleTestCase):
             request.object_summary,
             'LADA Largus KS045L, 2024 г., Б/у, 1 490 000 RUB, ×2',
         )
+        self.assertEqual(
+            request.object_summary_without_source_count,
+            'LADA Largus KS045L, 2024 г., Б/у, 1 490 000 RUB',
+        )
+        self.assertEqual(request.source_object_count_label, '2 штуки')
+
+    def test_source_object_count_label_uses_russian_plural_forms(self):
+        request = InsuranceRequest(source_object_count=1)
+        self.assertEqual(request.source_object_count_label, '')
+
+        request.source_object_count = 2
+        self.assertEqual(request.source_object_count_label, '2 штуки')
+
+        request.source_object_count = 5
+        self.assertEqual(request.source_object_count_label, '5 штук')
 
     def test_object_summary_uses_object_description_when_brand_model_missing(self):
         request = InsuranceRequest(

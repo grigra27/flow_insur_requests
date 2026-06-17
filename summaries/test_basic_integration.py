@@ -66,6 +66,33 @@ class BasicIntegrationTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Свод к')
 
+    def test_summary_detail_highlights_grouped_object_quantity(self):
+        """Карточка свода выделяет количество одинаковых объектов отдельным бейджем."""
+        self.insurance_request.brand = 'LADA'
+        self.insurance_request.model = 'Largus KS045L'
+        self.insurance_request.condition = 'used'
+        self.insurance_request.manufacturing_year = '2024'
+        self.insurance_request.acquisition_cost_value = Decimal('1490000')
+        self.insurance_request.acquisition_cost_currency = 'RUB'
+        self.insurance_request.source_object_count = 3
+        self.insurance_request.save(update_fields=[
+            'brand',
+            'model',
+            'condition',
+            'manufacturing_year',
+            'acquisition_cost_value',
+            'acquisition_cost_currency',
+            'source_object_count',
+        ])
+
+        response = self.client.get(reverse('summaries:summary_detail', args=[self.summary.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'req-object-block--multiple')
+        self.assertContains(response, 'req-object-block__quantity-badge')
+        self.assertContains(response, '3 штуки')
+        self.assertContains(response, 'LADA Largus KS045L, 2024 г., Б/у, 1 490 000 RUB')
+        self.assertNotContains(response, '×3')
+
     def test_copy_offer_page_loads(self):
         """Тест загрузки страницы копирования предложения"""
         response = self.client.get(reverse('summaries:copy_offer', args=[self.offer.pk]))

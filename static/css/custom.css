@@ -1978,6 +1978,11 @@ a:hover {
     padding: 1rem 1.1rem;
 }
 
+.req-object-block--multiple {
+    border-left-color: #d97706;
+    background: linear-gradient(135deg, #fff8ed 0%, #fff3df 100%);
+}
+
 .req-object-block__header {
     display: flex;
     align-items: center;
@@ -1998,11 +2003,40 @@ a:hover {
     color: var(--app-muted);
 }
 
+.req-object-block__vehicle-line {
+    display: flex;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 0.55rem 0.75rem;
+}
+
 .req-object-block__vehicle {
+    flex: 1 1 18rem;
+    min-width: 0;
     font-size: 1.1rem;
     font-weight: 700;
     color: var(--app-text);
     line-height: 1.3;
+}
+
+.req-object-block__quantity-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.46rem 0.88rem;
+    border: 1px solid rgba(11, 122, 117, 0.36);
+    border-radius: 999px;
+    background: var(--app-primary-soft);
+    color: var(--app-primary-dark);
+    font-size: 1rem;
+    font-weight: 800;
+    line-height: 1;
+    white-space: nowrap;
+    box-shadow: 0 2px 5px rgba(7, 92, 88, 0.10);
+}
+
+.req-object-block__quantity-badge i {
+    font-size: 1.08em;
 }
 
 /* ============================================================

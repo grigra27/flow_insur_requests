@@ -61,12 +61,21 @@
                     <dd class="col-sm-8">{{ summary.request.insurance_type }}</dd>
                 </dl>
 
-                <div class="req-object-block">
+                <div class="req-object-block{% if summary.request.source_object_count and summary.request.source_object_count > 1 %} req-object-block--multiple{% endif %}">
                     <div class="req-object-block__header">
                         <i class="bi bi-truck-front-fill req-object-block__icon"></i>
                         <span class="req-object-block__title">Объект страхования</span>
                     </div>
-                    <div class="req-object-block__vehicle">{{ summary.request.object_summary|default:"Не указано" }}</div>
+                    <div class="req-object-block__vehicle-line">
+                        <div class="req-object-block__vehicle">{{ summary.request.object_summary_without_source_count|default:"Не указано" }}</div>
+                        {% if summary.request.source_object_count and summary.request.source_object_count > 1 %}
+                            <span class="req-object-block__quantity-badge"
+                                  title="Эта позиция объединяет {{ summary.request.source_object_count_label }} одинаковых объектов из заявки">
+                                <i class="bi bi-layers-fill"></i>
+                                {{ summary.request.source_object_count_label }}
+                            </span>
+                        {% endif %}
+                    </div>
                     <dl class="row mb-0 mt-2">
                         <dt class="col-sm-4">Год выпуска:</dt>
                         <dd class="col-sm-8">{{ summary.request.manufacturing_year|default:"Не указано" }}</dd>

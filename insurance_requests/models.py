@@ -658,6 +658,27 @@ class InsuranceRequest(models.Model):
 
     @property
     def object_summary(self):
+        return self._object_summary(include_source_object_count=True)
+
+    @property
+    def object_summary_without_source_count(self):
+        return self._object_summary(include_source_object_count=False)
+
+    @property
+    def source_object_count_label(self):
+        count = self.source_object_count or 0
+        if count <= 1:
+            return ''
+
+        if count % 10 == 1 and count % 100 != 11:
+            noun = 'штука'
+        elif count % 10 in (2, 3, 4) and count % 100 not in (12, 13, 14):
+            noun = 'штуки'
+        else:
+            noun = 'штук'
+        return f'{count} {noun}'
+
+    def _object_summary(self, *, include_source_object_count):
         has_object_source = self.has_structured_object_data or bool((self.object_description or '').strip())
         if has_object_source:
             base_name = ' '.join(
@@ -684,7 +705,7 @@ class InsuranceRequest(models.Model):
             if acquisition_cost:
                 parts.append(acquisition_cost)
 
-            if (self.source_object_count or 0) > 1:
+            if include_source_object_count and (self.source_object_count or 0) > 1:
                 parts.append(f'×{self.source_object_count}')
 
             summary = ', '.join(part for part in parts if part).strip()
