@@ -2035,11 +2035,24 @@ class ExcelRequestParserV2:
             ("dfa_number", MISSING_DFA, "Номер ДФА не распознан."),
             ("branch", "", "Филиал не распознан."),
             ("manager_name", "", "Менеджер не распознан."),
-            ("vehicle_info", MISSING_VEHICLE, "Предмет лизинга не распознан."),
         ]
         for field_name, missing_value, message in required_checks:
             if data.get(field_name) == missing_value or not data.get(field_name):
                 warnings.append({"level": "manual_required", "field": field_name, "message": message, "source": ""})
+
+        # Объект распознан, если есть хотя бы один insured_object (структура)
+        # либо непустой legacy vehicle_info (старый путь без таблицы объектов).
+        # Со времён депрекейта vehicle_info парсер при распознанных объектах
+        # намеренно оставляет его пустым, поэтому проверять нужно insured_objects,
+        # а не само поле — иначе предупреждение срабатывает ложно.
+        vehicle_info = (data.get("vehicle_info") or "").strip()
+        if not insured_objects and (not vehicle_info or vehicle_info == MISSING_VEHICLE):
+            warnings.append({
+                "level": "manual_required",
+                "field": "vehicle_info",
+                "message": "Предмет лизинга не распознан.",
+                "source": "",
+            })
 
         branch_value = data.get("branch")
         if branch_value and branch_value not in AVAILABLE_BRANCHES:

@@ -489,6 +489,34 @@ class IdenticalObjectGroupingTests(TestCase):
         self.assertEqual(payload['object_grouping']['raw_object_count'], 2)
         self.assertEqual(payload['object_grouping']['unique_object_count'], 2)
 
+    def test_no_vehicle_info_warning_when_object_recognized(self):
+        # После депрекейта vehicle_info парсер оставляет его пустым при
+        # распознанном объекте — ложное предупреждение «не распознан» не должно
+        # появляться, раз insured_objects заполнен.
+        result = self._parse_workbook(self._build_workbook_with_object_rows([
+            ('LADA Largus KS045L', 2024, 'б/у', '78.05', 1490000),
+        ]))
+        self.assertTrue(result.data['parser_v2_payload']['insured_objects'])
+        self.assertFalse(
+            any(
+                w.get('field') == 'vehicle_info' and w.get('level') == 'manual_required'
+                for w in result.warnings
+            ),
+            f"Unexpected vehicle_info warning when object recognized: {result.warnings}",
+        )
+
+    def test_vehicle_info_warning_when_no_object_recognized(self):
+        # Нет строк объекта → объект не распознан → предупреждение обязано быть.
+        result = self._parse_workbook(self._build_workbook_with_object_rows([]))
+        self.assertFalse(result.data['parser_v2_payload']['insured_objects'])
+        self.assertTrue(
+            any(
+                w.get('field') == 'vehicle_info' and w.get('level') == 'manual_required'
+                for w in result.warnings
+            ),
+            f"Expected a manual_required vehicle_info warning, got: {result.warnings}",
+        )
+
 
 class CustomerDealPayloadIntegrationTests(TestCase):
     """Stages 3.2 / 3.3: customer + deal fields must surface in parse() result."""
