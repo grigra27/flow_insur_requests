@@ -155,11 +155,6 @@
         color: #92400e;
         border: 1px solid rgba(217, 119, 6, 0.32);
     }
-    .request-list-badge--review {
-        background: #fff1ec;
-        color: #c2410c;
-        border: 1px solid rgba(234, 88, 12, 0.38);
-    }
     .request-list-badge--manual-edits {
         background: var(--app-primary-soft);
         color: var(--app-primary-dark);
@@ -483,13 +478,6 @@
 	                                          title="Эта позиция представляет {{ request.source_object_count }} полностью одинаковых строк исходной Excel-заявки.">
 	                                        <i class="bi bi-layers-fill"></i>
 	                                        {{ request.source_object_count }} штук
-	                                    </span>
-	                                {% endif %}
-	                                {% if request.is_parser_v2 and request.parser_v2_warning_count %}
-	                                    <span class="badge request-list-badge request-list-badge--review"
-	                                          title="Parser V2: предупреждений разбора {{ request.parser_v2_warning_count }}">
-	                                        <i class="bi bi-exclamation-triangle-fill"></i>
-	                                        Проверить
 	                                    </span>
 	                                {% endif %}
                                 </div>

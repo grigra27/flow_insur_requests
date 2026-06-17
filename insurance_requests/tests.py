@@ -947,7 +947,7 @@ class LoginSecurityTest(TestCase):
 
 
 class RequestListEditBadgesTest(TestCase):
-    """Список заявок: бейджи правок обоих этапов (при создании и после)."""
+    """Список заявок: бейджи правок и скрытие служебных предупреждений парсера."""
 
     def setUp(self):
         import datetime as _dt
@@ -968,6 +968,8 @@ class RequestListEditBadgesTest(TestCase):
             parser_confidence=0.8, manual_edits_count=2, created_by=self.user,
             additional_data={'parser_version': 'v2',
                              'parser_v2': {'original_data': {'client_name': 'ООО Бейдж'},
+                                           'warnings': [{'level': 'manual_required',
+                                                         'message': 'Проверить распознанное поле'}],
                                            'tracking': {'field_edits': []}}},
         )
         ct = ContentType.objects.get_for_model(InsuranceRequest)
@@ -988,3 +990,11 @@ class RequestListEditBadgesTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'При создании')
         self.assertContains(response, 'После создания')
+
+    def test_list_hides_parser_warning_review_badge(self):
+        response = self.client.get(reverse('insurance_requests:request_list'))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.req.parser_v2_warning_count, 1)
+        self.assertNotContains(response, 'request-list-badge--review')
+        self.assertNotContains(response, 'Parser V2: предупреждений разбора')
+        self.assertNotContains(response, 'Проверить')
