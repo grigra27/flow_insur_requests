@@ -151,6 +151,13 @@ class InsuranceSummary(models.Model):
     
     # Примечание к своду
     notes = models.TextField(blank=True, verbose_name='Примечание', help_text='Дополнительное примечание к своду')
+
+    # Примечание, которое фиксируется при закрытии сделки и показывается в резюме
+    deal_summary_note = models.TextField(
+        blank=True,
+        verbose_name='Примечание к резюме',
+        help_text='Примечание, показываемое в резюме по сделке'
+    )
     
     # Выбранная страховая компания (для завершенных сводов)
     selected_company = models.CharField(

@@ -84,3 +84,19 @@ class DealSummaryOfferNotesTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, 'Комментарий предложения:')
+
+    def test_deal_summary_shows_deal_summary_note(self):
+        self.summary.deal_summary_note = 'Срочно проверить особое условие перед выпуском полиса'
+        self.summary.save(update_fields=['deal_summary_note'])
+
+        response = self.client.get(reverse('summaries:deal_summary', args=[self.summary.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Примечание к резюме')
+        self.assertContains(response, 'Срочно проверить особое условие перед выпуском полиса')
+
+    def test_deal_summary_hides_deal_summary_note_block_when_empty(self):
+        response = self.client.get(reverse('summaries:deal_summary', args=[self.summary.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'Примечание к резюме')

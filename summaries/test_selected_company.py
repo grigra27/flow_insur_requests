@@ -124,6 +124,7 @@ class SelectedCompanyAndVariantTestCase(TestCase):
                 'status': 'completed_accepted',
                 'selected_company': 'Абсолют',
                 'selected_franchise_variant': '2',
+                'deal_summary_note': 'Показать этот комментарий в резюме сделки',
             }
         )
 
@@ -135,6 +136,7 @@ class SelectedCompanyAndVariantTestCase(TestCase):
         self.assertEqual(self.summary.status, 'completed_accepted')
         self.assertEqual(self.summary.selected_company, 'Абсолют')
         self.assertEqual(self.summary.selected_franchise_variant, 2)
+        self.assertEqual(self.summary.deal_summary_note, 'Показать этот комментарий в резюме сделки')
 
     def test_change_status_autoselects_single_available_variant(self):
         """Если доступен только один вариант, он выбирается автоматически"""
@@ -176,6 +178,7 @@ class SelectedCompanyAndVariantTestCase(TestCase):
         self.summary.status = 'completed_accepted'
         self.summary.selected_company = 'Абсолют'
         self.summary.selected_franchise_variant = 1
+        self.summary.deal_summary_note = 'Временное примечание к резюме'
         self.summary.save()
 
         response = self.client.post(
@@ -191,3 +194,4 @@ class SelectedCompanyAndVariantTestCase(TestCase):
         self.assertEqual(self.summary.status, 'ready')
         self.assertIsNone(self.summary.selected_company)
         self.assertIsNone(self.summary.selected_franchise_variant)
+        self.assertEqual(self.summary.deal_summary_note, '')

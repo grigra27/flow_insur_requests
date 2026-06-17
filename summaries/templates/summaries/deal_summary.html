@@ -78,6 +78,18 @@
 <div class="row g-4">
     <div class="col-lg-8">
 
+        {% if deal_summary_note %}
+        <div class="deal-summary-note-alert mb-4">
+            <div class="deal-summary-note-alert__icon">
+                <i class="bi bi-exclamation-circle-fill"></i>
+            </div>
+            <div class="deal-summary-note-alert__body">
+                <div class="deal-summary-note-alert__label">Примечание к резюме</div>
+                <div class="deal-summary-note-alert__text">{{ deal_summary_note|linebreaksbr }}</div>
+            </div>
+        </div>
+        {% endif %}
+
         {# ── ИТОГОВОЕ ПРЕДЛОЖЕНИЕ ── #}
         <div class="card mb-4">
             <div class="card-header d-flex justify-content-between align-items-center">

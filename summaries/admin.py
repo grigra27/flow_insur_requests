@@ -129,6 +129,9 @@ class InsuranceSummaryAdmin(admin.ModelAdmin):
         ('Основная информация', {
             'fields': ('request', 'status', 'selected_company', 'selected_franchise_variant')
         }),
+        ('Резюме по сделке', {
+            'fields': ('deal_summary_note',)
+        }),
         ('Сводные данные', {
             'fields': ('total_offers',)
         }),

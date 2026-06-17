@@ -527,6 +527,14 @@
                         Обязательно только если по выбранной СК доступны оба варианта
                     </div>
                 </div>
+
+                <div class="mb-3" id="deal-summary-note-container" style="display: none;">
+                    <label for="deal-summary-note-textarea" class="form-label">
+                        Примечание к резюме <span class="text-muted">(необязательно)</span>
+                    </label>
+                    <textarea id="deal-summary-note-textarea" class="form-control" rows="4"
+                              placeholder="Важная деталь для резюме сделки">{{ summary.deal_summary_note }}</textarea>
+                </div>
                 
                 {% if summary.selected_company %}
                 <div class="deal-result-block mb-3">
@@ -2899,6 +2907,7 @@ function changeStatus(summaryId) {
     const newStatus = statusSelect.value;
     const selectedCompanySelect = document.getElementById('selected-company-select');
     const selectedFranchiseVariantSelect = document.getElementById('selected-franchise-variant-select');
+    const dealSummaryNoteTextarea = document.getElementById('deal-summary-note-textarea');
     
     if (!newStatus) {
         showErrorMessage('Выберите статус');
@@ -2945,7 +2954,7 @@ function changeStatus(summaryId) {
     // Получаем текущий статус для сравнения
     const currentStatus = statusSelect.dataset.currentStatus || statusSelect.querySelector('option[selected]')?.value;
     
-    if (newStatus === currentStatus) {
+    if (newStatus === currentStatus && newStatus !== 'completed_accepted') {
         showInfoMessage('Статус уже установлен');
         return;
     }
@@ -2962,6 +2971,9 @@ function changeStatus(summaryId) {
     if (selectedFranchiseVariantSelect) {
         selectedFranchiseVariantSelect.disabled = true;
     }
+    if (dealSummaryNoteTextarea) {
+        dealSummaryNoteTextarea.disabled = true;
+    }
     
     // Создаем FormData для отправки
     const formData = new FormData();
@@ -2970,6 +2982,9 @@ function changeStatus(summaryId) {
         formData.append('selected_company', selectedCompanySelect.value);
         if (selectedFranchiseVariantSelect && selectedFranchiseVariantSelect.value) {
             formData.append('selected_franchise_variant', selectedFranchiseVariantSelect.value);
+        }
+        if (dealSummaryNoteTextarea) {
+            formData.append('deal_summary_note', dealSummaryNoteTextarea.value);
         }
     }
     formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
@@ -3016,6 +3031,9 @@ function changeStatus(summaryId) {
         }
         if (selectedFranchiseVariantSelect) {
             selectedFranchiseVariantSelect.disabled = false;
+        }
+        if (dealSummaryNoteTextarea) {
+            dealSummaryNoteTextarea.disabled = false;
         }
     });
 }
@@ -3320,13 +3338,20 @@ function initializeNotesForm() {
 function toggleCompanySelectVisibility() {
     const statusSelect = document.getElementById('status-select');
     const companyContainer = document.getElementById('selected-company-container');
+    const dealSummaryNoteContainer = document.getElementById('deal-summary-note-container');
     
     if (statusSelect && companyContainer) {
         const selectedStatus = statusSelect.value;
         if (selectedStatus === 'completed_accepted') {
             companyContainer.style.display = 'block';
+            if (dealSummaryNoteContainer) {
+                dealSummaryNoteContainer.style.display = 'block';
+            }
         } else {
             companyContainer.style.display = 'none';
+            if (dealSummaryNoteContainer) {
+                dealSummaryNoteContainer.style.display = 'none';
+            }
         }
     }
 

@@ -790,6 +790,7 @@ def deal_summary(request, summary_id):
         'selected_company': summary.selected_company,
         'selected_franchise_variant': summary.selected_franchise_variant,
         'selected_franchise_variant_display': summary.get_selected_franchise_variant_display() if summary.selected_franchise_variant else None,
+        'deal_summary_note': summary.deal_summary_note,
         'selected_offers': selected_offers,
         'selected_offer_notes_summary': selected_offer_notes_summary,
         'total_years': len(selected_offers),
@@ -1338,6 +1339,7 @@ def change_summary_status(request, summary_id):
     new_status = request.POST.get('status')
     selected_company = request.POST.get('selected_company', '').strip()
     selected_franchise_variant_raw = request.POST.get('selected_franchise_variant', '').strip()
+    deal_summary_note = request.POST.get('deal_summary_note', '').strip()
     selected_franchise_variant = None
     
     # Валидация статуса "Завершен: акцепт/распоряжение"
@@ -1396,11 +1398,13 @@ def change_summary_status(request, summary_id):
         if new_status == 'completed_accepted':
             summary.selected_company = selected_company
             summary.selected_franchise_variant = selected_franchise_variant
+            summary.deal_summary_note = deal_summary_note
             if old_status != 'completed_accepted' or not summary.completed_at:
                 summary.completed_at = timezone.now()
         else:
             summary.selected_company = None
             summary.selected_franchise_variant = None
+            summary.deal_summary_note = ''
             summary.completed_at = None
         
         # Если статус изменен на "Отправлен в Альянс", устанавливаем время отправки
@@ -1425,7 +1429,8 @@ def change_summary_status(request, summary_id):
             'new_status': new_status,
             'new_status_display': summary.get_status_display(),
             'selected_company': selected_company if new_status == 'completed_accepted' else None,
-            'selected_franchise_variant': selected_franchise_variant if new_status == 'completed_accepted' else None
+            'selected_franchise_variant': selected_franchise_variant if new_status == 'completed_accepted' else None,
+            'deal_summary_note': deal_summary_note if new_status == 'completed_accepted' else ''
         })
     
     return JsonResponse({
