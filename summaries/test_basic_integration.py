@@ -2,6 +2,7 @@
 Базовые интеграционные тесты для проверки компонентов
 """
 from decimal import Decimal
+from uuid import uuid4
 from django.test import TestCase, Client
 from django.contrib.auth.models import User, Group
 from django.urls import reverse
@@ -65,6 +66,49 @@ class BasicIntegrationTest(TestCase):
         response = self.client.get(reverse('summaries:summary_detail', args=[self.summary.pk]))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Свод к')
+
+    def test_summary_list_translates_request_batch_badges(self):
+        """Список сводов показывает партию и количество одинаковых объектов из заявки."""
+        batch_id = uuid4()
+        self.insurance_request.source_batch_id = batch_id
+        self.insurance_request.item_no = 1
+        self.insurance_request.item_count = 2
+        self.insurance_request.source_object_count = 3
+        self.insurance_request.save(update_fields=[
+            'source_batch_id',
+            'item_no',
+            'item_count',
+            'source_object_count',
+        ])
+
+        sibling_request = InsuranceRequest.objects.create(
+            client_name='ООО "Тест 2"',
+            inn='0987654321',
+            insurance_type='КАСКО',
+            vehicle_info='Тестовый автомобиль 2',
+            branch='Москва',
+            dfa_number='DFA-2025-001',
+            status='uploaded',
+            created_by=self.user,
+            source_batch_id=batch_id,
+            item_no=2,
+            item_count=2,
+        )
+        InsuranceSummary.objects.create(request=sibling_request, status='collecting')
+
+        response = self.client.get(reverse('summaries:summary_list'))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'summary-row--batch')
+        self.assertContains(response, 'summary-list-badge--batch')
+        self.assertContains(response, 'Партия')
+        self.assertContains(response, '<span class="summary-list-badge__count">1/2</span>')
+        self.assertContains(response, '<span class="summary-list-badge__count">2/2</span>')
+        self.assertContains(response, 'summary-list-badge--duplicate')
+        self.assertContains(response, '3 штуки')
+        self.assertNotContains(response, 'summary-batch-index')
+        self.assertNotContains(response, 'summary-row--batch-first')
+        self.assertNotContains(response, 'summary-row--batch-last')
+        self.assertNotContains(response, 'Единая партия объектов')
 
     def test_summary_detail_highlights_grouped_object_quantity(self):
         """Карточка свода выделяет количество одинаковых объектов отдельным бейджем."""
