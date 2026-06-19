@@ -39,8 +39,11 @@ _PLACEHOLDER_VALUES = {
 _SCALAR_FIELDS_EXCLUDED = {'draft_id'}
 # При наличии распознанных объектов эти поля отслеживаются на уровне
 # объекта (в формсете), а не на общем уровне — иначе на превью партии они
-# дублировали бы объектные правки.
-_SCALAR_FIELDS_OBJECT_LEVEL = {'vehicle_info', 'manufacturing_year'}
+# дублировали бы объектные правки. Сюда входят и legacy-поля объекта
+# (vehicle_info, asset_status): их современные эквиваленты (object_description,
+# condition) отслеживаются пообъектно, поэтому на скалярном уровне их учитывать
+# не нужно — иначе получили бы дубль/ложные правки после депрекейта.
+_SCALAR_FIELDS_OBJECT_LEVEL = {'vehicle_info', 'manufacturing_year', 'asset_status'}
 # Поля объектной формы, не участвующие в сравнении.
 _OBJECT_FIELDS_EXCLUDED = {'skip'}
 

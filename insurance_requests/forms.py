@@ -992,7 +992,18 @@ class InsuranceRequestForm(forms.ModelForm):
             # Ensure notes field is properly initialized
             if hasattr(self.instance, 'notes') and self.instance.notes:
                 self.fields['notes'].initial = self.instance.notes
-    
+
+            # Депрекейт legacy-полей объекта: если у заявки есть
+            # структурированные данные объекта (V2), редактировать
+            # vehicle_info/asset_status не даём — состояние правится через
+            # condition, описание — через структуру. Так оператор не «оживит»
+            # legacy-поля, которые парсер V2 намеренно оставляет пустыми.
+            # Для исторических V1-заявок (структуры нет) поля оставляем —
+            # там это единственный источник данных об объекте.
+            if self.instance.pk and self.instance.has_structured_object_data:
+                self.fields.pop('vehicle_info', None)
+                self.fields.pop('asset_status', None)
+
     def __getitem__(self, name):
         """Override to handle special cases for field values"""
         field = super().__getitem__(name)

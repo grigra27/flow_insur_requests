@@ -1,10 +1,9 @@
 # Депрекейт legacy-полей объекта (`vehicle_info`, `asset_status`)
 
 Дата создания: 2026-06-05.
-Обновлено: 2026-06-17.
-Статус: **Фазы A+B реализованы**; **Фаза C частично** («C-lite» по `vehicle_info`,
-коммит `1d12aa9`); **`asset_status`, edit-tracking (C3) и Фаза D — не сделаны**.
-⚠️ **Известная регрессия от C-lite** — см. раздел «Фаза C / Регрессия».
+Обновлено: 2026-06-19.
+Статус: **Фазы A, B, C реализованы**; **Фаза D (депрекейт V1 + удаление
+столбцов) — не сделана**. Регрессия C-lite исправлена.
 
 ## Контекст
 
@@ -76,89 +75,56 @@ V2-парсер **по-прежнему** заполняет `vehicle_info` (`pa
 
 ---
 
-## Фаза C — прекратить двойную запись и перевести ввод оператора (ЧАСТИЧНО)
+## Фаза C — прекратить двойную запись и перевести ввод оператора (РЕАЛИЗОВАНО)
 
 Цель фазы: новые **V2**-заявки больше не зависят от `vehicle_info` /
 `asset_status` ни на запись, ни на ручной ввод. Legacy-поля остаются только
 как fallback для исторических/V1-записей.
 
-### Что уже сделано (C-lite, коммит `1d12aa9`)
+### C1. Прекращена двойная запись в V2 ✅
 
-- **C1 для `vehicle_info`** — при распознанных объектах парсер ставит
-  `data["vehicle_info"] = ""` (`parser.py:621`); во view `vehicle_info` для
-  распознанных объектов не пишется, вместо него сохраняется `object_description`.
-- **C2 частично** — из формы предпросмотра убрано свободное поле «Описание
-  объекта»; оператор редактирует структуру, а raw `object_description`
-  сохраняется серверно из payload парсера (`forms.py`,
-  `upload_excel_v2_preview.html`).
-- `object_display_name` теперь fallback’ится `brand+model → object_description
-  → vehicle_info` (`models.py`).
-- Из PDF-заявки страховщику убрана строка «Описание объекта», чтобы длинный
-  raw-текст не дублировался наружу (`application_export.py`).
+- **`vehicle_info`** (C-lite, коммит `1d12aa9`) — при распознанных объектах
+  парсер ставит `data["vehicle_info"] = ""` (`parser.py:621`); во view вместо
+  него сохраняется `object_description`.
+- **`asset_status`** — парсер пишет его только как fallback: когда объектов нет
+  вообще либо ни у одного объекта не распознан `condition`
+  (`parser.py:_extract_asset_status` + гейт на `objects_have_condition`).
+  Для нормальной V2-заявки с `condition` поле остаётся пустым — состояние
+  живёт в `condition` (читается через `condition_label`, Фаза B).
+  Это закрывает Risk A: состояние не теряется в краевом случае «condition не
+  распознан, asset_status распознан».
 
-### ✅ Регрессия от C-lite — ИСПРАВЛЕНО
+### C2. Ввод оператора переведён на структуру ✅
 
-Симптом: `_build_warnings` среди обязательных полей проверял `vehicle_info` —
-если оно пустое или равно `MISSING_VEHICLE`, добавлялось предупреждение
-`manual_required: «Предмет лизинга не распознан.»`. После C1 `vehicle_info` для
-распознанных объектов **намеренно пустой** → на странице предпросмотра
-предупреждение срабатывало **ложно**, даже когда объект распознан корректно.
+- Object-форма предпросмотра (`ParserV2ObjectForm`) — без поля «Описание
+  объекта», оператор правит структуру; raw `object_description` сохраняется
+  серверно (C-lite).
+- Форма ручного редактирования (`InsuranceRequestForm`) — в `__init__` для
+  заявок со структурой (`has_structured_object_data`) поля
+  `vehicle_info`/`asset_status` **убираются** из формы; редактируется только
+  структура. Для исторических V1-заявок (структуры нет) legacy-поля
+  остаются — там это единственный источник данных об объекте. Шаблон
+  `edit_request.html` оборачивает legacy-блоки в `{% if form.vehicle_info %}` /
+  `{% if form.asset_status %}`.
+- Скалярная `ParserV2PreviewForm` сохраняет `vehicle_info`/`asset_status` —
+  они нужны как fallback на пути «объекты не распознаны»; для object-флоу не
+  заполняются и в трекинге исключаются (см. C3).
 
-Фикс: проверка `vehicle_info` вынесена из общего цикла обязательных полей и
-переведена на факт распознавания объекта — предупреждение добавляется только
-если `not insured_objects` и при этом `vehicle_info` пуст либо равен
-`MISSING_VEHICLE` (`parser.py:_build_warnings`). Тесты:
-`IdenticalObjectGroupingTests.test_no_vehicle_info_warning_when_object_recognized`
-и `…test_vehicle_info_warning_when_no_object_recognized`.
+### C3. Edit-tracking переведён на структуру ✅
 
-### C1 — что осталось: `asset_status`
+`edit_tracking._SCALAR_FIELDS_OBJECT_LEVEL` теперь
+`{'vehicle_info', 'manufacturing_year', 'asset_status'}` — при распознанных
+объектах оба legacy-поля исключаются из скалярного diff, потому что их
+современные эквиваленты (`object_description`, `condition`) отслеживаются
+пообъектно через `ParserV2ObjectForm`. Историческая статистика по
+`vehicle_info` в `RequestFieldEdit` остаётся в БД нетронутой.
 
-`asset_status` всё ещё пишется в V2 (двойная запись не убрана):
+### ✅ Регрессия C-lite — исправлена
 
-- `parser.py:680` — перестать класть `data["asset_status"]` (метод
-  `_extract_asset_status`, `parser.py:1591`).
-- `views.py:281` — убрать `'asset_status'` из набора V2-полей.
-
-**Предусловие:** все потребители уже читают через `condition_label`
-(сделано в Фазе B).
-
-### C2. Перевести формы предпросмотра/редактирования (ЧАСТИЧНО)
-
-Сделано в C-lite: из object-формы предпросмотра убрано поле «Описание объекта»,
-оператор правит структуру. **Осталось:** проверить скалярную preview-форму
-(`ParserV2PreviewForm`) и форму ручного редактирования заявки
-(`InsuranceRequestForm`), где `vehicle_info`/`asset_status` ещё присутствуют.
-
-Сейчас оператор правит свободное поле `vehicle_info` («Описание объекта»),
-а не структуру:
-
-- `forms.py:346` (`ParserV2PreviewForm.vehicle_info`),
-  `:390` (`asset_status`), `:501`, `:516` — скалярная preview-форма.
-- `forms.py:560` (`ParserV2ObjectForm`), `:610` (`vehicle_info`),
-  `:629/:638/:666` — объектный formset.
-- `forms.py:716` (`InsuranceRequestForm`), `:749`, `:752`, `:774`, `:794` —
-  форма ручного редактирования заявки.
-- Шаблоны: `upload_excel_v2_preview.html` (`:151-153`, `:171`, `:408-409`),
-  `edit_request.html` (`:166-172` для `vehicle_info`, `:402-409` для
-  `asset_status`).
-
-**Что сделать:** дать оператору редактировать структурированные поля
-(`brand`/`model`/`condition`/`object_description`/…) вместо свободного
-`vehicle_info`/`asset_status`. Решить судьбу `object_description` как
-редактируемого «сырого описания» (особенно для формы «имущество»).
-
-### C3. Перевести edit-tracking (НЕ сделано)
-
-`insurance_requests/edit_tracking.py:43` — `_SCALAR_FIELDS_OBJECT_LEVEL =
-{'vehicle_info', 'manufacturing_year'}` отслеживает правки `vehicle_info` как
-объектное поле (`:197`, `:217`). При переходе на структуру:
-
-- заменить `vehicle_info` в трекинге на структурированные поля
-  (`brand`/`model`/`condition`/`object_description`/…);
-- не сломать существующую аналитику операторских правок
-  ([operator_edits_tracking.md](operator_edits_tracking.md)) и модель
-  `RequestFieldEdit` — учесть, что историческая статистика по `vehicle_info`
-  останется в БД.
+`_build_warnings` ложно выдавал `manual_required: «Предмет лизинга не
+распознан.»` после того, как `vehicle_info` стал пустым для распознанных
+объектов. Проверка переведена на факт распознавания (`insured_objects`); фикс
+покрыт тестами `IdenticalObjectGroupingTests.*vehicle_info_warning*`.
 
 ### C4. Тесты Фазы C
 

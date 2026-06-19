@@ -675,10 +675,18 @@ class ExcelRequestParserV2:
             data["creditor_bank"] = creditor_value
             source_map["creditor_bank"] = creditor_source
 
+        # asset_status — legacy свободнотекстовое «новое/б/у». В V2 состояние
+        # хранится структурно в condition (пообъектно), поэтому при распознанных
+        # объектах с condition мы asset_status НЕ заполняем (депрекейт). Запись
+        # остаётся только как fallback: когда объектов нет вообще либо ни у
+        # одного объекта condition не распознан — иначе состояние было бы
+        # потеряно (см. Risk A в legacy_object_fields_deprecation.md).
         asset_value, asset_source = self._extract_asset_status(cells, rows, application_type)
         if asset_value:
-            data["asset_status"] = asset_value
-            source_map["asset_status"] = asset_source
+            objects_have_condition = any(obj.get("condition") for obj in insured_objects)
+            if not insured_objects or not objects_have_condition:
+                data["asset_status"] = asset_value
+                source_map["asset_status"] = asset_source
 
         telematics_value, telematics_source = self._extract_telematics_complex(cells, rows)
         if telematics_value:

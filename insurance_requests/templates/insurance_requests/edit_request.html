@@ -162,6 +162,7 @@
                         </div>
                     </div>
 
+	                    {% if form.vehicle_info %}
 	                    <div class="mb-3">
 	                        <label for="{{ form.vehicle_info.id_for_label }}" class="form-label">
 	                            {{ form.vehicle_info.label }}
@@ -175,6 +176,7 @@
                         </div>
 	                        {% endif %}
 	                    </div>
+	                    {% endif %}
 
 	                    <div class="mb-4">
 	                        <h6 class="text-muted mb-3">Структурированные данные объекта</h6>
@@ -397,6 +399,7 @@
                         </div>
 
                         <div class="row">
+                            {% if form.asset_status %}
                             <div class="col-md-6 casco-specific">
                                 <div class="mb-3">
                                     <label for="{{ form.asset_status.id_for_label }}" class="form-label">
@@ -413,6 +416,7 @@
                                     {% endif %}
                                 </div>
                             </div>
+                            {% endif %}
                             <div class="col-md-6">
                                 <!-- Пустая колонка для симметрии -->
                             </div>
