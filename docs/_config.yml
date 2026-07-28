@@ -22,6 +22,7 @@ kramdown:
 # Navigation
 header_pages:
   - index.md
+  - summary_excel_generation.md
 
 # Exclude files
 exclude:

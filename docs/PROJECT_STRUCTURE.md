@@ -334,6 +334,8 @@ Excel файл → core/excel_utils.py → InsuranceRequest → Валидаци
 InsuranceRequest → InsuranceSummary → Добавление предложений → Выгрузка Excel
 ```
 
+Подробное техническое описание: [Пайплайн свода и Excel-выгрузки](summary_excel_generation.md).
+
 ### 3. Справочная система (НОВАЯ)
 ```
 Пользователь → summaries:help → help_page view → help.html → Отображение справки
