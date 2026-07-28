@@ -156,17 +156,18 @@
                                     <table class="table table-hover table-sm offers-table">
                                         <thead>
                                             <tr>
-                                                <th rowspan="2" class="offers-th-base align-middle" style="width: 10%;">Год</th>
-                                                <th rowspan="2" class="offers-th-base align-middle" style="width: 19%;">Страх. сумма</th>
+                                                <th rowspan="2" class="offers-th-base align-middle" style="width: 7%;">Год</th>
+                                                <th rowspan="2" class="offers-th-base align-middle" style="width: 14%;">Страх. сумма</th>
                                                 <th colspan="2" class="offers-variant-header offers-variant-1-header text-center">Вариант&nbsp;1</th>
                                                 <th colspan="2" class="offers-variant-header offers-variant-2-header text-center">Вариант&nbsp;2</th>
-                                                <th rowspan="2" class="offers-th-base align-middle" style="width: 13%;">Действия</th>
+                                                <th rowspan="2" class="offers-th-base align-middle" style="width: 18%;">Территория</th>
+                                                <th rowspan="2" class="offers-th-base align-middle" style="width: 10%;">Действия</th>
                                             </tr>
                                             <tr>
-                                                <th class="offers-th-base offers-v1-bg" style="width: 13%;">Франшиза</th>
-                                                <th class="offers-th-base offers-v1-bg" style="width: 16%;">Премия</th>
-                                                <th class="offers-th-base offers-v2-bg" style="width: 13%;">Франшиза</th>
-                                                <th class="offers-th-base offers-v2-bg" style="width: 16%;">Премия</th>
+                                                <th class="offers-th-base offers-v1-bg" style="width: 10%;">Франшиза</th>
+                                                <th class="offers-th-base offers-v1-bg" style="width: 12%;">Премия</th>
+                                                <th class="offers-th-base offers-v2-bg" style="width: 10%;">Франшиза</th>
+                                                <th class="offers-th-base offers-v2-bg" style="width: 12%;">Премия</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -206,6 +207,16 @@
                                                             {% endif %}
                                                         {% else %}
                                                             <span class="text-muted">—</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td data-label="Территория">
+                                                        {% if offer.coverage_territory %}
+                                                            {{ offer.coverage_territory|linebreaksbr }}
+                                                        {% else %}
+                                                            <span class="badge bg-warning text-dark text-wrap">
+                                                                <i class="bi bi-exclamation-triangle me-1"></i>
+                                                                Не указано страховщиком
+                                                            </span>
                                                         {% endif %}
                                                     </td>
                                                     <td data-label="Действия">
@@ -255,6 +266,9 @@
                                                             {% else %}
                                                                 <span class="text-muted">—</span>
                                                             {% endif %}
+                                                        </td>
+                                                        <td data-label="Территория">
+                                                            <span class="text-muted">—</span>
                                                         </td>
                                                         <td data-label="Действия">
                                                             <span class="text-muted">—</span>

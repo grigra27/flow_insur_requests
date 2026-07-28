@@ -516,6 +516,15 @@ class InsuranceOffer(models.Model):
     is_valid = models.BooleanField(default=True, verbose_name='Действительное предложение')
     
     # Дополнительная информация
+    coverage_territory = models.TextField(
+        blank=True,
+        default='',
+        verbose_name='Территория страхования и территориальные ограничения',
+        help_text=(
+            'Территория и ограничения, подтвержденные страховщиком. '
+            'Не подменяется территорией из исходной заявки.'
+        )
+    )
     notes = models.TextField(blank=True, verbose_name='Комментарии')
     original_email_subject = models.CharField(max_length=255, blank=True, verbose_name='Тема письма')
     

@@ -65,7 +65,7 @@ class OfferForm(forms.ModelForm):
             'franchise_2', 'premium_with_franchise_2',
             'installment_variant_1', 'payments_per_year_variant_1',
             'installment_variant_2', 'payments_per_year_variant_2',
-            'notes', 'attachment_file'
+            'coverage_territory', 'notes', 'attachment_file'
         ]
         widgets = {
             'insurance_year': forms.NumberInput(attrs={
@@ -98,6 +98,11 @@ class OfferForm(forms.ModelForm):
             }),
             'installment_variant_1': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'installment_variant_2': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'coverage_territory': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 2,
+                'placeholder': 'Например: Российская Федерация, кроме новых территорий'
+            }),
             'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
             'attachment_file': forms.FileInput(attrs={'class': 'form-control'}),
         }
@@ -403,7 +408,7 @@ class AddOfferToSummaryForm(forms.ModelForm):
             'franchise_2', 'premium_with_franchise_2',
             'installment_variant_1', 'payments_per_year_variant_1',
             'installment_variant_2', 'payments_per_year_variant_2',
-            'notes'
+            'coverage_territory', 'notes'
         ]
         widgets = {
             'insurance_year': forms.NumberInput(attrs={
@@ -437,6 +442,11 @@ class AddOfferToSummaryForm(forms.ModelForm):
             }),
             'installment_variant_1': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'installment_variant_2': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'coverage_territory': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 2,
+                'placeholder': 'Например: Российская Федерация, кроме новых территорий'
+            }),
             'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
         }
     

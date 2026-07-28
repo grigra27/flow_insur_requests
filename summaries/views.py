@@ -1243,6 +1243,7 @@ def copy_offer(request, offer_id):
             'payments_per_year_variant_1': original_offer.payments_per_year_variant_1,
             'installment_variant_2': original_offer.installment_variant_2,
             'payments_per_year_variant_2': original_offer.payments_per_year_variant_2,
+            'coverage_territory': original_offer.coverage_territory,
             'notes': original_offer.notes,
         }
         form = OfferForm(initial=initial_data)
@@ -1587,6 +1588,12 @@ def upload_company_response(request, summary_id):
             additional_messages.append(
                 f'Название компании автоматически сопоставлено: "{matching_info["original_name"]}" → "{matching_info["standardized_name"]}"'
             )
+
+        if result.get('coverage_territory_missing'):
+            additional_messages.append(
+                'Внимание: страховщик не указал территорию страхования. '
+                'Предложения загружены, но поле нужно проверить и при необходимости заполнить вручную.'
+            )
         
         # Возврат JSON ответов с результатами обработки (требование 5.2, 5.4)
         return JsonResponse({
@@ -1599,7 +1606,9 @@ def upload_company_response(request, summary_id):
                 'years': result['years'],
                 'processed_rows': processed_rows,
                 'skipped_rows': skipped_rows,
-                'matching_info': matching_info
+                'matching_info': matching_info,
+                'coverage_territory': result.get('coverage_territory', ''),
+                'coverage_territory_missing': result.get('coverage_territory_missing', False)
             }
         })
         

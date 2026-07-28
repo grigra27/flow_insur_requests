@@ -63,6 +63,7 @@ class ExcelExportService:
         'franchise_2': 'M',       # Франшиза-2
         'installment_2': 'N',     # Рассрочка-2
         'premium_2_summary': 'O', # Сумма премий-2
+        'coverage_territory': 'P', # Территория, подтвержденная страховщиком
         'notes': 'Q'              # Примечания
     }
     
@@ -76,6 +77,7 @@ class ExcelExportService:
         'franchise_1': 'G',       # Франшиза-1
         'installment_1': 'H',     # Рассрочка-1
         'premium_1_summary': 'I', # Сумма премий-1
+        'coverage_territory': 'J', # Территория, подтвержденная страховщиком
         'notes': 'K'              # Примечания (сдвинутая колонка)
     }
     
@@ -112,6 +114,8 @@ class ExcelExportService:
     MAX_COMPANIES_LIMIT = 100  # Максимальное количество компаний
     MAX_YEARS_PER_COMPANY = 10  # Максимальное количество лет на компанию
     MAX_NOTES_LENGTH = 1000  # Максимальная длина примечаний
+    MAX_COVERAGE_TERRITORY_LENGTH = 32767  # Максимум текста в ячейке Excel
+    MISSING_COVERAGE_TERRITORY = 'Не указано страховщиком'
     MIN_INSURANCE_SUM = Decimal('1')  # Минимальная страховая сумма
     MAX_INSURANCE_SUM = Decimal('1000000000')  # Максимальная страховая сумма (1 млрд)
     ASSET_STATUS_ADDITIONAL_NOTE = 'Обязателен осмотр предмета лизинга.'
@@ -490,7 +494,8 @@ class ExcelExportService:
             
             if template_type == 'simplified':
                 logger.info("Будет использован упрощенный шаблон без колонок для второго предложения")
-                logger.info("Колонки J, K, L, M, N, O будут отсутствовать")
+                logger.info("Блок колонок второго предложения будет отсутствовать")
+                logger.info("Территория страховщика будет в колонке J")
                 logger.info("Примечания будут в колонке K вместо Q")
             else:
                 logger.info("Будет использован полный шаблон с колонками для обоих предложений")
@@ -1071,6 +1076,16 @@ class ExcelExportService:
                         columns_mapping=columns,
                         additional_note=company_additional_note,
                     )
+                    # Одинаковую территорию по всем годам показываем одной
+                    # объединенной ячейкой; разные значения оставляем построчно.
+                    self._merge_coverage_territory_cells_if_uniform(
+                        worksheet,
+                        company_start_row,
+                        current_row - 1,
+                        company_name,
+                        offers,
+                        columns_mapping=columns,
+                    )
                 else:
                     # Для компаний с одним годом заполняем столбцы I и O значениями из F и L
                     self._fill_single_year_premium_summary(worksheet, company_start_row, company_name, offers[0], columns)
@@ -1442,6 +1457,13 @@ class ExcelExportService:
                 for key in ('rate_2', 'premium_2', 'franchise_2', 'installment_2', 'premium_2_summary'):
                     if key in columns:
                         worksheet[f"{columns[key]}{row_num}"].value = None
+
+            coverage_territory = self._get_export_coverage_territory(offer)
+            worksheet[f"{columns['coverage_territory']}{row_num}"].value = coverage_territory
+            logger.debug(
+                f"Записана территория страхования для компании '{company_name}': "
+                f"{coverage_territory[:80]}"
+            )
             
             # Примечания (если есть) с обрезкой и валидацией
             notes_to_export = self._build_export_notes(getattr(offer, 'notes', None), additional_note)
@@ -2541,6 +2563,63 @@ class ExcelExportService:
                 columns_mapping=columns,
                 additional_note=additional_note
             )
+
+    def _get_export_coverage_territory(self, offer) -> str:
+        """Готовит подтвержденную страховщиком территорию для Excel."""
+        raw_value = getattr(offer, 'coverage_territory', '') or ''
+        value = str(raw_value)
+        value = value.replace('\x00', '').replace('\x01', '').replace('\x02', '')
+        value = value.replace('\r\n', '\n').replace('\r', '\n').strip()
+        if not value:
+            return self.MISSING_COVERAGE_TERRITORY
+        if len(value) > self.MAX_COVERAGE_TERRITORY_LENGTH:
+            return value[:self.MAX_COVERAGE_TERRITORY_LENGTH - 3] + '...'
+        return value
+
+    def _merge_coverage_territory_cells_if_uniform(
+        self,
+        worksheet,
+        start_row: int,
+        end_row: int,
+        company_name: str,
+        offers: List,
+        columns_mapping: dict = None,
+    ) -> None:
+        """
+        Объединяет территорию по годам только при полном смысловом совпадении.
+
+        Если хотя бы один год отличается или не заполнен, значения остаются в
+        отдельных строках, чтобы различия не потерялись.
+        """
+        if end_row <= start_row:
+            return
+
+        columns = columns_mapping if columns_mapping is not None else self.COMPANY_DATA_COLUMNS
+        territory_column = columns['coverage_territory']
+        values = [self._get_export_coverage_territory(offer) for offer in offers]
+        normalized_values = {
+            ' '.join(value.split()).casefold()
+            for value in values
+        }
+
+        if len(normalized_values) != 1:
+            logger.debug(
+                f"Территории компании '{company_name}' отличаются по годам; "
+                "ячейки не объединяются"
+            )
+            return
+
+        merge_range = f'{territory_column}{start_row}:{territory_column}{end_row}'
+        try:
+            worksheet.merge_cells(merge_range)
+            worksheet[f'{territory_column}{start_row}'].value = values[0]
+            logger.info(
+                f"Объединены ячейки территории {merge_range} для компании '{company_name}'"
+            )
+        except Exception as e:
+            logger.warning(
+                f"Не удалось объединить ячейки территории для компании '{company_name}': {e}"
+            )
     
     def _consolidate_notes(self, offers: List, additional_note: Optional[str] = None) -> Optional[str]:
         """
@@ -2774,6 +2853,7 @@ class ExcelResponseProcessor:
     # Динамическая конфигурация маппинга ячеек
     CELL_MAPPING = {
         'company_name': 'B2',
+        'coverage_territory': 'B3',
         'notes_first_year': 'F2',  # Объединенная ячейка FGHIJ2 для примечаний первого года
         'year_rows': {
             'start_row': MIN_YEAR_ROW,
@@ -3008,7 +3088,9 @@ class ExcelResponseProcessor:
                 'skipped_rows': processing_info.get('rows_skipped', []),
                 'processed_rows': processing_info.get('rows_with_data', []),
                 'company_matching_info': company_data.get('company_matching_info', {}),
-                'processing_errors': processing_info.get('processing_errors', [])
+                'processing_errors': processing_info.get('processing_errors', []),
+                'coverage_territory': company_data.get('coverage_territory', ''),
+                'coverage_territory_missing': not bool(company_data.get('coverage_territory'))
             }
             
             self.logger.info(f"=== ОБРАБОТКА ЗАВЕРШЕНА УСПЕШНО ===")
@@ -3126,6 +3208,27 @@ class ExcelResponseProcessor:
                 'assigned_other': standardized_name == 'другое' and raw_name_str.lower() != 'другое'
             }
             data['company_matching_info'] = matching_info
+
+            raw_coverage_territory = self._get_cell_value(
+                worksheet,
+                self.CELL_MAPPING['coverage_territory']
+            )
+            coverage_territory = (
+                str(raw_coverage_territory).strip()
+                if raw_coverage_territory is not None
+                else ''
+            )
+            data['coverage_territory'] = coverage_territory
+            if coverage_territory:
+                self.logger.info(
+                    "Найдена территория страхования, подтвержденная страховщиком: "
+                    f"{coverage_territory[:100]}"
+                )
+            else:
+                self.logger.warning(
+                    "Страховщик не указал территорию страхования в ячейке "
+                    f"{self.CELL_MAPPING['coverage_territory']}; импорт продолжается"
+                )
             
             # Логируем процесс сопоставления
             if standardized_name == 'другое' and raw_name_str.lower() != 'другое':
@@ -3738,6 +3841,7 @@ class ExcelResponseProcessor:
             # Для обратной совместимости
             'installment_available': installment_available,
             'payments_per_year': payments_per_year,
+            'coverage_territory': company_data.get('coverage_territory', ''),
             'is_valid': True
         }
         

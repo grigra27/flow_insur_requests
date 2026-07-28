@@ -25,6 +25,8 @@
 docs/
 ├── index.md                         # Основное руководство пользователя
 ├── summary_excel_generation.md      # Пайплайн свода и Excel-выгрузки
+├── improvement_plans/
+│   └── insurance_offer_territory.md # Решение по территории страховщика
 ├── _config.yml                      # Конфигурация Jekyll/GitHub Pages
 ├── _layouts/
 │   └── default.html        # Кастомный layout с боковым оглавлением
