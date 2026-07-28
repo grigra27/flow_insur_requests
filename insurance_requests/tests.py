@@ -540,6 +540,23 @@ class InsuranceRequestObjectPropertiesTest(SimpleTestCase):
 
 
 class EmailTemplateGeneratorTest(TestCase):
+    def test_generate_email_body_always_requests_insurance_territory(self):
+        territory_request = (
+            'Просим указать в предложении территорию действия страхового покрытия '
+            'и имеющиеся территориальные ограничения.'
+        )
+
+        for insurance_type in EmailTemplateGenerator.INSURANCE_TYPE_DESCRIPTIONS:
+            with self.subTest(insurance_type=insurance_type):
+                body = EmailTemplateGenerator().generate_email_body({
+                    'insurance_type': insurance_type,
+                    'insurance_period': '1 год',
+                    'inn': '1234567890',
+                    'response_deadline': '12:00 01.01.2027',
+                })
+
+                self.assertIn(territory_request, body)
+
     def test_generate_subject_uses_object_display_name_for_structured_request(self):
         request = InsuranceRequest(
             dfa_number='ДФА-123',
