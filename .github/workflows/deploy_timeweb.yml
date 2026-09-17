@@ -11,8 +11,52 @@ env:
   DOMAINS_PRIMARY: insflow.ru,zs.insflow.ru
   DOMAINS_TECHNICAL: insflow.tw1.su,zs.insflow.tw1.su
 
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      SECRET_KEY: ci-secret-key
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: pip
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run Django system check
+      run: python manage.py check
+
+    - name: Verify migration files are committed
+      run: python manage.py makemigrations --check --dry-run
+
+    - name: Run regression tests
+      run: >-
+        python manage.py test
+        insurance_requests.tests
+        summaries.test_company_matcher
+        summaries.test_templatetags
+        summaries.test_offer_coverage_territory
+        summaries.test_excel_integration
+
   build-and-deploy:
+    needs: test
     runs-on: ubuntu-latest
     
     steps:
@@ -116,6 +160,30 @@ jobs:
             echo "✅ Docker Hub login успешен"
           else
             echo "⚠️ Docker Hub credentials не настроены, возможны rate limit ошибки"
+          fi
+
+          echo "➡️ Создаём обязательный бекап текущей БД до остановки контейнеров..."
+          if ! docker-compose -f docker-compose.yml exec -T -u 0 web sh -c \
+            'mkdir -p /app/backups && chown -R app:app /app/backups'; then
+            echo "❌ Работающий web-контейнер недоступен или не удалось подготовить каталог бекапов"
+            exit 1
+          fi
+
+          backup_created=false
+          if docker-compose -f docker-compose.yml exec -T web python manage.py backup_db --format pgdump --output-dir /app/backups --keep 10; then
+            echo "✅ Предварительный pg_dump бекап создан"
+            backup_created=true
+          else
+            echo "⚠️ pg_dump не удался, пробуем JSON бекап..."
+            if docker-compose -f docker-compose.yml exec -T web python manage.py backup_db --format json --output-dir /app/backups --keep 10; then
+              echo "✅ Предварительный JSON бекап создан"
+              backup_created=true
+            fi
+          fi
+
+          if [ "$backup_created" != true ]; then
+            echo "❌ Не удалось создать ни pg_dump, ни JSON бекап. Деплой остановлен до изменения БД."
+            exit 1
           fi
           
           echo "➡️ Загружаем новый Docker-образ..."
@@ -264,20 +332,7 @@ jobs:
           echo "➡️ Проверяем логи web контейнера..."
           docker-compose -f docker-compose.yml logs --tail=50 web
           
-          echo "➡️ Чиним права на /app/backups (named volume по умолчанию создаётся под root)..."
-          docker-compose -f docker-compose.yml exec -T -u 0 web chown -R app:app /app/backups || \
-            echo "⚠️ Не удалось chown /app/backups (продолжаем)"
-
-          echo "➡️ Создаём бекап БД перед миграциями..."
-          mkdir -p backups
-          if docker-compose -f docker-compose.yml exec -T web python manage.py backup_db --format pgdump --output-dir /app/backups --keep 10; then
-            echo "✅ pg_dump бекап создан"
-          else
-            echo "⚠️ pg_dump не удался, делаем JSON бекап..."
-            docker-compose -f docker-compose.yml exec -T web python manage.py backup_db --format json --output-dir /app/backups --keep 10 || echo "⚠️ JSON бекап тоже не удался, продолжаем деплой"
-          fi
-
-          echo "➡️ Применяем миграции БД..."
+          echo "➡️ Проверяем и применяем оставшиеся миграции БД..."
           if docker-compose -f docker-compose.yml exec -T web python manage.py migrate --noinput; then
             echo "✅ Миграции применены успешно"
           else
@@ -320,21 +375,30 @@ jobs:
           elif docker-compose -f docker-compose.yml exec -T web python -c "import urllib.request; response = urllib.request.urlopen('http://localhost:8000/healthz/', timeout=5); print('✅ Healthcheck прошел успешно (через Python)!')"; then
             echo "✅ Healthcheck прошел успешно!"
           else
-            echo "⚠️ Healthcheck не прошел, но продолжаем deployment"
+            echo "❌ Внутренний healthcheck web-контейнера не прошел"
             echo "🔍 Проверяем логи web контейнера для диагностики..."
-            docker-compose -f docker-compose.yml logs --tail=10 web
+            docker-compose -f docker-compose.yml logs --tail=50 web
+            exit 1
           fi
           
           echo "➡️ Ожидаем готовности nginx..."
           # Wait for nginx to be ready
+          nginx_ready=false
           for i in {1..30}; do
             if docker-compose -f docker-compose.yml ps nginx | grep -q "Up"; then
               echo "✅ Nginx готов!"
+              nginx_ready=true
               break
             fi
             echo "⏳ Ожидаем nginx... ($i/30)"
             sleep 2
           done
+
+          if [ "$nginx_ready" != true ]; then
+            echo "❌ Nginx не запустился за отведённое время"
+            docker-compose -f docker-compose.yml logs --tail=50 nginx
+            exit 1
+          fi
           
           echo "➡️ Тестируем основные endpoints..."
           # Test HTTP endpoints (should redirect to HTTPS if SSL is enabled)
@@ -344,6 +408,7 @@ jobs:
             echo "❌ Health endpoint недоступен!"
             echo "🔍 Проверяем логи nginx..."
             docker-compose -f docker-compose.yml logs --tail=20 nginx
+            exit 1
           fi
           
           # Test HTTPS endpoints if SSL is enabled
@@ -358,6 +423,7 @@ jobs:
               echo "✅ HTTPS Health endpoint работает!"
             else
               echo "❌ HTTPS Health endpoint недоступен!"
+              exit 1
             fi
             
             # Test HTTPS landing page
