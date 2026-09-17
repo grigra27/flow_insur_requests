@@ -86,7 +86,43 @@ jobs:
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
-    # 5️⃣ Деплой на Timeweb через SSH
+    # 5️⃣ Обязательный бекап старой версии до любых изменений на сервере
+    - name: Back up production database before deploy
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.TIMEWEB_HOST }}
+        username: ${{ secrets.TIMEWEB_USERNAME }}
+        key: ${{ secrets.TIMEWEB_SSH_KEY }}
+        port: ${{ secrets.TIMEWEB_PORT }}
+        script: |
+          set -e
+          cd ${{ env.PROJECT_PATH }}
+
+          echo "➡️ Создаём обязательный бекап текущей БД до изменения сервера..."
+          if ! docker-compose -f docker-compose.yml exec -T -u 0 web sh -c \
+            'mkdir -p /app/backups && chown -R app:app /app/backups'; then
+            echo "❌ Работающий web-контейнер недоступен или не удалось подготовить каталог бекапов"
+            exit 1
+          fi
+
+          backup_created=false
+          if docker-compose -f docker-compose.yml exec -T web python manage.py backup_db --format pgdump --output-dir /app/backups --keep 10; then
+            echo "✅ Предварительный pg_dump бекап создан"
+            backup_created=true
+          else
+            echo "⚠️ pg_dump не удался, пробуем JSON бекап..."
+            if docker-compose -f docker-compose.yml exec -T web python manage.py backup_db --format json --output-dir /app/backups --keep 10; then
+              echo "✅ Предварительный JSON бекап создан"
+              backup_created=true
+            fi
+          fi
+
+          if [ "$backup_created" != true ]; then
+            echo "❌ Не удалось создать ни pg_dump, ни JSON бекап. Деплой остановлен до изменения сервера."
+            exit 1
+          fi
+
+    # 6️⃣ Деплой на Timeweb через SSH
     - name: Deploy to Timeweb
       uses: appleboy/ssh-action@v1.0.0
       with:
@@ -160,30 +196,6 @@ jobs:
             echo "✅ Docker Hub login успешен"
           else
             echo "⚠️ Docker Hub credentials не настроены, возможны rate limit ошибки"
-          fi
-
-          echo "➡️ Создаём обязательный бекап текущей БД до остановки контейнеров..."
-          if ! docker-compose -f docker-compose.yml exec -T -u 0 web sh -c \
-            'mkdir -p /app/backups && chown -R app:app /app/backups'; then
-            echo "❌ Работающий web-контейнер недоступен или не удалось подготовить каталог бекапов"
-            exit 1
-          fi
-
-          backup_created=false
-          if docker-compose -f docker-compose.yml exec -T web python manage.py backup_db --format pgdump --output-dir /app/backups --keep 10; then
-            echo "✅ Предварительный pg_dump бекап создан"
-            backup_created=true
-          else
-            echo "⚠️ pg_dump не удался, пробуем JSON бекап..."
-            if docker-compose -f docker-compose.yml exec -T web python manage.py backup_db --format json --output-dir /app/backups --keep 10; then
-              echo "✅ Предварительный JSON бекап создан"
-              backup_created=true
-            fi
-          fi
-
-          if [ "$backup_created" != true ]; then
-            echo "❌ Не удалось создать ни pg_dump, ни JSON бекап. Деплой остановлен до изменения БД."
-            exit 1
           fi
           
           echo "➡️ Загружаем новый Docker-образ..."
