@@ -10,6 +10,7 @@ from decimal import Decimal, InvalidOperation
 import unicodedata
 
 from openpyxl import load_workbook
+from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE
 from openpyxl.workbook import Workbook
 from django.conf import settings
 from django.db import transaction
@@ -116,6 +117,7 @@ class ExcelExportService:
     MAX_NOTES_LENGTH = 1000  # Максимальная длина примечаний
     MAX_COVERAGE_TERRITORY_LENGTH = 32767  # Максимум текста в ячейке Excel
     MISSING_COVERAGE_TERRITORY = 'Не указано страховщиком'
+    LEGACY_COVERAGE_TERRITORY = 'Нет данных: территория ранее не собиралась'
     MIN_INSURANCE_SUM = Decimal('1')  # Минимальная страховая сумма
     MAX_INSURANCE_SUM = Decimal('1000000000')  # Максимальная страховая сумма (1 млрд)
     ASSET_STATUS_ADDITIONAL_NOTE = 'Обязателен осмотр предмета лизинга.'
@@ -903,6 +905,19 @@ class ExcelExportService:
 
         return base_notes or extra_notes or None
 
+    @staticmethod
+    def _sanitize_excel_text(value: Any, max_length: Optional[int] = None) -> str:
+        """Нормализует текст и удаляет все запрещенные Excel/XML символы."""
+        if value is None:
+            return ''
+
+        sanitized = str(value).replace('\r\n', '\n').replace('\r', '\n')
+        sanitized = ILLEGAL_CHARACTERS_RE.sub('', sanitized).strip()
+        if max_length is not None and len(sanitized) > max_length:
+            suffix = '...' if max_length >= 3 else ''
+            sanitized = sanitized[:max_length - len(suffix)] + suffix
+        return sanitized
+
     def _combine_additional_notes(self, *notes: Optional[str]) -> Optional[str]:
         """
         Объединяет системные примечания в одну строку без дублей.
@@ -1468,24 +1483,15 @@ class ExcelExportService:
             # Примечания (если есть) с обрезкой и валидацией
             notes_to_export = self._build_export_notes(getattr(offer, 'notes', None), additional_note)
             if notes_to_export:
-                notes = str(notes_to_export).strip()
+                notes = self._sanitize_excel_text(
+                    notes_to_export,
+                    self.MAX_NOTES_LENGTH,
+                )
                 if notes:
-                    # Ограничиваем длину примечаний для Excel
-                    if len(notes) > self.MAX_NOTES_LENGTH:
-                        notes = notes[:self.MAX_NOTES_LENGTH] + "..."
-                        logger.warning(f"Примечания обрезаны до {self.MAX_NOTES_LENGTH} символов для компании '{company_name}'")
-
-                    # Дополнительная валидация примечаний
-                    # Удаляем потенциально проблемные символы для Excel
-                    notes = notes.replace('\x00', '').replace('\x01', '').replace('\x02', '')
-
-                    if notes:  # Проверяем, что после очистки что-то осталось
-                        worksheet[f"{columns['notes']}{row_num}"].value = notes
-                        logger.debug(f"Записаны примечания: {notes[:50]}...")
-                    else:
-                        logger.debug(f"Примечания для компании '{company_name}' пусты после очистки")
+                    worksheet[f"{columns['notes']}{row_num}"].value = notes
+                    logger.debug(f"Записаны примечания: {notes[:50]}...")
                 else:
-                    logger.debug(f"Примечания для компании '{company_name}' пусты после обрезки пробелов")
+                    logger.debug(f"Примечания для компании '{company_name}' пусты после очистки")
             
             logger.info(f"Строка {row_num} успешно заполнена для компании '{company_name}', {year_display}")
             
@@ -2566,14 +2572,16 @@ class ExcelExportService:
 
     def _get_export_coverage_territory(self, offer) -> str:
         """Готовит подтвержденную страховщиком территорию для Excel."""
-        raw_value = getattr(offer, 'coverage_territory', '') or ''
-        value = str(raw_value)
-        value = value.replace('\x00', '').replace('\x01', '').replace('\x02', '')
-        value = value.replace('\r\n', '\n').replace('\r', '\n').strip()
+        raw_value = getattr(offer, 'coverage_territory', '')
+        if raw_value is None:
+            return self.LEGACY_COVERAGE_TERRITORY
+
+        value = self._sanitize_excel_text(
+            raw_value,
+            self.MAX_COVERAGE_TERRITORY_LENGTH,
+        )
         if not value:
             return self.MISSING_COVERAGE_TERRITORY
-        if len(value) > self.MAX_COVERAGE_TERRITORY_LENGTH:
-            return value[:self.MAX_COVERAGE_TERRITORY_LENGTH - 3] + '...'
         return value
 
     def _merge_coverage_territory_cells_if_uniform(
@@ -2657,7 +2665,7 @@ class ExcelExportService:
                         
                         if notes_str:  # Пропускаем пустые примечания
                             # Удаляем потенциально проблемные символы для Excel
-                            notes_str = notes_str.replace('\x00', '').replace('\x01', '').replace('\x02', '')
+                            notes_str = self._sanitize_excel_text(notes_str)
                             notes_str = notes_str.replace('\n', ' ').replace('\r', ' ')
                             
                             # Убираем множественные пробелы
@@ -2680,7 +2688,7 @@ class ExcelExportService:
             if additional_note:
                 additional_note_str = str(additional_note).strip()
                 if additional_note_str:
-                    additional_note_str = additional_note_str.replace('\x00', '').replace('\x01', '').replace('\x02', '')
+                    additional_note_str = self._sanitize_excel_text(additional_note_str)
                     additional_note_str = additional_note_str.replace('\n', ' ').replace('\r', ' ')
                     additional_note_str = ' '.join(additional_note_str.split())
 
@@ -2807,19 +2815,13 @@ class ExcelExportService:
                     notes = self._build_export_notes(getattr(offer, 'notes', None), row_additional_note)
                     
                     if notes:
-                        notes_str = str(notes).strip()
+                        notes_str = self._sanitize_excel_text(
+                            notes,
+                            self.MAX_NOTES_LENGTH,
+                        )
                         if notes_str:
-                            # Ограничиваем длину примечаний для Excel
-                            if len(notes_str) > self.MAX_NOTES_LENGTH:
-                                notes_str = notes_str[:self.MAX_NOTES_LENGTH] + "..."
-                                logger.warning(f"Примечания обрезаны до {self.MAX_NOTES_LENGTH} символов для строки {current_row}")
-                            
-                            # Очищаем проблемные символы
-                            notes_str = notes_str.replace('\x00', '').replace('\x01', '').replace('\x02', '')
-                            
-                            if notes_str:  # Проверяем, что после очистки что-то осталось
-                                worksheet[f'{notes_column}{current_row}'].value = notes_str
-                                logger.debug(f"Записаны примечания в строку {current_row}: {notes_str[:30]}...")
+                            worksheet[f'{notes_column}{current_row}'].value = notes_str
+                            logger.debug(f"Записаны примечания в строку {current_row}: {notes_str[:30]}...")
                     
                 except Exception as row_error:
                     logger.warning(f"Не удалось заполнить примечания для строки {current_row}: {row_error}")

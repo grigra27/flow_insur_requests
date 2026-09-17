@@ -117,6 +117,14 @@ summary + company_name + insurance_year = уникальная комбинац�
 все годовые предложения одного файла. Поле необязательное, поэтому старые
 ответы без этой ячейки продолжают импортироваться. После такого импорта
 пользователь получает предупреждение, а свод остаётся доступен для работы.
+Актуальный файл можно скачать по защищённому маршруту
+`/summaries/response-template/download/` или кнопкой в карточке свода.
+
+Состояния поля различаются намеренно:
+
+- `NULL` — историческое предложение, созданное до начала сбора территории;
+- пустая строка — новый ответ обработан, но страховщик не указал территорию;
+- непустой текст — фактическое значение из ответа или ручной формы.
 
 ## 3. Готовность к выгрузке
 
@@ -386,7 +394,7 @@ python manage.py test summaries.test_excel_integration summaries.test_offer_cove
 Полный рекомендуемый набор проекта:
 
 ```bash
-python manage.py test insurance_requests.tests summaries.test_company_matcher summaries.test_templatetags
+python manage.py test insurance_requests.tests summaries.test_company_matcher summaries.test_templatetags summaries.test_offer_coverage_territory summaries.test_excel_integration
 ```
 
 Интеграционные тесты проверяют:

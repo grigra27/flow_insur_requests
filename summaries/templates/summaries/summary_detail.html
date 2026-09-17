@@ -210,7 +210,12 @@
                                                         {% endif %}
                                                     </td>
                                                     <td data-label="Территория">
-                                                        {% if offer.coverage_territory %}
+                                                        {% if offer.coverage_territory is None %}
+                                                            <span class="badge bg-secondary text-wrap">
+                                                                <i class="bi bi-clock-history me-1"></i>
+                                                                Нет данных: предложение создано до сбора территории
+                                                            </span>
+                                                        {% elif offer.coverage_territory %}
                                                             {{ offer.coverage_territory|linebreaksbr }}
                                                         {% else %}
                                                             <span class="badge bg-warning text-dark text-wrap">
@@ -600,6 +605,16 @@
                 <h6 class="mb-0"><i class="bi bi-upload"></i> Ответы компаний</h6>
             </div>
             <div class="card-body">
+                <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+                    <a href="{% url 'summaries:download_company_response_template' %}"
+                       class="btn btn-outline-secondary btn-sm">
+                        <i class="bi bi-file-earmark-arrow-down"></i>
+                        Скачать актуальный шаблон ответа
+                    </a>
+                    <span class="text-muted small">
+                        Передайте его страховщику: общая территория и ограничения заполняются в ячейке B3.
+                    </span>
+                </div>
                 <form id="company-response-form" method="POST" action="{% url 'summaries:upload_multiple_company_responses' summary.pk %}" enctype="multipart/form-data">
                     {% csrf_token %}
                     <div class="mb-3">
@@ -2342,11 +2357,13 @@ function showMultipleUploadSuccess(data) {
     if (data.results && data.results.length > 0) {
         data.results.forEach(result => {
             if (result.success) {
-                const hasWarnings = Array.isArray(result.row_warnings) && result.row_warnings.length > 0;
+                const hasRowWarnings = Array.isArray(result.row_warnings) && result.row_warnings.length > 0;
+                const territoryMissing = result.coverage_territory_missing === true;
+                const hasWarnings = hasRowWarnings || territoryMissing;
                 const alertClass = hasWarnings ? 'alert-warning' : 'alert-success';
                 const icon = hasWarnings ? 'bi-exclamation-triangle' : 'bi-check-circle';
                 let warningsBlock = '';
-                if (hasWarnings) {
+                if (hasRowWarnings) {
                     const items = result.row_warnings.map(msg => `<li>${escapeHtml(msg)}</li>`).join('');
                     warningsBlock = `
                         <div class="mt-2">
@@ -2355,6 +2372,9 @@ function showMultipleUploadSuccess(data) {
                         </div>
                     `;
                 }
+                const territoryBlock = territoryMissing
+                    ? `<div class="mt-2"><strong>Внимание:</strong> страховщик не указал территорию страхования в ячейке B3. Предложения импортированы, но поле нужно проверить вручную.</div>`
+                    : `<br>Территория: ${escapeHtml(result.coverage_territory || '')}`;
                 content += `
                     <div class="alert ${alertClass}">
                         <i class="bi ${icon}"></i>
@@ -2362,6 +2382,7 @@ function showMultipleUploadSuccess(data) {
                         Компания: ${escapeHtml(result.company_name || '')}<br>
                         Создано предложений: ${result.offers_created}
                         ${result.years_processed ? `<br>Годы: ${result.years_processed.join(', ')}` : ''}
+                        ${territoryBlock}
                         ${warningsBlock}
                     </div>
                 `;

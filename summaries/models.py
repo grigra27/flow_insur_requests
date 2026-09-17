@@ -518,6 +518,7 @@ class InsuranceOffer(models.Model):
     # Дополнительная информация
     coverage_territory = models.TextField(
         blank=True,
+        null=True,
         default='',
         verbose_name='Территория страхования и территориальные ограничения',
         help_text=(

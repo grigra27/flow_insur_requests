@@ -27,6 +27,7 @@ urlpatterns = [
     path('analytics/managers/<int:user_id>/', views.analytics_manager_detail, name='analytics_manager_detail'),
     path('analytics/managers/<int:user_id>/export/', views.export_analytics_managers_widget, name='export_analytics_manager_detail'),
     path('help/', views.help_page, name='help'),
+    path('response-template/download/', views.download_company_response_template, name='download_company_response_template'),
     
     # Создание и управление сводами
     path('create/<int:request_id>/', views.create_summary, name='create_summary'),

@@ -3,7 +3,8 @@
 """
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
-from django.http import JsonResponse, HttpResponse
+from django.http import FileResponse, Http404, JsonResponse, HttpResponse
+from django.conf import settings
 from django.views.decorators.http import require_http_methods
 from django.db import transaction, IntegrityError
 from django.db.models import Q
@@ -13,6 +14,7 @@ from decimal import Decimal, InvalidOperation
 from django.utils import timezone
 import logging
 import os
+from pathlib import Path
 
 from .models import InsuranceSummary, InsuranceOffer, SummaryTemplate
 from insurance_requests.models import InsuranceRequest
@@ -29,6 +31,26 @@ from .services import analytics_parser_edits as analytics_parser_edits_service
 from .services import analytics_post_creation as analytics_post_creation_service
 
 logger = logging.getLogger(__name__)
+
+EXCEL_CONTENT_TYPE = (
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+)
+
+
+@user_required
+def download_company_response_template(request):
+    """Отдает авторизованному пользователю актуальный шаблон ответа страховщика."""
+    template_path = Path(settings.BASE_DIR) / 'templates' / 'flow_answer_template.xlsx'
+    if not template_path.is_file():
+        logger.error("Company response template not found: %s", template_path)
+        raise Http404('Шаблон ответа страховщика не найден')
+
+    return FileResponse(
+        template_path.open('rb'),
+        as_attachment=True,
+        filename='flow_answer_template.xlsx',
+        content_type=EXCEL_CONTENT_TYPE,
+    )
 
 
 @user_required

@@ -232,7 +232,11 @@ class MultipleFileProcessor:
                 years_processed=processing_result['years'],
                 processed_rows=processing_result.get('processed_rows', []),
                 skipped_rows=processing_result.get('skipped_rows', []),
-                row_warnings=processing_result.get('processing_errors', [])
+                row_warnings=processing_result.get('processing_errors', []),
+                coverage_territory=processing_result.get('coverage_territory', ''),
+                coverage_territory_missing=processing_result.get(
+                    'coverage_territory_missing', False
+                ),
             )
             
         except DuplicateOfferError as e:
@@ -446,6 +450,10 @@ class MultipleFileProcessor:
                 # но требующие внимания пользователя (битая ячейка, переполнение
                 # лимита и т.п. — строка пропущена, остальные импортированы).
                 'row_warnings': kwargs.get('row_warnings', []),
+                'coverage_territory': kwargs.get('coverage_territory', ''),
+                'coverage_territory_missing': kwargs.get(
+                    'coverage_territory_missing', False
+                ),
             })
         else:
             result.update({
