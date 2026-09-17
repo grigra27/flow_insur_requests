@@ -53,7 +53,7 @@
 <!-- Форма фильтрации -->
 <div class="card summary-filter-card mb-4">
     <div class="card-header summary-filter-card__header">
-        <button class="btn summary-filter-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#filterForm" aria-expanded="true" aria-controls="filterForm">
+        <button class="btn summary-filter-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#filterForm" aria-expanded="false" aria-controls="filterForm">
             <span class="summary-filter-toggle__title">
                 <i class="bi bi-funnel"></i>
                 <span>Фильтры сводов</span>
@@ -64,7 +64,7 @@
             </span>
         </button>
     </div>
-    <div class="collapse show" id="filterForm">
+    <div class="collapse" id="filterForm">
         <div class="card-body">
             <form method="get" id="summary-filter-form" class="summary-filter-form">
                 {{ filter_form.branch }}
