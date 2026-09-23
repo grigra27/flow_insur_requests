@@ -24,14 +24,15 @@ import gzip
 import logging
 import os
 import random
+import re
 import shutil
 import time
-from datetime import datetime
 
 import requests
 from django.conf import settings
 from django.core.management import call_command
 from django.core.management.base import BaseCommand, CommandError
+from django.utils import timezone
 
 logger = logging.getLogger('backup.send_backup_to_vk')
 
@@ -60,6 +61,47 @@ def _env_number(name, default, cast=int):
     except ValueError:
         logger.warning('Некорректное значение %s=%r, беру %r', name, raw, default)
         return default
+
+
+APP_NAME = 'флоу / заявки'
+MONTHS_GENITIVE = (
+    'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+    'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря',
+)
+
+
+def _human_datetime(now=None, with_time=True):
+    # Только localtime(): часы контейнера стоят в UTC, naive now() врёт на 3 часа.
+    now = now or timezone.localtime()
+    date = f'{now.day} {MONTHS_GENITIVE[now.month - 1]}'
+    return f'{date}, {now:%H:%M}' if with_time else date
+
+
+def _human_size(size_bytes):
+    value = f'{size_bytes / 1024 / 1024:.1f}'.replace('.', ',')
+    if value.endswith(',0'):
+        value = value[:-2]
+    return f'{value} МБ'
+
+
+def _humanize_error(exc):
+    """Одна понятная строка вместо трейсбека; подробности остаются в логе."""
+    text = str(exc)
+    attempts = re.search(r'попыток загрузки: (\d+)', text)
+    suffix = f', попыток: {attempts.group(1)}' if attempts else ''
+
+    if 'no_free_space' in text:
+        return 'в VK закончилось место' + suffix
+    if 'not saved' in text:
+        return 'VK не сохранил файл' + suffix
+    if 'no_file' in text:
+        return 'файл не дошёл до VK' + suffix
+    http = re.search(r'HTTP (\d{3})', text)
+    if http:
+        return f'VK отклонил загрузку (HTTP {http.group(1)})' + suffix
+    if 'code=15' in text:
+        return 'VK не даёт отправлять — проверьте права токена' + suffix
+    return text[:200]
 
 
 class Command(BaseCommand):
@@ -129,6 +171,7 @@ class Command(BaseCommand):
         os.makedirs(output_dir, exist_ok=True)
 
         self._deadline = time.monotonic() + options['total_timeout']
+        copy_ready = False
 
         try:
             if not options['skip_create']:
@@ -137,6 +180,7 @@ class Command(BaseCommand):
             dump_path = self._select_file_to_send(output_dir)
             if not dump_path:
                 raise CommandError(f'Не найден ни один бэкап в {output_dir}')
+            copy_ready = True
 
             size = os.path.getsize(dump_path)
             if size > VK_FILE_SIZE_LIMIT:
@@ -159,7 +203,7 @@ class Command(BaseCommand):
         except Exception as exc:
             logger.exception('Ошибка отправки бэкапа в VK')
             if not options['no_notify']:
-                self._notify_failure(token, peer_id, str(exc))
+                self._notify_failure(token, peer_id, exc, copy_ready)
             raise CommandError(f'Бэкап не отправлен: {exc}')
 
     # ----------------------------------------------------------- backup creation
@@ -282,9 +326,10 @@ class Command(BaseCommand):
                     logger.error(
                         'Загрузка в VK не удалась после %d попыток: %s', attempts, exc
                     )
-                    raise RetryableUploadError(
-                        f'{exc} (попыток загрузки: {attempts})'
-                    ) from exc
+                    detail = (
+                        '' if attempts == 1 else f' (попыток загрузки: {attempts})'
+                    )
+                    raise RetryableUploadError(f'{exc}{detail}') from exc
                 if self._remaining_time() <= 0:
                     logger.error(
                         'Бюджет времени (%s сек) исчерпан после %d попыток: %s',
@@ -327,12 +372,9 @@ class Command(BaseCommand):
         attachment = f"doc{doc['owner_id']}_{doc['id']}"
 
         # 4. Отправляем сообщение с прикреплённым документом
-        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M')
         message = (
-            f'📦 Ежедневный бэкап InsFlow\n'
-            f'Дата: {timestamp}\n'
-            f'Размер: {size / 1024 / 1024:.2f} МБ\n'
-            f'Файл: {os.path.basename(file_path)}'
+            f'📦 Резервная копия базы «{APP_NAME}» — {_human_datetime()}\n'
+            f'{_human_size(size)} · {os.path.basename(file_path)}'
         )
         self._vk_call(
             'messages.send',
@@ -345,23 +387,33 @@ class Command(BaseCommand):
             },
         )
 
-    def _notify_failure(self, token, peer_id, error_msg):
+    def _notify_failure(self, token, peer_id, error_msg, copy_ready):
         """Best-effort уведомление о провале — ошибки здесь подавляем."""
         if not token or not peer_id:
             return
         try:
-            timestamp = datetime.now().strftime('%Y-%m-%d %H:%M')
+            reason = _humanize_error(error_msg)
+            if copy_ready:
+                body = (
+                    f'⚠️ Копия базы «{APP_NAME}» за {_human_datetime(with_time=False)} '
+                    f'не дошла в VK\n'
+                    f'На сервере цела — под вопросом только внешняя копия.\n'
+                    f'Причина: {reason}'
+                )
+            else:
+                body = (
+                    f'⚠️ Копия базы «{APP_NAME}» не создана — '
+                    f'{_human_datetime(with_time=False)}\n'
+                    f'Ни на сервере, ни в VK её нет — нужно разобрать вручную.\n'
+                    f'Причина: {reason}'
+                )
             self._vk_call(
                 'messages.send',
                 token,
                 params={
                     'peer_id': peer_id,
                     'random_id': int(time.time() * 1000),
-                    'message': (
-                        f'❌ InsFlow: ошибка ежедневного бэкапа\n'
-                        f'Дата: {timestamp}\n\n'
-                        f'{error_msg[:1000]}'
-                    ),
+                    'message': body,
                 },
             )
         except Exception as send_exc:

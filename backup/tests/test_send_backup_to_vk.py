@@ -5,6 +5,7 @@
 для всех сценариев работаем через --skip-create и заранее подготовленные файлы.
 """
 import os
+from datetime import datetime
 from io import StringIO
 from unittest.mock import MagicMock, patch
 
@@ -320,7 +321,8 @@ class UploadRetryTests(VkCommandTestBase):
         self.assertIn('попыток загрузки: 3', str(ctx.exception))
         notify_call = mock_post.call_args_list[-1]
         self.assertIn('messages.send', notify_call.args[0])
-        self.assertIn('попыток загрузки: 3', notify_call.kwargs['data']['message'])
+        self.assertIn('VK отклонил загрузку (HTTP 405), попыток: 3',
+                      notify_call.kwargs['data']['message'])
         # 3 попытки => только 2 паузы, и ровно одно уведомление о провале.
         self.assertEqual(mock_sleep.call_count, 2)
         self.assertEqual(
@@ -390,3 +392,110 @@ class UploadRetryTests(VkCommandTestBase):
             self.assertEqual(mod._env_number('VK_RETRY_BASE_DELAY', 15, float), 15)
         with patch.dict(os.environ, {'VK_UPLOAD_ATTEMPTS': '7'}):
             self.assertEqual(mod._env_number('VK_UPLOAD_ATTEMPTS', 4), 7)
+
+
+FROZEN_NOON = datetime(2026, 9, 23, 3, 0, 5)
+
+
+@override_settings(
+    VK_BACKUP_TOKEN='test-token',
+    VK_BACKUP_PEER_ID='12345',
+    VK_API_VERSION='5.199',
+)
+class VkMessageTextTests(VkCommandTestBase):
+    """Тексты, которые читает человек в личке VK."""
+
+    def sent_message(self, mock_post):
+        return mock_post.call_args_list[-1].kwargs['data']['message']
+
+    @patch('backup.management.commands.send_backup_to_vk.timezone.localtime')
+    @patch('backup.management.commands.send_backup_to_vk.requests.post')
+    def test_success_message_is_human_readable(self, mock_post, mock_localtime):
+        mock_localtime.return_value = FROZEN_NOON
+        mock_post.side_effect = [
+            _upload_server_response(),
+            _ok_response({'file': 'tok'}),
+            _save_doc_response(),
+            _messages_send_response(),
+        ]
+
+        with patch(
+            'backup.management.commands.send_backup_to_vk.os.path.getsize',
+            return_value=9_923_433,
+        ):
+            self.run_command(stdout=StringIO())
+
+        self.assertEqual(
+            self.sent_message(mock_post),
+            '📦 Резервная копия базы «флоу / заявки» — 23 сентября, 03:00\n'
+            '9,5 МБ · pgdump_20260101_030000.dump',
+        )
+
+    @patch('backup.management.commands.send_backup_to_vk.timezone.localtime')
+    @patch('backup.management.commands.send_backup_to_vk.requests.post')
+    def test_failure_message_says_copy_is_safe(self, mock_post, mock_localtime):
+        # Дамп на сервере есть — подведена только доставка во внешнее хранилище.
+        mock_localtime.return_value = FROZEN_NOON
+        mock_post.side_effect = [
+            _upload_server_response(), _http_response(405), _messages_send_response(),
+        ]
+
+        with self.assertRaises(CommandError):
+            self.run_command('--upload-attempts=1', stdout=StringIO(), stderr=StringIO())
+
+        self.assertEqual(
+            self.sent_message(mock_post),
+            '⚠️ Копия базы «флоу / заявки» за 23 сентября не дошла в VK\n'
+            'На сервере цела — под вопросом только внешняя копия.\n'
+            'Причина: VK отклонил загрузку (HTTP 405)',
+        )
+
+    @patch('backup.management.commands.send_backup_to_vk.timezone.localtime')
+    @patch('backup.management.commands.send_backup_to_vk.requests.post')
+    def test_failure_message_warns_when_no_copy_at_all(self, mock_post, mock_localtime):
+        # Ни дампа, ни JSON-файла: это не «не дошло», это вообще нет копии.
+        mock_localtime.return_value = FROZEN_NOON
+        os.unlink(self.dump_path)
+        mock_post.side_effect = [_messages_send_response()]
+
+        with self.assertRaises(CommandError):
+            self.run_command(stdout=StringIO(), stderr=StringIO())
+
+        message = self.sent_message(mock_post)
+        self.assertIn('не создана', message)
+        self.assertIn('Ни на сервере, ни в VK', message)
+        self.assertIn('Не найден ни один бэкап', message)
+        self.assertNotIn('На сервере цела', message)
+
+    def test_no_technical_noise_in_texts(self):
+        from backup.management.commands import send_backup_to_vk as mod
+
+        cases = {
+            "VK upload error: {'error': 'not saved', 'error_descr': 'not saved'}":
+                'VK не сохранил файл',
+            "VK upload error: {'error': 'no_free_space/var/www/pi'}":
+                'в VK закончилось место',
+            "VK upload error: {'error': 'no_file'}":
+                'файл не дошёл до VK',
+            'HTTP 502 при загрузке на https://pu.vk.com/c903718 (попыток загрузки: 4)':
+                'VK отклонил загрузку (HTTP 502), попыток: 4',
+            'VK API error in docs.save: code=15 msg=Access denied':
+                'VK не даёт отправлять — проверьте права токена',
+        }
+        for raw, expected in cases.items():
+            self.assertEqual(mod._humanize_error(Exception(raw)), expected)
+
+    def test_size_is_rendered_without_trailing_zero(self):
+        from backup.management.commands import send_backup_to_vk as mod
+
+        self.assertEqual(mod._human_size(9_923_433), '9,5 МБ')
+        self.assertEqual(mod._human_size(10 * 1024 * 1024), '10 МБ')
+        self.assertEqual(mod._human_size(1024 * 1024), '1 МБ')
+
+    def test_date_uses_localtime_not_container_utc(self):
+        # Часы контейнера в UTC: naive datetime.now() показал бы минус 3 часа.
+        from backup.management.commands import send_backup_to_vk as mod
+
+        with patch.object(mod.timezone, 'localtime', return_value=FROZEN_NOON):
+            self.assertEqual(mod._human_datetime(), '23 сентября, 03:00')
+            self.assertEqual(mod._human_datetime(with_time=False), '23 сентября')
