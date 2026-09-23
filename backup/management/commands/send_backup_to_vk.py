@@ -11,11 +11,19 @@
     python manage.py send_backup_to_vk
     python manage.py send_backup_to_vk --keep 14
     python manage.py send_backup_to_vk --skip-create   # отправить последний из output-dir
+    python manage.py send_backup_to_vk --upload-attempts 4 --total-timeout 900
+
+Загрузка файла в VK оборачивается ретраями с экспоненциальным backoff: приёмные
+ноды pu.vk.com периодически отвечают 405/502 или {'error': 'not saved'}. Каждая
+повторная попытка заново запрашивает docs.getMessagesUploadServer — URL содержит
+несущий rhash/_sig и привязан к конкретной ноде, поэтому повтор POST на тот же
+url вернул бы ту же ошибку.
 """
 import glob
 import gzip
 import logging
 import os
+import random
 import shutil
 import time
 from datetime import datetime
@@ -30,10 +38,28 @@ logger = logging.getLogger('backup.send_backup_to_vk')
 VK_API_BASE = 'https://api.vk.com/method'
 # VK ограничивает документы 200 МБ. Берём 190 МБ как safety threshold.
 VK_FILE_SIZE_LIMIT = 190 * 1024 * 1024
+UPLOAD_TIMEOUT = 600
+
+# Ответы приёмной ноды, которые имеет смысл повторить.
+RETRYABLE_UPLOAD_HTTP = frozenset({405, 408, 425, 429, 500, 502, 503, 504, 507, 509})
 
 
 class VKError(Exception):
     """Ошибка взаимодействия с VK API."""
+
+
+class RetryableUploadError(Exception):
+    """Транзитный сбой загрузки файла — повторять, заново взяв upload-ноду."""
+
+
+def _env_number(name, default, cast=int):
+    """Числовая настройка из env: пустая или мусорная строка не должна ронять прогон."""
+    raw = os.getenv(name, '')
+    try:
+        return cast(raw) if raw.strip() else default
+    except ValueError:
+        logger.warning('Некорректное значение %s=%r, беру %r', name, raw, default)
+        return default
 
 
 class Command(BaseCommand):
@@ -59,6 +85,35 @@ class Command(BaseCommand):
             action='store_true',
             help='Не создавать новый бэкап, отправить последний из output-dir',
         )
+        parser.add_argument(
+            '--upload-attempts',
+            type=int,
+            default=_env_number('VK_UPLOAD_ATTEMPTS', 4),
+            help='Сколько попыток загрузки файла в VK сделать (default: 4, 1 = ретраев нет)',
+        )
+        parser.add_argument(
+            '--retry-base-delay',
+            type=float,
+            default=_env_number('VK_RETRY_BASE_DELAY', 15, float),
+            help='Базовая задержка backoff в секундах (default: 15)',
+        )
+        parser.add_argument(
+            '--retry-max-delay',
+            type=float,
+            default=_env_number('VK_RETRY_MAX_DELAY', 600, float),
+            help='Потолок одной задержки в секундах (default: 600)',
+        )
+        parser.add_argument(
+            '--total-timeout',
+            type=float,
+            default=_env_number('VK_RETRY_TOTAL_TIMEOUT', 900, float),
+            help='Общий бюджет отправки в секундах (default: 900)',
+        )
+        parser.add_argument(
+            '--no-notify',
+            action='store_true',
+            help='Не слать в VK уведомление о провале (для ручных прогонов)',
+        )
 
     def handle(self, *args, **options):
         token = getattr(settings, 'VK_BACKUP_TOKEN', '') or ''
@@ -72,6 +127,8 @@ class Command(BaseCommand):
         output_dir = options['output_dir']
         keep = options['keep']
         os.makedirs(output_dir, exist_ok=True)
+
+        self._deadline = time.monotonic() + options['total_timeout']
 
         try:
             if not options['skip_create']:
@@ -89,7 +146,7 @@ class Command(BaseCommand):
                     f'Нужно переключиться на внешнее хранилище.'
                 )
 
-            self._send_to_vk(dump_path, token, peer_id, size)
+            self._send_to_vk(dump_path, token, peer_id, size, options)
             logger.info(
                 'Бэкап %s (%d байт) успешно отправлен в VK',
                 dump_path,
@@ -101,7 +158,8 @@ class Command(BaseCommand):
             ))
         except Exception as exc:
             logger.exception('Ошибка отправки бэкапа в VK')
-            self._notify_failure(token, peer_id, str(exc))
+            if not options['no_notify']:
+                self._notify_failure(token, peer_id, str(exc))
             raise CommandError(f'Бэкап не отправлен: {exc}')
 
     # ----------------------------------------------------------- backup creation
@@ -149,7 +207,10 @@ class Command(BaseCommand):
 
     # ----------------------------------------------------------- VK API
 
-    def _vk_call(self, method, token, params=None):
+    def _remaining_time(self):
+        return self._deadline - time.monotonic()
+
+    def _vk_call(self, method, token, params=None, timeout=60):
         """Вызов метода VK API. Возвращает поле response из ответа."""
         payload = dict(params or {})
         payload['access_token'] = token
@@ -158,7 +219,7 @@ class Command(BaseCommand):
         response = requests.post(
             f'{VK_API_BASE}/{method}',
             data=payload,
-            timeout=60,
+            timeout=timeout,
         )
         response.raise_for_status()
         data = response.json()
@@ -170,16 +231,18 @@ class Command(BaseCommand):
             )
         return data['response']
 
-    def _send_to_vk(self, file_path, token, peer_id, size):
-        # 1. Сервер для загрузки документов в личные сообщения
+    def _upload_once(self, file_path, token, peer_id):
+        """Один цикл «сервер загрузки → POST файла». Возвращает payload upload.php."""
+        # URL несёт rhash/_sig и привязан к конкретной приёмной ноде,
+        # поэтому на каждой попытке запрашиваем его заново.
         upload_info = self._vk_call(
             'docs.getMessagesUploadServer',
             token,
             params={'type': 'doc', 'peer_id': peer_id},
+            timeout=max(1, min(60, self._remaining_time())),
         )
         upload_url = upload_info['upload_url']
 
-        # 2. Загружаем сам файл
         with open(file_path, 'rb') as f:
             upload_resp = requests.post(
                 upload_url,
@@ -190,12 +253,56 @@ class Command(BaseCommand):
                         'application/octet-stream',
                     )
                 },
-                timeout=600,
+                timeout=max(1, min(UPLOAD_TIMEOUT, self._remaining_time())),
             )
+
+        if upload_resp.status_code in RETRYABLE_UPLOAD_HTTP:
+            raise RetryableUploadError(
+                f'HTTP {upload_resp.status_code} при загрузке на '
+                f'{upload_url.split("/upload.php")[0]}'
+            )
+        # Прочие 4xx — проблема в запросе или токене, повтор не поможет.
         upload_resp.raise_for_status()
+
         upload_data = upload_resp.json()
         if 'error' in upload_data or 'file' not in upload_data:
-            raise VKError(f'VK upload error: {upload_data}')
+            raise RetryableUploadError(f'VK upload error: {upload_data}')
+        return upload_data
+
+    def _upload_with_retry(self, file_path, token, peer_id, options):
+        attempts = max(1, options['upload_attempts'])
+        base = max(0.0, options['retry_base_delay'])
+        cap = max(base, options['retry_max_delay'])
+
+        for attempt in range(1, attempts + 1):
+            try:
+                return self._upload_once(file_path, token, peer_id)
+            except RetryableUploadError as exc:
+                if attempt == attempts:
+                    logger.error(
+                        'Загрузка в VK не удалась после %d попыток: %s', attempts, exc
+                    )
+                    raise RetryableUploadError(
+                        f'{exc} (попыток загрузки: {attempts})'
+                    ) from exc
+                if self._remaining_time() <= 0:
+                    logger.error(
+                        'Бюджет времени (%s сек) исчерпан после %d попыток: %s',
+                        options['total_timeout'], attempt, exc,
+                    )
+                    raise
+                delay = min(cap, base * (2 ** (attempt - 1)))
+                delay *= random.uniform(0.8, 1.2)
+                delay = min(delay, max(0.0, self._remaining_time()))
+                logger.warning(
+                    'Попытка %d/%d неудачна (%s); повтор через %.1f сек',
+                    attempt, attempts, exc, delay,
+                )
+                time.sleep(delay)
+
+    def _send_to_vk(self, file_path, token, peer_id, size, options):
+        # 1–2. Сервер загрузки + сам файл — с ретраями (см. _upload_with_retry)
+        upload_data = self._upload_with_retry(file_path, token, peer_id, options)
 
         # 3. Сохраняем документ
         save_resp = self._vk_call(

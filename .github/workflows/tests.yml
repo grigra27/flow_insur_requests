@@ -34,6 +34,7 @@ jobs:
         run: >-
           python manage.py test
           insurance_requests.tests
+          backup.tests
           summaries.test_company_matcher
           summaries.test_templatetags
           summaries.test_offer_coverage_territory

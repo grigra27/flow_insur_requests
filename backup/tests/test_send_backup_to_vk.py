@@ -8,9 +8,12 @@ import os
 from io import StringIO
 from unittest.mock import MagicMock, patch
 
+import requests
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.test import TestCase, override_settings
+
+from backup.management.commands.send_backup_to_vk import Command
 
 
 def _ok_response(payload):
@@ -21,14 +24,42 @@ def _ok_response(payload):
     return m
 
 
+def _http_response(status_code, payload=None):
+    """Хелпер: ответ с конкретным HTTP-статусом (для проверки ретраев)."""
+    m = MagicMock()
+    m.status_code = status_code
+    m.json.return_value = payload if payload is not None else {}
+    if 400 <= status_code < 600:
+        m.raise_for_status.side_effect = requests.exceptions.HTTPError(
+            f'{status_code} Client Error', response=m
+        )
+    else:
+        m.raise_for_status.return_value = None
+    return m
+
+
+def _upload_server_response(node='c903718'):
+    url = f'https://pu.vk.com/{node}/upload.php'
+    return _ok_response({'response': {'upload_url': url}})
+
+
+def _save_doc_response():
+    return _ok_response({'response': {'type': 'doc', 'doc': {'id': 99, 'owner_id': -7}}})
+
+
+def _messages_send_response():
+    return _ok_response({'response': 1001})
+
+
 @override_settings(
     VK_BACKUP_TOKEN='test-token',
     VK_BACKUP_PEER_ID='12345',
     VK_API_VERSION='5.199',
 )
-class SendBackupToVkTests(TestCase):
+class VkCommandTestBase(TestCase):
+    """Общая обвязка: свой output_dir с одним дампом на каждый тест."""
+
     def setUp(self):
-        # Каждый тест получает свой output_dir внутри Django-овского tmp.
         from tempfile import mkdtemp
         self.tmp_dir = mkdtemp(prefix='vk_backup_test_')
         self.dump_path = os.path.join(self.tmp_dir, 'pgdump_20260101_030000.dump')
@@ -38,6 +69,23 @@ class SendBackupToVkTests(TestCase):
     def tearDown(self):
         import shutil
         shutil.rmtree(self.tmp_dir, ignore_errors=True)
+
+    def run_command(self, *extra_args, **kwargs):
+        return call_command(
+            'send_backup_to_vk',
+            f'--output-dir={self.tmp_dir}',
+            '--skip-create',
+            *extra_args,
+            **kwargs,
+        )
+
+
+@override_settings(
+    VK_BACKUP_TOKEN='test-token',
+    VK_BACKUP_PEER_ID='12345',
+    VK_API_VERSION='5.199',
+)
+class SendBackupToVkTests(VkCommandTestBase):
 
     # ---------- happy path
 
@@ -153,3 +201,192 @@ class SendBackupToVkTests(TestCase):
                 stderr=StringIO(),
             )
         self.assertIn('Не найден', str(ctx.exception))
+
+
+def _api_calls(mock_post):
+    """Индексы вызовов, пришедших в api.vk.com/method/<метод>."""
+    return [
+        call.args[0].rsplit('/', 1)[-1]
+        for call in mock_post.call_args_list
+        if '/method/' in call.args[0]
+    ]
+
+
+@override_settings(
+    VK_BACKUP_TOKEN='test-token',
+    VK_BACKUP_PEER_ID='12345',
+    VK_API_VERSION='5.199',
+)
+class UploadRetryTests(VkCommandTestBase):
+    """Ретраи этапа «загрузка файла на приёмную ноду VK»."""
+
+    @patch('backup.management.commands.send_backup_to_vk.time.sleep')
+    @patch('backup.management.commands.send_backup_to_vk.requests.post')
+    def test_retries_upload_on_http_405(self, mock_post, mock_sleep):
+        mock_post.side_effect = [
+            _upload_server_response('c903718'),
+            _http_response(405),
+            _upload_server_response('c902018'),
+            _ok_response({'file': 'uploaded-file-token'}),
+            _save_doc_response(),
+            _messages_send_response(),
+        ]
+
+        self.run_command(stdout=StringIO())
+
+        self.assertEqual(
+            _api_calls(mock_post),
+            ['docs.getMessagesUploadServer', 'docs.getMessagesUploadServer',
+             'docs.save', 'messages.send'],
+        )
+        # Повторная попытка обязана идти на свежеполученный URL, а не на тот же.
+        upload_urls = [
+            call.args[0] for call in mock_post.call_args_list
+            if 'upload.php' in call.args[0]
+        ]
+        self.assertEqual(upload_urls, [
+            'https://pu.vk.com/c903718/upload.php',
+            'https://pu.vk.com/c902018/upload.php',
+        ])
+        self.assertEqual(mock_sleep.call_count, 1)
+        delay = mock_sleep.call_args.args[0]
+        self.assertGreaterEqual(delay, 15 * 0.8)
+        self.assertLessEqual(delay, 15 * 1.2)
+
+    @patch('backup.management.commands.send_backup_to_vk.time.sleep')
+    @patch('backup.management.commands.send_backup_to_vk.requests.post')
+    def test_retries_upload_on_payload_error(self, mock_post, mock_sleep):
+        # {'error': 'not saved'} — самый частый класс сбоя в проде.
+        mock_post.side_effect = [
+            _upload_server_response(),
+            _ok_response({'error': 'not saved', 'error_descr': 'not saved'}),
+            _upload_server_response(),
+            _ok_response({'file': 'uploaded-file-token'}),
+            _save_doc_response(),
+            _messages_send_response(),
+        ]
+
+        self.run_command(stdout=StringIO())
+
+        self.assertEqual(mock_sleep.call_count, 1)
+
+    @patch('backup.management.commands.send_backup_to_vk.time.sleep')
+    @patch('backup.management.commands.send_backup_to_vk.requests.post')
+    def test_backoff_grows_exponentially(self, mock_post, mock_sleep):
+        mock_post.side_effect = [
+            _upload_server_response(), _http_response(502),
+            _upload_server_response(), _http_response(502),
+            _upload_server_response(), _http_response(502),
+            _upload_server_response(), _ok_response({'file': 'tok'}),
+            _save_doc_response(), _messages_send_response(),
+        ]
+
+        self.run_command('--upload-attempts=4', '--retry-base-delay=10', stdout=StringIO())
+
+        delays = [call.args[0] for call in mock_sleep.call_args_list]
+        self.assertEqual(len(delays), 3)
+        for delay, expected in zip(delays, (10, 20, 40)):
+            self.assertGreaterEqual(delay, expected * 0.8)
+            self.assertLessEqual(delay, expected * 1.2)
+
+    @patch('backup.management.commands.send_backup_to_vk.time.sleep')
+    @patch('backup.management.commands.send_backup_to_vk.requests.post')
+    def test_single_attempt_disables_retry(self, mock_post, mock_sleep):
+        mock_post.side_effect = [
+            _upload_server_response(),
+            _http_response(405),
+            _messages_send_response(),  # уведомление о провале
+        ]
+
+        with self.assertRaises(CommandError):
+            self.run_command('--upload-attempts=1', stdout=StringIO(), stderr=StringIO())
+
+        self.assertEqual(mock_sleep.call_count, 0)
+        self.assertEqual(mock_post.call_count, 3)
+
+    @patch('backup.management.commands.send_backup_to_vk.time.sleep')
+    @patch('backup.management.commands.send_backup_to_vk.requests.post')
+    def test_exhausted_attempts_notifies_once_with_attempt_count(self, mock_post, mock_sleep):
+        mock_post.side_effect = [
+            _upload_server_response(), _http_response(405),
+            _upload_server_response(), _http_response(405),
+            _upload_server_response(), _http_response(405),
+            _messages_send_response(),
+        ]
+
+        with self.assertRaises(CommandError) as ctx:
+            self.run_command('--upload-attempts=3', stdout=StringIO(), stderr=StringIO())
+
+        self.assertIn('попыток загрузки: 3', str(ctx.exception))
+        notify_call = mock_post.call_args_list[-1]
+        self.assertIn('messages.send', notify_call.args[0])
+        self.assertIn('попыток загрузки: 3', notify_call.kwargs['data']['message'])
+        # 3 попытки => только 2 паузы, и ровно одно уведомление о провале.
+        self.assertEqual(mock_sleep.call_count, 2)
+        self.assertEqual(
+            sum(1 for c in mock_post.call_args_list if 'messages.send' in c.args[0]), 1
+        )
+
+    @patch('backup.management.commands.send_backup_to_vk.time.sleep')
+    @patch('backup.management.commands.send_backup_to_vk.requests.post')
+    def test_vk_api_permission_error_is_not_retried(self, mock_post, mock_sleep):
+        # code=15 Access denied (28.06, 30.06, 02.07 в проде) — ретраем не лечится.
+        mock_post.side_effect = [
+            _ok_response({'error': {'error_code': 15, 'error_msg': 'Access denied'}}),
+            _messages_send_response(),
+        ]
+
+        with self.assertRaises(CommandError):
+            self.run_command(stdout=StringIO(), stderr=StringIO())
+
+        self.assertEqual(mock_post.call_count, 2)
+        self.assertEqual(mock_sleep.call_count, 0)
+
+    @patch('backup.management.commands.send_backup_to_vk.time.sleep')
+    @patch('backup.management.commands.send_backup_to_vk.requests.post')
+    def test_total_timeout_budget_stops_retries(self, mock_post, mock_sleep):
+        mock_post.side_effect = [
+            _upload_server_response(), _http_response(405), _messages_send_response(),
+        ]
+
+        with self.assertRaises(CommandError):
+            self.run_command('--upload-attempts=5', '--total-timeout=0',
+                             stdout=StringIO(), stderr=StringIO())
+
+        self.assertEqual(mock_sleep.call_count, 0)
+        self.assertEqual(
+            sum(1 for c in mock_post.call_args_list
+                if 'getMessagesUploadServer' in c.args[0]), 1
+        )
+
+    @patch('backup.management.commands.send_backup_to_vk.time.sleep')
+    @patch('backup.management.commands.send_backup_to_vk.requests.post')
+    def test_dump_created_once_despite_upload_retries(self, mock_post, mock_sleep):
+        # Деградация VK не должна превращать суточный прогон в N дампов.
+        mock_post.side_effect = [
+            _upload_server_response(), _http_response(405),
+            _upload_server_response(), _ok_response({'file': 'tok'}),
+            _save_doc_response(), _messages_send_response(),
+        ]
+
+        with patch.object(Command, '_create_backup') as mock_create:
+            call_command(
+                'send_backup_to_vk',
+                f'--output-dir={self.tmp_dir}',
+                '--upload-attempts=4',
+                stdout=StringIO(),
+            )
+
+        mock_create.assert_called_once_with(self.tmp_dir, 14)
+        self.assertEqual(mock_sleep.call_count, 1)
+
+    def test_empty_env_value_falls_back_to_default(self):
+        # docker-compose подставляет ${VAR:-default}, но пустая строка в .env
+        # не должна превращать суточный прогон в ValueError.
+        from backup.management.commands import send_backup_to_vk as mod
+
+        with patch.dict(os.environ, {'VK_UPLOAD_ATTEMPTS': '', 'VK_RETRY_BASE_DELAY': 'oops'}):
+            self.assertEqual(mod._env_number('VK_UPLOAD_ATTEMPTS', 4), 4)
+            self.assertEqual(mod._env_number('VK_RETRY_BASE_DELAY', 15, float), 15)
+        with patch.dict(os.environ, {'VK_UPLOAD_ATTEMPTS': '7'}):
+            self.assertEqual(mod._env_number('VK_UPLOAD_ATTEMPTS', 4), 7)

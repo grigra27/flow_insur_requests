@@ -42,6 +42,11 @@ services:
       - VK_BACKUP_TOKEN=${VK_BACKUP_TOKEN:-}
       - VK_BACKUP_PEER_ID=${VK_BACKUP_PEER_ID:-}
       - VK_API_VERSION=${VK_API_VERSION:-5.199}
+      # Retry policy for the VK upload step (см. backup/management/commands/send_backup_to_vk.py)
+      - VK_UPLOAD_ATTEMPTS=${VK_UPLOAD_ATTEMPTS:-4}
+      - VK_RETRY_BASE_DELAY=${VK_RETRY_BASE_DELAY:-15}
+      - VK_RETRY_MAX_DELAY=${VK_RETRY_MAX_DELAY:-600}
+      - VK_RETRY_TOTAL_TIMEOUT=${VK_RETRY_TOTAL_TIMEOUT:-900}
     volumes:
       - media_data_timeweb:/app/media
       - logs_data_timeweb:/app/logs
