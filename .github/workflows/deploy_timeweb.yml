@@ -106,12 +106,12 @@ jobs:
           fi
 
           backup_created=false
-          if docker-compose -f docker-compose.yml exec -T web python manage.py backup_db --format pgdump --output-dir /app/backups --keep 10; then
+          if docker-compose -f docker-compose.yml exec -T web python manage.py backup_db --format pgdump --output-dir /app/backups --keep 14; then
             echo "✅ Предварительный pg_dump бекап создан"
             backup_created=true
           else
             echo "⚠️ pg_dump не удался, пробуем JSON бекап..."
-            if docker-compose -f docker-compose.yml exec -T web python manage.py backup_db --format json --output-dir /app/backups --keep 10; then
+            if docker-compose -f docker-compose.yml exec -T web python manage.py backup_db --format json --output-dir /app/backups --keep 14; then
               echo "✅ Предварительный JSON бекап создан"
               backup_created=true
             fi
