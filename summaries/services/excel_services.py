@@ -3309,7 +3309,19 @@ class ExcelResponseProcessor:
             if not year_value:
                 self.logger.debug(f"Строка {row_number}: год не указан, пропускаем")
                 return None
-            
+
+            # Страховщики часто оставляют номер года, но ставят нули (или ничего)
+            # в сумме и премии для лет, которые не предлагают. Такая строка —
+            # «год не предложен», а не ошибка: пропускаем её, не роняя файл.
+            raw_insurance_sum = self._get_cell_value(worksheet, year_mapping['insurance_sum'])
+            raw_premium = self._get_cell_value(worksheet, year_mapping['premium'])
+            if self._is_empty_or_zero(raw_insurance_sum) and self._is_empty_or_zero(raw_premium):
+                self.logger.info(
+                    f"Строка {row_number}: страховая сумма и премия не заполнены или равны 0 — "
+                    f"год не предложен страховщиком, строка пропущена"
+                )
+                return None
+
             # Извлекаем основные данные года с обработкой ошибок для конкретной строки
             year_data = {
                 'year': self._parse_year_with_row(year_value, year_mapping['year'], row_number),
@@ -3367,7 +3379,18 @@ class ExcelResponseProcessor:
                     row_number,
                     required=False
                 )
-            
+
+            # Ноль только в одном из полей — это ошибка заполнения, а не «год не предложен»
+            for field_key, field_name in (('insurance_sum', 'страховая сумма'), ('premium', 'премия')):
+                if year_data[field_key] == 0:
+                    raise RowProcessingError(
+                        row_number,
+                        field_name,
+                        'нулевое значение при заполненном соседнем поле; '
+                        'если год не предлагается, оставьте пустыми или нулевыми и сумму, и премию',
+                        year_mapping[field_key]
+                    )
+
             self.logger.debug(f"Строка {row_number}: извлечены данные для {year_data['year']} года")
             return year_data
             
@@ -3380,6 +3403,15 @@ class ExcelResponseProcessor:
             self.logger.error(f"Строка {row_number}: {error_msg}")
             raise RowProcessingError(row_number, 'общая обработка', error_msg)
     
+    def _is_empty_or_zero(self, value) -> bool:
+        """Пустая ячейка или число, равное нулю (включая строки вида "0,00")."""
+        if value is None or str(value).strip() == '':
+            return True
+        try:
+            return Decimal(self._normalize_decimal_input(value)) == 0
+        except (InvalidOperation, ValueError, TypeError):
+            return False
+
     def _get_cell_value(self, worksheet, cell_address: str):
         """
         Получает значение ячейки
@@ -3828,9 +3860,10 @@ class ExcelResponseProcessor:
         
         # Подготавливаем данные для создания предложения
         # Округляем Decimal значения до 2 знаков после запятой для соответствия модели
-        insurance_sum = year_data['insurance_sum'].quantize(Decimal('0.01')) if year_data['insurance_sum'] else None
+        # Сравнение с None, а не по истинности: Decimal('0.00') ложен и превращался в NULL
+        insurance_sum = year_data['insurance_sum'].quantize(Decimal('0.01')) if year_data['insurance_sum'] is not None else None
         franchise = year_data['franchise'].quantize(Decimal('0.01')) if year_data['franchise'] else Decimal('0.00')
-        premium = year_data['premium'].quantize(Decimal('0.01')) if year_data['premium'] else None
+        premium = year_data['premium'].quantize(Decimal('0.01')) if year_data['premium'] is not None else None
         
         offer_data = {
             'summary': summary,
