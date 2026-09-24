@@ -106,7 +106,13 @@ docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "
 
 ---
 
-## P2. HTTP→HTTPS редирект уводит все домены на лендинг
+## P2. HTTP→HTTPS редирект уводит все домены на лендинг — ✅ код готов, ждёт деплоя
+
+**Итог.** Блок `listen 80` для доменов редиректит на `https://$host$request_uri`; отдельный
+`listen 80 default_server` для `80.90.189.37` и неизвестных Host — на `https://zs.insflow.ru$request_uri`.
+Проверено во временном nginx-контейнере на сервере: `nginx -t` ок, все 4 домена редиректят на себя,
+IP/чужой Host/127.0.0.1 → zs.insflow.ru, ACME-location отвечает, HTTPS `/healthz/` 200.
+HTTPS по голому IP (`https://80.90.189.37/`) по-прежнему попадает в первый 443-блок — оставлено в P3.
 
 **Симптом.** `http://zs.insflow.ru/requests/` → `301 https://insflow.ru/requests/` → 404 на основном домене.
 То же для `zs.insflow.tw1.su`, `insflow.tw1.su`. Пользователь, набравший адрес без `https://`, не попадает в приложение.
@@ -165,6 +171,6 @@ return 301 https://$server_name$request_uri;
 | 1 ✅ | Нулевой год в файле страховщика | `summaries/services/excel_services.py` + тесты | обычный пуш в `main` |
 | 2 ✅ | Права на `logs/`, единый владелец cron, устойчивые обёртки | `scripts/*.sh`, `deploy_timeweb.yml` (отдельный SSH-шаг — основной `script:` на пределе 21k) | пуш + разовые действия на сервере |
 | 3 ✅ | Первая чистка аудита + VACUUM | сервер | вручную, после п. 2 |
-| 4 | `$host` в редиректе nginx | `nginx-timeweb/default.conf` | пуш |
+| 4 ✅ | `$host` в редиректе nginx | `nginx-timeweb/default.conf` | пуш |
 | 5 | Ротация и уровень логов | `onlineservice/settings.py`, `onlineservice/middleware.py` | пуш |
 | 6 | P3 | разное | по возможности |
