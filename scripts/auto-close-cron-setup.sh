@@ -1,16 +1,14 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------------------
-# audit-cron-setup.sh
+# auto-close-cron-setup.sh
 #
 # Идемпотентно прописывает в crontab текущего пользователя ежедневную задачу
-# чистки журналов django-easy-audit (LoginEvent/CRUDEvent старше 90 дней,
-# RequestEvent старше 1 дня).
+# автозакрытия зависших сводок (auto_close_stale_summaries).
 #
 # Запуск из корня проекта:
-#   bash scripts/audit-cron-setup.sh
+#   bash scripts/auto-close-cron-setup.sh
 #
-# Время по умолчанию — 04:00 (после ежедневного бэкапа в 03:00).
-# Часовой пояс — CRON_TZ=Europe/Moscow (добавляется в crontab, если его нет).
+# Время по умолчанию — 00:10 по Москве. Переопределяется через AUTO_CLOSE_CRON.
 # Идентификация — через маркер-комментарий в строке crontab.
 # ---------------------------------------------------------------------------
 
@@ -21,8 +19,8 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 # shellcheck source=cron-common.sh
 source "${SCRIPT_DIR}/cron-common.sh"
 
-WRAPPER="${PROJECT_DIR}/scripts/cron-purge-audit-log.sh"
-MARKER="# insflow-audit-purge"
-SCHEDULE="${AUDIT_CRON:-0 4 * * *}"
+WRAPPER="${PROJECT_DIR}/scripts/cron-auto-close-summaries.sh"
+MARKER="# insflow-auto-close"
+SCHEDULE="${AUTO_CLOSE_CRON:-10 0 * * *}"
 
 cron_install_line "$SCHEDULE" "$WRAPPER" "$MARKER"

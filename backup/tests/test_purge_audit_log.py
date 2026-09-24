@@ -82,3 +82,22 @@ class PurgeAuditLogTests(TestCase):
         self.assertEqual(self.LoginEvent.objects.count(), 1)
         self.assertEqual(self.CRUDEvent.objects.count(), 1)
         self.assertEqual(self.RequestEvent.objects.count(), 1)
+
+    def test_batched_delete_removes_everything_past_cutoff(self):
+        # Больше записей, чем размер партии, — цикл должен пройти несколько раз
+        for _ in range(7):
+            ev = self.RequestEvent.objects.create(url='/test/', method='GET', remote_ip='127.0.0.1')
+            _backdate(ev, 'datetime', self.old)
+
+        out = StringIO()
+        call_command('purge_audit_log', '--batch-size=3', stdout=out)
+
+        self.assertEqual(self.RequestEvent.objects.count(), 1)
+        self.assertIn('RequestEvent: удалено 9 записей', out.getvalue())
+
+    def test_batch_size_must_be_positive(self):
+        from django.core.management import CommandError
+
+        with self.assertRaises(CommandError):
+            call_command('purge_audit_log', '--batch-size=0', stdout=StringIO())
+

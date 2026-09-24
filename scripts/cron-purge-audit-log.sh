@@ -11,7 +11,9 @@ LOG_FILE="$LOG_DIR/cron_purge_audit_log.log"
 PYTHON_BIN="${PYTHON_BIN:-python}"
 USE_DOCKER="${USE_DOCKER:-0}"
 
-mkdir -p "$LOG_DIR"
+# shellcheck source=cron-common.sh
+source "$SCRIPT_DIR/cron-common.sh"
+cron_require_log "$LOG_FILE"
 cd "$PROJECT_DIR"
 
 echo "$(date '+%Y-%m-%d %H:%M:%S') - START purge_audit_log (USE_DOCKER=$USE_DOCKER)" >> "$LOG_FILE"

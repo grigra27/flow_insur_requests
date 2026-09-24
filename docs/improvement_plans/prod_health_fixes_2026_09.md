@@ -45,7 +45,7 @@ premium = year_data['premium'].quantize(...) if year_data['premium'] else None
 
 ---
 
-## P1. Чистка журнала аудита не работает с апреля
+## P1. Чистка журнала аудита не работает с апреля — ✅ код готов, после деплоя нужны разовые действия на сервере
 
 **Симптом.** `easyaudit_requestevent` — 658 тыс. строк, 125 МБ (85 % БД в 148 МБ), самые старые — 2026-04-26,
 хотя retention 1 день. LoginEvent/CRUDEvent (90 дней) тоже не чистятся. Ночные дампы раздуты (~10 МБ и растут).
@@ -58,18 +58,45 @@ premium = year_data['premium'].quantize(...) if year_data['premium'] else None
 - Там же в crontab `deploy` дублируется бэкап в VK на 03:00 (ставит `backup-cron-setup.sh` из деплоя),
   он тоже тихо падает; реально работает копия из crontab `root`.
 
-**Что сделать.**
-1. Выбрать одного владельца cron-задач. Рекомендация — `deploy` (от него идёт деплой), тогда:
-   - `chown -R deploy:deploy /opt/insflow-system/logs` (разово на сервере, и/или шаг в деплое);
-   - убрать дубли из crontab `root` (VK-бэкап, автозакрытие) и ставить все три задачи установщиками от `deploy`,
-     включая `cron-auto-close-summaries.sh` (сейчас есть только у root).
-   Альтернатива — запускать установщики через `sudo`/от root, но тогда то же самое с логами и дублями.
-2. Сделать cron-обёртки устойчивыми: если лог недоступен на запись — писать в stderr/syslog (`logger -t insflow`),
-   а не молча завершаться.
-3. Первый запуск `purge_audit_log` удалит ~650 тыс. строк. Проверить, что команда удаляет батчами
-   (иначе один большой `DELETE` на 1 ГБ RAM) — при необходимости добавить `--batch-size`.
-   После первой чистки — `VACUUM (ANALYZE) easyaudit_requestevent`, чтобы сократить размер дампа.
-4. Проверить на следующий день: `logs/cron_purge_audit_log.log` существует, `min(datetime)` в `easyaudit_requestevent` ≈ сутки назад.
+**Сделано в коде** (ждёт деплоя):
+- Единый владелец cron-задач — `deploy`. Общий хелпер `scripts/cron-common.sh`:
+  `cron_install_line` (идемпотентно, добавляет `CRON_TZ=Europe/Moscow`, если его нет) и
+  `cron_require_log` (если лог недоступен на запись — сообщение в syslog с тегом `insflow-cron` и в stderr, exit 1).
+- `backup-cron-setup.sh`, `audit-cron-setup.sh` переведены на хелпер; новый `auto-close-cron-setup.sh`
+  (маркер `# insflow-auto-close`, 00:10) вызывается в шаге «Post-deploy hooks» деплоя.
+- `purge_audit_log` удаляет партиями (`--batch-size`, по умолчанию 5000). Проверено: из-за подписки easy-audit
+  на `post_delete` быстрого удаления нет, и `qs.delete()` загрузил бы все ~650 тыс. объектов в память.
+
+**Разовые действия на сервере — выполнить после деплоя (ещё не сделано)** (от root; `deploy` без sudo сделать это не может).
+
+> Порядок важен. Не делать `chown` до деплоя: иначе в 04:00 старая версия команды удалит 650 тыс. строк одним
+> `qs.delete()`. И делать шаги 1 и 2 вместе: иначе в 03:00 бэкап в VK уйдёт дважды (от root и от deploy).
+
+```bash
+# 0. Убедиться, что деплой прошёл и cron deploy содержит 3 задачи + CRON_TZ
+crontab -l -u deploy
+
+# 1. Отдать логи deploy
+chown -R deploy:deploy /opt/insflow-system/logs
+
+# 2. Убрать задачи проекта из crontab root (остальное не трогать)
+crontab -l > /root/crontab.root.bak.$(date +%F)
+crontab -l | grep -v -e 'cron-auto-close-summaries.sh' -e 'insflow-backup-vk' | crontab -
+crontab -l
+
+# 3. Первая чистка вручную: сначала dry-run, потом по-настоящему (от deploy, как в cron)
+cd /opt/insflow-system
+sudo -u deploy docker compose exec -T web python manage.py purge_audit_log --dry-run
+sudo -u deploy env USE_DOCKER=1 scripts/cron-purge-audit-log.sh
+tail -20 logs/cron_purge_audit_log.log
+
+# 4. Необязательно: вернуть место на диске (размер дампа уменьшится и без этого — pg_dump берёт только живые строки)
+docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "VACUUM (ANALYZE) easyaudit_requestevent;"'
+```
+
+**Проверка на следующий день:** в `logs/` появились записи от 00:10, 03:00 и 04:00 от `deploy`;
+бэкап в VK пришёл один; `min(datetime)` в `easyaudit_requestevent` — около суток назад;
+`grep insflow-cron /var/log/syslog` пусто.
 
 ---
 
@@ -130,7 +157,7 @@ return 301 https://$server_name$request_uri;
 | # | Задача | Где | Деплой |
 |---|--------|-----|--------|
 | 1 ✅ | Нулевой год в файле страховщика | `summaries/services/excel_services.py` + тесты | обычный пуш в `main` |
-| 2 | Права на `logs/`, единый владелец cron, устойчивые обёртки | `scripts/*.sh`, `deploy_timeweb.yml` (отдельный SSH-шаг — основной `script:` на пределе 21k) | пуш + разовые действия на сервере |
+| 2 ✅ | Права на `logs/`, единый владелец cron, устойчивые обёртки | `scripts/*.sh`, `deploy_timeweb.yml` (отдельный SSH-шаг — основной `script:` на пределе 21k) | пуш + разовые действия на сервере |
 | 3 | Первая чистка аудита + VACUUM | сервер | вручную, после п. 2 |
 | 4 | `$host` в редиректе nginx | `nginx-timeweb/default.conf` | пуш |
 | 5 | Ротация и уровень логов | `onlineservice/settings.py`, `onlineservice/middleware.py` | пуш |

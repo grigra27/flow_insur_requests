@@ -11,7 +11,9 @@ LOG_FILE="$LOG_DIR/cron_send_backup_to_vk.log"
 PYTHON_BIN="${PYTHON_BIN:-python}"
 USE_DOCKER="${USE_DOCKER:-0}"
 
-mkdir -p "$LOG_DIR"
+# shellcheck source=cron-common.sh
+source "$SCRIPT_DIR/cron-common.sh"
+cron_require_log "$LOG_FILE"
 cd "$PROJECT_DIR"
 
 echo "$(date '+%Y-%m-%d %H:%M:%S') - START send_backup_to_vk (USE_DOCKER=$USE_DOCKER)" >> "$LOG_FILE"

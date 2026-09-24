@@ -5,15 +5,20 @@
 HTTP-запрос пользователя) — хранить долго бессмысленно. LoginEvent и CRUDEvent
 нужны для разбора инцидентов и аудита, поэтому хранятся 90 дней.
 
+Удаление идёт партиями: easy-audit подписан на post_delete, поэтому Django не
+может сделать быстрый DELETE и загружает удаляемые объекты в память. Одним
+qs.delete() на сотнях тысяч RequestEvent легко съесть всю RAM сервера.
+
 Использование:
     python manage.py purge_audit_log
     python manage.py purge_audit_log --dry-run
     python manage.py purge_audit_log --login-days 180 --crud-days 180 --request-days 7
+    python manage.py purge_audit_log --batch-size 2000
 """
 import logging
 from datetime import timedelta
 
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 
 logger = logging.getLogger('backup.purge_audit_log')
@@ -32,6 +37,8 @@ class Command(BaseCommand):
                             help='Срок хранения CRUDEvent (default: 90)')
         parser.add_argument('--request-days', type=int, default=1,
                             help='Срок хранения RequestEvent (default: 1)')
+        parser.add_argument('--batch-size', type=int, default=5000,
+                            help='Сколько записей удалять за один запрос (default: 5000)')
         parser.add_argument('--dry-run', action='store_true',
                             help='Показать сколько будет удалено, но не удалять')
 
@@ -39,6 +46,9 @@ class Command(BaseCommand):
         from easyaudit.models import CRUDEvent, LoginEvent, RequestEvent
 
         dry = options['dry_run']
+        batch_size = options['batch_size']
+        if batch_size < 1:
+            raise CommandError('--batch-size должен быть положительным')
         now = timezone.now()
 
         targets = [
@@ -65,11 +75,21 @@ class Command(BaseCommand):
                 logger.info(msg)
                 continue
 
-            qs.delete()
-            total_deleted += count
-            msg = f'{name}: удалено {count} записей старше {days}д'
+            deleted = self._delete_in_batches(model, qs, batch_size)
+            total_deleted += deleted
+            msg = f'{name}: удалено {deleted} записей старше {days}д'
             self.stdout.write(self.style.SUCCESS(f'✓ {msg}'))
             logger.info(msg)
 
         if not dry:
             logger.info('purge_audit_log completed: deleted %d records total', total_deleted)
+
+    @staticmethod
+    def _delete_in_batches(model, qs, batch_size):
+        deleted = 0
+        while True:
+            pks = list(qs.order_by('pk').values_list('pk', flat=True)[:batch_size])
+            if not pks:
+                return deleted
+            model.objects.filter(pk__in=pks).delete()
+            deleted += len(pks)

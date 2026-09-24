@@ -578,10 +578,10 @@ jobs:
             echo "  - http://zs.insflow.tw1.su (Django приложение)"
           fi
 
-    # 5️⃣.5 Post-deploy hooks: sync permissions + install audit cron.
+    # 5️⃣.5 Post-deploy hooks: sync permissions + install audit/auto-close cron.
     # Отдельный шаг, чтобы не упереться в лимит GitHub Actions на длину
     # шаблона script: (21000 символов с раскрытыми ${{ secrets.* }}).
-    - name: Post-deploy hooks (groups + audit cron)
+    - name: Post-deploy hooks (groups + cron)
       uses: appleboy/ssh-action@v1.0.0
       with:
         host: ${{ secrets.TIMEWEB_HOST }}
@@ -599,6 +599,10 @@ jobs:
           echo "Install audit log purge cron..."
           chmod +x scripts/audit-cron-setup.sh
           bash scripts/audit-cron-setup.sh || echo "audit-cron-setup.sh failed"
+
+          echo "Install stale summaries auto-close cron..."
+          chmod +x scripts/auto-close-cron-setup.sh
+          bash scripts/auto-close-cron-setup.sh || echo "auto-close-cron-setup.sh failed"
 
     # 6️⃣ Post-deployment notification and cleanup
     - name: Post-deployment notification
