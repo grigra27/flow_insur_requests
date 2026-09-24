@@ -445,5 +445,5 @@ class OfferCoverageTerritoryInterfaceAndTemplateTests(TestCase):
             )
             self.assertEqual(
                 sheet['E10'].value,
-                '=IF(AND(C10<>0,F10<>0),F10/C10*100,"")',
+                '=IF(AND(C10<>0,F10<>0),F10/C10,"")',
             )

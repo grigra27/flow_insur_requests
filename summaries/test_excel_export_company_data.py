@@ -468,7 +468,7 @@ class CopyFormulaToRowTests(ExcelExportServiceCompanyDataTests):
         self.worksheet = self.workbook.active
         
         # Настраиваем исходную ячейку с формулой
-        self.worksheet['E10'].value = '=IF(AND(C10<>0,F10<>0),F10/C10*100,"")'
+        self.worksheet['E10'].value = '=IF(AND(C10<>0,F10<>0),F10/C10,"")'
         
         # Мокаем _create_rate_formula
         self.create_formula_patcher = patch.object(self.service, '_create_rate_formula')
@@ -488,7 +488,7 @@ class CopyFormulaToRowTests(ExcelExportServiceCompanyDataTests):
         
         # Проверяем, что формула адаптирована
         target_cell = self.worksheet['E11']
-        expected_formula = '=IF(AND(C11<>0,F11<>0),F11/C11*100,"")'
+        expected_formula = '=IF(AND(C11<>0,F11<>0),F11/C11,"")'
         self.assertEqual(target_cell.value, expected_formula)
     
     def test_copy_formula_to_row_no_formula(self):
@@ -518,7 +518,7 @@ class CopyFormulaToRowTests(ExcelExportServiceCompanyDataTests):
         
         self.service._create_rate_formula(self.worksheet, 11, 'E')
         
-        expected_formula = '=IF(AND(C11<>0,F11<>0),F11/C11*100,"")'
+        expected_formula = '=IF(AND(C11<>0,F11<>0),F11/C11,"")'
         self.assertEqual(self.worksheet['E11'].value, expected_formula)
         
         self.create_formula_patcher.start()  # Возобновляем мок
@@ -529,7 +529,7 @@ class CopyFormulaToRowTests(ExcelExportServiceCompanyDataTests):
         
         self.service._create_rate_formula(self.worksheet, 11, 'K')
         
-        expected_formula = '=IF(AND(C11<>0,L11<>0),L11/C11*100,"")'
+        expected_formula = '=IF(AND(C11<>0,L11<>0),L11/C11,"")'
         self.assertEqual(self.worksheet['K11'].value, expected_formula)
         
         self.create_formula_patcher.start()  # Возобновляем мок
