@@ -6,8 +6,14 @@
 set -e
 
 # Configuration
-CERT_PATH="/etc/letsencrypt/live"
-LOG_FILE="/var/log/ssl-certificates.log"
+# Сертификаты лежат в ./letsencrypt проекта (смонтированы в nginx/certbot),
+# а не в /etc/letsencrypt хоста. Лог — в logs/ проекта: скрипт запускается
+# при деплое от deploy, у которого нет прав на /var/log.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
+LETSENCRYPT_DIR="${LETSENCRYPT_DIR:-$PROJECT_DIR/letsencrypt}"
+LOG_FILE="${SSL_CHECK_LOG_FILE:-$PROJECT_DIR/logs/ssl-certificates.log}"
+CERTBOT_IMAGE="${CERTBOT_IMAGE:-certbot/certbot:latest}"
 ALERT_DAYS=7  # Alert if certificate expires within this many days
 WARNING_DAYS=30  # Warning if certificate expires within this many days
 
@@ -21,9 +27,15 @@ NC='\033[0m' # No Color
 # Certificate names to check
 CERTIFICATES=("insflow.ru" "insflow.tw1.su")
 
-# Logging function
+# Logging function: строка с датой идёт только в лог-файл (в --quiet stdout
+# и так направлен в лог). Недоступный на запись лог не роняет проверку.
 log() {
-    echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" | tee -a "$LOG_FILE"
+    local line="$(date '+%Y-%m-%d %H:%M:%S') - $1"
+    if [[ "${QUIET:-0}" == "1" ]]; then
+        echo "$line"
+    else
+        echo "$line" >> "$LOG_FILE" 2>/dev/null || true
+    fi
 }
 
 # Error handling
@@ -50,13 +62,41 @@ info() {
     log "INFO: $1"
 }
 
+# Папка letsencrypt/live принадлежит root с правами 700, deploy её не читает.
+# Поэтому публичные части сертификатов (cert.pem, chain.pem — не ключи)
+# копируются во временную папку: напрямую, если есть права, иначе через
+# одноразовый контейнер certbot (deploy состоит в группе docker).
+WORK_DIR="$(mktemp -d)"
+trap 'rm -rf "$WORK_DIR"' EXIT
+CERT_PATH="$WORK_DIR"
+
+fetch_certificate_files() {
+    local cert_name="$1"
+    local src="$LETSENCRYPT_DIR/live/$cert_name"
+    local dst="$WORK_DIR/$cert_name"
+    mkdir -p "$dst"
+
+    if [[ -r "$src/cert.pem" ]]; then
+        cp "$src/cert.pem" "$dst/cert.pem"
+        [[ -r "$src/chain.pem" ]] && cp "$src/chain.pem" "$dst/chain.pem"
+    elif command -v docker > /dev/null 2>&1; then
+        docker run --rm -v "$LETSENCRYPT_DIR:/etc/letsencrypt:ro" --entrypoint cat \
+            "$CERTBOT_IMAGE" "/etc/letsencrypt/live/$cert_name/cert.pem" > "$dst/cert.pem" 2>/dev/null || rm -f "$dst/cert.pem"
+        docker run --rm -v "$LETSENCRYPT_DIR:/etc/letsencrypt:ro" --entrypoint cat \
+            "$CERTBOT_IMAGE" "/etc/letsencrypt/live/$cert_name/chain.pem" > "$dst/chain.pem" 2>/dev/null || rm -f "$dst/chain.pem"
+    fi
+    [[ -s "$dst/cert.pem" ]] || rm -f "$dst/cert.pem"
+    [[ -s "$dst/chain.pem" ]] || rm -f "$dst/chain.pem"
+}
+
 # Check if certificate file exists
 check_certificate_exists() {
     local cert_name="$1"
+    fetch_certificate_files "$cert_name"
     local cert_file="$CERT_PATH/$cert_name/cert.pem"
     
     if [[ ! -f "$cert_file" ]]; then
-        error "Certificate file not found: $cert_file"
+        error "Certificate file not found: $LETSENCRYPT_DIR/live/$cert_name/cert.pem"
         return 1
     fi
     return 0
@@ -116,7 +156,8 @@ verify_certificate_chain() {
     local chain_file="$CERT_PATH/$cert_name/chain.pem"
     
     if [[ -f "$chain_file" ]]; then
-        if openssl verify -CAfile "$chain_file" "$cert_file" > /dev/null 2>&1; then
+        # chain.pem — промежуточный сертификат; корень берётся из системного хранилища
+        if openssl verify -untrusted "$chain_file" "$cert_file" > /dev/null 2>&1; then
             success "Certificate chain verification passed for $cert_name"
             return 0
         else
@@ -205,15 +246,15 @@ main() {
         # Get certificate information
         get_certificate_info "$cert_name"
         
-        # Check expiration
-        check_certificate_expiration "$cert_name"
-        local expiry_status=$?
+        # Check expiration (коды 1/2 — статусы, а не ошибки: не даём set -e оборвать скрипт)
+        local expiry_status=0
+        check_certificate_expiration "$cert_name" || expiry_status=$?
         
         # Verify certificate chain
-        verify_certificate_chain "$cert_name"
+        verify_certificate_chain "$cert_name" || true
         
         # Check certificate domains
-        check_certificate_domain "$cert_name"
+        check_certificate_domain "$cert_name" || true
         
         # Update counters based on status
         case $expiry_status in
@@ -226,8 +267,8 @@ main() {
     done
     
     # Generate summary
-    generate_summary $total_certs $valid_certs $warning_certs $critical_certs
-    local summary_status=$?
+    local summary_status=0
+    generate_summary $total_certs $valid_certs $warning_certs $critical_certs || summary_status=$?
     
     log "SSL certificate check completed"
     exit $summary_status
@@ -245,6 +286,8 @@ case "${1:-}" in
         ;;
     --quiet|-q)
         # Redirect stdout to log file only
+        QUIET=1
+        mkdir -p "$(dirname "$LOG_FILE")"
         exec 1>>"$LOG_FILE"
         ;;
     --verbose|-v)
