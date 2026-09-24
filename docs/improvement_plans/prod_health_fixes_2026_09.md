@@ -58,7 +58,7 @@ premium = year_data['premium'].quantize(...) if year_data['premium'] else None
 - Там же в crontab `deploy` дублируется бэкап в VK на 03:00 (ставит `backup-cron-setup.sh` из деплоя),
   он тоже тихо падает; реально работает копия из crontab `root`.
 
-**Сделано в коде** (ждёт деплоя):
+**Сделано в коде** (выкачено):
 - Единый владелец cron-задач — `deploy`. Общий хелпер `scripts/cron-common.sh`:
   `cron_install_line` (идемпотентно, добавляет `CRON_TZ=Europe/Moscow`, если его нет) и
   `cron_require_log` (если лог недоступен на запись — сообщение в syslog с тегом `insflow-cron` и в stderr, exit 1).
@@ -106,7 +106,7 @@ docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "
 
 ---
 
-## P2. HTTP→HTTPS редирект уводит все домены на лендинг — ✅ код готов, ждёт деплоя
+## P2. HTTP→HTTPS редирект уводит все домены на лендинг — ✅ сделано (деплой `5a98a3e`, 2026-09-24)
 
 **Итог.** Блок `listen 80` для доменов редиректит на `https://$host$request_uri`; отдельный
 `listen 80 default_server` для `80.90.189.37` и неизвестных Host — на главную лендинга `https://insflow.ru/` (без пути)
@@ -132,7 +132,7 @@ return 301 https://$server_name$request_uri;
 
 ---
 
-## P2. Логи приложения без ротации — ✅ код готов, ждёт деплоя
+## P2. Логи приложения без ротации — ✅ сделано (деплой `5a98a3e`, 2026-09-24)
 
 **Итог.**
 - Логи docker уже ротируются (`/etc/docker/daemon.json`: `max-size 10m`, `max-file 3`) — проблема только в файлах `/app/logs`.
@@ -163,7 +163,7 @@ return 301 https://$server_name$request_uri;
 
 - **SECRET_KEY** с префиксом `django-insecure-` → `security.W009` в `check --deploy`. Сгенерировать новый
   (`get_random_secret_key()` без префикса), заменить в секретах/`.env`. Все сессии сбросятся — делать вне рабочего времени.
-- **Отчёт деплоя / SSL-скрипты — ✅ код готов, ждёт деплоя.** Продление сертификатов всё время работало
+- **Отчёт деплоя / SSL-скрипты — ✅ сделано (деплой `5a98a3e`, 2026-09-24).** Продление сертификатов всё время работало
   (контейнер certbot, продления 02.03, 02.05, 01.07, 31.08). Сломана была только проверка при деплое:
   `check-certificates.sh` искал сертификаты в `/etc/letsencrypt` хоста (они в `./letsencrypt`), писал лог в `/var/log`,
   `openssl verify -CAfile chain.pem` без корня всегда падал, а `set -e` обрывал скрипт на статусах 1/2.
