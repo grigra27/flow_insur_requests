@@ -109,9 +109,10 @@ docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "
 ## P2. HTTP→HTTPS редирект уводит все домены на лендинг — ✅ код готов, ждёт деплоя
 
 **Итог.** Блок `listen 80` для доменов редиректит на `https://$host$request_uri`; отдельный
-`listen 80 default_server` для `80.90.189.37` и неизвестных Host — на `https://zs.insflow.ru$request_uri`.
+`listen 80 default_server` для `80.90.189.37` и неизвестных Host — на главную лендинга `https://insflow.ru/` (без пути)
+(сотрудники ходят только на zs.insflow.ru; по IP заходят в основном сканеры).
 Проверено во временном nginx-контейнере на сервере: `nginx -t` ок, все 4 домена редиректят на себя,
-IP/чужой Host/127.0.0.1 → zs.insflow.ru, ACME-location отвечает, HTTPS `/healthz/` 200.
+IP/чужой Host/127.0.0.1 → insflow.ru, ACME-location отвечает, HTTPS `/healthz/` 200.
 HTTPS по голому IP (`https://80.90.189.37/`) по-прежнему попадает в первый 443-блок — оставлено в P3.
 
 **Симптом.** `http://zs.insflow.ru/requests/` → `301 https://insflow.ru/requests/` → 404 на основном домене.
