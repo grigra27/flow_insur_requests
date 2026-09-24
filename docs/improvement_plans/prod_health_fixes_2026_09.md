@@ -132,7 +132,17 @@ return 301 https://$server_name$request_uri;
 
 ---
 
-## P2. Логи приложения без ротации
+## P2. Логи приложения без ротации — ✅ код готов, ждёт деплоя
+
+**Итог.**
+- Логи docker уже ротируются (`/etc/docker/daemon.json`: `max-size 10m`, `max-file 3`) — проблема только в файлах `/app/logs`.
+- 95 % `domain_routing.log` — три INFO-строки на каждый запрос (`Domain routing`, `Subdomain access`, `HTTPS response`),
+  включая healthcheck. Переведены в DEBUG; WARNING (unknown domain, 404 на основном домене) остались.
+- `RotatingFileHandler` не взят: у gunicorn 2 воркера, каждый ротировал бы сам. Вместо этого команда
+  `manage.py rotate_logs` (copytruncate: `*.log` > 10 МБ → `.1.gz`, файл обрезается, хранится 5 архивов) и cron
+  `scripts/cron-rotate-logs.sh` в 04:30 от `deploy` (установщик `scripts/log-rotate-cron-setup.sh`, шаг «Post-deploy hooks»).
+- Замер на проде (сжатие в /dev/null): первая ротация ≈ 15 с, 560 МБ → ≈ 34 МБ архивов. Разово обрезать вручную не нужно —
+  это сделает первый запуск cron.
 
 **Симптом.** Том `logs_data_timeweb` — 567 МБ: `domain_routing.log` 513 МБ, `django.log` 35 МБ, `https.log` 12 МБ.
 Свободно на `/` 4,6 ГБ из 14.
@@ -174,5 +184,5 @@ return 301 https://$server_name$request_uri;
 | 2 ✅ | Права на `logs/`, единый владелец cron, устойчивые обёртки | `scripts/*.sh`, `deploy_timeweb.yml` (отдельный SSH-шаг — основной `script:` на пределе 21k) | пуш + разовые действия на сервере |
 | 3 ✅ | Первая чистка аудита + VACUUM | сервер | вручную, после п. 2 |
 | 4 ✅ | `$host` в редиректе nginx | `nginx-timeweb/default.conf` | пуш |
-| 5 | Ротация и уровень логов | `onlineservice/settings.py`, `onlineservice/middleware.py` | пуш |
+| 5 ✅ | Ротация и уровень логов | `onlineservice/settings.py`, `onlineservice/middleware.py` | пуш |
 | 6 | P3 | разное | по возможности |

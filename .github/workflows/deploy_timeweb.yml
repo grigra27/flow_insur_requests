@@ -578,7 +578,7 @@ jobs:
             echo "  - http://zs.insflow.tw1.su (Django приложение)"
           fi
 
-    # 5️⃣.5 Post-deploy hooks: sync permissions + install audit/auto-close cron.
+    # 5️⃣.5 Post-deploy hooks: sync permissions + install audit/auto-close/log-rotate cron.
     # Отдельный шаг, чтобы не упереться в лимит GitHub Actions на длину
     # шаблона script: (21000 символов с раскрытыми ${{ secrets.* }}).
     - name: Post-deploy hooks (groups + cron)
@@ -603,6 +603,10 @@ jobs:
           echo "Install stale summaries auto-close cron..."
           chmod +x scripts/auto-close-cron-setup.sh
           bash scripts/auto-close-cron-setup.sh || echo "auto-close-cron-setup.sh failed"
+
+          echo "Install log rotation cron..."
+          chmod +x scripts/log-rotate-cron-setup.sh
+          bash scripts/log-rotate-cron-setup.sh || echo "log-rotate-cron-setup.sh failed"
 
     # 6️⃣ Post-deployment notification and cleanup
     - name: Post-deployment notification

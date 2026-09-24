@@ -340,6 +340,11 @@ LOGGING = {
             'level': 'INFO',
             'propagate': False,
         },
+        'backup.rotate_logs': {
+            'handlers': ['console', 'backup_file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
     },
 }
 

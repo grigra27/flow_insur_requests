@@ -65,10 +65,11 @@ class DomainRoutingMiddleware:
         # Check if request is secure (HTTPS)
         is_secure = self._is_request_secure(request)
         
-        # Log the request for monitoring
+        # Per-request trace: DEBUG, otherwise it fills domain_routing.log with
+        # a line for every request including healthchecks. Anomalies stay WARNING.
         protocol = 'https' if is_secure else 'http'
         if self.https_logging:
-            logger.info(f"Domain routing: {protocol}://{host} -> {request.path}")
+            logger.debug(f"Domain routing: {protocol}://{host} -> {request.path}")
         
         # Handle HTTPS redirect for production domains
         if self._should_redirect_to_https(request, host, is_secure):
@@ -131,7 +132,7 @@ class DomainRoutingMiddleware:
             host = request.get_host().lower()
             if ':' in host:
                 host = host.split(':')[0]
-            logger.info(f"Subdomain access: {protocol}://{host}{request.path}")
+            logger.debug(f"Subdomain access: {protocol}://{host}{request.path}")
         
         return self.get_response(request)
         
@@ -250,7 +251,7 @@ class HTTPSSecurityMiddleware(MiddlewareMixin):
                 host = request.get_host().lower()
                 if ':' in host:
                     host = host.split(':')[0]
-                logger.info(f"HTTPS response: {host}{request.path} - Status: {response.status_code}")
+                logger.debug(f"HTTPS response: {host}{request.path} - Status: {response.status_code}")
         
         return response
     
