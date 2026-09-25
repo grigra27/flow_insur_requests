@@ -6,9 +6,17 @@ from django.urls import reverse
 
 from insurance_requests.models import InsuranceRequest
 from summaries.models import InsuranceOffer, InsuranceSummary
+from summaries.views import _build_deal_price_row
 
 
 class DealAnalyticsMvpTests(TestCase):
+    """Ценовая позиция сделки (_build_deal_price_row).
+
+    Раньше проверялась через страницу «Страховые предложения»; страница удалена
+    (analytics_redesign_2026_09, задача 1.2), а расчёт используется страницей СК
+    и будет основой ценового разбора в карточке СК.
+    """
+
     def setUp(self):
         self.admin_group, _ = Group.objects.get_or_create(name='Администраторы')
         self.admin_user = User.objects.create_user(
@@ -46,7 +54,7 @@ class DealAnalyticsMvpTests(TestCase):
             franchise_1=Decimal('0'),
         )
 
-    def test_analytics_calculates_rank_and_min_selection_metrics(self):
+    def test_price_row_calculates_rank_and_min_selection(self):
         summary = self._create_completed_summary(
             dfa_number='DFA-0001',
             branch='Москва',
@@ -56,48 +64,47 @@ class DealAnalyticsMvpTests(TestCase):
         self._add_offer(summary, 'Абсолют', '11000.00')
         self._add_offer(summary, 'ВСК', '13000.00')
 
-        response = self.client.get(reverse('summaries:analytics_insurance_offers'))
+        row = _build_deal_price_row(summary)
 
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Абсолют')
-        self.assertContains(response, '2 / 3')
-
-        analytics_kpi = response.context['analytics_kpi']
-        self.assertEqual(analytics_kpi['total_deals'], 1)
-        self.assertEqual(analytics_kpi['min_selected_count'], 0)
-        self.assertEqual(analytics_kpi['min_selected_rate'], Decimal('0'))
-
-        row = response.context['rows'].object_list[0]
         self.assertEqual(row['selected_rank'], 2)
+        self.assertEqual(row['comparable_companies_count'], 3)
         self.assertFalse(row['is_min_selected'])
+        self.assertEqual(row['best_company_name'], 'Альфа')
         self.assertEqual(row['delta_to_min_abs'], Decimal('1000.00'))
-        self.assertContains(response, 'left: 33.33%;')
+        self.assertEqual(row['delta_to_min_pct'], Decimal('10'))
+        selected_point = next(p for p in row['points'] if p['is_selected'])
+        self.assertEqual(selected_point['position_pct'], 33.33)
 
-    def test_analytics_filters_deals_by_branch(self):
-        moscow_summary = self._create_completed_summary(
+    def test_price_row_marks_min_selection(self):
+        summary = self._create_completed_summary(
             dfa_number='DFA-0002',
             branch='Москва',
-            selected_company='Абсолют',
-        )
-        self._add_offer(moscow_summary, 'Альфа', '10000.00')
-        self._add_offer(moscow_summary, 'Абсолют', '10500.00')
-        self._add_offer(moscow_summary, 'ВСК', '12000.00')
-
-        spb_summary = self._create_completed_summary(
-            dfa_number='DFA-0003',
-            branch='Санкт-Петербург',
             selected_company='Альфа',
         )
-        self._add_offer(spb_summary, 'Альфа', '9000.00')
-        self._add_offer(spb_summary, 'Абсолют', '9500.00')
-        self._add_offer(spb_summary, 'ВСК', '9800.00')
+        self._add_offer(summary, 'Альфа', '9000.00')
+        self._add_offer(summary, 'Абсолют', '9500.00')
 
-        response = self.client.get(reverse('summaries:analytics_insurance_offers'), {'branch': 'Москва'})
+        row = _build_deal_price_row(summary)
 
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'DFA-0002')
-        self.assertNotContains(response, 'DFA-0003')
+        self.assertEqual(row['selected_rank'], 1)
+        self.assertTrue(row['is_min_selected'])
+        self.assertEqual(row['delta_to_min_abs'], Decimal('0'))
 
-        rows = response.context['rows'].object_list
-        self.assertEqual(len(rows), 1)
-        self.assertEqual(rows[0]['summary'].id, moscow_summary.id)
+    def test_price_row_needs_at_least_two_comparable_companies(self):
+        summary = self._create_completed_summary(
+            dfa_number='DFA-0003',
+            branch='Москва',
+            selected_company='Альфа',
+        )
+        self._add_offer(summary, 'Альфа', '9000.00')
+
+        self.assertIsNone(_build_deal_price_row(summary))
+
+    def test_removed_offers_page_redirects_to_companies(self):
+        response = self.client.get('/summaries/analytics/insurance-offers/', {'branch': 'Москва'})
+
+        self.assertRedirects(
+            response,
+            reverse('summaries:analytics_insurance_companies') + '?branch=%D0%9C%D0%BE%D1%81%D0%BA%D0%B2%D0%B0',
+            fetch_redirect_response=False,
+        )

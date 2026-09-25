@@ -34,7 +34,6 @@ MAIN_NAV_ITEMS = [
         'match_app': 'summaries',
         'exclude_urls': {
             'analytics',
-            'analytics_insurance_offers',
             'analytics_insurance_companies',
             'analytics_managers',
             'analytics_manager_detail',
@@ -56,14 +55,12 @@ MAIN_NAV_ITEMS = [
         'match_app': 'summaries',
         'include_urls': {
             'analytics',
-            'analytics_insurance_offers',
             'analytics_insurance_companies',
             'analytics_managers',
             'analytics_manager_detail',
         },
         'children': [
             ('Обзор аналитики', 'summaries:analytics'),
-            ('Аналитика по страховым предложениям', 'summaries:analytics_insurance_offers'),
             ('Аналитика по страховым компаниям', 'summaries:analytics_insurance_companies'),
             ('Аналитика по сотрудникам', 'summaries:analytics_managers'),
         ],
@@ -106,7 +103,6 @@ SECTION_CONFIG = {
         'root': 'summaries:analytics',
         'links': [
             ('Обзор аналитики', 'summaries:analytics'),
-            ('Страховые предложения', 'summaries:analytics_insurance_offers'),
             ('Страховые компании', 'summaries:analytics_insurance_companies'),
             ('Сотрудники', 'summaries:analytics_managers'),
         ],
@@ -116,7 +112,6 @@ SECTION_CONFIG = {
 
 ADMIN_ONLY_ROUTES = {
     'summaries:analytics',
-    'summaries:analytics_insurance_offers',
     'summaries:analytics_insurance_companies',
     'summaries:analytics_managers',
     'summaries:analytics_manager_detail',
@@ -132,7 +127,6 @@ SECTION_ROUTE_OVERRIDES = {
     ('summaries', 'deal_list'): 'deals',
     ('summaries', 'deal_summary'): 'deals',
     ('summaries', 'analytics'): 'analytics',
-    ('summaries', 'analytics_insurance_offers'): 'analytics',
     ('summaries', 'analytics_insurance_companies'): 'analytics',
     ('summaries', 'analytics_managers'): 'analytics',
     ('summaries', 'analytics_manager_detail'): 'analytics',
@@ -157,7 +151,6 @@ PAGE_LABELS = {
     ('summaries', 'deal_summary'): 'Резюме по сделке',
     ('summaries', 'statistics'): 'Статистика',
     ('summaries', 'analytics'): 'Аналитика',
-    ('summaries', 'analytics_insurance_offers'): 'Аналитика страховых предложений',
     ('summaries', 'analytics_insurance_companies'): 'Аналитика страховых компаний',
     ('summaries', 'analytics_managers'): 'Аналитика по сотрудникам',
     ('summaries', 'analytics_manager_detail'): 'Досье сотрудника',
@@ -228,10 +221,6 @@ BREADCRUMB_TEMPLATES = {
         ('Статистика', None),
     ],
     ('summaries', 'analytics'): [('Аналитика', None)],
-    ('summaries', 'analytics_insurance_offers'): [
-        ('Аналитика', 'summaries:analytics'),
-        ('Страховые предложения', None),
-    ],
     ('summaries', 'analytics_insurance_companies'): [
         ('Аналитика', 'summaries:analytics'),
         ('Страховые компании', None),
@@ -266,7 +255,6 @@ LAYOUT_MODE_BY_PAGE = {
     ('summaries', 'deal_list'): 'wide',
     ('summaries', 'statistics'): 'wide',
     ('summaries', 'analytics'): 'wide',
-    ('summaries', 'analytics_insurance_offers'): 'wide',
     ('summaries', 'analytics_insurance_companies'): 'wide',
     ('summaries', 'analytics_managers'): 'wide',
     ('summaries', 'analytics_manager_detail'): 'wide',

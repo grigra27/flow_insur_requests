@@ -40,19 +40,19 @@ class AnalyticsPlaceholderAccessTests(TestCase):
         self.assertEqual(response.status_code, 403)
         self.assertTemplateUsed(response, 'insurance_requests/access_denied.html')
 
-    def test_analytics_insurance_offers_page_access_matches_statistics_for_admin(self):
+    def test_analytics_companies_page_access_matches_statistics_for_admin(self):
         self.client.login(username='analytics_admin', password='testpass123')
 
-        analytics_response = self.client.get(reverse('summaries:analytics_insurance_offers'))
+        analytics_response = self.client.get(reverse('summaries:analytics_insurance_companies'))
         statistics_response = self.client.get(reverse('summaries:statistics'))
 
         self.assertEqual(analytics_response.status_code, 200)
         self.assertEqual(statistics_response.status_code, 200)
 
-    def test_analytics_insurance_offers_page_access_matches_statistics_for_regular_user(self):
+    def test_analytics_companies_page_access_matches_statistics_for_regular_user(self):
         self.client.login(username='analytics_user', password='testpass123')
 
-        analytics_response = self.client.get(reverse('summaries:analytics_insurance_offers'))
+        analytics_response = self.client.get(reverse('summaries:analytics_insurance_companies'))
         statistics_response = self.client.get(reverse('summaries:statistics'))
 
         self.assertEqual(analytics_response.status_code, 403)
@@ -62,13 +62,13 @@ class AnalyticsPlaceholderAccessTests(TestCase):
 
     def test_top_menu_item_visible_only_for_admin_group(self):
         analytics_url = reverse('summaries:analytics')
-        analytics_offers_url = reverse('summaries:analytics_insurance_offers')
+        analytics_offers_url = '/summaries/analytics/insurance-offers/'
         analytics_companies_url = reverse('summaries:analytics_insurance_companies')
 
         self.client.login(username='analytics_admin', password='testpass123')
         admin_response = self.client.get(reverse('summaries:summary_list'))
         self.assertContains(admin_response, analytics_url)
-        self.assertContains(admin_response, analytics_offers_url)
+        self.assertNotContains(admin_response, analytics_offers_url)
         self.assertContains(admin_response, analytics_companies_url)
         self.assertContains(admin_response, 'Аналитика')
 
@@ -91,7 +91,7 @@ class AnalyticsPlaceholderAccessTests(TestCase):
 
         section_labels = [item['label'] for item in app_navigation['section_items']]
         self.assertIn('Обзор аналитики', section_labels)
-        self.assertIn('Страховые предложения', section_labels)
+        self.assertNotIn('Страховые предложения', section_labels)
         self.assertIn('Страховые компании', section_labels)
         self.assertNotIn('Статистика', section_labels)
         self.assertNotIn('Справка', section_labels)
