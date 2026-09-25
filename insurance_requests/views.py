@@ -48,6 +48,7 @@ from .security import (
     register_failed_login_attempt,
 )
 from .parsers.excel_v2 import ExcelRequestParserV2
+from .plausibility import check_values as check_plausibility
 from core.excel_utils import ExcelReader
 from core.templates import EmailTemplateGenerator
 
@@ -430,6 +431,22 @@ def _create_requests_with_splitting(*, request_fields, additional_data, object_k
     return created
 
 
+def _plausibility_warnings(parse_result, insured_objects):
+    """Проверки правдоподобия распознанных значений для превью (analytics_redesign_2026_09, 5.4)."""
+    warnings = [
+        {**warning, 'field': warning['label']}
+        for warning in check_plausibility(parse_result.get('data') or {})
+    ]
+    objects = parser_v2_object_initial_from_payload(insured_objects)
+    for number, object_values in enumerate(objects, start=1):
+        prefix = f'Объект {number}: ' if len(objects) > 1 else ''
+        warnings.extend(
+            {**warning, 'field': prefix + warning['label']}
+            for warning in check_plausibility(object_values)
+        )
+    return warnings
+
+
 def _render_parser_v2_preview(request, draft_id, draft, preview_form=None, object_formset=None):
     parse_result = draft.get('parse_result', {})
     if preview_form is None:
@@ -449,7 +466,7 @@ def _render_parser_v2_preview(request, draft_id, draft, preview_form=None, objec
     return render(request, 'insurance_requests/upload_excel_v2_preview.html', {
         'form': preview_form,
         'object_formset': object_formset,
-        'warnings': parse_result.get('warnings', []),
+        'warnings': list(parse_result.get('warnings', [])) + _plausibility_warnings(parse_result, insured_objects),
         'source_map': parse_result.get('source_map', {}),
         'confidence': confidence,
         'confidence_percent': int(confidence * 100),

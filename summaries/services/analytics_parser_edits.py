@@ -17,7 +17,15 @@ from django.utils import timezone
 
 from insurance_requests.models import InsuranceRequest, RequestFieldEdit
 
+from insurance_requests.plausibility import check_values as check_plausibility
+
 from . import parser_edit_reasons
+
+PLAUSIBILITY_FIELDS = (
+    'birth_date', 'manufacturing_year', 'acquisition_cost_value', 'acquisition_cost_currency',
+    'power_or_capacity', 'dfa_number', 'inn',
+)
+PLAUSIBILITY_LIMIT = 50
 
 DEFAULT_DAYS = 90
 MAX_DAYS = 3650
@@ -178,6 +186,30 @@ def _reasons_and_forecast(request_values, edits_qs):
     return rows, forecast
 
 
+def _plausibility_hits(v2_requests):
+    """Срабатывания проверок правдоподобия на сохранённых V2-заявках (задача 5.4)."""
+    hits = []
+    for row in v2_requests.values('pk', 'dfa_number', 'client_name', *PLAUSIBILITY_FIELDS).order_by('-created_at'):
+        for warning in check_plausibility(row):
+            hits.append({
+                'request_id': row['pk'],
+                'dfa_number': row['dfa_number'],
+                'client_name': row['client_name'],
+                'field': warning['field'],
+                'label': warning['label'],
+                'message': warning['message'],
+            })
+    by_field = {}
+    for hit in hits:
+        by_field[hit['label']] = by_field.get(hit['label'], 0) + 1
+    return {
+        'total': len(hits),
+        'requests': len({hit['request_id'] for hit in hits}),
+        'by_field': sorted(by_field.items(), key=lambda item: -item[1]),
+        'rows': hits[:PLAUSIBILITY_LIMIT],
+    }
+
+
 def _operator_label(row):
     last_name = (row.get('request__created_by__last_name') or '').strip()
     first_name = (row.get('request__created_by__first_name') or '').strip()
@@ -332,6 +364,7 @@ def build_payload(filters):
         'by_app_type': by_app_type,
         'by_version': _by_version(request_values),
         'by_reason': by_reason,
+        'plausibility': _plausibility_hits(v2_requests),
         'forecast': forecast,
         'timeline': timeline,
         'selected_field': selected_field,
