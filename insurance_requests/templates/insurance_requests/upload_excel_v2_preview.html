@@ -471,7 +471,7 @@
                             <div class="list-group-item px-0">
                                 <div class="d-flex justify-content-between gap-2">
                                     <strong>{{ warning.field }}</strong>
-                                    <span class="badge {% if warning.level == 'error' %}bg-danger{% elif warning.level == 'manual_required' %}bg-warning text-dark{% elif warning.level == 'check' %}bg-danger-subtle text-danger-emphasis{% elif warning.level == 'info' %}bg-info text-dark{% else %}bg-secondary{% endif %}">
+                                    <span class="badge {% if warning.level == 'error' %}bg-danger{% elif warning.level == 'manual_required' %}bg-warning text-dark{% elif warning.level == 'check' %}bg-danger{% elif warning.level == 'info' %}bg-info text-dark{% else %}bg-secondary{% endif %}">
                                         {% if warning.level == 'check' %}проверьте{% else %}{{ warning.level }}{% endif %}
                                     </span>
                                 </div>

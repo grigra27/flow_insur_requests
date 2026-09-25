@@ -42,10 +42,8 @@ class AnalyticsParserEditsServiceTests(TestCase):
         self.assertEqual(totals['requests_with_edits'], 1)
         self.assertEqual(totals['edited_share_percent'], 50.0)
         self.assertEqual(totals['total_edits'], 2)
-        # Средняя уверенность в процентах.
-        self.assertAlmostEqual(totals['avg_confidence_percent'], 82.5, places=1)
-        self.assertAlmostEqual(totals['avg_confidence_with_edits_percent'], 70.0, places=1)
-        self.assertAlmostEqual(totals['avg_confidence_without_edits_percent'], 95.0, places=1)
+        # «Уверенность парсера» убрана (5.6): у большинства заявок она 1,0 — сигнала нет.
+        self.assertNotIn('avg_confidence_percent', totals)
 
     def test_breakdowns(self):
         req = _make_request(branch='Казань', edits_count=1, created_by=self.operator)
@@ -61,10 +59,9 @@ class AnalyticsParserEditsServiceTests(TestCase):
 
         top = {row['field_name']: row['count'] for row in payload['top_fields']}
         self.assertEqual(top['inn'], 2)
-        by_branch = {row['branch']: row['count'] for row in payload['by_branch']}
-        self.assertEqual(by_branch['Казань'], 2)
-        by_operator = {row['operator']: row['count'] for row in payload['by_operator']}
-        self.assertEqual(by_operator['Петров Иван'], 2)
+        # Разбивки по филиалам и операторам убраны (5.6).
+        self.assertNotIn('by_branch', payload)
+        self.assertNotIn('by_operator', payload)
         by_type = {row['type']: row['count'] for row in payload['by_type']}
         self.assertEqual(by_type['changed'], 2)
 
@@ -142,7 +139,7 @@ class AnalyticsParserEditsAccessTests(TestCase):
         response = self.client.get(reverse('summaries:analytics_parser_edits'))
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, 'summaries/analytics_parser_edits.html')
-        self.assertContains(response, 'Ручные правки распознавания')
+        self.assertContains(response, 'Служебное: качество распознавания')
 
     def test_regular_user_forbidden(self):
         self.client.login(username='u', password='x')

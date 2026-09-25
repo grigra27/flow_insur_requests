@@ -1,28 +1,4 @@
-{% extends 'base.html' %}
-
-{% block title %}Правки после создания - {{ block.super }}{% endblock %}
-
-{% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-    <div>
-        <h1 class="h3 mb-1"><i class="bi bi-clock-history"></i> Правки после создания</h1>
-        <p class="text-muted mb-0">
-            Что меняют в V2-заявках уже после сохранения за последние {{ filters.days }} дн.
-            Контроль операторов и процесса; источник — журнал аудита.
-        </p>
-    </div>
-    <div class="d-flex align-items-center gap-2">
-        <form method="get" class="d-flex align-items-center gap-2">
-            <label for="days" class="form-label mb-0 small text-muted">Период, дней:</label>
-            <input type="number" min="1" max="3650" name="days" id="days"
-                   value="{{ filters.days }}" class="form-control form-control-sm" style="width: 100px;">
-            <button type="submit" class="btn btn-sm btn-primary">Применить</button>
-        </form>
-        <a href="{% url 'summaries:analytics' %}" class="btn btn-sm btn-secondary">К аналитике</a>
-    </div>
-</div>
-
-
+{# Вкладка «После создания» страницы «Служебное: качество распознавания» #}
 {# KPI #}
 <div class="row g-3 mb-4">
     <div class="col-md-4 col-6">
@@ -93,7 +69,7 @@
         <div class="card h-100">
             <div class="card-header">
                 <h6 class="mb-0">Кто правит после создания</h6>
-                <small class="text-muted">Автор поздней правки (из журнала аудита).</small>
+                <small class="text-muted">Кто сохранил правку.</small>
             </div>
             <div class="card-body p-0">
                 <table class="table table-sm mb-0">
@@ -142,4 +118,3 @@
         </table>
     </div>
 </div>
-{% endblock %}

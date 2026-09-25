@@ -249,12 +249,26 @@ class PostCreationAccessTests(TestCase):
         self.regular = User.objects.create_user(username='u', password='x')
         self.regular.groups.add(user_group)
 
-    def test_admin_can_open(self):
+    def test_old_url_opens_post_tab(self):
         self.client.login(username='a', password='x')
-        response = self.client.get(reverse('summaries:analytics_post_creation'))
+        response = self.client.get(reverse('summaries:analytics_post_creation'), {'days': '30'})
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response['Location'], reverse('summaries:analytics_parser_edits') + '?days=30&tab=post')
+
+    def test_admin_can_open_post_tab(self):
+        self.client.login(username='a', password='x')
+        response = self.client.get(reverse('summaries:analytics_parser_edits'), {'tab': 'post'})
         self.assertEqual(response.status_code, 200)
-        self.assertTemplateUsed(response, 'summaries/analytics_post_creation.html')
-        self.assertContains(response, 'Правки после создания')
+        self.assertTemplateUsed(response, 'summaries/_recognition_post.html')
+        self.assertTemplateNotUsed(response, 'summaries/_recognition_intake.html')
+        self.assertContains(response, 'Какие поля меняют после создания')
+
+    def test_default_tab_is_intake_without_removed_blocks(self):
+        self.client.login(username='a', password='x')
+        response = self.client.get(reverse('summaries:analytics_parser_edits'))
+        self.assertTemplateUsed(response, 'summaries/_recognition_intake.html')
+        for removed in ('Средняя уверенность', 'По филиалам', 'По операторам'):
+            self.assertNotContains(response, removed)
 
     def test_regular_user_forbidden(self):
         self.client.login(username='u', password='x')

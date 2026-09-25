@@ -2,6 +2,7 @@
 Представления для работы со сводами предложений
 """
 from django.shortcuts import render, redirect, get_object_or_404
+from django.urls import reverse
 from django.contrib import messages
 from django.http import FileResponse, Http404, JsonResponse, HttpResponse
 from django.conf import settings
@@ -2480,18 +2481,24 @@ def analytics_placeholder(request):
 
 @admin_required
 def analytics_parser_edits(request):
-    """Аналитика ручных правок оператора над распознаванием парсера V2."""
-    filters = analytics_parser_edits_service.parse_filters(request.GET)
-    payload = analytics_parser_edits_service.build_payload(filters)
+    """Служебное: качество распознавания — вкладки «При загрузке» и «После создания»."""
+    tab = 'post' if request.GET.get('tab') == 'post' else 'intake'
+    if tab == 'post':
+        filters = analytics_post_creation_service.parse_filters(request.GET)
+        payload = analytics_post_creation_service.build_payload(filters)
+    else:
+        filters = analytics_parser_edits_service.parse_filters(request.GET)
+        payload = analytics_parser_edits_service.build_payload(filters)
+    payload['tab'] = tab
     return render(request, 'summaries/analytics_parser_edits.html', payload)
 
 
 @admin_required
 def analytics_post_creation(request):
-    """Аналитика правок после создания заявки (контроль операторов/процесса)."""
-    filters = analytics_post_creation_service.parse_filters(request.GET)
-    payload = analytics_post_creation_service.build_payload(filters)
-    return render(request, 'summaries/analytics_post_creation.html', payload)
+    """Старый адрес «Правки после создания» — теперь вкладка страницы качества распознавания."""
+    params = request.GET.copy()
+    params['tab'] = 'post'
+    return redirect(f"{reverse('summaries:analytics_parser_edits')}?{params.urlencode()}")
 
 
 @admin_required

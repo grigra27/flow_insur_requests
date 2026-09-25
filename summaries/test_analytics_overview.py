@@ -103,7 +103,7 @@ class AnalyticsOverviewTests(TestCase):
         self.assertContains(response, reverse('summaries:analytics_insurance_companies'))
         self.assertContains(response, reverse('summaries:analytics_managers'))
         self.assertContains(response, reverse('summaries:analytics_parser_edits'))
-        self.assertContains(response, reverse('summaries:analytics_post_creation'))
+        self.assertContains(response, reverse('summaries:analytics_parser_edits') + '?tab=post')
 
     def test_empty_period_renders(self):
         response = self.client.get(reverse('summaries:analytics'), {'start_date': '2001-01-01', 'end_date': '2001-01-31'})

@@ -11,7 +11,7 @@ parser_confidence (его выставляет только новый загр�
 """
 from datetime import timedelta
 
-from django.db.models import Avg, Count
+from django.db.models import Count
 from django.db.models.functions import TruncMonth
 from django.utils import timezone
 
@@ -210,18 +210,6 @@ def _plausibility_hits(v2_requests):
     }
 
 
-def _operator_label(row):
-    last_name = (row.get('request__created_by__last_name') or '').strip()
-    first_name = (row.get('request__created_by__first_name') or '').strip()
-    username = row.get('request__created_by__username')
-    full = f"{last_name} {first_name}".strip()
-    return full or username or 'Не указан'
-
-
-def _percent(value):
-    return round(value * 100, 1) if value is not None else None
-
-
 def build_payload(filters):
     """Собрать полный payload дашборда правок за выбранный период."""
     since = filters['since']
@@ -264,50 +252,29 @@ def build_payload(filters):
         for row in edits.values('scope').annotate(count=Count('id')).order_by('-count')
     ]
 
-    # По филиалам.
-    by_branch = [
-        {
-            'branch': row['request__branch'] or 'Не указан',
-            'count': row['count'],
-            'requests': row['requests'],
-        }
-        for row in edits.values('request__branch')
-        .annotate(count=Count('id'), requests=Count('request', distinct=True))
-        .order_by('-count')[:TOP_LIMIT]
-    ]
-
-    # По операторам (кто создавал заявку из превью).
-    by_operator = [
-        {'operator': _operator_label(row), 'count': row['count']}
-        for row in edits.values(
-            'request__created_by__username',
-            'request__created_by__last_name',
-            'request__created_by__first_name',
-        ).annotate(count=Count('id')).order_by('-count')[:TOP_LIMIT]
-    ]
-
-    # Помесячная динамика: число правок + средняя уверенность парсера.
+    # Помесячная динамика: число правок и V2-заявок.
+    # «Уверенность парсера» не показываем: у 107 из 120 заявок она 1,0, в т. ч. у половины
+    # заявок с правками — как сигнал ошибок бесполезна (analytics_redesign_2026_09, 5.6).
     monthly_edits = {
         row['month']: row['count']
         for row in edits.annotate(month=TruncMonth('created_at'))
         .values('month').annotate(count=Count('id'))
     }
-    monthly_conf = {
-        row['month']: row
+    monthly_requests = {
+        row['month']: row['requests']
         for row in v2_requests.annotate(month=TruncMonth('created_at'))
-        .values('month').annotate(avg=Avg('parser_confidence'), requests=Count('id'))
+        .values('month').annotate(requests=Count('id'))
     }
-    months = sorted(set(monthly_edits) | set(monthly_conf))
-    timeline = []
-    for month in months:
-        conf = monthly_conf.get(month, {})
-        timeline.append({
+    months = sorted(set(monthly_edits) | set(monthly_requests))
+    timeline = [
+        {
             'month': month,
             'label': month.strftime('%m.%Y') if month else '—',
             'edits': monthly_edits.get(month, 0),
-            'requests': conf.get('requests', 0),
-            'avg_confidence_percent': _percent(conf.get('avg')),
-        })
+            'requests': monthly_requests.get(month, 0),
+        }
+        for month in months
+    ]
 
     # Сегментация по шаблону заявки: на каком формате/типе парсер слабее.
     request_values = list(v2_requests.values('pk', 'additional_data', 'manual_edits_count', 'created_at'))
@@ -336,12 +303,6 @@ def build_payload(filters):
                 'created_at': edit.created_at,
             })
 
-    avg_conf = v2_requests.aggregate(avg=Avg('parser_confidence'))['avg']
-    avg_conf_with = v2_requests.filter(manual_edits_count__gt=0).aggregate(
-        avg=Avg('parser_confidence'))['avg']
-    avg_conf_without = v2_requests.filter(manual_edits_count=0).aggregate(
-        avg=Avg('parser_confidence'))['avg']
-
     return {
         'filters': filters,
         'totals': {
@@ -351,15 +312,10 @@ def build_payload(filters):
             'edited_share_percent': round(requests_with_edits / total_v2 * 100, 1) if total_v2 else 0.0,
             'total_edits': total_edits,
             'avg_edits_per_request': round(total_edits / total_v2, 2) if total_v2 else 0.0,
-            'avg_confidence_percent': _percent(avg_conf),
-            'avg_confidence_with_edits_percent': _percent(avg_conf_with),
-            'avg_confidence_without_edits_percent': _percent(avg_conf_without),
         },
         'top_fields': top_fields,
         'by_type': by_type,
         'by_scope': by_scope,
-        'by_branch': by_branch,
-        'by_operator': by_operator,
         'by_format': by_format,
         'by_app_type': by_app_type,
         'by_version': _by_version(request_values),

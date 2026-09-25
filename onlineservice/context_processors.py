@@ -67,8 +67,7 @@ MAIN_NAV_ITEMS = [
             ('Обзор аналитики', 'summaries:analytics'),
             ('Страховые компании', 'summaries:analytics_insurance_companies'),
             ('Сотрудники', 'summaries:analytics_managers'),
-            ('Служебное: правки распознавания', 'summaries:analytics_parser_edits'),
-            ('Служебное: правки после создания', 'summaries:analytics_post_creation'),
+            ('Служебное: качество распознавания', 'summaries:analytics_parser_edits'),
         ],
         'requires_admin': True,
     },
@@ -111,7 +110,6 @@ SECTION_CONFIG = {
             ('Страховые компании', 'summaries:analytics_insurance_companies'),
             ('Сотрудники', 'summaries:analytics_managers'),
             ('Служебное: распознавание', 'summaries:analytics_parser_edits'),
-            ('Служебное: после создания', 'summaries:analytics_post_creation'),
         ],
     },
 }
@@ -164,8 +162,8 @@ PAGE_LABELS = {
     ('summaries', 'analytics_insurance_companies'): 'Аналитика страховых компаний',
     ('summaries', 'analytics_managers'): 'Аналитика по сотрудникам',
     ('summaries', 'analytics_manager_detail'): 'Досье сотрудника',
-    ('summaries', 'analytics_parser_edits'): 'Служебное: правки распознавания',
-    ('summaries', 'analytics_post_creation'): 'Служебное: правки после создания',
+    ('summaries', 'analytics_parser_edits'): 'Служебное: качество распознавания',
+    ('summaries', 'analytics_post_creation'): 'Служебное: качество распознавания',
     ('summaries', 'help'): 'Справка',
     ('summaries', 'offer_search'): 'Поиск предложений',
 }
@@ -245,7 +243,7 @@ BREADCRUMB_TEMPLATES = {
     ('summaries', 'analytics_parser_edits'): [
         ('Аналитика', 'summaries:analytics'),
         ('Служебное', None),
-        ('Правки распознавания', None),
+        ('Качество распознавания', None),
     ],
     ('summaries', 'analytics_post_creation'): [
         ('Аналитика', 'summaries:analytics'),

@@ -1,17 +1,18 @@
 {% extends 'base.html' %}
 
-{% block title %}Ручные правки распознавания - {{ block.super }}{% endblock %}
+{% block title %}Качество распознавания - {{ block.super }}{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
     <div>
-        <h1 class="h3 mb-1"><i class="bi bi-pencil-square"></i> Ручные правки распознавания</h1>
+        <h1 class="h3 mb-1"><i class="bi bi-tools"></i> Служебное: качество распознавания</h1>
         <p class="text-muted mb-0">
-            Где операторы поправляют парсер V2 за последние {{ filters.days }} дн.
+            Насколько точно парсер V2 распознаёт Excel-заявки — за последние {{ filters.days }} дн.
         </p>
     </div>
     <div class="d-flex align-items-center gap-2">
         <form method="get" class="d-flex align-items-center gap-2">
+            <input type="hidden" name="tab" value="{{ tab }}">
             <label for="days" class="form-label mb-0 small text-muted">Период, дней:</label>
             <input type="number" min="1" max="3650" name="days" id="days"
                    value="{{ filters.days }}" class="form-control form-control-sm" style="width: 100px;">
@@ -21,341 +22,22 @@
     </div>
 </div>
 
-{# Главный показатель: доля заявок без правок и прогноз после исправлений этапа 6 #}
-{% if forecast.total %}
-<div class="card mb-4 border-success">
-    <div class="card-body">
-        <div class="row g-3 align-items-center">
-            <div class="col-md-3 col-6">
-                <div class="text-muted small">Заявок без правок сейчас</div>
-                <div class="display-6 fw-bold">{{ forecast.clean_now_percent }}%</div>
-                <div class="small text-muted">{{ forecast.clean_now }} из {{ forecast.total }} V2-заявок</div>
-            </div>
-            <div class="col-md-3 col-6">
-                <div class="text-muted small">После исправления известных ошибок парсера</div>
-                <div class="h3 mb-0 text-success">{{ forecast.clean_after_parser_percent }}%</div>
-                <div class="small text-muted">задачи 6.1–6.7</div>
-            </div>
-            <div class="col-md-3 col-6">
-                <div class="text-muted small">…и режима «Изъятое»</div>
-                <div class="h3 mb-0 text-success">{{ forecast.clean_after_all_percent }}%</div>
-                <div class="small text-muted">задача 6.8 · заявок «Изъятое»: {{ forecast.seized_requests }}</div>
-            </div>
-            <div class="col-md-3 col-6 small text-muted">
-                Прогноз: заявка станет «без правок», если все её правки — из известных причин.
-                Остаются правки «Прочее» (уточнения сотрудников и ещё не разобранные ошибки).
-            </div>
-        </div>
-    </div>
-</div>
+<ul class="nav nav-tabs mb-4">
+    <li class="nav-item">
+        <a class="nav-link {% if tab == 'intake' %}active{% endif %}" href="?tab=intake&days={{ filters.days }}">
+            При загрузке <span class="small text-muted">— что правят на превью</span>
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if tab == 'post' %}active{% endif %}" href="?tab=post&days={{ filters.days }}">
+            После создания <span class="small text-muted">— что меняют в сохранённой заявке</span>
+        </a>
+    </li>
+</ul>
 
-<div class="card mb-4">
-    <div class="card-header">
-        <h6 class="mb-0">Правки по причинам</h6>
-        <small class="text-muted">Причина — по полю и имени исходного файла; каждая известная ошибка связана с задачей этапа 6 плана.</small>
-    </div>
-    <div class="card-body p-0">
-        <table class="table table-sm mb-0">
-            <thead class="table-light"><tr><th>Причина</th><th>Вид</th><th>Задача</th><th class="text-end">Заявок</th><th class="text-end">Правок</th><th>Поля</th></tr></thead>
-            <tbody>
-                {% for row in by_reason %}
-                <tr>
-                    <td><strong>{{ row.label }}</strong></td>
-                    <td><span class="badge {% if row.kind == 'parser' %}bg-danger-subtle text-danger-emphasis{% elif row.kind == 'scenario' %}bg-warning-subtle text-warning-emphasis{% else %}bg-secondary-subtle text-secondary-emphasis{% endif %}">{{ row.kind_label }}</span></td>
-                    <td>{{ row.task|default:'—' }}</td>
-                    <td class="text-end">{{ row.requests }}</td>
-                    <td class="text-end">{{ row.edits }}</td>
-                    <td class="small text-muted">{{ row.fields }}</td>
-                </tr>
-                {% empty %}
-                <tr><td colspan="6" class="text-muted">Правок за период нет.</td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</div>
+{% if tab == 'post' %}
+    {% include 'summaries/_recognition_post.html' %}
+{% else %}
+    {% include 'summaries/_recognition_intake.html' %}
 {% endif %}
-
-<div class="card mb-4 {% if plausibility.total %}border-danger{% endif %}">
-    <div class="card-header">
-        <h6 class="mb-0">Проверки правдоподобия: подозрительные значения в сохранённых заявках ({{ plausibility.total }})</h6>
-        <small class="text-muted">
-            Ошибки, которые сотрудник мог не заметить: дата рождения в будущем или возраст вне 18–100 лет, год выпуска,
-            стоимость меньше 100 тыс. ₽, мощность от 1 млн (похожа на деньги), номер ДФА из одного года, контрольная сумма ИНН.
-            Те же проверки показываются на превью при загрузке.
-        </small>
-    </div>
-    <div class="card-body p-0">
-        {% if plausibility.rows %}
-        <table class="table table-sm mb-0">
-            <thead class="table-light"><tr><th>Заявка</th><th>Поле</th><th>Что не так</th></tr></thead>
-            <tbody>
-                {% for hit in plausibility.rows %}
-                <tr>
-                    <td><a href="{% url 'insurance_requests:request_detail' hit.request_id %}">{{ hit.dfa_number|default:hit.request_id }}</a> <span class="small text-muted">{{ hit.client_name|truncatechars:30 }}</span></td>
-                    <td>{{ hit.label }}</td>
-                    <td class="small">{{ hit.message }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        {% else %}
-        <p class="text-muted text-center py-3 mb-0">Подозрительных значений нет.</p>
-        {% endif %}
-    </div>
-</div>
-
-{# KPI #}
-<div class="row g-3 mb-4">
-    <div class="col-md-3 col-6">
-        <div class="card h-100"><div class="card-body">
-            <div class="text-muted small">V2-заявок за период</div>
-            <div class="h4 mb-0">{{ totals.total_v2 }}</div>
-        </div></div>
-    </div>
-    <div class="col-md-3 col-6">
-        <div class="card h-100"><div class="card-body">
-            <div class="text-muted small">С ручными правками</div>
-            <div class="h4 mb-0">{{ totals.requests_with_edits }} <small class="text-muted">({{ totals.edited_share_percent }}%)</small></div>
-        </div></div>
-    </div>
-    <div class="col-md-3 col-6">
-        <div class="card h-100"><div class="card-body">
-            <div class="text-muted small">Всего правок полей</div>
-            <div class="h4 mb-0">{{ totals.total_edits }} <small class="text-muted">~{{ totals.avg_edits_per_request }}/заявку</small></div>
-        </div></div>
-    </div>
-    <div class="col-md-3 col-6">
-        <div class="card h-100"><div class="card-body">
-            <div class="text-muted small">Средняя уверенность парсера</div>
-            <div class="h4 mb-0">{% if totals.avg_confidence_percent != None %}{{ totals.avg_confidence_percent }}%{% else %}—{% endif %}</div>
-            <div class="small text-muted">
-                с правками: {% if totals.avg_confidence_with_edits_percent != None %}{{ totals.avg_confidence_with_edits_percent }}%{% else %}—{% endif %} ·
-                без: {% if totals.avg_confidence_without_edits_percent != None %}{{ totals.avg_confidence_without_edits_percent }}%{% else %}—{% endif %}
-            </div>
-        </div></div>
-    </div>
-</div>
-
-{% if totals.total_edits == 0 %}
-<div class="alert alert-info">
-    За выбранный период правок не зафиксировано. Они начинают копиться с момента
-    внедрения трекинга — увеличьте период или подождите новых загрузок.
-</div>
-{% endif %}
-
-{% if selected_field %}
-<div class="card mb-4 border-primary">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <h6 class="mb-0">Примеры правок поля «{{ selected_field_label|default:selected_field }}»</h6>
-        <a href="?days={{ filters.days }}" class="btn btn-sm btn-outline-secondary">Сбросить</a>
-    </div>
-    <div class="card-body p-0">
-        <table class="table table-sm mb-0">
-            <thead class="table-light">
-                <tr><th>Заявка</th><th>Распознано парсером</th><th>Исправил оператор</th><th>Тип</th><th class="text-end">Когда</th></tr>
-            </thead>
-            <tbody>
-                {% for ex in field_examples %}
-                <tr>
-                    <td><a href="{% url 'insurance_requests:request_comparison' ex.request_id %}">#{{ ex.request_id }}</a></td>
-                    <td class="text-muted">{% if ex.original_value %}<del>{{ ex.original_value }}</del>{% else %}—{% endif %}</td>
-                    <td><strong>{% if ex.modified_value %}{{ ex.modified_value }}{% else %}—{% endif %}</strong></td>
-                    <td><span class="small text-muted">{{ ex.edit_type_label }}</span></td>
-                    <td class="text-end small text-muted">{{ ex.created_at|date:"d.m.Y H:i" }}</td>
-                </tr>
-                {% empty %}
-                <tr><td colspan="5" class="text-muted">За период правок этого поля нет.</td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</div>
-{% endif %}
-
-{# Качество парсера по шаблону заявки #}
-<div class="card mb-4">
-    <div class="card-header">
-        <h6 class="mb-0">По версиям парсера</h6>
-        <small class="text-muted">Версию поднимают при каждом изменении логики разбора — так видно, стало ли меньше ручных правок.</small>
-    </div>
-    <div class="card-body p-0">
-        <table class="table table-sm mb-0">
-            <thead class="table-light"><tr><th>Версия</th><th>Работала</th><th class="text-end">Заявок</th><th class="text-end">Без правок</th><th class="text-end">~правок/заявку</th><th class="text-end">Сборок</th></tr></thead>
-            <tbody>
-                {% for row in by_version %}
-                <tr>
-                    <td><strong>{{ row.version }}</strong></td>
-                    <td>{{ row.first|date:"d.m.Y" }} — {{ row.last|date:"d.m.Y" }}</td>
-                    <td class="text-end">{{ row.requests }}</td>
-                    <td class="text-end">{{ row.clean_percent }}%</td>
-                    <td class="text-end">{{ row.avg_edits }}</td>
-                    <td class="text-end">{% if row.builds %}{{ row.builds }}{% else %}—{% endif %}</td>
-                </tr>
-                {% empty %}
-                <tr><td colspan="6" class="text-muted">Нет данных</td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</div>
-
-<div class="row g-4 mb-4">
-    <div class="col-lg-6">
-        <div class="card h-100">
-            <div class="card-header"><h6 class="mb-0">По формату заявки</h6></div>
-            <div class="card-body p-0">
-                <table class="table table-sm mb-0">
-                    <thead class="table-light"><tr><th>Формат</th><th class="text-end">Заявок</th><th class="text-end">С правками</th><th class="text-end">~правок/заявку</th></tr></thead>
-                    <tbody>
-                        {% for row in by_format %}
-                        <tr><td>{{ row.label }}</td><td class="text-end">{{ row.requests }}</td><td class="text-end">{{ row.error_rate_percent }}%</td><td class="text-end">{{ row.avg_edits }}</td></tr>
-                        {% empty %}
-                        <tr><td colspan="4" class="text-muted">Нет данных</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-    <div class="col-lg-6">
-        <div class="card h-100">
-            <div class="card-header"><h6 class="mb-0">По типу страхователя</h6></div>
-            <div class="card-body p-0">
-                <table class="table table-sm mb-0">
-                    <thead class="table-light"><tr><th>Тип</th><th class="text-end">Заявок</th><th class="text-end">С правками</th><th class="text-end">~правок/заявку</th></tr></thead>
-                    <tbody>
-                        {% for row in by_app_type %}
-                        <tr><td>{{ row.label }}</td><td class="text-end">{{ row.requests }}</td><td class="text-end">{{ row.error_rate_percent }}%</td><td class="text-end">{{ row.avg_edits }}</td></tr>
-                        {% empty %}
-                        <tr><td colspan="4" class="text-muted">Нет данных</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="row g-4">
-    {# Top fields — точность парсера по полям #}
-    <div class="col-lg-6">
-        <div class="card h-100">
-            <div class="card-header">
-                <h6 class="mb-0">Где парсер чаще ошибается</h6>
-                <small class="text-muted">Доля V2-заявок, где поле поправили на входе. Клик — примеры правок.</small>
-            </div>
-            <div class="card-body p-0">
-                <table class="table table-sm mb-0">
-                    <thead class="table-light"><tr><th>Поле</th><th class="text-end">Заявок</th><th class="text-end">Доля</th><th class="text-end">Правок</th></tr></thead>
-                    <tbody>
-                        {% for row in top_fields %}
-                        <tr{% if row.field_name == selected_field %} class="table-active"{% endif %}>
-                            <td><a href="?days={{ filters.days }}&field={{ row.field_name }}">{{ row.field_label }}</a></td>
-                            <td class="text-end">{{ row.requests }}</td>
-                            <td class="text-end">{{ row.error_rate_percent }}%</td>
-                            <td class="text-end">{{ row.count }}</td>
-                        </tr>
-                        {% empty %}
-                        <tr><td colspan="4" class="text-muted">Нет данных</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
-    {# By type + scope #}
-    <div class="col-lg-6">
-        <div class="card h-100">
-            <div class="card-header"><h6 class="mb-0">По типу и области правки</h6></div>
-            <div class="card-body">
-                <div class="small text-muted mb-1">Тип правки</div>
-                <table class="table table-sm mb-3">
-                    <tbody>
-                        {% for row in by_type %}
-                        <tr><td>{{ row.label }}</td><td class="text-end">{{ row.count }}</td></tr>
-                        {% empty %}
-                        <tr><td colspan="2" class="text-muted">Нет данных</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-                <div class="small text-muted mb-1">Область поля</div>
-                <table class="table table-sm mb-0">
-                    <tbody>
-                        {% for row in by_scope %}
-                        <tr><td>{{ row.label }}</td><td class="text-end">{{ row.count }}</td></tr>
-                        {% empty %}
-                        <tr><td colspan="2" class="text-muted">Нет данных</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
-    {# By branch #}
-    <div class="col-lg-6">
-        <div class="card h-100">
-            <div class="card-header"><h6 class="mb-0">По филиалам</h6></div>
-            <div class="card-body p-0">
-                <table class="table table-sm mb-0">
-                    <thead class="table-light"><tr><th>Филиал</th><th class="text-end">Правок</th><th class="text-end">Заявок</th></tr></thead>
-                    <tbody>
-                        {% for row in by_branch %}
-                        <tr><td>{{ row.branch }}</td><td class="text-end">{{ row.count }}</td><td class="text-end">{{ row.requests }}</td></tr>
-                        {% empty %}
-                        <tr><td colspan="3" class="text-muted">Нет данных</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
-    {# By operator #}
-    <div class="col-lg-6">
-        <div class="card h-100">
-            <div class="card-header"><h6 class="mb-0">По операторам</h6></div>
-            <div class="card-body p-0">
-                <table class="table table-sm mb-0">
-                    <thead class="table-light"><tr><th>Оператор</th><th class="text-end">Правок</th></tr></thead>
-                    <tbody>
-                        {% for row in by_operator %}
-                        <tr><td>{{ row.operator }}</td><td class="text-end">{{ row.count }}</td></tr>
-                        {% empty %}
-                        <tr><td colspan="2" class="text-muted">Нет данных</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
-    {# Timeline #}
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header"><h6 class="mb-0">Помесячная динамика</h6></div>
-            <div class="card-body p-0">
-                <table class="table table-sm mb-0">
-                    <thead class="table-light">
-                        <tr><th>Месяц</th><th class="text-end">Правок</th><th class="text-end">V2-заявок</th><th class="text-end">Средняя уверенность</th></tr>
-                    </thead>
-                    <tbody>
-                        {% for row in timeline %}
-                        <tr>
-                            <td>{{ row.label }}</td>
-                            <td class="text-end">{{ row.edits }}</td>
-                            <td class="text-end">{{ row.requests }}</td>
-                            <td class="text-end">{% if row.avg_confidence_percent != None %}{{ row.avg_confidence_percent }}%{% else %}—{% endif %}</td>
-                        </tr>
-                        {% empty %}
-                        <tr><td colspan="4" class="text-muted">Нет данных</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-</div>
 {% endblock %}

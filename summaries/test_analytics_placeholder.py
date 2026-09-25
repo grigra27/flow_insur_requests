@@ -139,9 +139,9 @@ class AnalyticsPlaceholderAccessTests(TestCase):
         # Задача 1.5: правки парсера — подраздел «Служебное» в меню «Аналитика».
         self.client.login(username='analytics_admin', password='testpass123')
 
-        for route in ('summaries:analytics_parser_edits', 'summaries:analytics_post_creation'):
-            with self.subTest(route=route):
-                response = self.client.get(reverse(route))
+        for query in ('', '?tab=post'):
+            with self.subTest(query=query):
+                response = self.client.get(reverse('summaries:analytics_parser_edits') + query)
 
                 self.assertEqual(response.status_code, 200)
                 navigation = response.context['app_navigation']
@@ -151,7 +151,7 @@ class AnalyticsPlaceholderAccessTests(TestCase):
                 self.assertEqual(navigation['current_section']['label'], 'Аналитика')
                 section_labels = [item['label'] for item in navigation['section_items']]
                 self.assertIn('Служебное: распознавание', section_labels)
-                self.assertIn('Служебное: после создания', section_labels)
+                self.assertNotIn('Служебное: после создания', section_labels)  # теперь вкладка (5.6)
 
     def test_recognition_quality_links_hidden_from_regular_users(self):
         self.client.login(username='analytics_user', password='testpass123')
