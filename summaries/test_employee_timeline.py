@@ -1,4 +1,4 @@
-"""Phase 5a — слияние easyaudit CRUDEvent и StatusEvent в timeline."""
+"""Лента действий сотрудника: слияние easy-audit CRUDEvent и StatusEvent."""
 from __future__ import annotations
 
 import json
@@ -16,38 +16,38 @@ from easyaudit.models import CRUDEvent
 from insurance_requests.models import InsuranceRequest
 
 from .models import InsuranceCompany, InsuranceOffer, InsuranceSummary
-from .services import analytics_managers
+from .services import employee_timeline
 
 
 class FieldFormattingTests(TestCase):
     def test_field_label_uses_verbose_name(self):
-        label = analytics_managers._field_label(InsuranceRequest, 'dfa_number')
+        label = employee_timeline._field_label(InsuranceRequest, 'dfa_number')
         self.assertEqual(label, 'Номер ДФА')
 
     def test_field_label_falls_back_to_raw(self):
-        label = analytics_managers._field_label(InsuranceRequest, 'no_such_field')
+        label = employee_timeline._field_label(InsuranceRequest, 'no_such_field')
         self.assertEqual(label, 'no_such_field')
 
     def test_truncate_long_value(self):
-        out = analytics_managers._truncate_value('x' * 100)
+        out = employee_timeline._truncate_value('x' * 100)
         self.assertTrue(out.endswith('…'))
-        self.assertEqual(len(out), analytics_managers.TIMELINE_VALUE_TRUNCATE + 1)
+        self.assertEqual(len(out), employee_timeline.TIMELINE_VALUE_TRUNCATE + 1)
 
     def test_normalize_changed_fields_drops_status(self):
         raw = json.dumps({'status': ['uploaded', 'email_generated'], 'notes': ['', 'тест']})
-        out = analytics_managers._normalize_changed_fields(InsuranceRequest, raw, drop_status=True)
+        out = employee_timeline._normalize_changed_fields(InsuranceRequest, raw, drop_status=True)
         self.assertEqual(len(out), 1)
         self.assertEqual(out[0]['field'], 'notes')
         self.assertEqual(out[0]['new'], 'тест')
 
     def test_normalize_changed_fields_drops_noisy(self):
         raw = json.dumps({'updated_at': ['t1', 't2'], 'created_at': ['t1', 't2']})
-        out = analytics_managers._normalize_changed_fields(InsuranceRequest, raw)
+        out = employee_timeline._normalize_changed_fields(InsuranceRequest, raw)
         self.assertEqual(out, [])
 
     def test_normalize_handles_invalid_json(self):
         self.assertEqual(
-            analytics_managers._normalize_changed_fields(InsuranceRequest, 'not json'),
+            employee_timeline._normalize_changed_fields(InsuranceRequest, 'not json'),
             [],
         )
 
@@ -65,7 +65,7 @@ class TimelineMergerTests(TestCase):
             client_name='Test', inn='1234567890',
             insurance_type='КАСКО', created_by=self.user,
         )
-        timeline = analytics_managers._personal_timeline(self.user.pk)
+        timeline = employee_timeline._personal_timeline(self.user.pk)
         kinds = {e['kind'] for e in timeline}
         self.assertIn('status', kinds)
 
@@ -78,7 +78,7 @@ class TimelineMergerTests(TestCase):
         req.notes = 'добавил приоритет'
         req.save()
 
-        timeline = analytics_managers._personal_timeline(self.user.pk)
+        timeline = employee_timeline._personal_timeline(self.user.pk)
         edit_events = [e for e in timeline if e['kind'] == 'edit']
         self.assertTrue(edit_events, msg='Ожидался edit-event при правке notes')
         # Проверим, что в changes есть поле notes
@@ -96,7 +96,7 @@ class TimelineMergerTests(TestCase):
         req.status = 'email_generated'
         req.save()
 
-        timeline = analytics_managers._personal_timeline(self.user.pk)
+        timeline = employee_timeline._personal_timeline(self.user.pk)
         # В timeline должны быть status-события, но НЕ должен появиться edit-событие
         # с пустыми changes (после dropping status), т.к. мы такие отбрасываем.
         for e in timeline:
@@ -115,7 +115,7 @@ class TimelineMergerTests(TestCase):
             franchise_1=Decimal('0'),
             premium_with_franchise_1=Decimal('25000'),
         )
-        timeline = analytics_managers._personal_timeline(self.user.pk)
+        timeline = employee_timeline._personal_timeline(self.user.pk)
         create_kinds = [e for e in timeline if e['kind'] == 'create' and e['target_kind'] == 'offer']
         self.assertTrue(create_kinds, msg='Ожидался create-event для offer')
 
@@ -132,7 +132,7 @@ class TimelineMergerTests(TestCase):
         r2.notes = 'edit'
         r2.save()
 
-        timeline = analytics_managers._personal_timeline(self.user.pk)
+        timeline = employee_timeline._personal_timeline(self.user.pk)
         for i in range(len(timeline) - 1):
             self.assertGreaterEqual(timeline[i]['changed_at'], timeline[i + 1]['changed_at'])
 

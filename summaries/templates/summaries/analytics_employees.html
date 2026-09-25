@@ -107,7 +107,10 @@
         <h1 class="h3 mb-1"><i class="bi bi-people"></i> Сотрудники</h1>
         <p class="text-muted mb-0">Нагрузка, присутствие и скорость на своих этапах за период.</p>
     </div>
-    <a href="{% url 'summaries:analytics' %}" class="btn btn-outline-primary"><i class="bi bi-arrow-left"></i> К аналитике</a>
+    <div class="d-flex gap-2">
+        <a href="{% url 'summaries:export_analytics_managers_widget' %}{% qs_replace %}" class="btn btn-outline-success"><i class="bi bi-file-earmark-spreadsheet"></i> XLSX</a>
+        <a href="{% url 'summaries:analytics' %}" class="btn btn-outline-primary"><i class="bi bi-arrow-left"></i> К аналитике</a>
+    </div>
 </div>
 
 <div class="card emp-card emp-filter-card mb-4">

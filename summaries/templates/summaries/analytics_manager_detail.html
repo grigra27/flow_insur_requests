@@ -1,13 +1,104 @@
 {% extends 'base.html' %}
 {% load summary_extras %}
 
-{% block title %}Досье — {{ row.display|default:user.username }} - {{ block.super }}{% endblock %}
+{% block title %}{% if name %}{{ name }} — {% endif %}Сотрудники - {{ block.super }}{% endblock %}
 
 {% block extra_css %}
 <style>
-    .det-card { border: 0; box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08); }
-    .det-kpi-card { border: 0; box-shadow: 0 8px 16px rgba(15, 23, 42, 0.05); height: 100%; }
-    .det-kpi-value { font-size: 1.5rem; font-weight: 700; line-height: 1.1; }
+    .emp-card {
+        border: 0;
+        box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+    }
+
+    .emp-filter-card {
+        background: linear-gradient(135deg, #f8fafc 0%, #e8f6f2 100%);
+    }
+
+    .emp-kpi-label {
+        font-size: 0.78rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: #64748b;
+    }
+
+    .emp-kpi-value {
+        font-size: 1.6rem;
+        line-height: 1.15;
+        font-weight: 700;
+        color: #0f172a;
+    }
+
+    .emp-table th,
+    .emp-table td {
+        white-space: nowrap;
+        vertical-align: middle;
+    }
+
+    .emp-table .num {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .emp-table .muted {
+        color: #64748b;
+        font-size: 0.82rem;
+        margin-left: 0.3rem;
+    }
+
+    .emp-table tr.emp-reader td {
+        color: #94a3b8;
+    }
+
+    .emp-swatch {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-radius: 2px;
+        margin-right: 0.45rem;
+        vertical-align: baseline;
+    }
+
+    .emp-delta-up { color: #15803d; }
+    .emp-delta-down { color: #b91c1c; }
+
+    .emp-chart-wrap {
+        position: relative;
+        height: 300px;
+    }
+
+    .emp-hint {
+        font-size: 0.82rem;
+        color: #64748b;
+    }
+
+    .emp-block-title {
+        margin: 2rem 0 1rem;
+    }
+
+    .emp-heatmap {
+        border-collapse: separate;
+        border-spacing: 2px;
+        font-size: 0.72rem;
+    }
+
+    .emp-heatmap th {
+        font-weight: 600;
+        color: #64748b;
+        text-align: center;
+        padding: 0 2px;
+    }
+
+    .emp-heatmap td {
+        width: 28px;
+        height: 24px;
+        text-align: center;
+        border-radius: 3px;
+        background: #f1f5f9;
+        color: #0f172a;
+        font-variant-numeric: tabular-nums;
+    }
+    .emp-days { max-height: 420px; overflow-y: auto; }
     .det-list { max-height: 360px; overflow-y: auto; }
     .det-timeline-item {
         padding: 0.5rem 0.75rem;
@@ -35,252 +126,235 @@
     }
     .det-timeline-toggle:hover { text-decoration: underline; }
     .det-timeline-filters .form-check-inline { margin-right: 1rem; }
-    .det-status-pill {
-        display: inline-block;
-        background: #eef2ff; color: #4338ca;
-        padding: 0.05rem 0.5rem;
-        border-radius: 0.4rem;
-        font-size: 0.78rem;
-    }
-    .det-bench {
-        font-size: 0.92rem;
-        background: #eef2ff;
-        padding: 0.6rem 0.8rem;
-        border-radius: 0.4rem;
-    }
-    .det-bench .delta-up { color: #16a34a; }
-    .det-bench .delta-down { color: #dc2626; }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
+{% if not_found %}
+<div class="alert alert-warning">Сотрудник не найден. <a href="{% url 'summaries:analytics_managers' %}">К списку сотрудников</a></div>
+{% else %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
     <div>
-        <h1 class="h3 mb-1">
-            <i class="bi bi-person-badge"></i>
-            {% if user %}{{ row.display|default:user.username }}{% else %}Сотрудник #{{ user_id }}{% endif %}
-        </h1>
-        <p class="text-muted mb-0">
-            {% if user %}@{{ user.username }} · {{ user.email|default:'—' }}{% endif %}
-        </p>
+        <h1 class="h3 mb-1"><span class="emp-swatch" style="background: {{ load_row.color }}"></span>{{ name }}</h1>
+        <p class="text-muted mb-0">@{{ employee.username }}{% if load_row.is_reader %} · только просмотр за период{% endif %}</p>
     </div>
     <div class="d-flex gap-2">
-        <a href="{% url 'summaries:export_analytics_manager_detail' user_id %}{% if filters.start_date_str %}?start_date={{ filters.start_date_str }}&end_date={{ filters.end_date_str }}{% endif %}"
-           class="btn btn-outline-success">
-            <i class="bi bi-file-earmark-spreadsheet"></i> XLSX досье
-        </a>
-        <a href="{% url 'summaries:analytics_managers' %}" class="btn btn-outline-secondary">
-            <i class="bi bi-arrow-left"></i> К обзору
-        </a>
+        <a href="{% url 'summaries:export_analytics_manager_detail' user_id %}{% qs_replace %}" class="btn btn-outline-success"><i class="bi bi-file-earmark-spreadsheet"></i> XLSX</a>
+        <a href="{% url 'summaries:analytics_managers' %}{% qs_replace %}" class="btn btn-outline-primary"><i class="bi bi-arrow-left"></i> Все сотрудники</a>
     </div>
 </div>
 
-{% if not_found %}
-<div class="alert alert-warning">
-    Сотрудник не найден или нет данных за выбранный период.
-</div>
-{% else %}
-
-<!-- KPI cards -->
-<div class="row g-3 mb-4">
-    <div class="col-12 col-md-6 col-xl-3">
-        <div class="card det-kpi-card">
-            <div class="card-body">
-                <div class="text-muted mb-1">Загружено заявок</div>
-                <div class="det-kpi-value text-primary">{{ row.requests_total }}</div>
-                <small class="text-muted">Сводов: {{ row.summaries_total }}</small>
-            </div>
-        </div>
-    </div>
-    <div class="col-12 col-md-6 col-xl-3">
-        <div class="card det-kpi-card">
-            <div class="card-body">
-                <div class="text-muted mb-1">Акцепт</div>
-                <div class="det-kpi-value text-success">{{ row.accepted }}</div>
-                <small class="text-muted">
-                    Win-rate: {% if row.win_rate is not None %}{{ row.win_rate|floatformat:1 }}%{% else %}—{% endif %}
-                </small>
-            </div>
-        </div>
-    </div>
-    <div class="col-12 col-md-6 col-xl-3">
-        <div class="card det-kpi-card">
-            <div class="card-body">
-                <div class="text-muted mb-1">Σ премии</div>
-                <div class="det-kpi-value text-warning">{{ row.premium_total|format_currency_with_spaces }}</div>
-                <small class="text-muted">Чек: {{ row.avg_ticket|format_currency_with_spaces }}</small>
-            </div>
-        </div>
-    </div>
-    <div class="col-12 col-md-6 col-xl-3">
-        <div class="card det-kpi-card">
-            <div class="card-body">
-                <div class="text-muted mb-1">Активно</div>
-                <div class="det-kpi-value text-info">{{ row.active_total }}</div>
-                <small class="text-muted">
-                    Просрочек:
-                    <span class="{% if row.overdue_count %}text-danger fw-semibold{% endif %}">{{ row.overdue_count }}</span>
-                </small>
-            </div>
-        </div>
-    </div>
-    <div class="col-12 col-md-6 col-xl-3">
-        <div class="card det-kpi-card">
-            <div class="card-body">
-                <div class="text-muted mb-1">Avg цикл, ч</div>
-                <div class="det-kpi-value">
-                    {% if row.time_to.avg_cycle_h %}{{ row.time_to.avg_cycle_h|floatformat:1 }}{% else %}—{% endif %}
+<div class="card emp-card emp-filter-card mb-4">
+    <div class="card-body">
+        <form method="get" class="d-flex flex-wrap align-items-end gap-2">
+            <div>
+                <label class="form-label mb-1 d-block">Период</label>
+                <div class="btn-group" role="group" aria-label="Быстрый период">
+                    {% for value, label in period_choices %}
+                    <a href="{% qs_replace period=value start_date='' end_date='' %}"
+                       class="btn btn-outline-secondary {% if filters.period == value %}active{% endif %}">{{ label }}</a>
+                    {% endfor %}
                 </div>
-                <small class="text-muted">P50: {% if row.time_to.p50_cycle_h %}{{ row.time_to.p50_cycle_h|floatformat:1 }}{% else %}—{% endif %} · P90: {% if row.time_to.p90_cycle_h %}{{ row.time_to.p90_cycle_h|floatformat:1 }}{% else %}—{% endif %}</small>
             </div>
-        </div>
-    </div>
-    <div class="col-12 col-md-6 col-xl-3">
-        <div class="card det-kpi-card">
-            <div class="card-body">
-                <div class="text-muted mb-1">Cadence</div>
-                <div class="det-kpi-value">
-                    {% if row.patterns.cadence_hours is not None %}{{ row.patterns.cadence_hours|floatformat:1 }} ч{% else %}—{% endif %}
-                </div>
-                <small class="text-muted">
-                    Поздние {{ row.patterns.late_pct|default:0|floatformat:0 }}% · Выходные {{ row.patterns.weekend_pct|default:0|floatformat:0 }}%
-                </small>
+            <div>
+                <label class="form-label mb-1" for="emp-start">С</label>
+                <input type="date" class="form-control" id="emp-start" name="start_date" value="{{ filters.start_date }}">
             </div>
-        </div>
-    </div>
-    <div class="col-12 col-md-6 col-xl-3">
-        <div class="card det-kpi-card">
-            <div class="card-body">
-                <div class="text-muted mb-1">Заполненность</div>
-                <div class="det-kpi-value">
-                    {% if row.completeness.overall_pct is not None %}{{ row.completeness.overall_pct|floatformat:1 }}%{% else %}—{% endif %}
-                </div>
-                <small class="text-muted">
-                    Битых ИНН: {{ row.completeness.inn_invalid_count }} · «другое»: {{ row.completeness.other_type_count }}
-                </small>
+            <div>
+                <label class="form-label mb-1" for="emp-end">По</label>
+                <input type="date" class="form-control" id="emp-end" name="end_date" value="{{ filters.end_date }}">
             </div>
-        </div>
+            <button type="submit" class="btn btn-primary">Показать</button>
+        </form>
     </div>
 </div>
 
-{% if self_benchmark %}
-<div class="det-bench mb-4">
-    <strong>Динамика к предыдущему окну
-        ({{ self_benchmark.previous_window.start|date:"d.m.Y" }} — {{ self_benchmark.previous_window.end|date:"d.m.Y" }}):</strong>
-    {{ self_benchmark.previous_count }} → {{ self_benchmark.current_count }}
-    {% if self_benchmark.change_pct is not None %}
-    <span class="{% if self_benchmark.change_pct > 0 %}delta-up{% elif self_benchmark.change_pct < 0 %}delta-down{% endif %}">
-        ({{ self_benchmark.change_pct }}%)
-    </span>
-    {% endif %}
+<h2 class="h4 emp-block-title"><i class="bi bi-briefcase"></i> Нагрузка за период</h2>
+<div class="row g-3 mb-3">
+    <div class="col-6 col-lg">
+        <div class="card emp-card h-100"><div class="card-body">
+            <div class="emp-kpi-label">Заявок загружено</div>
+            <div class="emp-kpi-value">{{ load_row.requests }}</div>
+            <small class="text-muted">файлов: {{ load_row.files }}{% if load_row.share_pct is not None and load_row.requests %} · {{ load_row.share_pct|floatformat:0 }}% команды{% endif %}</small>
+        </div></div>
+    </div>
+    <div class="col-6 col-lg">
+        <div class="card emp-card h-100"><div class="card-body">
+            <div class="emp-kpi-label">В неделю</div>
+            <div class="emp-kpi-value">{% if load_row.requests %}{{ load_row.per_week|floatformat:1 }}{% else %}—{% endif %}</div>
+            <small class="text-muted">к прошлому периоду:
+                {% if load_row.change_pct is not None %}<span class="{% if load_row.change_pct >= 0 %}emp-delta-up{% else %}emp-delta-down{% endif %}">{% if load_row.change_pct > 0 %}+{% endif %}{{ load_row.change_pct|floatformat:0 }}%</span> (было {{ load_row.previous_requests }}){% else %}—{% endif %}
+            </small>
+        </div></div>
+    </div>
+    <div class="col-6 col-lg">
+        <div class="card emp-card h-100"><div class="card-body">
+            <div class="emp-kpi-label">Предложений внесено</div>
+            <div class="emp-kpi-value">{{ load_row.offers }}</div>
+            <small class="text-muted">по дате ввода</small>
+        </div></div>
+    </div>
+    <div class="col-6 col-lg">
+        <div class="card emp-card h-100"><div class="card-body">
+            <div class="emp-kpi-label">Собрано · отправлено</div>
+            <div class="emp-kpi-value">{{ load_row.assembled }} · {{ load_row.sent }}</div>
+            <small class="text-muted">сводов, по смене статуса</small>
+        </div></div>
+    </div>
+    <div class="col-12 col-lg">
+        <div class="card emp-card h-100"><div class="card-body">
+            <div class="emp-kpi-label">Акцепт · «не будет»</div>
+            <div class="emp-kpi-value">{{ load_row.accepted }} · {{ load_row.rejected }}</div>
+            <small class="text-muted">закрыто им вручную</small>
+        </div></div>
+    </div>
+</div>
+{% if status_log_partial %}<p class="emp-hint">Журнал смен статусов ведётся с 27.04.2026 — до этой даты «собрано / отправлено / закрыто» неполные.</p>{% endif %}
+
+{% if chart.series %}
+<div class="card emp-card mb-4">
+    <div class="card-header"><h3 class="h6 mb-0">Загружено заявок по {% if chart.granularity == 'week' %}неделям{% else %}месяцам{% endif %}</h3></div>
+    <div class="card-body"><div class="emp-chart-wrap"><canvas id="empLoadChart" aria-label="Загружено заявок"></canvas></div></div>
 </div>
 {% endif %}
 
+<h2 class="h4 emp-block-title"><i class="bi bi-clock-history"></i> Присутствие</h2>
+{% if presence.coverage_partial %}
+<div class="alert alert-info">
+    Данные о присутствии собираются {% if presence.first_collected %}с {{ presence.first_collected|date:'d.m.Y' }}{% else %}с первой ночи после запуска{% endif %};
+    просмотры страниц — {% if presence.first_with_views %}с {{ presence.first_with_views|date:'d.m.Y' }}{% else %}с первой ночи после запуска{% endif %}.
+</div>
+{% endif %}
+<div class="row g-3 mb-3">
+    <div class="col-6 col-lg">
+        <div class="card emp-card h-100"><div class="card-body">
+            <div class="emp-kpi-label">Дней с работой</div>
+            <div class="emp-kpi-value">{{ presence_row.active_days }}</div>
+            <small class="text-muted">из {{ presence.workdays }} рабочих · входов в {{ presence_row.login_days }} дн.</small>
+        </div></div>
+    </div>
+    <div class="col-6 col-lg">
+        <div class="card emp-card h-100"><div class="card-body">
+            <div class="emp-kpi-label">Обычно работает</div>
+            <div class="emp-kpi-value">{% if presence_row.typical_start %}{{ presence_row.typical_start }}–{{ presence_row.typical_end }}{% else %}—{% endif %}</div>
+            <small class="text-muted">медиана первого и последнего действия</small>
+        </div></div>
+    </div>
+    <div class="col-6 col-lg">
+        <div class="card emp-card h-100"><div class="card-body">
+            <div class="emp-kpi-label">Активно в день</div>
+            <div class="emp-kpi-value">{% if presence_row.active_minutes_per_day is not None %}{{ presence_row.active_minutes_per_day }} мин{% else %}—{% endif %}</div>
+            <small class="text-muted">всего {{ presence_row.active_hours_total|floatformat:1 }} ч в системе</small>
+        </div></div>
+    </div>
+    <div class="col-6 col-lg">
+        <div class="card emp-card h-100"><div class="card-body">
+            <div class="emp-kpi-label">Поздние · выходные</div>
+            <div class="emp-kpi-value">{{ presence_row.late_days }} · {{ presence_row.weekend_days }}</div>
+            <small class="text-muted">дней: после {{ presence.late_hour }}:00 · в сб/вс</small>
+        </div></div>
+    </div>
+</div>
+<p class="emp-hint mb-3">Активное время — это время в системе, а не весь рабочий день: работа в почте и Excel сюда не попадает.</p>
+
 <div class="row g-3 mb-4">
-    <div class="col-12">
-        <div class="row g-3">
-            <div class="col-12 col-lg-6">
-                <div class="card det-card">
-                    <div class="card-header"><h5 class="mb-0"><i class="bi bi-building"></i> Любимые СК (топ-5 по accepted)</h5></div>
-                    <div class="card-body">
-                        {% if top_companies %}
-                        <ol class="mb-0">
-                            {% for c in top_companies %}
-                            <li>{{ c.name }} <span class="text-muted">— {{ c.count }}</span></li>
+    <div class="col-12 col-xxl-7">
+        <div class="card emp-card h-100">
+            <div class="card-header"><h3 class="h6 mb-0">По дням (последние {{ days_limit }})</h3></div>
+            <div class="card-body p-0">
+                {% if day_rows %}
+                <div class="table-responsive emp-days">
+                    <table class="table table-sm mb-0 emp-table">
+                        <thead><tr><th>День</th><th class="num">С · до</th><th class="num">Активно</th><th class="num">Входы</th><th class="num">Просмотры · формы</th><th class="num">Изменения</th><th>Где работал</th></tr></thead>
+                        <tbody>
+                            {% for day in day_rows %}
+                            <tr>
+                                <td>{{ day.date|date:'d.m D' }}</td>
+                                <td class="num">{% if day.first_seen_at %}{{ day.first_seen_at|time:'H:i' }}–{{ day.last_seen_at|time:'H:i' }}{% else %}—{% endif %}</td>
+                                <td class="num">{{ day.active_minutes }} мин</td>
+                                <td class="num">{{ day.logins }}</td>
+                                <td class="num">{% if day.has_request_data %}{{ day.page_views }} · {{ day.form_actions }}{% else %}<span class="muted" title="Просмотры за этот день уже удалены из журнала">нет данных</span>{% endif %}</td>
+                                <td class="num">{{ day.crud_actions }}</td>
+                                <td>{% for section in day.sections %}{{ section.label }} {{ section.count }}{% if not forloop.last %} · {% endif %}{% endfor %}</td>
+                            </tr>
                             {% endfor %}
-                        </ol>
-                        {% else %}<p class="text-muted mb-0">Нет accepted-сделок за период.</p>{% endif %}
-                    </div>
+                        </tbody>
+                    </table>
                 </div>
+                {% else %}
+                <p class="text-muted text-center py-4 mb-0">Нет данных о присутствии за период.</p>
+                {% endif %}
             </div>
-            <div class="col-12 col-lg-6">
-                <div class="card det-card">
-                    <div class="card-header"><h5 class="mb-0"><i class="bi bi-geo"></i> Любимые филиалы (топ-5)</h5></div>
-                    <div class="card-body">
-                        {% if top_branches %}
-                        <ol class="mb-0">
-                            {% for b in top_branches %}
-                            <li>{{ b.name }} <span class="text-muted">— {{ b.count }}</span></li>
+        </div>
+    </div>
+    <div class="col-12 col-xxl-5">
+        <div class="card emp-card h-100">
+            <div class="card-header"><h3 class="h6 mb-0">Когда работает: день недели × час (МСК)</h3></div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="emp-heatmap" id="empHeatmap">
+                        <thead><tr><th></th>{% for hour in hours %}<th>{{ hour }}</th>{% endfor %}</tr></thead>
+                        <tbody>
+                            {% for label in heatmap.weekdays %}
+                            <tr><th>{{ label }}</th>{% for hour in hours %}<td data-day="{{ forloop.parentloop.counter0 }}" data-hour="{{ hour }}"></td>{% endfor %}</tr>
                             {% endfor %}
-                        </ol>
-                        {% else %}<p class="text-muted mb-0">Нет данных.</p>{% endif %}
-                    </div>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<div class="row g-3 mb-4">
-    <div class="col-12 col-lg-6">
-        <div class="card det-card">
-            <div class="card-header"><h5 class="mb-0"><i class="bi bi-list-task"></i> Активные сделки ({{ active_items|length }})</h5></div>
-            <div class="card-body p-0">
-                <div class="det-list">
-                    {% for item in active_items %}
-                    <div class="px-3 py-2 border-bottom">
-                        <strong>
-                            {% if item.kind == 'summary' %}
-                            <a href="{% url 'summaries:summary_detail' item.id %}">{{ item.dfa_number }}</a>
-                            {% else %}
-                            <a href="{% url 'insurance_requests:request_detail' item.id %}">{{ item.dfa_number }}</a>
-                            {% endif %}
-                        </strong>
-                        — {{ item.client_name|truncatechars:50 }}
-                        <small class="d-block text-muted">
-                            <span class="det-status-pill">{{ item.status }}</span>
-                            · {% if item.kind == 'summary' %}свод{% else %}заявка{% endif %}
-                            · {{ item.age_days }} дн.
-                        </small>
-                    </div>
-                    {% empty %}
-                    <p class="text-muted px-3 py-3 mb-0">Активных дел нет.</p>
-                    {% endfor %}
-                </div>
-            </div>
-        </div>
+<h2 class="h4 emp-block-title"><i class="bi bi-speedometer2"></i> Скорость на своих этапах</h2>
+<div class="row g-3 mb-3">
+    <div class="col-12 col-md-4">
+        <div class="card emp-card h-100"><div class="card-body">
+            <div class="emp-kpi-label">Загрузка → письма в СК</div>
+            <div class="emp-kpi-value">{{ speed_row.upload_to_emails.median|default:'—' }}</div>
+            <small class="text-muted">медиана · заявок {{ speed_row.upload_to_emails.count }} · команда {{ speed_team.upload_to_emails.median|default:'—' }}</small>
+        </div></div>
     </div>
+    <div class="col-12 col-md-4">
+        <div class="card emp-card h-100"><div class="card-body">
+            <div class="emp-kpi-label">Последнее предложение → клиенту</div>
+            <div class="emp-kpi-value">{{ speed_row.offer_to_client.median|default:'—' }}</div>
+            <small class="text-muted">медиана · сводов {{ speed_row.offer_to_client.count }} · команда {{ speed_team.offer_to_client.median|default:'—' }}</small>
+        </div></div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="card emp-card h-100"><div class="card-body">
+            <div class="emp-kpi-label">Ожидание клиента</div>
+            <div class="emp-kpi-value text-muted">{{ speed_row.client_wait.median|default:'—' }}</div>
+            <small class="text-muted">от отправки до акцепта · не оценка сотрудника</small>
+        </div></div>
+    </div>
+</div>
 
-    <div class="col-12 col-lg-6">
-        <div class="card det-card">
-            <div class="card-header"><h5 class="mb-0"><i class="bi bi-exclamation-octagon"></i> Просроченные ({{ overdue|length }}) · Зависшие ({{ stuck|length }})</h5></div>
-            <div class="card-body p-0">
-                <div class="det-list">
-                    {% if overdue %}
-                    <h6 class="text-danger px-3 pt-3 mb-2">Просроченный deadline</h6>
-                    {% for o in overdue %}
-                    <div class="px-3 py-2 border-bottom">
-                        <a href="{% url 'insurance_requests:request_detail' o.request_id %}">{{ o.dfa_number }}</a>
-                        — {{ o.client_name|truncatechars:50 }}
-                        <small class="d-block text-muted">
-                            {{ o.status }} · просрочка {{ o.overdue_hours|floatformat:1 }} ч
-                        </small>
-                    </div>
+<div class="card emp-card mb-4">
+    <div class="card-header"><h3 class="h6 mb-0">Его зависшие своды: «сбор» или «готов» дольше {{ stuck_days }} дней ({{ stuck|length }})</h3></div>
+    <div class="card-body p-0">
+        {% if stuck %}
+        <div class="table-responsive">
+            <table class="table table-sm mb-0 emp-table">
+                <thead><tr><th>Свод</th><th>Клиент</th><th>Статус</th><th class="num">Дней</th></tr></thead>
+                <tbody>
+                    {% for item in stuck %}
+                    <tr><td><a href="{% url 'summaries:summary_detail' item.summary_id %}">{{ item.title }}</a></td><td>{{ item.client|truncatechars:40 }}</td><td>{{ item.status }}</td><td class="num">{{ item.age_days }}</td></tr>
                     {% endfor %}
-                    {% endif %}
-                    {% if stuck %}
-                    <h6 class="text-warning px-3 pt-3 mb-2">Зависшие сделки</h6>
-                    {% for s in stuck %}
-                    <div class="px-3 py-2 border-bottom">
-                        <a href="{% url 'summaries:summary_detail' s.summary_id %}">{{ s.dfa_number }}</a>
-                        — {{ s.client_name|truncatechars:50 }}
-                        <small class="d-block text-muted">{{ s.status }} · {{ s.days_inactive }} дн.</small>
-                    </div>
-                    {% endfor %}
-                    {% endif %}
-                    {% if not overdue and not stuck %}
-                    <p class="text-muted px-3 py-3 mb-0">Просроченных и зависших нет.</p>
-                    {% endif %}
-                </div>
-            </div>
+                </tbody>
+            </table>
         </div>
+        {% else %}
+        <p class="text-muted text-center py-3 mb-0">Зависших сводов нет.</p>
+        {% endif %}
     </div>
 </div>
 
 <!-- Activity timeline -->
-<div class="card det-card mb-4">
+<div class="card emp-card mb-4">
     <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
-        <h5 class="mb-0"><i class="bi bi-clock-history"></i> Лента активности</h5>
+        <h2 class="h5 mb-0"><i class="bi bi-list-check"></i> Лента действий по его записям</h2>
         <div class="det-timeline-filters">
             <div class="form-check form-check-inline">
                 <input class="form-check-input js-tl-filter" type="checkbox" value="status" id="tl-f-status" checked>
@@ -319,7 +393,7 @@
                         <a href="{% url 'insurance_requests:request_detail' evt.target_id %}">{{ evt.target_label }}</a>
                         <span class="text-muted">· заявка</span>
                     {% elif evt.target_kind == 'offer' and evt.request_id %}
-                        <a href="{% url 'summaries:summary_detail' evt.target_id %}">{{ evt.target_label }}</a>
+                        <a href="{% url 'insurance_requests:request_detail' evt.request_id %}">{{ evt.target_label }}</a>
                         <span class="text-muted">· предложение</span>
                     {% else %}
                         {{ evt.target_label }}
@@ -377,6 +451,51 @@
 })();
 </script>
 
-
+{{ heatmap|json_script:"emp-heatmap-data" }}
+{{ chart|json_script:"emp-load-chart" }}
 {% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const heatmapEl = document.getElementById('emp-heatmap-data');
+        if (heatmapEl) {
+            const grid = JSON.parse(heatmapEl.textContent).grid;
+            const max = Math.max.apply(null, grid.map(function (row) { return Math.max.apply(null, row); }));
+            document.querySelectorAll('#empHeatmap td[data-day]').forEach(function (cell) {
+                const value = grid[cell.dataset.day][cell.dataset.hour];
+                const alpha = max > 0 && value > 0 ? 0.12 + (value / max) * 0.78 : 0;
+                cell.textContent = value > 0 ? value : '';
+                cell.title = value + ' событий';
+                cell.style.backgroundColor = alpha ? 'rgba(42, 120, 214, ' + alpha.toFixed(2) + ')' : '';
+                cell.style.color = alpha > 0.55 ? '#ffffff' : '#0f172a';
+            });
+        }
+        const loadEl = document.getElementById('emp-load-chart');
+        const canvas = document.getElementById('empLoadChart');
+        if (loadEl && canvas && typeof Chart !== 'undefined') {
+            const chart = JSON.parse(loadEl.textContent);
+            new Chart(canvas, {
+                type: 'bar',
+                data: {
+                    labels: chart.labels,
+                    datasets: chart.series.map(function (series) {
+                        return { label: series.label, data: series.data, backgroundColor: series.color, borderRadius: 4, maxBarThickness: 40 };
+                    }),
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { grid: { display: false } },
+                        y: { beginAtZero: true, grid: { color: '#eef2f6' }, ticks: { precision: 0 } },
+                    },
+                    plugins: { legend: { display: false } },
+                },
+            });
+        }
+    });
+</script>
 {% endblock %}

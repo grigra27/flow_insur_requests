@@ -252,3 +252,76 @@ class SpeedBlockTests(EmployeesTestBase):
         self.assertEqual(service.format_hours(0.25), '15 мин')
         self.assertEqual(service.format_hours(5.24), '5,2 ч')
         self.assertEqual(service.format_hours(84), '3,5 дн')
+
+
+class DossierAndExportTests(EmployeesTestBase):
+    def setUp(self):
+        super().setUp()
+        from datetime import datetime, time
+        from summaries.models import UserDailyActivity
+
+        self.request = self._request(self.anna, 3)
+        self._summary_with_offers(self.request, offers=2)
+        day = timezone.localdate() - timedelta(days=1)
+        tz = timezone.get_default_timezone()
+        UserDailyActivity.objects.create(
+            user=self.anna, date=day, logins_count=1, page_views=12, form_actions=3, crud_actions=4,
+            sections={'summaries': 10, 'requests': 5}, hourly={'10': 7}, active_minutes=95,
+            first_seen_at=timezone.make_aware(datetime.combine(day, time(9, 30)), tz),
+            last_seen_at=timezone.make_aware(datetime.combine(day, time(16, 5)), tz),
+            has_request_data=True,
+        )
+
+    def test_dossier_blocks(self):
+        response = self.client.get(reverse('summaries:analytics_manager_detail', args=[self.anna.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        context = response.context
+        self.assertEqual(context['name'], 'Иванова Анна')
+        self.assertEqual((context['load_row']['requests'], context['load_row']['offers']), (1, 2))
+        self.assertEqual(context['presence_row']['active_days'], 1)
+        self.assertEqual(context['day_rows'][0]['sections'][0], {'label': 'Своды', 'count': 10})
+        day_index = (timezone.localdate() - timedelta(days=1)).weekday()
+        self.assertEqual(context['heatmap']['grid'][day_index][10], 7)
+        for text in ('Нагрузка за период', 'Присутствие', 'Скорость на своих этапах', 'Лента действий', 'js-tl-filter'):
+            self.assertContains(response, text)
+        StatusEvent.objects.create(
+            content_type=ContentType.objects.get_for_model(InsuranceSummary),
+            object_id=InsuranceSummary.objects.get(request=self.request).pk,
+            from_status='collecting', to_status='ready', changed_by=self.anna,
+        )
+        response = self.client.get(reverse('summaries:analytics_manager_detail', args=[self.anna.pk]))
+        self.assertContains(response, '«Сбор предложений» → «Готов к отправке»')
+        for removed in ('Радар', 'Quality', 'Любимые СК'):
+            self.assertNotContains(response, removed)
+
+    def test_dossier_for_reader_and_unknown_user(self):
+        reader = self.client.get(reverse('summaries:analytics_manager_detail', args=[self.reader.pk]))
+        self.assertEqual(reader.status_code, 200)
+        self.assertTrue(reader.context['load_row']['is_reader'])
+
+        missing = self.client.get(reverse('summaries:analytics_manager_detail', args=[99999]))
+        self.assertEqual(missing.status_code, 404)
+        self.assertContains(missing, 'Сотрудник не найден', status_code=404)
+
+    def test_overview_export_sheets(self):
+        from io import BytesIO
+        from openpyxl import load_workbook
+
+        response = self.client.get(reverse('summaries:export_analytics_managers_widget'), {'period': '180'})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('employees_', response['Content-Disposition'])
+        workbook = load_workbook(BytesIO(response.content))
+        self.assertEqual(workbook.sheetnames, ['Нагрузка', 'Присутствие', 'Скорость', 'Зависшие своды'])
+        self.assertEqual(workbook['Нагрузка']['A6'].value, 'Иванова Анна')
+
+    def test_dossier_export_sheets(self):
+        from io import BytesIO
+        from openpyxl import load_workbook
+
+        response = self.client.get(reverse('summaries:export_analytics_manager_detail', args=[self.anna.pk]))
+
+        workbook = load_workbook(BytesIO(response.content))
+        self.assertEqual(workbook.sheetnames, ['Сводка', 'По дням'])
+        self.assertEqual(workbook['По дням']['D6'].value, 95)

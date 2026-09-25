@@ -25,7 +25,6 @@ from .services.analytics_insurance_companies import (
     build_analytics_insurance_companies_payload,
     build_available_filters as build_company_analytics_available_filters,
 )
-from .services import analytics_managers as analytics_managers_service
 from .services import analytics_employees as analytics_employees_service
 from .services.analytics_overview import build_overview_payload as build_analytics_overview_payload
 from .services import analytics_parser_edits as analytics_parser_edits_service
@@ -2508,23 +2507,27 @@ def analytics_managers(request):
 
 @admin_required
 def analytics_manager_detail(request, user_id):
-    """Аналитика по сотрудникам — досье одного сотрудника."""
-    filters = analytics_managers_service.parse_filters(request.GET)
-    payload = analytics_managers_service.build_manager_profile_payload(user_id, filters)
-    return render(request, 'summaries/analytics_manager_detail.html', payload)
+    """Досье сотрудника: нагрузка, присутствие по дням, скорость, зависшие своды, лента действий."""
+    filters = analytics_employees_service.parse_filters(request.GET)
+    for error_message in filters.errors:
+        messages.warning(request, error_message)
+    payload = analytics_employees_service.build_dossier_payload(user_id, filters)
+    payload['hours'] = range(24)
+    status = 404 if payload.get('not_found') else 200
+    return render(request, 'summaries/analytics_manager_detail.html', payload, status=status)
 
 
 @admin_required
 def export_analytics_managers_widget(request, user_id=None):
-    """XLSX-экспорт: общий обзор или досье одного сотрудника."""
-    filters = analytics_managers_service.parse_filters(request.GET)
+    """XLSX: страница «Сотрудники» целиком или досье одного сотрудника."""
+    filters = analytics_employees_service.parse_filters(request.GET)
     today = timezone.localdate().strftime('%Y-%m-%d')
     if user_id is None:
-        output = analytics_managers_service.export_overview_xlsx(filters)
-        filename = f'employee_analytics_{today}.xlsx'
+        output = analytics_employees_service.export_overview_xlsx(filters)
+        filename = f'employees_{today}.xlsx'
     else:
-        output = analytics_managers_service.export_manager_dossier_xlsx(user_id, filters)
-        filename = f'employee_dossier_{user_id}_{today}.xlsx'
+        output = analytics_employees_service.export_dossier_xlsx(user_id, filters)
+        filename = f'employee_{user_id}_{today}.xlsx'
     response = HttpResponse(
         output.getvalue(),
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

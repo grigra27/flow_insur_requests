@@ -65,7 +65,8 @@
   имущества» убран — одно «Состояние» через `condition_label`.
 - Список заявок (`request_list.html`), админка (`admin.py` — поиск +
   fieldset со структурой), exporter (`exporters.py` — `object_summary` как
-  вычисляемое поле), completeness-аналитика (`analytics_managers.py`).
+  вычисляемое поле), completeness-аналитика (`analytics_managers.py` — удалена
+  в `analytics_redesign_2026_09`, задача 4.5).
 
 ### Текущее состояние двойной записи
 

@@ -464,3 +464,201 @@ def build_payload(filters: EmployeeFilters) -> Dict:
         'presence': build_presence_block(filters, load['rows']),
         'speed': build_speed_block(filters, load['rows']),
     }
+
+
+DOSSIER_DAYS_LIMIT = 60
+TIMELINE_LIMIT = 50
+
+
+def build_dossier_payload(user_id: int, filters: EmployeeFilters) -> Dict:
+    """Досье сотрудника: те же блоки, что на странице «Сотрудники», по одному человеку + дни и лента."""
+    from .employee_timeline import _personal_timeline
+
+    user = User.objects.filter(pk=user_id).first()
+    base = {'filters': filters.as_template(), 'period_choices': PERIOD_CHOICES, 'user_id': user_id}
+    if user is None:
+        return {**base, 'not_found': True}
+
+    load = build_load_block(filters)
+    load_row = next((row for row in load['rows'] if row['user_id'] == user_id), None)
+    if load_row is None:
+        # Сотрудник вне группы и без действий за период — показываем пустые блоки.
+        load_row = {
+            'user_id': user_id, 'name': _display_name(user), 'color': OTHER_SERIES_COLOR,
+            'requests': 0, 'files': 0, 'share_pct': None, 'per_week': None, 'offers': 0,
+            'assembled': 0, 'sent': 0, 'accepted': 0, 'rejected': 0,
+            'previous_requests': 0, 'change_pct': None, 'is_reader': True,
+        }
+    presence = build_presence_block(filters, [load_row])
+    speed = build_speed_block(filters, [load_row])
+
+    days = list(
+        UserDailyActivity.objects.filter(
+            user_id=user_id, date__gte=filters.start_date, date__lte=filters.end_date,
+        ).order_by('-date')[:DOSSIER_DAYS_LIMIT]
+    )
+    from .user_activity import SECTION_LABELS
+
+    day_rows = [
+        {
+            'date': day.date,
+            'first_seen_at': day.first_seen_at,
+            'last_seen_at': day.last_seen_at,
+            'active_minutes': day.active_minutes,
+            'logins': day.logins_count,
+            'page_views': day.page_views,
+            'form_actions': day.form_actions,
+            'crud_actions': day.crud_actions,
+            'has_request_data': day.has_request_data,
+            'sections': [
+                {'label': SECTION_LABELS.get(key, key), 'count': count}
+                for key, count in sorted((day.sections or {}).items(), key=lambda item: -item[1])
+            ][:3],
+        }
+        for day in days
+    ]
+    series = [series for series in load['chart']['series'] if series['label'] == load_row['name']]
+
+    return {
+        **base,
+        'employee': user,
+        'name': load_row['name'],
+        'load_row': load_row,
+        'load_totals': load['totals'],
+        'previous_period': load['previous_period'],
+        'status_log_partial': load['status_log_partial'],
+        'chart': {**load['chart'], 'series': series},
+        'presence': presence,
+        'presence_row': presence['rows'][0],
+        'heatmap': {'weekdays': WEEKDAY_LABELS, 'grid': presence['heatmap']['employees'][str(user_id)]},
+        'day_rows': day_rows,
+        'days_limit': DOSSIER_DAYS_LIMIT,
+        'speed_row': speed['rows'][0],
+        'speed_team': speed['team'],
+        'stuck': [item for item in speed['stuck'] if item['owner_id'] == user_id],
+        'stuck_days': STUCK_DAYS,
+        'timeline': _with_status_labels(_personal_timeline(user_id, limit=TIMELINE_LIMIT)),
+    }
+
+
+def _with_status_labels(entries: List[Dict]) -> List[Dict]:
+    """Коды статусов в ленте → названия, как в интерфейсе («ready» → «Готов к отправке»)."""
+    labels = {**dict(InsuranceRequest.STATUS_CHOICES), **dict(InsuranceSummary.STATUS_CHOICES)}
+    for entry in entries:
+        if entry.get('kind') == 'status':
+            entry['from_status'] = labels.get(entry['from_status'], entry['from_status'])
+            entry['to_status'] = labels.get(entry['to_status'], entry['to_status'])
+    return entries
+
+
+def _workbook_sheet(workbook, title: str, filters: EmployeeFilters, headers: List[str], rows: List[List], first=False):
+    from openpyxl.styles import Font
+
+    sheet = workbook.active if first else workbook.create_sheet()
+    sheet.title = title
+    sheet.append([title])
+    sheet['A1'].font = Font(bold=True, size=14)
+    sheet.append([f'Период: {filters.start_date:%d.%m.%Y} — {filters.end_date:%d.%m.%Y}'])
+    sheet.append([f"Сформировано: {timezone.localtime():%d.%m.%Y %H:%M}"])
+    sheet.append([])
+    sheet.append(headers)
+    for cell in sheet[5]:
+        cell.font = Font(bold=True)
+    for row in rows:
+        sheet.append(row)
+    for column in sheet.iter_cols(min_row=5):
+        width = max(len('' if cell.value is None else str(cell.value)) for cell in column)
+        sheet.column_dimensions[column[0].column_letter].width = min(width + 2, 50)
+
+
+def _float(value):
+    return float(value) if value is not None else None
+
+
+def export_overview_xlsx(filters: EmployeeFilters):
+    """XLSX страницы «Сотрудники»: нагрузка, присутствие, скорость, зависшие своды."""
+    from io import BytesIO
+    from openpyxl import Workbook
+
+    payload = build_payload(filters)
+    workbook = Workbook()
+    _workbook_sheet(workbook, 'Нагрузка', filters, [
+        'Сотрудник', 'Заявок', 'Файлов', 'Доля команды, %', 'В неделю', 'Было в прошлом периоде',
+        'Изменение, %', 'Предложений', 'Собрано', 'Отправлено клиенту', 'Акцепт', '«Не будет» вручную',
+    ], [
+        [row['name'], row['requests'], row['files'], _float(row['share_pct']), _float(row['per_week']),
+         row['previous_requests'], _float(row['change_pct']), row['offers'], row['assembled'], row['sent'],
+         row['accepted'], row['rejected']]
+        for row in payload['load']['rows']
+    ], first=True)
+    _workbook_sheet(workbook, 'Присутствие', filters, [
+        'Сотрудник', 'Дней со входом', 'Дней с работой', 'Рабочих дней в периоде', 'Обычно с', 'Обычно до',
+        'Активно в день, мин', 'Всего, ч', 'Поздние дни', 'Выходные',
+    ], [
+        [row['name'], row['login_days'], row['active_days'], payload['presence']['workdays'],
+         row['typical_start'], row['typical_end'], row['active_minutes_per_day'],
+         _float(row['active_hours_total']), row['late_days'], row['weekend_days']]
+        for row in payload['presence']['rows']
+    ])
+    _workbook_sheet(workbook, 'Скорость', filters, [
+        'Сотрудник', 'Загрузка → письма в СК, ч (медиана)', 'Заявок', 'Последнее предложение → клиенту, ч (медиана)',
+        'Сводов', 'Зависших сводов', 'Ожидание клиента, ч (медиана)', 'Акцептов',
+    ], [
+        [row['name'], row['upload_to_emails']['median_hours'], row['upload_to_emails']['count'],
+         row['offer_to_client']['median_hours'], row['offer_to_client']['count'], row['stuck'],
+         row['client_wait']['median_hours'], row['client_wait']['count']]
+        for row in payload['speed']['rows']
+    ])
+    _workbook_sheet(workbook, 'Зависшие своды', filters, ['Свод', 'Клиент', 'Сотрудник', 'Статус', 'Дней'], [
+        [item['title'], item['client'], item['owner'], item['status'], item['age_days']]
+        for item in payload['speed']['stuck']
+    ])
+    output = BytesIO()
+    workbook.save(output)
+    output.seek(0)
+    return output
+
+
+def export_dossier_xlsx(user_id: int, filters: EmployeeFilters):
+    """XLSX досье: сводка и присутствие по дням."""
+    from io import BytesIO
+    from openpyxl import Workbook
+
+    payload = build_dossier_payload(user_id, filters)
+    workbook = Workbook()
+    if payload.get('not_found'):
+        _workbook_sheet(workbook, 'Досье', filters, ['Сотрудник не найден'], [], first=True)
+    else:
+        load_row, presence_row, speed_row = payload['load_row'], payload['presence_row'], payload['speed_row']
+        _workbook_sheet(workbook, 'Сводка', filters, ['Показатель', 'Значение'], [
+            ['Сотрудник', payload['name']],
+            ['Заявок загружено', load_row['requests']],
+            ['Файлов', load_row['files']],
+            ['В неделю', _float(load_row['per_week'])],
+            ['Предложений внесено', load_row['offers']],
+            ['Собрано сводов', load_row['assembled']],
+            ['Отправлено клиенту', load_row['sent']],
+            ['Акцепт', load_row['accepted']],
+            ['«Не будет» вручную', load_row['rejected']],
+            ['Дней с работой', presence_row['active_days']],
+            ['Дней со входом', presence_row['login_days']],
+            ['Обычно с', presence_row['typical_start']],
+            ['Обычно до', presence_row['typical_end']],
+            ['Активно в день, мин', presence_row['active_minutes_per_day']],
+            ['Загрузка → письма в СК, ч (медиана)', speed_row['upload_to_emails']['median_hours']],
+            ['Последнее предложение → клиенту, ч (медиана)', speed_row['offer_to_client']['median_hours']],
+            ['Зависших сводов', len(payload['stuck'])],
+        ], first=True)
+        _workbook_sheet(workbook, 'По дням', filters, [
+            'Дата', 'С', 'До', 'Активно, мин', 'Входы', 'Просмотры', 'Формы', 'Изменения', 'Есть данные о просмотрах',
+        ], [
+            [day['date'], timezone.localtime(day['first_seen_at']).strftime('%H:%M') if day['first_seen_at'] else None,
+             timezone.localtime(day['last_seen_at']).strftime('%H:%M') if day['last_seen_at'] else None,
+             day['active_minutes'], day['logins'], day['page_views'], day['form_actions'], day['crud_actions'],
+             'да' if day['has_request_data'] else 'нет']
+            for day in payload['day_rows']
+        ])
+    output = BytesIO()
+    workbook.save(output)
+    output.seek(0)
+    return output
