@@ -140,3 +140,57 @@ class LoadBlockTests(EmployeesTestBase):
 
         self.client.login(username='anna', password='p')
         self.assertEqual(self.client.get(reverse('summaries:analytics_managers')).status_code, 403)
+
+
+class PresenceBlockTests(EmployeesTestBase):
+    def _day(self, user, days_ago, start, end, minutes, **fields):
+        from datetime import datetime, time
+        from summaries.models import UserDailyActivity
+
+        day = timezone.localdate() - timedelta(days=days_ago)
+        tz = timezone.get_default_timezone()
+        return UserDailyActivity.objects.create(
+            user=user, date=day,
+            first_seen_at=timezone.make_aware(datetime.combine(day, time(*start)), tz),
+            last_seen_at=timezone.make_aware(datetime.combine(day, time(*end)), tz),
+            active_minutes=minutes, **fields,
+        )
+
+    def test_presence_rows(self):
+        # Найти ближайшую субботу в пределах периода для проверки выходных.
+        saturday_ago = (timezone.localdate().weekday() - 5) % 7 or 7
+        self._day(self.anna, 1, (9, 0), (17, 0), 200, logins_count=1, page_views=40, has_request_data=True,
+                  hourly={'9': 10, '10': 5})
+        self._day(self.anna, 2, (10, 0), (21, 30), 100, logins_count=1, crud_actions=5)
+        self._day(self.anna, saturday_ago + 7, (11, 0), (12, 0), 30, page_views=3, has_request_data=True)
+        self._day(self.reader, 3, (12, 0), (12, 0), 0, logins_count=1)  # вошла, ничего не делала
+
+        presence = self.client.get(reverse('summaries:analytics_managers')).context['presence']
+        rows = {row['name']: row for row in presence['rows']}
+
+        anna = rows['Иванова Анна']
+        self.assertEqual((anna['login_days'], anna['active_days']), (2, 3))
+        self.assertEqual(anna['typical_start'], '10:00')
+        self.assertEqual(anna['typical_end'], '17:00')
+        self.assertEqual(anna['active_minutes_per_day'], 110)
+        self.assertEqual(anna['active_hours_total'], Decimal(330) / Decimal(60))
+        self.assertEqual(anna['late_days'], 1)
+        self.assertEqual(anna['weekend_days'], 1)
+        self.assertEqual(anna['days_without_views'], 1)
+
+        reader = rows['Смирнова Вера']
+        self.assertEqual((reader['login_days'], reader['active_days']), (1, 0))
+        self.assertIsNone(reader['typical_start'])
+
+        day_index = (timezone.localdate() - timedelta(days=1)).weekday()
+        self.assertEqual(presence['heatmap']['team'][day_index][9], 10)
+        self.assertEqual(presence['heatmap']['employees'][str(self.anna.pk)][day_index][10], 5)
+
+    def test_coverage_note_when_data_starts_late(self):
+        self._day(self.anna, 5, (9, 0), (10, 0), 60, page_views=1, has_request_data=True)
+
+        response = self.client.get(reverse('summaries:analytics_managers'))
+
+        self.assertTrue(response.context['presence']['coverage_partial'])
+        self.assertContains(response, 'Присутствие')
+        self.assertContains(response, 'Когда работают')

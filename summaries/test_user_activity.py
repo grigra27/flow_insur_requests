@@ -90,6 +90,7 @@ class AggregateDayTests(TestCase):
         self.assertEqual(row.crud_actions, 2)
         self.assertEqual(row.crud_by_model, {'insuranceoffer': {'create': 1, 'update': 1, 'delete': 0}})
         self.assertEqual(row.sections, {'summaries': 2, 'analytics': 1, 'requests': 1})
+        self.assertEqual(row.hourly, {'9': 6, '16': 1})  # вход, 3 запроса, 2 изменения (User не считаем)
         self.assertEqual(timezone.localtime(row.first_seen_at).time(), time(9, 0))
         self.assertEqual(timezone.localtime(row.last_seen_at).time(), time(16, 0))
         # 9:00–9:30 = 30 мин + одиночное событие в 16:00 = 5 мин.

@@ -90,6 +90,11 @@ def sessions_for(timestamps: Iterable[datetime]) -> Dict[str, int]:
     return {'sessions': sessions, 'minutes': int(total.total_seconds() // 60)}
 
 
+def hourly_counts(timestamps: Iterable[datetime]) -> Dict[str, int]:
+    counts = Counter(str(timezone.localtime(moment).hour) for moment in timestamps)
+    return {hour: counts[hour] for hour in sorted(counts, key=int)}
+
+
 def _day_bounds(day: date):
     tz = timezone.get_default_timezone()
     start = timezone.make_aware(datetime.combine(day, time.min), tz)
@@ -170,6 +175,7 @@ def aggregate_day(day: date) -> Dict[str, int]:
                 row.page_views = page_views[user_id]
                 row.form_actions = form_actions[user_id]
                 row.sections = dict(sections[user_id])
+                row.hourly = hourly_counts(all_moments)
                 row.first_seen_at = min(all_moments) if all_moments else None
                 row.last_seen_at = max(all_moments) if all_moments else None
                 row.sessions_count = session_stats['sessions']

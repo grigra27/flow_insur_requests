@@ -75,6 +75,29 @@
     .emp-block-title {
         margin: 2rem 0 1rem;
     }
+
+    .emp-heatmap {
+        border-collapse: separate;
+        border-spacing: 2px;
+        font-size: 0.72rem;
+    }
+
+    .emp-heatmap th {
+        font-weight: 600;
+        color: #64748b;
+        text-align: center;
+        padding: 0 2px;
+    }
+
+    .emp-heatmap td {
+        width: 28px;
+        height: 24px;
+        text-align: center;
+        border-radius: 3px;
+        background: #f1f5f9;
+        color: #0f172a;
+        font-variant-numeric: tabular-nums;
+    }
 </style>
 {% endblock %}
 
@@ -220,6 +243,81 @@
 </div>
 {% endif %}
 
+<h2 class="h4 emp-block-title"><i class="bi bi-clock-history"></i> Присутствие</h2>
+
+{% if presence.coverage_partial %}
+<div class="alert alert-info">
+    Данные о присутствии собираются по журналу входов и действий
+    {% if presence.first_collected %}с {{ presence.first_collected|date:'d.m.Y' }}{% else %}— пока не собраны{% endif %};
+    просмотры страниц — {% if presence.first_with_views %}с {{ presence.first_with_views|date:'d.m.Y' }}{% else %}с первой ночи после запуска{% endif %}.
+    До этого период неполный.
+</div>
+{% endif %}
+
+<div class="card emp-card mb-3">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0 emp-table">
+                <thead>
+                    <tr>
+                        <th>Сотрудник</th>
+                        <th class="num" title="Дни, когда сотрудник входил в систему">Дней со входом</th>
+                        <th class="num" title="Дни с просмотрами, отправкой форм или изменением данных; рабочих дней в периоде — {{ presence.workdays }}">Дней с работой</th>
+                        <th class="num" title="Медиана первого и последнего действия за день (МСК)">Обычно с · до</th>
+                        <th class="num" title="Время в системе: события с разрывом не больше 30 минут, минимум 5 минут на сессию">Активно в день</th>
+                        <th class="num">Всего, ч</th>
+                        <th class="num" title="Дни с последним действием в {{ presence.late_hour }}:00 и позже">Поздние дни</th>
+                        <th class="num">Выходные</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in presence.rows %}
+                    <tr class="{% if not row.active_days and not row.login_days %}emp-reader{% endif %}">
+                        <td class="fw-semibold"><span class="emp-swatch" style="background: {{ row.color }}"></span>{{ row.name }}</td>
+                        <td class="num">{{ row.login_days }}</td>
+                        <td class="num">{{ row.active_days }}<span class="muted">из {{ presence.workdays }}</span></td>
+                        <td class="num">{% if row.typical_start %}{{ row.typical_start }} – {{ row.typical_end }}{% else %}—{% endif %}</td>
+                        <td class="num">{% if row.active_minutes_per_day is not None %}{{ row.active_minutes_per_day }} мин{% else %}—{% endif %}</td>
+                        <td class="num">{{ row.active_hours_total|floatformat:1 }}</td>
+                        <td class="num">{{ row.late_days }}</td>
+                        <td class="num">{{ row.weekend_days }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+<p class="emp-hint mb-3">
+    Активное время — это время в системе, а не весь рабочий день: работа в почте и Excel сюда не попадает.
+</p>
+
+<div class="card emp-card mb-4">
+    <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <h3 class="h6 mb-0">Когда работают: день недели × час (МСК)</h3>
+        <select class="form-select form-select-sm w-auto" id="empHeatmapSelect" aria-label="Чья активность">
+            <option value="team">Вся команда</option>
+            {% for row in presence.rows %}{% if row.active_days or row.login_days %}<option value="{{ row.user_id }}">{{ row.name }}</option>{% endif %}{% endfor %}
+        </select>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="emp-heatmap" id="empHeatmap">
+                <thead>
+                    <tr><th></th>{% for hour in hours %}<th>{{ hour }}</th>{% endfor %}</tr>
+                </thead>
+                <tbody>
+                    {% for label in presence.heatmap.weekdays %}
+                    <tr><th>{{ label }}</th>{% for hour in hours %}<td data-day="{{ forloop.parentloop.counter0 }}" data-hour="{{ hour }}"></td>{% endfor %}</tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="emp-hint mt-2">Число событий (просмотры, формы, изменения, входы). Чем темнее, тем больше.</div>
+    </div>
+</div>
+
+{{ presence.heatmap|json_script:"emp-heatmap-data" }}
 {{ load.chart|json_script:"emp-load-chart" }}
 {% endblock %}
 
@@ -227,6 +325,30 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function () {
+        const heatmapEl = document.getElementById('emp-heatmap-data');
+        const heatmapSelect = document.getElementById('empHeatmapSelect');
+        if (heatmapEl) {
+            const heatmap = JSON.parse(heatmapEl.textContent);
+            const cells = document.querySelectorAll('#empHeatmap td[data-day]');
+            const paint = function (key) {
+                const grid = key === 'team' ? heatmap.team : heatmap.employees[key];
+                if (!grid) { return; }
+                const max = Math.max.apply(null, grid.map(function (row) { return Math.max.apply(null, row); }));
+                cells.forEach(function (cell) {
+                    const value = grid[cell.dataset.day][cell.dataset.hour];
+                    const alpha = max > 0 && value > 0 ? 0.12 + (value / max) * 0.78 : 0;
+                    cell.textContent = value > 0 ? value : '';
+                    cell.title = value + ' событий';
+                    cell.style.backgroundColor = alpha ? 'rgba(42, 120, 214, ' + alpha.toFixed(2) + ')' : '';
+                    cell.style.color = alpha > 0.55 ? '#ffffff' : '#0f172a';
+                });
+            };
+            paint('team');
+            if (heatmapSelect) {
+                heatmapSelect.addEventListener('change', function () { paint(heatmapSelect.value); });
+            }
+        }
+
         if (typeof Chart === 'undefined') {
             return;
         }

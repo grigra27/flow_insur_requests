@@ -827,6 +827,10 @@ class UserDailyActivity(models.Model):
     sections = models.JSONField(
         default=dict, blank=True, verbose_name='Разделы', help_text='Число запросов по разделам приложения'
     )
+    hourly = models.JSONField(
+        default=dict, blank=True, verbose_name='События по часам',
+        help_text='{"9": 12, "10": 30, ...} — число событий по часам (МСК)',
+    )
 
     first_seen_at = models.DateTimeField(null=True, blank=True, verbose_name='Первое появление')
     last_seen_at = models.DateTimeField(null=True, blank=True, verbose_name='Последнее появление')

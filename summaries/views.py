@@ -2502,6 +2502,7 @@ def analytics_managers(request):
     for error_message in filters.errors:
         messages.warning(request, error_message)
     payload = analytics_employees_service.build_payload(filters)
+    payload['hours'] = range(24)
     return render(request, 'summaries/analytics_employees.html', payload)
 
 

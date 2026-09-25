@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 from collections import Counter, defaultdict
+from statistics import median
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from decimal import Decimal
@@ -28,12 +29,14 @@ from django.db.models import Q
 from django.utils import timezone
 
 from insurance_requests.models import InsuranceRequest
-from summaries.models import InsuranceOffer, InsuranceSummary, StatusEvent
+from summaries.models import InsuranceOffer, InsuranceSummary, StatusEvent, UserDailyActivity
 
 EMPLOYEE_GROUP = 'Пользователи'
 DEFAULT_PERIOD = '90'
 PERIOD_CHOICES = [('90', '90 дней'), ('180', '180 дней'), ('365', '365 дней')]
 STATUS_LOG_START = date(2026, 4, 27)
+LATE_HOUR = 20  # «поздний» день — последнее действие в 20:00 МСК и позже
+WEEKDAY_LABELS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
 
 SERIES_COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#4a3aa7', '#e34948']
 OTHER_SERIES_COLOR = '#8a8985'
@@ -262,9 +265,94 @@ def build_load_block(filters: EmployeeFilters) -> Dict:
     }
 
 
+def _workdays(filters: EmployeeFilters) -> int:
+    return sum(
+        1 for offset in range(filters.days)
+        if (filters.start_date + timedelta(days=offset)).weekday() < 5
+    )
+
+
+def _typical_time(moments: List[datetime]) -> Optional[str]:
+    if not moments:
+        return None
+    minutes = median(
+        timezone.localtime(moment).hour * 60 + timezone.localtime(moment).minute for moment in moments
+    )
+    minutes = int(round(minutes))
+    return f'{minutes // 60:02d}:{minutes % 60:02d}'
+
+
+def _empty_grid() -> List[List[int]]:
+    return [[0] * 24 for _ in range(7)]
+
+
+def build_presence_block(filters: EmployeeFilters, load_rows: List[Dict]) -> Dict:
+    """Блок «Присутствие» (задача 4.3) по дневному агрегату UserDailyActivity."""
+    activity = list(
+        UserDailyActivity.objects.filter(date__gte=filters.start_date, date__lte=filters.end_date)
+    )
+    by_user: Dict[int, List[UserDailyActivity]] = defaultdict(list)
+    for row in activity:
+        by_user[row.user_id].append(row)
+
+    workdays = _workdays(filters)
+    team_grid = _empty_grid()
+    grids = {}
+    rows = []
+    for load_row in load_rows:
+        days = by_user.get(load_row['user_id'], [])
+        active_days = [day for day in days if day.page_views or day.form_actions or day.crud_actions]
+        grid = _empty_grid()
+        for day in days:
+            weekday = day.date.weekday()
+            for hour, count in (day.hourly or {}).items():
+                grid[weekday][int(hour)] += count
+                team_grid[weekday][int(hour)] += count
+        grids[str(load_row['user_id'])] = grid
+        total_minutes = sum(day.active_minutes for day in active_days)
+        rows.append({
+            'user_id': load_row['user_id'],
+            'name': load_row['name'],
+            'color': load_row['color'],
+            'login_days': sum(1 for day in days if day.logins_count),
+            'active_days': len(active_days),
+            'typical_start': _typical_time([day.first_seen_at for day in active_days if day.first_seen_at]),
+            'typical_end': _typical_time([day.last_seen_at for day in active_days if day.last_seen_at]),
+            'active_hours_total': Decimal(total_minutes) / Decimal(60),
+            'active_minutes_per_day': (total_minutes // len(active_days)) if active_days else None,
+            'late_days': sum(
+                1 for day in active_days
+                if day.last_seen_at and timezone.localtime(day.last_seen_at).hour >= LATE_HOUR
+            ),
+            'weekend_days': sum(1 for day in active_days if day.date.weekday() >= 5),
+            'days_without_views': sum(1 for day in active_days if not day.has_request_data),
+        })
+    rows.sort(key=lambda row: (-row['active_days'], -row['login_days'], row['name']))
+
+    first_collected = UserDailyActivity.objects.order_by('date').values_list('date', flat=True).first()
+    first_with_views = (
+        UserDailyActivity.objects.filter(has_request_data=True).order_by('date').values_list('date', flat=True).first()
+    )
+    return {
+        'rows': rows,
+        'workdays': workdays,
+        'late_hour': LATE_HOUR,
+        'first_collected': first_collected,
+        'first_with_views': first_with_views,
+        'coverage_partial': first_collected is None or first_collected > filters.start_date,
+        'heatmap': {
+            'weekdays': WEEKDAY_LABELS,
+            'team': team_grid,
+            'employees': grids,
+        },
+    }
+
+
 def build_payload(filters: EmployeeFilters) -> Dict:
+    load = build_load_block(filters)
     return {
         'filters': filters.as_template(),
         'period_choices': PERIOD_CHOICES,
-        'load': build_load_block(filters),
+        'load': load,
+        'presence': build_presence_block(filters, load['rows']),
     }
