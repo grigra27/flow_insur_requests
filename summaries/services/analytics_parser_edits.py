@@ -17,6 +17,8 @@ from django.utils import timezone
 
 from insurance_requests.models import InsuranceRequest, RequestFieldEdit
 
+from . import parser_edit_reasons
+
 DEFAULT_DAYS = 90
 MAX_DAYS = 3650
 TOP_LIMIT = 20
@@ -123,6 +125,59 @@ def _by_version(requests_values):
     return sorted(rows, key=lambda row: row['first'], reverse=True)
 
 
+def _reasons_and_forecast(request_values, edits_qs):
+    """Правки по причинам (5.3) и прогноз доли заявок без правок после исправлений этапа 6.
+
+    Считается по строкам RequestFieldEdit заявок периода: заявка «с правками», если у неё
+    есть хотя бы одна правка на входе (общие правки партии записаны на первую заявку).
+    """
+    file_names = {
+        row['pk']: parser_edit_reasons.source_file_name(row['additional_data']) for row in request_values
+    }
+    reasons = {}
+    kinds_by_request = {}
+    for request_id, field_name, field_label in edits_qs.filter(request_id__in=file_names).values_list(
+        'request_id', 'field_name', 'field_label'
+    ):
+        key = parser_edit_reasons.classify(field_name, file_names.get(request_id, ''))
+        bucket = reasons.setdefault(key, {'edits': 0, 'requests': set(), 'fields': {}})
+        bucket['edits'] += 1
+        bucket['requests'].add(request_id)
+        bucket['fields'][field_label or field_name] = bucket['fields'].get(field_label or field_name, 0) + 1
+        kinds_by_request.setdefault(request_id, set()).add(parser_edit_reasons.REASONS[key]['kind'])
+
+    rows = []
+    for key, bucket in reasons.items():
+        info = parser_edit_reasons.reason_info(key)
+        top_fields = sorted(bucket['fields'].items(), key=lambda item: -item[1])[:3]
+        rows.append({
+            **info,
+            'edits': bucket['edits'],
+            'requests': len(bucket['requests']),
+            'fields': ', '.join(f'{label} {count}' for label, count in top_fields),
+        })
+    kind_order = {'parser': 0, 'scenario': 1, 'other': 2}
+    rows.sort(key=lambda row: (kind_order[row['kind']], -row['edits']))
+
+    total = len(file_names)
+    edited = len(kinds_by_request)
+    after_parser_fix = sum(1 for kinds in kinds_by_request.values() if kinds & {'scenario', 'other'})
+    after_all_fixes = sum(1 for kinds in kinds_by_request.values() if 'other' in kinds)
+
+    def _share(with_edits):
+        return round((total - with_edits) / total * 100, 1) if total else None
+
+    forecast = {
+        'total': total,
+        'clean_now': total - edited,
+        'clean_now_percent': _share(edited),
+        'clean_after_parser_percent': _share(after_parser_fix),
+        'clean_after_all_percent': _share(after_all_fixes),
+        'seized_requests': sum(1 for name in file_names.values() if parser_edit_reasons.is_seized_file(name)),
+    }
+    return rows, forecast
+
+
 def _operator_label(row):
     last_name = (row.get('request__created_by__last_name') or '').strip()
     first_name = (row.get('request__created_by__first_name') or '').strip()
@@ -223,7 +278,8 @@ def build_payload(filters):
         })
 
     # Сегментация по шаблону заявки: на каком формате/типе парсер слабее.
-    request_values = list(v2_requests.values('additional_data', 'manual_edits_count', 'created_at'))
+    request_values = list(v2_requests.values('pk', 'additional_data', 'manual_edits_count', 'created_at'))
+    by_reason, forecast = _reasons_and_forecast(request_values, edits)
     by_format = _segment(request_values, 'application_format', FORMAT_LABELS)
     by_app_type = _segment(request_values, 'application_type', TYPE_LABELS)
 
@@ -275,6 +331,8 @@ def build_payload(filters):
         'by_format': by_format,
         'by_app_type': by_app_type,
         'by_version': _by_version(request_values),
+        'by_reason': by_reason,
+        'forecast': forecast,
         'timeline': timeline,
         'selected_field': selected_field,
         'selected_field_label': selected_field_label,

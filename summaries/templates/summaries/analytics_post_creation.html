@@ -45,6 +45,26 @@
     </div>
 </div>
 
+
+{% if by_reason %}
+<div class="card mb-4">
+    <div class="card-header">
+        <h6 class="mb-0">Правки по причинам</h6>
+        <small class="text-muted">Та же классификация, что на странице правок при загрузке.</small>
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+            <thead class="table-light"><tr><th>Причина</th><th>Вид</th><th>Задача</th><th class="text-end">Заявок</th><th class="text-end">Правок</th></tr></thead>
+            <tbody>
+                {% for row in by_reason %}
+                <tr><td><strong>{{ row.label }}</strong></td><td class="small">{{ row.kind_label }}</td><td>{{ row.task|default:'—' }}</td><td class="text-end">{{ row.requests }}</td><td class="text-end">{{ row.edits }}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
 <div class="row g-4 mb-4">
     {# По полям #}
     <div class="col-lg-6">

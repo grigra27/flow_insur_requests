@@ -186,3 +186,60 @@ class ParserVersionTests(TestCase):
 
         self.assertEqual(data['parser_v2']['version'], PARSER_V2_VERSION)
         self.assertEqual(data['parser_v2']['build'], '0123456789ab')
+
+
+class EditReasonsTests(TestCase):
+    """Правки по причинам и прогноз доли заявок без правок (задача 5.3)."""
+
+    def _request(self, file_name='Заявка ТС 20842.xlsx', edits=()):
+        request = InsuranceRequest.objects.create(
+            client_name='ООО Тест', inn='1', parser_confidence=1.0, manual_edits_count=len(edits),
+            additional_data={'parser_version': 'v2', 'parser_v2': {'version': '2.0.0', 'source_file_name': file_name}},
+        )
+        for field_name in edits:
+            RequestFieldEdit.objects.create(
+                request=request, scope='common', field_name=field_name, field_label=field_name,
+                original_value='a', modified_value='b', edit_type='changed',
+            )
+        return request
+
+    def test_classify(self):
+        from summaries.services import parser_edit_reasons as reasons
+
+        self.assertEqual(reasons.classify('insurance_period'), 'period')
+        self.assertEqual(reasons.classify('has_installment'), 'payment')
+        self.assertEqual(reasons.classify('model'), 'object')
+        self.assertEqual(reasons.classify('guard_conditions'), 'other')
+        # «Изъятое» по имени файла перекрывает поле.
+        self.assertEqual(reasons.classify('insurance_period', 'Заявка 19818 - ИЗЪЯТОЕ.xls'), 'seized')
+
+    def test_reasons_and_forecast(self):
+        self._request(edits=['insurance_period', 'has_autostart'])        # только известные ошибки
+        self._request(edits=['has_autostart', 'guard_conditions'])        # есть «прочее»
+        self._request(file_name='Заявка 19818 - ИЗЪЯТОЕ.xls', edits=['client_name', 'inn'])
+        self._request()                                                   # без правок
+
+        payload = service.build_payload(service.parse_filters({}))
+        forecast = payload['forecast']
+        self.assertEqual((forecast['total'], forecast['clean_now']), (4, 1))
+        self.assertEqual(forecast['clean_now_percent'], 25.0)
+        self.assertEqual(forecast['clean_after_parser_percent'], 50.0)   # + первая заявка
+        self.assertEqual(forecast['clean_after_all_percent'], 75.0)      # + «Изъятое»
+        self.assertEqual(forecast['seized_requests'], 1)
+
+        rows = {row['key']: row for row in payload['by_reason']}
+        self.assertEqual((rows['autostart']['requests'], rows['autostart']['task']), (2, '6.2'))
+        self.assertEqual((rows['seized']['edits'], rows['seized']['kind']), (2, 'scenario'))
+        self.assertEqual(rows['other']['edits'], 1)
+        self.assertEqual(payload['by_reason'][0]['kind'], 'parser')      # сначала ошибки парсера
+
+    def test_post_creation_page_groups_by_reason(self):
+        from summaries.services import analytics_post_creation
+
+        request = self._request()
+        RequestFieldEdit.objects.create(
+            request=request, scope='post', field_name='dfa_number', field_label='Номер ДФА',
+            original_value='ТС-20842', modified_value='ТС-20842-ГА-МН', edit_type='changed',
+        )
+        payload = analytics_post_creation.build_payload(analytics_post_creation.parse_filters({}))
+        self.assertEqual([(row['key'], row['edits']) for row in payload['by_reason']], [('dfa', 1)])

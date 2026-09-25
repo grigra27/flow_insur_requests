@@ -15,7 +15,9 @@ from datetime import timedelta
 
 from django.utils import timezone
 
-from insurance_requests.models import RequestFieldEdit
+from insurance_requests.models import InsuranceRequest, RequestFieldEdit
+
+from . import parser_edit_reasons
 
 DEFAULT_DAYS = 90
 MAX_DAYS = 3650
@@ -54,6 +56,13 @@ def build_payload(filters):
         ).values_list('request_id', 'field_name')
     )
 
+    file_names = {
+        pk: parser_edit_reasons.source_file_name(additional_data)
+        for pk, additional_data in InsuranceRequest.objects.filter(
+            pk__in={edit.request_id for edit in edits}
+        ).values_list('pk', 'additional_data')
+    }
+    by_reason = {}
     by_field = {}
     by_editor = {}
     suspected = []
@@ -66,6 +75,10 @@ def build_payload(filters):
         editor_stats = by_editor.setdefault(editor, {'edits': 0, 'requests': set()})
         editor_stats['edits'] += 1
         editor_stats['requests'].add(edit.request_id)
+        reason_key = parser_edit_reasons.classify(edit.field_name, file_names.get(edit.request_id, ''))
+        reason_stats = by_reason.setdefault(reason_key, {'edits': 0, 'requests': set()})
+        reason_stats['edits'] += 1
+        reason_stats['requests'].add(edit.request_id)
 
         pair = (edit.request_id, edit.field_name)
         if pair in seen_pairs:
@@ -93,9 +106,17 @@ def build_payload(filters):
         key=lambda row: (-row['edits'], -row['requests']),
     )[:TOP_LIMIT]
 
+    kind_order = {'parser': 0, 'scenario': 1, 'other': 2}
+    by_reason_rows = sorted(
+        ({**parser_edit_reasons.reason_info(key), 'edits': data['edits'], 'requests': len(data['requests'])}
+         for key, data in by_reason.items()),
+        key=lambda row: (kind_order[row['kind']], -row['edits']),
+    )
+
     return {
         'filters': filters,
         'audit_available': True,
+        'by_reason': by_reason_rows,
         'totals': {
             'requests_with_post_edits': len({edit.request_id for edit in edits}),
             'total_post_edits': len(edits),
