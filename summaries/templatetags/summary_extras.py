@@ -172,6 +172,34 @@ def format_currency_with_spaces(value):
 
 
 @register.filter
+def money_short(value):
+    """Крупные суммы в рублях коротко: «1,68 млрд ₽», «632 млн ₽», «850 тыс. ₽».
+
+    Три значащие цифры для млрд/млн (632 млн, 8,6 млн → «8,6 млн»), целые тысячи.
+    """
+    if value is None or value == '':
+        return '—'
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return str(value)
+
+    def _fmt(amount, digits):
+        return f"{amount:.{digits}f}".replace('.', ',')
+
+    absolute = abs(number)
+    if absolute >= 1_000_000_000:
+        return f"{_fmt(number / 1_000_000_000, 2)} млрд ₽"
+    if absolute >= 1_000_000:
+        scaled = number / 1_000_000
+        digits = 0 if abs(scaled) >= 100 else 1
+        return f"{_fmt(scaled, digits)} млн ₽"
+    if absolute >= 1_000:
+        return f"{_fmt(number / 1_000, 0)} тыс. ₽"
+    return f"{_fmt(number, 0)} ₽"
+
+
+@register.filter
 def sum_premiums_variant1(offers):
     """Суммирует премии с франшизой-1 для списка предложений"""
     try:

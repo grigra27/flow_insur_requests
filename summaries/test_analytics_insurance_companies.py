@@ -148,93 +148,117 @@ class InsuranceCompaniesAnalyticsTests(TestCase):
         user_response = self.client.get(reverse('summaries:summary_list'))
         self.assertNotContains(user_response, analytics_companies_url)
 
-    def test_page_renders_all_key_blocks(self):
+    def test_page_renders_new_blocks_and_drops_old_ones(self):
         response = self.client.get(reverse('summaries:analytics_insurance_companies'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Рейтинг страховых компаний')
-        self.assertContains(response, 'Ценовая конкурентность')
-        self.assertContains(response, 'data-faq-target="faq-rating-columns"')
-        self.assertContains(response, 'data-faq-target="faq-competitiveness-columns"')
-        self.assertContains(response, 'Рейтинг страховых компаний: что означают столбцы')
-        self.assertContains(response, 'Ценовая конкурентность: что означают столбцы')
-        self.assertContains(response, 'Конверсия в выбор клиента')
-        self.assertContains(response, 'Разрезы по филиалам, менеджеру Альянса, типам и статусам')
-        self.assertContains(response, 'Фильтр по СК (только этот блок)')
-        self.assertNotContains(response, 'СК x Менеджер Онлайна')
-        self.assertContains(response, 'Конкурентные сделки (>=3 СК)')
-        self.assertNotContains(response, 'SLA до дедлайна')
-        self.assertContains(response, 'Динамика по времени')
-        self.assertContains(response, 'Data Quality')
-        self.assertNotContains(response, 'Детализация сделок')
+        self.assertContains(response, 'Куда уходит бизнес')
+        self.assertContains(response, 'Доли СК по месяцам')
+        self.assertContains(response, 'СК × филиал')
+        self.assertContains(response, 'СК × тип страхования')
+        self.assertContains(response, 'Качество данных')
+        for removed in ('Ценовая конкурентность', 'Конверсия в выбор клиента', 'Менеджер Альянса',
+                        'name="date_mode"', 'name="comparison_mode"', 'name="full_coverage"', 'Data Quality'):
+            self.assertNotContains(response, removed)
 
-    def test_filters_by_branch(self):
-        response = self.client.get(
-            reverse('summaries:analytics_insurance_companies'),
-            {'branch': 'Москва'}
+    def test_filters_by_branch_and_type(self):
+        url = reverse('summaries:analytics_insurance_companies')
+
+        self.assertEqual(self.client.get(url, {'branch': 'Москва'}).context['kpi']['total_deals'], 1)
+        self.assertEqual(
+            self.client.get(url, {'insurance_type': 'страхование имущества'}).context['kpi']['total_deals'], 1,
         )
 
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context['kpi']['total_deals'], 1)
+    def test_period_filter_by_summary_creation_date(self):
+        url = reverse('summaries:analytics_insurance_companies')
+        # Своды созданы 10 и 6 дней назад.
+        self.assertEqual(self.client.get(url, {'start_date': (timezone.localdate() - timedelta(days=7)).isoformat()})
+                         .context['kpi']['total_deals'], 1)
+        self.assertEqual(self.client.get(url, {'period': '180'}).context['kpi']['total_deals'], 2)
 
-    def test_core_metrics_and_data_quality(self):
+    def test_kpi_money_and_cheapest(self):
         response = self.client.get(reverse('summaries:analytics_insurance_companies'))
-        self.assertEqual(response.status_code, 200)
-
         kpi = response.context['kpi']
+
         self.assertEqual(kpi['total_deals'], 2)
+        self.assertEqual(kpi['insured_sum_total'], Decimal('2000000.00'))
+        # Премии выбранных СК: Абсолют 10 000 + Альфа 8 000.
+        self.assertEqual(kpi['premium_total'], Decimal('18000.00'))
+        self.assertEqual(kpi['avg_tariff_pct'], Decimal('0.9'))
+        self.assertEqual(kpi['winners_count'], 2)
+        self.assertEqual(kpi['participants_count'], 3)
         self.assertEqual(kpi['comparable_deals'], 2)
-        self.assertEqual(kpi['min_selected_count'], 1)
-        self.assertEqual(kpi['min_selected_rate'], Decimal('50'))
-        self.assertEqual(kpi['avg_rank'], 1.5)
-        self.assertEqual(kpi['median_delta_abs'], Decimal('500.00'))
-        self.assertEqual(kpi['competitive_deals_count'], 1)
-        self.assertEqual(kpi['competitive_deals_rate'], Decimal('50'))
-        self.assertEqual(kpi['avg_offered_companies_per_deal'], 2.5)
+        self.assertEqual(kpi['cheapest_deals'], 1)
+        self.assertEqual(kpi['cheapest_rate_pct'], Decimal('50'))
 
-        quality_rows = {row['key']: row for row in response.context['data_quality_rows']}
-        self.assertEqual(quality_rows['missing_selected_variant_count']['count'], 1)
-        self.assertEqual(quality_rows['missing_manager_alliance_count']['count'], 1)
-
-    def test_drilldown_links_not_rendered_without_details_table(self):
+    def test_company_rows(self):
         response = self.client.get(reverse('summaries:analytics_insurance_companies'))
+        rows = {row['company_name']: row for row in response.context['company_rows']}
 
-        self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, reverse('summaries:deal_summary', args=[self.summary_moscow.pk]))
-        self.assertNotContains(response, reverse('summaries:summary_detail', args=[self.summary_moscow.pk]))
+        absolut = rows['Абсолют']
+        self.assertEqual(absolut['deals'], 1)
+        self.assertEqual(absolut['offered'], 2)
+        self.assertEqual(absolut['win_rate_pct'], Decimal('50'))
+        self.assertEqual(absolut['premium_total'], Decimal('10000.00'))
+        self.assertEqual(absolut['tariff_pct'], Decimal('1'))
+        self.assertEqual((absolut['cheapest_wins'], absolut['comparable_wins']), (0, 1))
 
-    def test_export_returns_valid_xlsx(self):
-        response = self.client.get(
-            reverse('summaries:export_analytics_insurance_companies_widget'),
-            {'widget': 'rating'}
+        alfa = rows['Альфа']
+        self.assertEqual((alfa['cheapest_wins'], alfa['comparable_wins']), (1, 1))
+
+        # СК без выигрышей остаётся в таблице — внизу, с участием.
+        vsk = rows['ВСК']
+        self.assertEqual((vsk['deals'], vsk['offered']), (0, 1))
+        self.assertFalse(vsk['is_winner'])
+        self.assertEqual(response.context['company_rows'][-1]['company_name'], 'ВСК')
+
+    def test_multiyear_premium_sums_all_years_and_insured_sum_uses_first_year(self):
+        InsuranceOffer.objects.create(
+            summary=self.summary_moscow, company_name='Абсолют', insurance_year=2,
+            insurance_sum=Decimal('800000.00'), premium_with_franchise_1=Decimal('7000.00'),
+            franchise_1=Decimal('0'),
         )
+        response = self.client.get(reverse('summaries:analytics_insurance_companies'), {'branch': 'Москва'})
+        row = response.context['company_rows'][0]
+
+        self.assertEqual(row['insured_sum'], Decimal('1000000.00'))
+        self.assertEqual(row['premium_total'], Decimal('17000.00'))
+        self.assertEqual(row['tariff_pct'], Decimal('1'))
+
+    def test_heatmaps_and_monthly(self):
+        response = self.client.get(reverse('summaries:analytics_insurance_companies'))
+        heatmap = response.context['heatmaps']['branch']
+
+        self.assertEqual([row['label'] for row in heatmap['rows']], ['Абсолют', 'Альфа'])
+        absolut_cells = {cell['column']: cell['value'] for cell in heatmap['rows'][0]['cells']}
+        self.assertEqual(absolut_cells['Москва'], 1)
+        self.assertEqual(absolut_cells['Санкт-Петербург'], 0)
+
+        monthly = response.context['charts']['monthly']
+        self.assertEqual(sum(sum(series['data']) for series in monthly['deals']), 2)
+        # Цвет закреплён за СК, а не за местом в рейтинге.
+        self.assertEqual(monthly['colors']['Абсолют'], '#2a78d6')
+
+    def test_data_quality_in_plain_russian(self):
+        response = self.client.get(reverse('summaries:analytics_insurance_companies'))
+        rows = {row['key']: row for row in response.context['data_quality_rows']}
+
+        self.assertEqual(rows['missing_variant']['count'], 1)
+        self.assertNotIn('selected_franchise_variant', rows['missing_variant']['label'])
+
+    def test_export_returns_workbook_with_sheets(self):
+        response = self.client.get(reverse('summaries:export_analytics_insurance_companies_widget'), {'period': 'all'})
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             response['Content-Type'],
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         )
-        self.assertIn('analytics_companies_rating_', response['Content-Disposition'])
+        self.assertIn('analytics_companies_', response['Content-Disposition'])
 
         workbook = load_workbook(BytesIO(response.content))
-        worksheet = workbook.active
-
-        self.assertEqual(worksheet['A1'].value, 'Рейтинг страховых компаний')
-        self.assertEqual(worksheet['A6'].value, 'Позиция')
-        self.assertEqual(worksheet['B6'].value, 'СК')
-        self.assertEqual(worksheet['C6'].value, 'Участвовала в сделках, шт.')
-
-    def test_export_overview_uses_competition_kpi(self):
-        response = self.client.get(
-            reverse('summaries:export_analytics_insurance_companies_widget'),
-            {'widget': 'overview'}
-        )
-
-        self.assertEqual(response.status_code, 200)
-        workbook = load_workbook(BytesIO(response.content))
-        worksheet = workbook.active
-
-        metric_labels = [worksheet[f'A{row}'].value for row in range(6, worksheet.max_row + 1)]
-        self.assertIn('Конкурентные сделки (>=3 СК), %', metric_labels)
-        self.assertIn('Среднее число СК на сделку', metric_labels)
-        self.assertNotIn('SLA: закрыто до дедлайна, %', metric_labels)
+        self.assertEqual(workbook.sheetnames, ['Сводка', 'СК', 'По месяцам', 'СК × филиал', 'СК × тип'])
+        companies = workbook['СК']
+        self.assertEqual(companies['A5'].value, 'СК')
+        self.assertEqual(companies['A6'].value, 'Абсолют')
+        self.assertEqual(workbook['Сводка']['B6'].value, 2)

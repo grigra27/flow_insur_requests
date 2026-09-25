@@ -1,27 +1,73 @@
-"""Сервис расчета аналитики по страховым компаниям."""
+"""Аналитика «Страховые компании · куда уходит бизнес».
+
+Сделка — акцептованный свод (`completed_accepted`) с выбранной СК. По каждой СК:
+сколько сделок, какая страховая сумма и премия ушли в неё, по какому тарифу,
+в скольких сделках она участвовала и насколько часто выигрывала, в том числе
+будучи самой дешёвой. Плюс помесячная динамика долей и разрезы СК × филиал /
+СК × тип страхования.
+
+Правила расчёта (docs/analytics_insurance_companies_metrics.md):
+- страховая сумма — по первому году выбранного предложения (многолетние сделки
+  не удваиваются);
+- премия — сумма по всем годам выбранного варианта франшизы (деньги, которые
+  уходят в СК);
+- тариф — премия первого года / страховая сумма первого года;
+- «выбрана самая дешёвая» — по сопоставимым сделкам `_build_deal_price_row`.
+
+Страница пересобрана по docs/improvement_plans/analytics_redesign_2026_09.md (задача 1.4).
+"""
 
 from __future__ import annotations
 
-from collections import defaultdict
+from collections import Counter, defaultdict
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Callable, Dict, Iterable, List, Optional
 
 from django.db.models import Prefetch
-from django.db.models.functions import Coalesce
 
-from insurance_requests.models import InsuranceRequest
 from summaries.models import InsuranceOffer, InsuranceSummary
 
-DATE_MODE_SUMMARY_CREATED = 'summary_created'
-DATE_MODE_COMPLETED_AT = 'completed_at'
-DATE_MODE_RECEIVED_AT = 'received_at'
+NOT_SPECIFIED = 'Не указан'
+OTHER_COMPANIES_LABEL = 'Прочие'
+MONTHLY_TOP_COMPANIES = 6
+INSUFFICIENT_COMPARABLE_DEALS = 5
 
-DATE_MODE_CHOICES = {
-    DATE_MODE_SUMMARY_CREATED: 'По дате создания свода',
-    DATE_MODE_COMPLETED_AT: 'По дате закрытия сделки',
-    DATE_MODE_RECEIVED_AT: 'По дате получения предложений',
+INSURANCE_TYPE_ORDER = ['КАСКО', 'страхование спецтехники', 'страхование имущества', 'другое']
+
+# Категориальная палитра графика (порядок проверен на различимость, в т.ч. при дальтонизме).
+# Цвет закреплён за СК, а не за местом в рейтинге: при смене фильтра цвета не «переезжают».
+SERIES_COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#4a3aa7', '#e34948']
+OTHER_SERIES_COLOR = '#8a8985'
+COMPANY_COLOR_SLOTS = {
+    'Абсолют': 0,
+    'Ингосстрах': 1,
+    'Пари': 2,
+    'Альфа': 3,
+    'Росгосстрах': 4,
+    'Согласие': 5,
+    'Зетта': 6,
+    'Согаз': 7,
 }
+
+
+def _series_colors(names: List[str]) -> Dict[str, str]:
+    colors = {}
+    used = set()
+    for name in names:
+        slot = COMPANY_COLOR_SLOTS.get(name)
+        if slot is not None:
+            colors[name] = SERIES_COLORS[slot]
+            used.add(slot)
+    free_slots = [slot for slot in range(len(SERIES_COLORS)) if slot not in used]
+    for name in names:
+        if name in colors:
+            continue
+        if name == OTHER_COMPANIES_LABEL or not free_slots:
+            colors[name] = OTHER_SERIES_COLOR
+        else:
+            colors[name] = SERIES_COLORS[free_slots.pop(0)]
+    return colors
 
 MONTH_NAMES_RU = {
     1: 'Январь',
@@ -39,7 +85,7 @@ MONTH_NAMES_RU = {
 }
 
 
-def _safe_decimal(value):
+def _safe_decimal(value) -> Optional[Decimal]:
     if value is None:
         return None
     try:
@@ -48,137 +94,88 @@ def _safe_decimal(value):
         return None
 
 
-def _median_decimal(values: Iterable[Decimal]) -> Optional[Decimal]:
-    values_list = sorted(values)
-    if not values_list:
+def _percent(numerator, denominator) -> Optional[Decimal]:
+    if not denominator:
         return None
-
-    middle_index = len(values_list) // 2
-    if len(values_list) % 2 == 1:
-        return values_list[middle_index]
-
-    return (values_list[middle_index - 1] + values_list[middle_index]) / Decimal('2')
+    return Decimal(numerator) / Decimal(denominator) * Decimal('100')
 
 
-def _avg_decimal(values: Iterable[Decimal]) -> Optional[Decimal]:
-    values_list = list(values)
-    if not values_list:
+def _month_label(month_key: str) -> str:
+    year, month = month_key.split('-')
+    return f"{MONTH_NAMES_RU[int(month)]} {year}"
+
+
+def _variant_premium(offer: InsuranceOffer, variant: int) -> Optional[Decimal]:
+    raw = offer.premium_with_franchise_2 if variant == 2 else offer.premium_with_franchise_1
+    value = _safe_decimal(raw)
+    if value is None or value <= 0:
         return None
-    return sum(values_list, Decimal('0')) / Decimal(len(values_list))
+    return value
 
 
-def _avg_float(values: Iterable[float]) -> float:
-    values_list = list(values)
-    if not values_list:
-        return 0.0
-    return sum(values_list) / len(values_list)
+def _selected_money(selected_offers: List[InsuranceOffer], variant: int) -> Dict[str, Optional[Decimal]]:
+    """Страховая сумма и премия 1-го года + премия за все годы для выбранной СК.
 
-
-def _percent(numerator: int, denominator: int) -> Decimal:
-    if denominator <= 0:
-        return Decimal('0')
-    return (Decimal(numerator) / Decimal(denominator)) * Decimal('100')
-
-
-def _hours_between(dt_start, dt_end) -> Optional[float]:
-    if not dt_start or not dt_end:
-        return None
-    delta = dt_end - dt_start
-    return delta.total_seconds() / 3600
-
-
-def _resolve_manager_online_name(insurance_request) -> str:
-    created_by = getattr(insurance_request, 'created_by', None)
-    if not created_by:
-        return ''
-
-    first_name = (created_by.first_name or '').strip()
-    last_name = (created_by.last_name or '').strip()
-    username = (created_by.username or '').strip()
-
-    full_name = f"{last_name} {first_name}".strip()
-    return full_name or username
-
-
-def _date_to_month_key(value) -> Optional[str]:
-    if not value:
-        return None
-    return value.strftime('%Y-%m')
-
-
-def _date_to_month_label(value) -> str:
-    if not value:
-        return 'Без даты'
-    return f"{MONTH_NAMES_RU.get(value.month, value.strftime('%B'))} {value.year}"
-
-
-def _offer_supports_installment(offer: InsuranceOffer, selected_variant: int) -> bool:
-    if selected_variant == 2:
-        if offer.installment_variant_2 and (offer.payments_per_year_variant_2 or 0) > 1:
-            return True
-    else:
-        if offer.installment_variant_1 and (offer.payments_per_year_variant_1 or 0) > 1:
-            return True
-
-    return bool(offer.installment_available and (offer.payments_per_year or 0) > 1)
-
-
-def _sum_selected_total(selected_offers: List[InsuranceOffer], selected_variant: int) -> Optional[Decimal]:
+    Если премии нет хотя бы в одном году выбранного варианта — премия за все годы
+    не считается (None), чтобы не занижать сумму; это видно в «Качестве данных».
+    """
     if not selected_offers:
-        return None
+        return {'insured_sum': None, 'premium_year1': None, 'premium_total': None}
 
-    offers_by_year = {offer.insurance_year: offer for offer in selected_offers}
-    total = Decimal('0')
-    for year in sorted(offers_by_year.keys()):
-        offer = offers_by_year[year]
-        premium_raw = (
-            offer.premium_with_franchise_2
-            if selected_variant == 2
-            else offer.premium_with_franchise_1
-        )
-        premium_value = _safe_decimal(premium_raw)
-        if premium_value is None or premium_value <= 0:
-            return None
-        total += premium_value
+    offers = sorted(selected_offers, key=lambda offer: offer.insurance_year)
+    first = offers[0]
+    insured_sum = _safe_decimal(first.insurance_sum)
+    if insured_sum is not None and insured_sum <= 0:
+        insured_sum = None
 
-    return total
+    premiums = [_variant_premium(offer, variant) for offer in offers]
+    premium_total = None if any(value is None for value in premiums) else sum(premiums, Decimal('0'))
 
-
-def _get_date_anchor(summary: InsuranceSummary, valid_offers: List[InsuranceOffer], date_mode: str):
-    if date_mode == DATE_MODE_COMPLETED_AT:
-        return summary.completed_at or summary.updated_at
-
-    if date_mode == DATE_MODE_RECEIVED_AT:
-        if not valid_offers:
-            return None
-        return min((offer.received_at for offer in valid_offers), default=None)
-
-    return summary.created_at
+    return {
+        'insured_sum': insured_sum,
+        'premium_year1': premiums[0],
+        'premium_total': premium_total,
+    }
 
 
-def _apply_date_filters(
-    queryset,
-    *,
-    start_date: Optional[date],
-    end_date: Optional[date],
-    date_mode: str,
-):
-    if date_mode == DATE_MODE_COMPLETED_AT:
-        queryset = queryset.annotate(_analytics_closed_at=Coalesce('completed_at', 'updated_at'))
-        if start_date:
-            queryset = queryset.filter(_analytics_closed_at__date__gte=start_date)
-        if end_date:
-            queryset = queryset.filter(_analytics_closed_at__date__lte=end_date)
-        return queryset
+def _build_heatmap(counter: Counter, row_order: List[str], column_order: List[str]) -> Dict:
+    """Матрица «СК × измерение» по числу сделок."""
+    max_value = max(counter.values(), default=0)
+    rows = []
+    for company in row_order:
+        cells = [{'column': column, 'value': counter.get((company, column), 0)} for column in column_order]
+        rows.append({'label': company, 'cells': cells, 'total': sum(cell['value'] for cell in cells)})
+    column_totals = [sum(counter.get((company, column), 0) for company in row_order) for column in column_order]
+    return {
+        'columns': column_order,
+        'rows': rows,
+        'column_totals': column_totals,
+        'max_value': max_value,
+    }
 
-    if date_mode == DATE_MODE_RECEIVED_AT:
-        queryset = queryset.filter(offers__is_valid=True)
-        if start_date:
-            queryset = queryset.filter(offers__received_at__date__gte=start_date)
-        if end_date:
-            queryset = queryset.filter(offers__received_at__date__lte=end_date)
-        return queryset.distinct()
 
+def _ordered_by_count(values: Iterable[str]) -> List[str]:
+    counts = Counter(values)
+    return [value for value, _ in sorted(counts.items(), key=lambda item: (-item[1], item[0]))]
+
+
+def build_available_filters(start_date: Optional[date], end_date: Optional[date]) -> Dict[str, List[str]]:
+    queryset = _base_queryset(start_date, end_date)
+    branches = list(
+        queryset.exclude(request__branch__isnull=True).exclude(request__branch='')
+        .values_list('request__branch', flat=True).distinct().order_by('request__branch')
+    )
+    insurance_types = list(
+        queryset.exclude(request__insurance_type__isnull=True).exclude(request__insurance_type='')
+        .values_list('request__insurance_type', flat=True).distinct().order_by('request__insurance_type')
+    )
+    return {'branches': branches, 'insurance_types': insurance_types}
+
+
+def _base_queryset(start_date: Optional[date], end_date: Optional[date]):
+    queryset = InsuranceSummary.objects.filter(status='completed_accepted').exclude(
+        selected_company__isnull=True
+    ).exclude(selected_company='')
     if start_date:
         queryset = queryset.filter(created_at__date__gte=start_date)
     if end_date:
@@ -186,640 +183,234 @@ def _apply_date_filters(
     return queryset
 
 
-def _build_manager_online_choices(queryset) -> List[Dict[str, str]]:
-    manager_rows = queryset.exclude(
-        request__created_by__isnull=True
-    ).order_by().values(
-        'request__created_by_id',
-        'request__created_by__username',
-        'request__created_by__first_name',
-        'request__created_by__last_name',
-    ).distinct()
-
-    managers = []
-    for manager_row in manager_rows:
-        first_name = (manager_row.get('request__created_by__first_name') or '').strip()
-        last_name = (manager_row.get('request__created_by__last_name') or '').strip()
-        username = (manager_row.get('request__created_by__username') or '').strip()
-        display_name = f"{first_name} {last_name}".strip() or username
-
-        managers.append({
-            'id': str(manager_row.get('request__created_by_id')),
-            'name': display_name,
-        })
-
-    return sorted(managers, key=lambda item: (item['name'] or '').lower())
-
-
-def _build_available_filters(queryset) -> Dict[str, List]:
-    branches = list(
-        queryset.exclude(
-            request__branch__isnull=True
-        ).exclude(
-            request__branch=''
-        ).values_list('request__branch', flat=True).distinct().order_by('request__branch')
-    )
-
-    insurance_types = list(
-        queryset.exclude(
-            request__insurance_type__isnull=True
-        ).exclude(
-            request__insurance_type=''
-        ).values_list('request__insurance_type', flat=True).distinct().order_by('request__insurance_type')
-    )
-
-    manager_alliance = list(
-        queryset.exclude(
-            request__manager_name__isnull=True
-        ).exclude(
-            request__manager_name=''
-        ).values_list('request__manager_name', flat=True).distinct().order_by('request__manager_name')
-    )
-
-    selected_companies = list(
-        queryset.exclude(
-            selected_company__isnull=True
-        ).exclude(
-            selected_company=''
-        ).values_list('selected_company', flat=True).distinct().order_by('selected_company')
-    )
-
-    return {
-        'branches': branches,
-        'insurance_types': insurance_types,
-        'manager_online': _build_manager_online_choices(queryset),
-        'manager_alliance': manager_alliance,
-        'selected_companies': selected_companies,
-        'deal_statuses': [
-            {'value': value, 'label': label}
-            for value, label in InsuranceRequest.DEAL_STATUS_CHOICES
-        ],
-    }
-
-
-def _build_slice_rows(slice_counter, total_deals: int) -> List[Dict]:
-    rows = []
-    for (company_name, dimension_value), counters in slice_counter.items():
-        offered = counters['offered']
-        selected = counters['selected']
-        rows.append({
-            'company_name': company_name,
-            'dimension_value': dimension_value,
-            'offered_in_deals_count': offered,
-            'selected_wins_count': selected,
-            'win_rate_when_offered_pct': _percent(selected, offered),
-            'coverage_pct': _percent(offered, total_deals),
-        })
-
-    rows.sort(
-        key=lambda row: (
-            row['offered_in_deals_count'],
-            row['selected_wins_count'],
-            row['company_name'],
-            row['dimension_value'],
-        ),
-        reverse=True,
-    )
-    return rows
-
-
 def build_analytics_insurance_companies_payload(
     *,
     start_date: Optional[date],
     end_date: Optional[date],
-    date_mode: str,
-    branch: str,
-    insurance_type: str,
-    manager_online: str,
-    manager_alliance: str,
-    selected_company: str,
-    deal_status: str,
-    comparison_mode: str,
-    require_full_coverage: bool,
+    branch: str = '',
+    insurance_type: str = '',
     price_row_builder: Callable,
-):
-    base_queryset = InsuranceSummary.objects.select_related('request', 'request__created_by').filter(
-        status='completed_accepted'
-    ).exclude(
-        selected_company__isnull=True
-    ).exclude(
-        selected_company=''
-    )
-
-    queryset_with_period = _apply_date_filters(
-        base_queryset,
-        start_date=start_date,
-        end_date=end_date,
-        date_mode=date_mode,
-    )
-
-    # Для режима received_at сначала фиксируем id сводов периода, чтобы не повторять
-    # тяжелый JOIN с offers на каждом DISTINCT-запросе фильтров.
-    if date_mode == DATE_MODE_RECEIVED_AT:
-        period_summary_ids = list(
-            queryset_with_period.values_list('id', flat=True).distinct()
-        )
-        summaries_for_filters_queryset = base_queryset.filter(id__in=period_summary_ids)
-    else:
-        summaries_for_filters_queryset = queryset_with_period
-
-    available_filters = _build_available_filters(summaries_for_filters_queryset)
-    errors = []
-
-    summaries_queryset = summaries_for_filters_queryset
+) -> Dict:
+    queryset = _base_queryset(start_date, end_date).select_related('request')
     if branch:
-        summaries_queryset = summaries_queryset.filter(request__branch=branch)
+        queryset = queryset.filter(request__branch=branch)
     if insurance_type:
-        summaries_queryset = summaries_queryset.filter(request__insurance_type=insurance_type)
-    if manager_online:
-        try:
-            summaries_queryset = summaries_queryset.filter(request__created_by_id=int(manager_online))
-        except ValueError:
-            manager_online = ''
-            errors.append('Некорректный фильтр менеджера Онлайна был сброшен')
-    if manager_alliance:
-        summaries_queryset = summaries_queryset.filter(request__manager_name=manager_alliance)
-    if selected_company:
-        summaries_queryset = summaries_queryset.filter(selected_company=selected_company)
-    if deal_status:
-        summaries_queryset = summaries_queryset.filter(request__deal_status=deal_status)
-
-    summaries_queryset = summaries_queryset.prefetch_related(
+        queryset = queryset.filter(request__insurance_type=insurance_type)
+    queryset = queryset.prefetch_related(
         Prefetch(
             'offers',
             queryset=InsuranceOffer.objects.filter(is_valid=True).order_by('company_name', 'insurance_year'),
             to_attr='valid_offers_prefetched',
         )
-    ).order_by('-created_at')
+    ).order_by('created_at')
 
-    deal_rows = []
-    comparable_rows = []
+    company_stats = defaultdict(lambda: {
+        'deals': 0,
+        'offered': 0,
+        'insured_sum': Decimal('0'),
+        'insured_sum_year1_for_tariff': Decimal('0'),
+        'premium_year1_for_tariff': Decimal('0'),
+        'premium_total': Decimal('0'),
+        'comparable_wins': 0,
+        'cheapest_wins': 0,
+    })
+    monthly_deals = defaultdict(Counter)
+    monthly_sums = defaultdict(lambda: defaultdict(Decimal))
+    branch_counter = Counter()
+    type_counter = Counter()
+    branch_values = []
+    type_values = []
 
-    rating_offered_map = defaultdict(set)
-    rating_selected_map = defaultdict(list)
-
-    slices_map = {
-        'branch': defaultdict(lambda: {'offered': 0, 'selected': 0}),
-        'manager_alliance': defaultdict(lambda: {'offered': 0, 'selected': 0}),
-        'insurance_type': defaultdict(lambda: {'offered': 0, 'selected': 0}),
-        'deal_status': defaultdict(lambda: {'offered': 0, 'selected': 0}),
+    totals = {
+        'deals': 0,
+        'insured_sum': Decimal('0'),
+        'premium_total': Decimal('0'),
+        'insured_sum_year1_for_tariff': Decimal('0'),
+        'premium_year1_for_tariff': Decimal('0'),
+        'comparable_deals': 0,
+        'cheapest_deals': 0,
     }
+    quality = Counter()
 
-    dynamics_map = {}
-
-    request_to_summary_hours = []
-    summary_to_close_hours = []
-
-    distinct_offered_companies = set()
-    distinct_selected_companies = set()
-
-    for summary in summaries_queryset:
+    for summary in queryset:
         insurance_request = summary.request
         valid_offers = list(getattr(summary, 'valid_offers_prefetched', []))
-
-        selected_company_name = (summary.selected_company or '').strip()
-        selected_variant_raw = summary.selected_franchise_variant
-        selected_variant = selected_variant_raw if selected_variant_raw in (1, 2) else 1
-        selected_variant_fallback_used = selected_variant_raw not in (1, 2)
+        company = summary.selected_company.strip()
+        raw_variant = summary.selected_franchise_variant
+        variant = raw_variant if raw_variant in (1, 2) else 1
+        if raw_variant not in (1, 2):
+            quality['missing_variant'] += 1
 
         offers_by_company = defaultdict(list)
         for offer in valid_offers:
             offers_by_company[offer.company_name].append(offer)
+        for offered_company in offers_by_company:
+            company_stats[offered_company]['offered'] += 1
 
-        offered_companies = sorted(offers_by_company.keys())
-        distinct_offered_companies.update(offered_companies)
-        if selected_company_name:
-            distinct_selected_companies.add(selected_company_name)
+        money = _selected_money(offers_by_company.get(company, []), variant)
+        stats = company_stats[company]
+        stats['deals'] += 1
+        totals['deals'] += 1
 
-        selected_offers = sorted(
-            offers_by_company.get(selected_company_name, []),
-            key=lambda item: item.insurance_year,
-        )
-        selected_years = {offer.insurance_year for offer in selected_offers}
-        selected_total = _sum_selected_total(selected_offers, selected_variant)
-        selected_has_installment = any(
-            _offer_supports_installment(offer, selected_variant)
-            for offer in selected_offers
-        )
+        if money['insured_sum'] is not None:
+            stats['insured_sum'] += money['insured_sum']
+            totals['insured_sum'] += money['insured_sum']
+        else:
+            quality['missing_insured_sum'] += 1
+        if money['premium_total'] is not None:
+            stats['premium_total'] += money['premium_total']
+            totals['premium_total'] += money['premium_total']
+        else:
+            quality['missing_premium'] += 1
+        if money['insured_sum'] is not None and money['premium_year1'] is not None:
+            stats['insured_sum_year1_for_tariff'] += money['insured_sum']
+            stats['premium_year1_for_tariff'] += money['premium_year1']
+            totals['insured_sum_year1_for_tariff'] += money['insured_sum']
+            totals['premium_year1_for_tariff'] += money['premium_year1']
 
-        closed_at = summary.completed_at or summary.updated_at
-        first_offer_received_at = min((offer.received_at for offer in valid_offers), default=None)
-        date_anchor = _get_date_anchor(summary, valid_offers, date_mode)
-
-        manager_online_name = _resolve_manager_online_name(insurance_request)
-        manager_alliance_name = (insurance_request.manager_name or '').strip()
-        branch_name = (insurance_request.branch or '').strip()
-        insurance_type_name = (insurance_request.insurance_type or '').strip()
-        deal_status_value = getattr(insurance_request, 'deal_status', '') or ''
-        deal_status_name = insurance_request.get_deal_status_display() if deal_status_value else 'Не указан'
-
-        price_row = price_row_builder(
-            summary,
-            comparison_mode=comparison_mode,
-            require_full_coverage=require_full_coverage,
-        )
-
-        if price_row and selected_total is None:
-            selected_total = price_row.get('selected_total')
-
-        deal_row = {
-            'summary': summary,
-            'request': insurance_request,
-            'selected_company': selected_company_name,
-            'selected_variant': selected_variant,
-            'selected_variant_fallback_used': selected_variant_fallback_used,
-            'selected_total': selected_total,
-            'selected_years_count': len(selected_years),
-            'selected_has_installment': selected_has_installment,
-            'has_selected_offer': bool(selected_offers),
-            'manager_online': manager_online_name or 'Не указан',
-            'manager_online_raw': manager_online_name,
-            'manager_alliance': manager_alliance_name or 'Не указан',
-            'manager_alliance_raw': manager_alliance_name,
-            'branch': branch_name or 'Не указан',
-            'branch_raw': branch_name,
-            'insurance_type': insurance_type_name or 'Не указан',
-            'insurance_type_raw': insurance_type_name,
-            'deal_status': deal_status_name,
-            'deal_status_raw': deal_status_value,
-            'created_at': summary.created_at,
-            'closed_at': closed_at,
-            'first_offer_received_at': first_offer_received_at,
-            'date_anchor': date_anchor,
-            'offered_companies': offered_companies,
-            'offered_companies_count': len(offered_companies),
-            'is_comparable': bool(price_row),
-            'selected_rank': price_row.get('selected_rank') if price_row else None,
-            'delta_to_min_abs': price_row.get('delta_to_min_abs') if price_row else None,
-            'delta_to_min_pct': price_row.get('delta_to_min_pct') if price_row else None,
-            'is_min_selected': price_row.get('is_min_selected') if price_row else False,
-            'comparable_companies_count': price_row.get('comparable_companies_count') if price_row else 0,
-            'price_row': price_row,
-        }
-        deal_rows.append(deal_row)
-
+        price_row = price_row_builder(summary)
         if price_row:
-            comparable_rows.append(deal_row)
+            totals['comparable_deals'] += 1
+            stats['comparable_wins'] += 1
+            if price_row['is_min_selected']:
+                totals['cheapest_deals'] += 1
+                stats['cheapest_wins'] += 1
+        else:
+            quality['not_comparable'] += 1
 
-        for company_name in offered_companies:
-            rating_offered_map[company_name].add(summary.id)
+        month_key = summary.created_at.strftime('%Y-%m')
+        monthly_deals[month_key][company] += 1
+        if money['insured_sum'] is not None:
+            monthly_sums[month_key][company] += money['insured_sum']
 
-        if selected_company_name:
-            rating_selected_map[selected_company_name].append(deal_row)
+        branch_name = (insurance_request.branch or '').strip() or NOT_SPECIFIED
+        type_name = (insurance_request.insurance_type or '').strip() or NOT_SPECIFIED
+        if branch_name == NOT_SPECIFIED:
+            quality['missing_branch'] += 1
+        branch_counter[(company, branch_name)] += 1
+        type_counter[(company, type_name)] += 1
+        branch_values.append(branch_name)
+        type_values.append(type_name)
 
-        branch_slice_value = branch_name or 'Не указан'
-        manager_alliance_slice_value = manager_alliance_name or 'Не указан'
-        insurance_type_slice_value = insurance_type_name or 'Не указан'
-        deal_status_slice_value = deal_status_name or 'Не указан'
+    total_deals = totals['deals']
 
-        for company_name in offered_companies:
-            slices_map['branch'][(company_name, branch_slice_value)]['offered'] += 1
-            slices_map['manager_alliance'][(company_name, manager_alliance_slice_value)]['offered'] += 1
-            slices_map['insurance_type'][(company_name, insurance_type_slice_value)]['offered'] += 1
-            slices_map['deal_status'][(company_name, deal_status_slice_value)]['offered'] += 1
+    company_rows = []
+    for company, stats in company_stats.items():
+        company_rows.append({
+            'company_name': company,
+            'deals': stats['deals'],
+            'deals_share_pct': _percent(stats['deals'], total_deals),
+            'insured_sum': stats['insured_sum'] if stats['deals'] else None,
+            'insured_sum_share_pct': _percent(stats['insured_sum'], totals['insured_sum']) if stats['deals'] else None,
+            'premium_total': stats['premium_total'] if stats['deals'] else None,
+            'premium_share_pct': _percent(stats['premium_total'], totals['premium_total']) if stats['deals'] else None,
+            'tariff_pct': _percent(stats['premium_year1_for_tariff'], stats['insured_sum_year1_for_tariff']),
+            'offered': stats['offered'],
+            'win_rate_pct': _percent(stats['deals'], stats['offered']),
+            'comparable_wins': stats['comparable_wins'],
+            'cheapest_wins': stats['cheapest_wins'],
+            'is_winner': stats['deals'] > 0,
+        })
+    company_rows.sort(key=lambda row: (-row['deals'], -row['offered'], row['company_name']))
 
-        if selected_company_name:
-            slices_map['branch'][(selected_company_name, branch_slice_value)]['selected'] += 1
-            slices_map['manager_alliance'][(selected_company_name, manager_alliance_slice_value)]['selected'] += 1
-            slices_map['insurance_type'][(selected_company_name, insurance_type_slice_value)]['selected'] += 1
-            slices_map['deal_status'][(selected_company_name, deal_status_slice_value)]['selected'] += 1
-
-        month_key = _date_to_month_key(date_anchor)
-        if month_key:
-            bucket = dynamics_map.setdefault(month_key, {
-                'month_key': month_key,
-                'month_label': _date_to_month_label(date_anchor),
-                'total_deals': 0,
-                'comparable_deals': 0,
-                'min_selected_count': 0,
-                'selected_premiums': [],
-                'selected_companies': set(),
-            })
-            bucket['total_deals'] += 1
-            if price_row:
-                bucket['comparable_deals'] += 1
-                if price_row.get('is_min_selected'):
-                    bucket['min_selected_count'] += 1
-            if selected_total is not None:
-                bucket['selected_premiums'].append(selected_total)
-            if selected_company_name:
-                bucket['selected_companies'].add(selected_company_name)
-
-        request_to_summary = _hours_between(insurance_request.created_at, summary.created_at)
-        if request_to_summary is not None:
-            request_to_summary_hours.append(request_to_summary)
-
-        summary_to_close = _hours_between(summary.created_at, closed_at)
-        if summary_to_close is not None:
-            summary_to_close_hours.append(summary_to_close)
-
-    deal_rows.sort(
-        key=lambda item: item['date_anchor'] or item['created_at'],
-        reverse=True,
-    )
-
-    total_deals = len(deal_rows)
-    comparable_deals = len(comparable_rows)
-
-    min_selected_count = sum(1 for row in comparable_rows if row['is_min_selected'])
-    comparable_ranks = [row['selected_rank'] for row in comparable_rows if row['selected_rank'] is not None]
-    comparable_deltas_abs = [row['delta_to_min_abs'] for row in comparable_rows if row['delta_to_min_abs'] is not None]
-    comparable_deltas_pct = [row['delta_to_min_pct'] for row in comparable_rows if row['delta_to_min_pct'] is not None]
-    comparable_competitors = [
-        max((row['comparable_companies_count'] or 0) - 1, 0)
-        for row in comparable_rows
-    ]
-
-    selected_premiums = [row['selected_total'] for row in deal_rows if row['selected_total'] is not None]
-    multiyear_count = sum(1 for row in deal_rows if row['selected_years_count'] > 1)
-    installment_count = sum(1 for row in deal_rows if row['selected_has_installment'])
-    competitive_deals_count = sum(1 for row in deal_rows if row['offered_companies_count'] >= 3)
-    offered_companies_counts = [row['offered_companies_count'] for row in deal_rows]
+    winners = [row['company_name'] for row in company_rows if row['is_winner']]
 
     kpi = {
         'total_deals': total_deals,
-        'comparable_deals': comparable_deals,
-        'distinct_companies_offered': len(distinct_offered_companies),
-        'distinct_companies_selected': len(distinct_selected_companies),
-        'min_selected_count': min_selected_count,
-        'min_selected_rate': _percent(min_selected_count, comparable_deals),
-        'avg_competitors': _avg_float(comparable_competitors),
-        'avg_selected_premium': _avg_decimal(selected_premiums),
-        'median_delta_abs': _median_decimal(comparable_deltas_abs),
-        'median_delta_pct': _median_decimal(comparable_deltas_pct),
-        'avg_rank': _avg_float([float(rank) for rank in comparable_ranks]),
-        'multiyear_rate': _percent(multiyear_count, total_deals),
-        'installment_rate': _percent(installment_count, total_deals),
-        'competitive_deals_count': competitive_deals_count,
-        'competitive_deals_rate': _percent(competitive_deals_count, total_deals),
-        'avg_offered_companies_per_deal': _avg_float(offered_companies_counts),
-        'avg_hours_request_to_summary': _avg_float(request_to_summary_hours),
-        'avg_hours_summary_to_close': _avg_float(summary_to_close_hours),
-        'insufficient_data': comparable_deals < 5,
+        'insured_sum_total': totals['insured_sum'],
+        'premium_total': totals['premium_total'],
+        'avg_tariff_pct': _percent(totals['premium_year1_for_tariff'], totals['insured_sum_year1_for_tariff']),
+        'winners_count': len(winners),
+        'participants_count': len(company_rows),
+        'comparable_deals': totals['comparable_deals'],
+        'cheapest_deals': totals['cheapest_deals'],
+        'cheapest_rate_pct': _percent(totals['cheapest_deals'], totals['comparable_deals']),
+        'insufficient_data': totals['comparable_deals'] < INSUFFICIENT_COMPARABLE_DEALS,
     }
 
-    rating_rows = []
-    for company_name, offered_ids in rating_offered_map.items():
-        selected_rows = rating_selected_map.get(company_name, [])
-        comparable_selected_rows = [row for row in selected_rows if row['is_comparable']]
+    # Помесячная динамика: топ-N СК по числу сделок за период + «Прочие».
+    month_keys = sorted(monthly_deals.keys())
+    top_companies = winners[:MONTHLY_TOP_COMPANIES]
+    has_other = len(winners) > MONTHLY_TOP_COMPANIES
+    series_names = top_companies + ([OTHER_COMPANIES_LABEL] if has_other else [])
 
-        selected_count = len(selected_rows)
-        offered_count = len(offered_ids)
+    def _month_series(source, as_float):
+        series = []
+        for name in series_names:
+            values = []
+            for month_key in month_keys:
+                if name == OTHER_COMPANIES_LABEL:
+                    value = sum(
+                        amount for company, amount in source[month_key].items()
+                        if company not in top_companies
+                    )
+                else:
+                    value = source[month_key].get(name, 0)
+                values.append(float(value) if as_float else int(value))
+            series.append({'label': name, 'data': values})
+        return series
 
-        selected_company_premiums = [
-            row['selected_total'] for row in selected_rows
-            if row['selected_total'] is not None
-        ]
-        selected_company_ranks = [
-            row['selected_rank'] for row in comparable_selected_rows
-            if row['selected_rank'] is not None
-        ]
-        selected_company_deltas_abs = [
-            row['delta_to_min_abs'] for row in comparable_selected_rows
-            if row['delta_to_min_abs'] is not None
-        ]
-        min_selected_when_selected = sum(
-            1 for row in comparable_selected_rows
-            if row['is_min_selected']
-        )
-
-        rating_rows.append({
-            'company_name': company_name,
-            'offered_in_deals_count': offered_count,
-            'selected_wins_count': selected_count,
-            'coverage_pct': _percent(offered_count, total_deals),
-            'win_rate_when_offered_pct': _percent(selected_count, offered_count),
-            'win_share_pct': _percent(selected_count, total_deals),
-            'selected_premium_sum': sum(selected_company_premiums, Decimal('0')),
-            'selected_premium_avg': _avg_decimal(selected_company_premiums),
-            'avg_rank_when_selected': _avg_float([float(value) for value in selected_company_ranks]),
-            'median_delta_abs_when_selected': _median_decimal(selected_company_deltas_abs),
-            'min_selected_rate_when_selected': _percent(
-                min_selected_when_selected,
-                len(comparable_selected_rows),
-            ),
-            'comparable_selected_deals_count': len(comparable_selected_rows),
-        })
-
-    rating_rows.sort(
-        key=lambda row: (
-            row['selected_wins_count'],
-            row['offered_in_deals_count'],
-            row['win_rate_when_offered_pct'],
-            row['company_name'],
-        ),
-        reverse=True,
-    )
-    for idx, row in enumerate(rating_rows, start=1):
-        row['position'] = idx
-
-    competitiveness_rows = []
-    for company_name, selected_rows in rating_selected_map.items():
-        comparable_selected_rows = [row for row in selected_rows if row['is_comparable']]
-        comparable_count = len(comparable_selected_rows)
-        rank_values = [
-            row['selected_rank'] for row in comparable_selected_rows
-            if row['selected_rank'] is not None
-        ]
-        delta_abs_values = [
-            row['delta_to_min_abs'] for row in comparable_selected_rows
-            if row['delta_to_min_abs'] is not None
-        ]
-        delta_pct_values = [
-            row['delta_to_min_pct'] for row in comparable_selected_rows
-            if row['delta_to_min_pct'] is not None
-        ]
-        min_selected_company_count = sum(
-            1 for row in comparable_selected_rows
-            if row['is_min_selected']
-        )
-
-        competitors_values = [
-            max((row['comparable_companies_count'] or 0) - 1, 0)
-            for row in comparable_selected_rows
-        ]
-
-        competitiveness_rows.append({
-            'company_name': company_name,
-            'selected_deals_count': len(selected_rows),
-            'comparable_selected_deals_count': comparable_count,
-            'avg_rank': _avg_float([float(value) for value in rank_values]),
-            'median_delta_abs': _median_decimal(delta_abs_values),
-            'median_delta_pct': _median_decimal(delta_pct_values),
-            'min_selected_rate': _percent(min_selected_company_count, comparable_count),
-            'avg_competitors': _avg_float(competitors_values),
-        })
-
-    competitiveness_rows.sort(
-        key=lambda row: (
-            row['comparable_selected_deals_count'],
-            row['selected_deals_count'],
-            row['company_name'],
-        ),
-        reverse=True,
-    )
-
-    conversion_rows = [
+    monthly = {
+        'colors': _series_colors(series_names),
+        'labels': [_month_label(month_key) for month_key in month_keys],
+        'deals': _month_series(monthly_deals, as_float=False),
+        'insured_sum': _month_series(monthly_sums, as_float=True),
+    }
+    monthly_rows = [
         {
-            'company_name': row['company_name'],
-            'offered_in_deals_count': row['offered_in_deals_count'],
-            'selected_wins_count': row['selected_wins_count'],
-            'conversion_pct': row['win_rate_when_offered_pct'],
-            'win_share_pct': row['win_share_pct'],
+            'month_label': _month_label(month_key),
+            'deals': sum(monthly_deals[month_key].values()),
+            'insured_sum': sum(monthly_sums[month_key].values(), Decimal('0')),
+            'leader': monthly_deals[month_key].most_common(1)[0][0],
         }
-        for row in rating_rows
+        for month_key in reversed(month_keys)
     ]
 
-    slices = {
-        'branch': _build_slice_rows(slices_map['branch'], total_deals),
-        'manager_alliance': _build_slice_rows(slices_map['manager_alliance'], total_deals),
-        'insurance_type': _build_slice_rows(slices_map['insurance_type'], total_deals),
-        'deal_status': _build_slice_rows(slices_map['deal_status'], total_deals),
-    }
-
-    dynamics_rows = []
-    for month_key in sorted(dynamics_map.keys()):
-        bucket = dynamics_map[month_key]
-        min_selected_month_rate = _percent(
-            bucket['min_selected_count'],
-            bucket['comparable_deals'],
-        )
-
-        dynamics_rows.append({
-            'month_key': month_key,
-            'month_label': bucket['month_label'],
-            'total_deals': bucket['total_deals'],
-            'comparable_deals': bucket['comparable_deals'],
-            'min_selected_count': bucket['min_selected_count'],
-            'min_selected_rate': min_selected_month_rate,
-            'selected_premium_avg': _avg_decimal(bucket['selected_premiums']),
-            'distinct_selected_companies': len(bucket['selected_companies']),
-        })
-
-    dynamics_rows_desc = sorted(dynamics_rows, key=lambda row: row['month_key'], reverse=True)
-
-    data_quality_metrics = {
-        'missing_selected_variant_count': sum(1 for row in deal_rows if row['selected_variant_fallback_used']),
-        'missing_manager_alliance_count': sum(1 for row in deal_rows if not row['manager_alliance_raw']),
-        'missing_manager_online_count': sum(1 for row in deal_rows if not row['manager_online_raw']),
-        'missing_branch_count': sum(1 for row in deal_rows if not row['branch_raw']),
-        'missing_selected_offer_count': sum(1 for row in deal_rows if not row['has_selected_offer']),
-        'non_comparable_count': sum(1 for row in deal_rows if not row['is_comparable']),
-        'missing_selected_total_count': sum(1 for row in deal_rows if row['selected_total'] is None),
-        'missing_response_deadline_count': sum(
-            1 for row in deal_rows
-            if not getattr(row['request'], 'response_deadline', None)
-        ),
-        'missing_offer_received_at_count': sum(1 for row in deal_rows if not row['first_offer_received_at']),
+    type_columns = [value for value in INSURANCE_TYPE_ORDER if value in set(type_values)]
+    type_columns += [value for value in _ordered_by_count(type_values) if value not in type_columns]
+    heatmaps = {
+        'branch': _build_heatmap(branch_counter, winners, _ordered_by_count(branch_values)),
+        'insurance_type': _build_heatmap(type_counter, winners, type_columns),
     }
 
     data_quality_rows = [
         {
-            'key': 'missing_selected_variant_count',
-            'label': 'Не заполнен selected_franchise_variant (использован fallback = вариант 1)',
-            'count': data_quality_metrics['missing_selected_variant_count'],
-            'rate': _percent(data_quality_metrics['missing_selected_variant_count'], total_deals),
+            'key': 'missing_variant',
+            'label': 'Не выбран вариант франшизы — расчёт по варианту 1',
+            'count': quality['missing_variant'],
         },
         {
-            'key': 'missing_manager_alliance_count',
-            'label': 'Пустой manager_name (менеджер Альянса)',
-            'count': data_quality_metrics['missing_manager_alliance_count'],
-            'rate': _percent(data_quality_metrics['missing_manager_alliance_count'], total_deals),
+            'key': 'not_comparable',
+            'label': 'Цены нельзя сопоставить (меньше двух СК с ценой за те же годы) — сделка не входит в «выбрана самая дешёвая»',
+            'count': quality['not_comparable'],
         },
         {
-            'key': 'missing_manager_online_count',
-            'label': 'Не заполнен created_by (менеджер Онлайна)',
-            'count': data_quality_metrics['missing_manager_online_count'],
-            'rate': _percent(data_quality_metrics['missing_manager_online_count'], total_deals),
+            'key': 'missing_insured_sum',
+            'label': 'Нет страховой суммы у выбранной СК — сделка не входит в страховую сумму',
+            'count': quality['missing_insured_sum'],
         },
         {
-            'key': 'missing_branch_count',
-            'label': 'Пустой филиал',
-            'count': data_quality_metrics['missing_branch_count'],
-            'rate': _percent(data_quality_metrics['missing_branch_count'], total_deals),
+            'key': 'missing_premium',
+            'label': 'Нет премии выбранной СК хотя бы за один год — сделка не входит в премию',
+            'count': quality['missing_premium'],
         },
         {
-            'key': 'missing_selected_offer_count',
-            'label': 'Нет валидного предложения выбранной СК',
-            'count': data_quality_metrics['missing_selected_offer_count'],
-            'rate': _percent(data_quality_metrics['missing_selected_offer_count'], total_deals),
-        },
-        {
-            'key': 'non_comparable_count',
-            'label': 'Несопоставимые сделки для ценового ранга',
-            'count': data_quality_metrics['non_comparable_count'],
-            'rate': _percent(data_quality_metrics['non_comparable_count'], total_deals),
-        },
-        {
-            'key': 'missing_selected_total_count',
-            'label': 'Нельзя посчитать итоговую премию выбранной СК',
-            'count': data_quality_metrics['missing_selected_total_count'],
-            'rate': _percent(data_quality_metrics['missing_selected_total_count'], total_deals),
-        },
-        {
-            'key': 'missing_response_deadline_count',
-            'label': 'Нет дедлайна ответа СК (response_deadline)',
-            'count': data_quality_metrics['missing_response_deadline_count'],
-            'rate': _percent(data_quality_metrics['missing_response_deadline_count'], total_deals),
+            'key': 'missing_branch',
+            'label': 'Филиал не указан',
+            'count': quality['missing_branch'],
         },
     ]
+    for row in data_quality_rows:
+        row['rate_pct'] = _percent(row['count'], total_deals)
 
-    rating_chart_rows = rating_rows[:10]
-    competitiveness_chart_rows = [
-        row for row in competitiveness_rows
-        if row['comparable_selected_deals_count'] > 0
-    ][:10]
-
-    charts = {
-        'rating': {
-            'labels': [row['company_name'] for row in rating_chart_rows],
-            'offered': [row['offered_in_deals_count'] for row in rating_chart_rows],
-            'wins': [row['selected_wins_count'] for row in rating_chart_rows],
-        },
-        'conversion': {
-            'labels': [row['company_name'] for row in rating_chart_rows],
-            'values': [float(row['win_rate_when_offered_pct']) for row in rating_chart_rows],
-        },
-        'competitiveness': {
-            'labels': [row['company_name'] for row in competitiveness_chart_rows],
-            'values': [float(row['min_selected_rate']) for row in competitiveness_chart_rows],
-        },
-        'dynamics': {
-            'labels': [row['month_label'] for row in dynamics_rows],
-            'total_deals': [row['total_deals'] for row in dynamics_rows],
-            'min_selected_rate': [float(row['min_selected_rate']) for row in dynamics_rows],
-        },
-    }
+    charts = {'monthly': monthly}
 
     return {
-        'filters': {
-            'branch': branch,
-            'insurance_type': insurance_type,
-            'manager_online': manager_online,
-            'manager_alliance': manager_alliance,
-            'selected_company': selected_company,
-            'deal_status': deal_status,
-            'date_mode': date_mode,
-            'comparison_mode': comparison_mode,
-            'require_full_coverage': require_full_coverage,
-        },
-        'filter_errors': errors,
-        'available_filters': available_filters,
         'kpi': kpi,
-        'rating_rows': rating_rows,
-        'competitiveness_rows': competitiveness_rows,
-        'conversion_rows': conversion_rows,
-        'slices': slices,
-        'dynamics_rows': dynamics_rows_desc,
+        'company_rows': company_rows,
+        'monthly_rows': monthly_rows,
+        'heatmaps': heatmaps,
         'data_quality_rows': data_quality_rows,
+        'data_quality_issues': sum(row['count'] for row in data_quality_rows),
         'charts': charts,
-        'export_payload': {
-            'kpi': kpi,
-            'rating_rows': rating_rows,
-            'competitiveness_rows': competitiveness_rows,
-            'conversion_rows': conversion_rows,
-            'slices': slices,
-            'dynamics_rows': dynamics_rows_desc,
-            'data_quality_rows': data_quality_rows,
-        },
     }
