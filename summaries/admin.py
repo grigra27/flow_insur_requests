@@ -3,7 +3,7 @@ from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.http import HttpResponseRedirect
 from django.urls import reverse
-from .models import InsuranceCompany, InsuranceSummary, InsuranceOffer, StatusEvent, SummaryTemplate
+from .models import InsuranceCompany, InsuranceSummary, InsuranceOffer, StatusEvent, SummaryTemplate, UserDailyActivity
 
 
 @admin.register(InsuranceCompany)
@@ -189,6 +189,28 @@ class StatusEventAdmin(admin.ModelAdmin):
     search_fields = ['object_id', 'changed_by__username']
     date_hierarchy = 'changed_at'
     readonly_fields = [f.name for f in StatusEvent._meta.fields]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(UserDailyActivity)
+class UserDailyActivityAdmin(admin.ModelAdmin):
+    """Read-only дневной агрегат активности сотрудников (наполняется командой aggregate_user_activity)."""
+
+    list_display = [
+        'date', 'user', 'logins_count', 'page_views', 'form_actions', 'crud_actions',
+        'first_seen_at', 'last_seen_at', 'sessions_count', 'active_minutes', 'has_request_data',
+    ]
+    list_filter = ['user', 'has_request_data', 'date']
+    date_hierarchy = 'date'
+    readonly_fields = [f.name for f in UserDailyActivity._meta.fields]
 
     def has_add_permission(self, request):
         return False

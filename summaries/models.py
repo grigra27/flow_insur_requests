@@ -791,3 +791,66 @@ class StatusEvent(models.Model):
 
     def __str__(self):
         return f'{self.content_type} #{self.object_id}: {self.from_status or "—"} → {self.to_status}'
+
+
+class UserDailyActivity(models.Model):
+    """Дневной агрегат активности сотрудника по журналам easy-audit.
+
+    Сырые просмотры страниц (RequestEvent) хранятся 1 день, поэтому каждую ночь
+    перед чисткой журнала сюда сворачивается вчерашний день. Входы и действия
+    (LoginEvent, CRUDEvent) хранятся 365 дней — по ним дни можно пересобрать.
+    Дата — по Europe/Moscow. См. docs/improvement_plans/analytics_redesign_2026_09.md, 4.1.
+    """
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='daily_activity',
+        verbose_name='Сотрудник',
+    )
+    date = models.DateField(verbose_name='Дата (МСК)')
+
+    logins_count = models.PositiveIntegerField(default=0, verbose_name='Входов')
+    page_views = models.PositiveIntegerField(
+        default=0, verbose_name='Просмотров страниц', help_text='GET-запросы пользователя'
+    )
+    form_actions = models.PositiveIntegerField(
+        default=0, verbose_name='Отправок форм', help_text='POST/PUT/DELETE-запросы пользователя'
+    )
+    crud_actions = models.PositiveIntegerField(
+        default=0, verbose_name='Изменений данных', help_text='Создания, изменения и удаления записей'
+    )
+    crud_by_model = models.JSONField(
+        default=dict, blank=True, verbose_name='Изменения по типам записей',
+        help_text='{"insuranceoffer": {"create": 5, "update": 2, "delete": 0}, ...}',
+    )
+    sections = models.JSONField(
+        default=dict, blank=True, verbose_name='Разделы', help_text='Число запросов по разделам приложения'
+    )
+
+    first_seen_at = models.DateTimeField(null=True, blank=True, verbose_name='Первое появление')
+    last_seen_at = models.DateTimeField(null=True, blank=True, verbose_name='Последнее появление')
+    sessions_count = models.PositiveIntegerField(default=0, verbose_name='Сессий')
+    active_minutes = models.PositiveIntegerField(
+        default=0, verbose_name='Активных минут',
+        help_text='Сумма сессий: события с разрывом не больше 30 минут, минимум 5 минут на сессию',
+    )
+    has_request_data = models.BooleanField(
+        default=False, verbose_name='Есть данные о просмотрах',
+        help_text='False — день собран только по входам и изменениям (просмотры страниц уже удалены из журнала)',
+    )
+    computed_at = models.DateTimeField(auto_now=True, verbose_name='Пересчитано')
+
+    class Meta:
+        verbose_name = 'Активность сотрудника за день'
+        verbose_name_plural = 'Активность сотрудников по дням'
+        ordering = ['-date', 'user']
+        constraints = [
+            models.UniqueConstraint(fields=['user', 'date'], name='unique_user_daily_activity'),
+        ]
+        indexes = [
+            models.Index(fields=['date']),
+        ]
+
+    def __str__(self):
+        return f'{self.user} · {self.date:%d.%m.%Y}: {self.active_minutes} мин'

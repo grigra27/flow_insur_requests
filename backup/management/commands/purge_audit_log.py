@@ -7,6 +7,11 @@ HTTP-запрос пользователя) — хранить долго бес
 (раздел «Аналитика»), поэтому хранятся 365 дней. Объём небольшой:
 ~1 000 CRUD и ~120 входов в месяц.
 
+Перед удалением вчерашний день сворачивается в дневной агрегат активности
+сотрудников (summaries.UserDailyActivity): просмотры страниц хранятся 1 день,
+и без агрегата история присутствия терялась бы. Если сборка агрегата упала,
+RequestEvent в этот раз не удаляется — лучше лишний день журнала, чем потерянный.
+
 Удаление идёт партиями: easy-audit подписан на post_delete, поэтому Django не
 может сделать быстрый DELETE и загружает удаляемые объекты в память. Одним
 qs.delete() на сотнях тысяч RequestEvent легко съесть всю RAM сервера.
@@ -53,6 +58,10 @@ class Command(BaseCommand):
             raise CommandError('--batch-size должен быть положительным')
         now = timezone.now()
 
+        aggregate_ok = True
+        if not dry:
+            aggregate_ok = self._aggregate_user_activity()
+
         targets = [
             ('LoginEvent', LoginEvent, 'datetime', options['login_days']),
             ('CRUDEvent', CRUDEvent, 'datetime', options['crud_days']),
@@ -61,6 +70,11 @@ class Command(BaseCommand):
 
         total_deleted = 0
         for name, model, dt_field, days in targets:
+            if name == 'RequestEvent' and not aggregate_ok:
+                msg = 'RequestEvent: не удаляем — дневной агрегат активности не собран (см. ошибку выше)'
+                self.stdout.write(self.style.WARNING(msg))
+                logger.warning(msg)
+                continue
             cutoff = now - timedelta(days=days)
             qs = model.objects.filter(**{f'{dt_field}__lt': cutoff})
             count = qs.count()
@@ -85,6 +99,19 @@ class Command(BaseCommand):
 
         if not dry:
             logger.info('purge_audit_log completed: deleted %d records total', total_deleted)
+
+    def _aggregate_user_activity(self):
+        from summaries.services import user_activity
+
+        day = user_activity.yesterday()
+        try:
+            report = user_activity.aggregate_day(day)
+        except Exception:  # noqa: BLE001 — чистку журнала не роняем, но просмотры сохраняем
+            logger.exception('purge_audit_log: не удалось собрать UserDailyActivity за %s', day)
+            self.stdout.write(self.style.ERROR(f'Агрегат активности за {day} не собран'))
+            return False
+        self.stdout.write(f"Агрегат активности за {day}: сотрудников {report.get('users', 0)}")
+        return True
 
     @staticmethod
     def _delete_in_batches(model, qs, batch_size):

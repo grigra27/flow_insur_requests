@@ -382,6 +382,8 @@ DJANGO_EASY_AUDIT_UNREGISTERED_CLASSES_EXTRA = [
     # Строки правок создаются пакетно при сохранении заявки; отдельный аудит
     # их дублировал бы и так уже трекаемое создание заявки.
     'insurance_requests.RequestFieldEdit',
+    # Дневной агрегат, который сам строится из журналов easy-audit.
+    'summaries.UserDailyActivity',
 ]
 
 # Не пишем RequestEvent на статику, healthcheck и landing-health,
