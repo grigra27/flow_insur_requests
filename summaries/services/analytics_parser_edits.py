@@ -85,6 +85,44 @@ def _segment(requests_values, key_name, labels):
     return sorted(out, key=lambda r: (-r['error_rate_percent'], -r['requests']))
 
 
+def _by_version(requests_values):
+    """Доля заявок без правок по версии парсера (additional_data.parser_v2.version).
+
+    Главный способ увидеть, помогло ли исправление парсера: версию поднимают при
+    каждом изменении логики разбора (см. PARSER_V2_VERSION).
+    """
+    buckets = {}
+    for row in requests_values:
+        parser_v2 = (row['additional_data'] or {}).get('parser_v2') or {}
+        version = parser_v2.get('version') or 'не записана'
+        edits = row['manual_edits_count'] or 0
+        bucket = buckets.setdefault(version, {
+            'requests': 0, 'with_edits': 0, 'edits': 0, 'builds': set(), 'first': None, 'last': None,
+        })
+        bucket['requests'] += 1
+        bucket['edits'] += edits
+        bucket['with_edits'] += 1 if edits else 0
+        if parser_v2.get('build'):
+            bucket['builds'].add(parser_v2['build'])
+        created = row['created_at']
+        bucket['first'] = created if bucket['first'] is None else min(bucket['first'], created)
+        bucket['last'] = created if bucket['last'] is None else max(bucket['last'], created)
+    rows = []
+    for version, bucket in buckets.items():
+        requests = bucket['requests']
+        rows.append({
+            'version': version,
+            'requests': requests,
+            'with_edits': bucket['with_edits'],
+            'clean_percent': round((requests - bucket['with_edits']) / requests * 100, 1),
+            'avg_edits': round(bucket['edits'] / requests, 2),
+            'builds': len(bucket['builds']),
+            'first': bucket['first'],
+            'last': bucket['last'],
+        })
+    return sorted(rows, key=lambda row: row['first'], reverse=True)
+
+
 def _operator_label(row):
     last_name = (row.get('request__created_by__last_name') or '').strip()
     first_name = (row.get('request__created_by__first_name') or '').strip()
@@ -185,7 +223,7 @@ def build_payload(filters):
         })
 
     # Сегментация по шаблону заявки: на каком формате/типе парсер слабее.
-    request_values = list(v2_requests.values('additional_data', 'manual_edits_count'))
+    request_values = list(v2_requests.values('additional_data', 'manual_edits_count', 'created_at'))
     by_format = _segment(request_values, 'application_format', FORMAT_LABELS)
     by_app_type = _segment(request_values, 'application_type', TYPE_LABELS)
 
@@ -236,6 +274,7 @@ def build_payload(filters):
         'by_operator': by_operator,
         'by_format': by_format,
         'by_app_type': by_app_type,
+        'by_version': _by_version(request_values),
         'timeline': timeline,
         'selected_field': selected_field,
         'selected_field_label': selected_field_label,

@@ -175,6 +175,8 @@ def _build_parser_v2_additional_data(draft, request_fields, user, tracking=None)
         'parser_version': 'v2',
         'parser_v2': {
             'version': parse_result.get('parser_version'),
+            # Коммит сборки образа (Dockerfile ARG APP_BUILD_SHA) — точный код парсера.
+            'build': (os.environ.get('APP_BUILD_SHA') or '')[:12],
             'confidence': parse_result.get('confidence', 0),
             'warnings': parse_result.get('warnings', []),
             'source_map': parse_result.get('source_map', {}),

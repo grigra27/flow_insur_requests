@@ -148,3 +148,41 @@ class AnalyticsParserEditsAccessTests(TestCase):
         self.client.login(username='u', password='x')
         response = self.client.get(reverse('summaries:analytics_parser_edits'))
         self.assertEqual(response.status_code, 403)
+
+
+class ParserVersionTests(TestCase):
+    """Версия парсера и коммит сборки на заявке (analytics_redesign_2026_09, задача 5.2)."""
+
+    def _request(self, version, edits, build=None):
+        parser_v2 = {'version': version}
+        if build:
+            parser_v2['build'] = build
+        return InsuranceRequest.objects.create(
+            client_name='ООО Тест', inn='1', parser_confidence=1.0, manual_edits_count=edits,
+            additional_data={'parser_version': 'v2', 'parser_v2': parser_v2},
+        )
+
+    def test_share_without_edits_by_version(self):
+        self._request('2.0.0', 2)
+        self._request('2.0.0', 0)
+        self._request('2.1.0', 0, build='abc123')
+        self._request('2.1.0', 0, build='def456')
+
+        rows = {row['version']: row for row in service.build_payload(service.parse_filters({}))['by_version']}
+
+        self.assertEqual((rows['2.0.0']['requests'], rows['2.0.0']['clean_percent'], rows['2.0.0']['builds']), (2, 50.0, 0))
+        self.assertEqual((rows['2.1.0']['requests'], rows['2.1.0']['clean_percent'], rows['2.1.0']['builds']), (2, 100.0, 2))
+
+    def test_new_request_stores_parser_version_and_build(self):
+        from unittest import mock
+
+        from insurance_requests.parsers.excel_v2.parser import PARSER_V2_VERSION
+        from insurance_requests.views import _build_parser_v2_additional_data
+
+        user = User.objects.create_user(username='uploader', password='x')
+        draft = {'parse_result': {'parser_version': PARSER_V2_VERSION, 'data': {}}, 'file_name': 'f.xlsx'}
+        with mock.patch.dict('os.environ', {'APP_BUILD_SHA': '0123456789abcdef'}):
+            data = _build_parser_v2_additional_data(draft, {}, user)
+
+        self.assertEqual(data['parser_v2']['version'], PARSER_V2_VERSION)
+        self.assertEqual(data['parser_v2']['build'], '0123456789ab')

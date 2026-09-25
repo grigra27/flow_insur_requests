@@ -55,6 +55,11 @@ USER app
 # Открываем порт
 EXPOSE 8000
 
+# Коммит сборки (передаёт CI) — пишется на V2-заявку рядом с версией парсера.
+# В конце файла, чтобы новый коммит не сбрасывал кэш предыдущих слоёв.
+ARG APP_BUILD_SHA=unknown
+ENV APP_BUILD_SHA=${APP_BUILD_SHA}
+
 # Устанавливаем entrypoint
 ENTRYPOINT ["/entrypoint.sh"]
 
