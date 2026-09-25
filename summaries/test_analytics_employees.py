@@ -194,3 +194,61 @@ class PresenceBlockTests(EmployeesTestBase):
         self.assertTrue(response.context['presence']['coverage_partial'])
         self.assertContains(response, 'Присутствие')
         self.assertContains(response, 'Когда работают')
+
+
+class SpeedBlockTests(EmployeesTestBase):
+    def _event(self, model, object_id, to_status, moment, user=None):
+        event = StatusEvent.objects.create(
+            content_type=ContentType.objects.get_for_model(model), object_id=object_id,
+            from_status='', to_status=to_status, changed_by=user,
+        )
+        StatusEvent.objects.filter(pk=event.pk).update(changed_at=moment)
+
+    def test_medians_and_attribution(self):
+        request = self._request(self.anna, 5)
+        created = InsuranceRequest.objects.get(pk=request.pk).created_at
+        self._event(InsuranceRequest, request.pk, 'emails_sent', created + timedelta(hours=2), self.anna)
+
+        summary = self._summary_with_offers(request, offers=2, days_ago=4)
+        last_offer = self.now - timedelta(days=4)
+        self._event(InsuranceSummary, summary.pk, 'sent', last_offer + timedelta(hours=6), self.boris)
+        InsuranceOffer.objects.create(  # внесено после отправки — не считается «последним до отправки»
+            summary=summary, company_name='ВСК', insurance_year=1, insurance_sum=Decimal('1'),
+            premium_with_franchise_1=Decimal('1'), franchise_1=Decimal('0'),
+        )
+        InsuranceSummary.objects.filter(pk=summary.pk).update(
+            status='completed_accepted', completed_at=last_offer + timedelta(hours=6 + 48),
+        )
+
+        speed = self.client.get(reverse('summaries:analytics_managers')).context['speed']
+        anna = next(row for row in speed['rows'] if row['user_id'] == self.anna.pk)
+
+        self.assertAlmostEqual(anna['upload_to_emails']['median_hours'], 2.0, places=3)
+        self.assertEqual(anna['upload_to_emails']['median'], '2,0 ч')
+        # Атрибуция — владелец заявки (Анна), хотя отправлял Борис.
+        self.assertAlmostEqual(anna['offer_to_client']['median_hours'], 6.0, places=3)
+        self.assertEqual(anna['client_wait']['median'], '2,0 дн')
+        self.assertEqual(speed['team']['offer_to_client']['count'], 1)
+
+    def test_stuck_summaries(self):
+        old = self._request(self.boris, 20)
+        summary = InsuranceSummary.objects.create(request=old, status='collecting')
+        InsuranceSummary.objects.filter(pk=summary.pk).update(created_at=self.now - timedelta(days=10))
+        fresh = self._request(self.boris, 2)
+        InsuranceSummary.objects.create(request=fresh, status='ready')
+
+        response = self.client.get(reverse('summaries:analytics_managers'))
+        speed = response.context['speed']
+
+        self.assertEqual([item['summary_id'] for item in speed['stuck']], [summary.pk])
+        self.assertEqual(speed['stuck'][0]['age_days'], 10)
+        boris = next(row for row in speed['rows'] if row['user_id'] == self.boris.pk)
+        self.assertEqual(boris['stuck'], 1)
+        self.assertContains(response, 'Скорость на своих этапах')
+        self.assertContains(response, 'Зависшие своды')
+
+    def test_format_hours(self):
+        self.assertEqual(service.format_hours(None), None)
+        self.assertEqual(service.format_hours(0.25), '15 мин')
+        self.assertEqual(service.format_hours(5.24), '5,2 ч')
+        self.assertEqual(service.format_hours(84), '3,5 дн')

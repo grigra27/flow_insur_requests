@@ -317,6 +317,94 @@
     </div>
 </div>
 
+<h2 class="h4 emp-block-title"><i class="bi bi-speedometer2"></i> Скорость на своих этапах</h2>
+
+<div class="row g-3 mb-3">
+    <div class="col-12 col-md-4">
+        <div class="card emp-card h-100"><div class="card-body">
+            <div class="emp-kpi-label">Загрузка → письма в СК</div>
+            <div class="emp-kpi-value">{{ speed.team.upload_to_emails.median|default:'—' }}</div>
+            <small class="text-muted">медиана по команде · заявок {{ speed.team.upload_to_emails.count }}</small>
+        </div></div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="card emp-card h-100"><div class="card-body">
+            <div class="emp-kpi-label">Последнее предложение → клиенту</div>
+            <div class="emp-kpi-value">{{ speed.team.offer_to_client.median|default:'—' }}</div>
+            <small class="text-muted">медиана по команде · сводов {{ speed.team.offer_to_client.count }}</small>
+        </div></div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="card emp-card h-100"><div class="card-body">
+            <div class="emp-kpi-label">Ожидание клиента</div>
+            <div class="emp-kpi-value">{{ speed.team.client_wait.median|default:'—' }}</div>
+            <small class="text-muted">от отправки до акцепта · не оценка сотрудника</small>
+        </div></div>
+    </div>
+</div>
+
+<div class="card emp-card mb-3">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0 emp-table">
+                <thead>
+                    <tr>
+                        <th>Сотрудник</th>
+                        <th class="num" title="От загрузки заявки до статуса «письма отправлены» — медиана">Загрузка → письма в СК</th>
+                        <th class="num" title="От последнего предложения, внесённого до отправки, до первой отправки свода клиенту — медиана">Последнее предложение → клиенту</th>
+                        <th class="num" title="Своды «сбор» / «готов» старше {{ speed.stuck_days }} дней">Зависших сводов</th>
+                        <th class="num text-muted" title="От отправки клиенту до акцепта — зависит от клиента, не от сотрудника">Ожидание клиента</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in speed.rows %}{% if row.has_data or row.stuck %}
+                    <tr>
+                        <td class="fw-semibold"><span class="emp-swatch" style="background: {{ row.color }}"></span>{{ row.name }}</td>
+                        <td class="num">{{ row.upload_to_emails.median|default:'—' }}<span class="muted">· {{ row.upload_to_emails.count }}</span></td>
+                        <td class="num">{{ row.offer_to_client.median|default:'—' }}<span class="muted">· {{ row.offer_to_client.count }}</span></td>
+                        <td class="num {% if row.stuck %}text-danger fw-semibold{% endif %}">{{ row.stuck }}</td>
+                        <td class="num text-muted">{{ row.client_wait.median|default:'—' }}<span class="muted">· {{ row.client_wait.count }}</span></td>
+                    </tr>
+                    {% endif %}{% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+<p class="emp-hint mb-3">
+    Медианы по заявкам, загруженным в периоде, и сводам, отправленным клиенту в периоде; рядом — число случаев.
+    Время календарное (с ночами и выходными). Атрибуция — владелец заявки.
+    {% if speed.status_log_partial %}Журнал смен статусов ведётся с 27.04.2026 — до этой даты замеры неполные.{% endif %}
+</p>
+
+<div class="card emp-card mb-4">
+    <div class="card-header">
+        <h3 class="h6 mb-0">Зависшие своды: «сбор» или «готов» дольше {{ speed.stuck_days }} дней ({{ speed.stuck|length }})</h3>
+    </div>
+    <div class="card-body p-0">
+        {% if speed.stuck %}
+        <div class="table-responsive">
+            <table class="table table-sm mb-0 emp-table">
+                <thead><tr><th>Свод</th><th>Клиент</th><th>Сотрудник</th><th>Статус</th><th class="num">Дней</th></tr></thead>
+                <tbody>
+                    {% for item in speed.stuck %}
+                    <tr>
+                        <td><a href="{% url 'summaries:summary_detail' item.summary_id %}">{{ item.title }}</a></td>
+                        <td>{{ item.client|truncatechars:40 }}</td>
+                        <td>{{ item.owner }}</td>
+                        <td>{{ item.status }}</td>
+                        <td class="num">{{ item.age_days }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted text-center py-3 mb-0">Зависших сводов нет.</p>
+        {% endif %}
+    </div>
+</div>
+
 {{ presence.heatmap|json_script:"emp-heatmap-data" }}
 {{ load.chart|json_script:"emp-load-chart" }}
 {% endblock %}

@@ -35,6 +35,7 @@ EMPLOYEE_GROUP = 'Пользователи'
 DEFAULT_PERIOD = '90'
 PERIOD_CHOICES = [('90', '90 дней'), ('180', '180 дней'), ('365', '365 дней')]
 STATUS_LOG_START = date(2026, 4, 27)
+STUCK_DAYS = 7  # свод в «сборе» / «готов» дольше этого — зависший
 LATE_HOUR = 20  # «поздний» день — последнее действие в 20:00 МСК и позже
 WEEKDAY_LABELS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
 
@@ -348,6 +349,112 @@ def build_presence_block(filters: EmployeeFilters, load_rows: List[Dict]) -> Dic
     }
 
 
+def format_hours(hours: Optional[float]) -> Optional[str]:
+    """«45 мин», «5,2 ч», «3,5 дн» — для медиан длительности."""
+    if hours is None:
+        return None
+    if hours < 1:
+        return f'{max(int(round(hours * 60)), 1)} мин'
+    if hours < 48:
+        return f'{hours:.1f} ч'.replace('.', ',')
+    return f'{hours / 24:.1f} дн'.replace('.', ',')
+
+
+def _median_hours(values: List[float]) -> Optional[float]:
+    return median(values) if values else None
+
+
+def _first_events(model, to_status: str) -> Dict[int, datetime]:
+    """Первое событие перехода в статус для каждого объекта."""
+    content_type = ContentType.objects.get_for_model(model)
+    first: Dict[int, datetime] = {}
+    for object_id, changed_at in StatusEvent.objects.filter(
+        content_type=content_type, to_status=to_status,
+    ).order_by('changed_at').values_list('object_id', 'changed_at'):
+        first.setdefault(object_id, changed_at)
+    return first
+
+
+def build_speed_block(filters: EmployeeFilters, load_rows: List[Dict]) -> Dict:
+    """Блок «Скорость на своих этапах» (задача 4.4). Медианы, атрибуция — владелец заявки."""
+    upload_to_emails: Dict[int, List[float]] = defaultdict(list)
+    emails_sent_at = _first_events(InsuranceRequest, 'emails_sent')
+    for request_id, owner_id, created_at in InsuranceRequest.objects.filter(
+        created_by__isnull=False, **_period_filter('created_at', filters)
+    ).values_list('pk', 'created_by_id', 'created_at'):
+        sent_at = emails_sent_at.get(request_id)
+        if sent_at and sent_at >= created_at:
+            upload_to_emails[owner_id].append((sent_at - created_at).total_seconds() / 3600)
+
+    offer_to_client: Dict[int, List[float]] = defaultdict(list)
+    client_wait: Dict[int, List[float]] = defaultdict(list)
+    sent_events = _first_events(InsuranceSummary, 'sent')
+    summaries = InsuranceSummary.objects.filter(request__created_by__isnull=False).values_list(
+        'pk', 'request__created_by_id', 'sent_to_client_at', 'status', 'completed_at',
+    )
+    last_offer: Dict[int, List[datetime]] = defaultdict(list)
+    for summary_id, received_at in InsuranceOffer.objects.values_list('summary_id', 'received_at'):
+        last_offer[summary_id].append(received_at)
+    for summary_id, owner_id, sent_to_client_at, status, completed_at in summaries:
+        sent_at = sent_events.get(summary_id) or sent_to_client_at
+        if not sent_at or not (filters.start_date <= timezone.localtime(sent_at).date() <= filters.end_date):
+            continue
+        offers_before = [moment for moment in last_offer.get(summary_id, []) if moment <= sent_at]
+        if offers_before:
+            offer_to_client[owner_id].append((sent_at - max(offers_before)).total_seconds() / 3600)
+        if status == 'completed_accepted' and completed_at and completed_at >= sent_at:
+            client_wait[owner_id].append((completed_at - sent_at).total_seconds() / 3600)
+
+    stuck_threshold = timezone.now() - timedelta(days=STUCK_DAYS)
+    stuck = []
+    for summary in InsuranceSummary.objects.filter(
+        status__in=['collecting', 'ready'], created_at__lt=stuck_threshold,
+    ).select_related('request', 'request__created_by').order_by('created_at'):
+        owner = summary.request.created_by
+        stuck.append({
+            'summary_id': summary.pk,
+            'title': summary.request.get_display_name(),
+            'client': summary.request.client_name,
+            'owner': _display_name(owner) if owner else 'Без автора',
+            'owner_id': owner.pk if owner else None,
+            'status': summary.get_status_display(),
+            'age_days': (timezone.now() - summary.created_at).days,
+        })
+    stuck_by_owner = Counter(item['owner_id'] for item in stuck)
+
+    def _stat(values: List[float]) -> Dict:
+        hours = _median_hours(values)
+        return {'median': format_hours(hours), 'median_hours': hours, 'count': len(values)}
+
+    rows = []
+    for load_row in load_rows:
+        user_id = load_row['user_id']
+        rows.append({
+            'user_id': user_id,
+            'name': load_row['name'],
+            'color': load_row['color'],
+            'upload_to_emails': _stat(upload_to_emails.get(user_id, [])),
+            'offer_to_client': _stat(offer_to_client.get(user_id, [])),
+            'client_wait': _stat(client_wait.get(user_id, [])),
+            'stuck': stuck_by_owner.get(user_id, 0),
+            'has_data': bool(upload_to_emails.get(user_id) or offer_to_client.get(user_id)),
+        })
+    rows.sort(key=lambda row: (not row['has_data'], row['name']))
+
+    team = {
+        'upload_to_emails': _stat([value for values in upload_to_emails.values() for value in values]),
+        'offer_to_client': _stat([value for values in offer_to_client.values() for value in values]),
+        'client_wait': _stat([value for values in client_wait.values() for value in values]),
+    }
+    return {
+        'rows': rows,
+        'team': team,
+        'stuck': stuck,
+        'stuck_days': STUCK_DAYS,
+        'status_log_partial': filters.start_date < STATUS_LOG_START,
+    }
+
+
 def build_payload(filters: EmployeeFilters) -> Dict:
     load = build_load_block(filters)
     return {
@@ -355,4 +462,5 @@ def build_payload(filters: EmployeeFilters) -> Dict:
         'period_choices': PERIOD_CHOICES,
         'load': load,
         'presence': build_presence_block(filters, load['rows']),
+        'speed': build_speed_block(filters, load['rows']),
     }
