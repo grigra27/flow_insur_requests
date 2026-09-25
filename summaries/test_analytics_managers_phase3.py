@@ -1,8 +1,7 @@
-"""Phase 3 — паттерны, тренд, MA, радар, compare/leaderboard."""
+"""Phase 3 — паттерны, тренд, MA (радар, compare и leaderboard удалены в задаче 1.1)."""
 from __future__ import annotations
 
 from datetime import timedelta
-from decimal import Decimal
 
 from django.contrib.auth.models import User
 from django.test import RequestFactory, TestCase
@@ -10,7 +9,7 @@ from django.utils import timezone
 
 from insurance_requests.models import InsuranceRequest
 
-from .models import InsuranceCompany, InsuranceOffer, InsuranceSummary
+from .models import InsuranceCompany
 from .services import analytics_managers
 
 
@@ -122,93 +121,6 @@ class TeamTrendTests(TestCase):
         self.assertEqual(trend['week']['previous']['requests'], 2)
 
 
-class RadarAxesTests(TestCase):
-    def test_radar_normalised(self):
-        row = {
-            'requests_total': 5,
-            'win_rate': 80.0,
-            'time_to': {'avg_cycle_h': 24.0},
-            'quality_score': 70.0,
-            'premium_total': Decimal('100000'),
-            'patterns': {'days_since_last': 0.0},
-        }
-        team = {'requests_total': 10, 'premium_total': Decimal('200000')}
-        axes = analytics_managers._radar_axes_for_row(row, team)
-        # Volume = 5/10*100 = 50
-        self.assertAlmostEqual(axes['volume'], 50.0)
-        # Speed = 24/24*100 = 100
-        self.assertAlmostEqual(axes['speed'], 100.0)
-        self.assertAlmostEqual(axes['win_rate'], 80.0)
-        self.assertAlmostEqual(axes['quality'], 70.0)
-        # Money = 100000 / 200000 * 100 = 50
-        self.assertAlmostEqual(axes['money'], 50.0)
-        # Activity = 100 - 0/14*100 = 100
-        self.assertAlmostEqual(axes['activity'], 100.0)
-
-
-class CompareAndLeaderboardTests(TestCase):
-    @classmethod
-    def setUpTestData(cls):
-        cls.alice = User.objects.create_user(username='alice', password='p', first_name='Алиса')
-        cls.bob = User.objects.create_user(username='bob', password='p', first_name='Боб')
-        InsuranceCompany.objects.get_or_create(
-            name='Альфа', defaults={'display_name': 'Альфа', 'sort_order': 10})
-        now = timezone.now()
-        # Alice: 3 заявки + accepted с премией
-        for i in range(3):
-            r = InsuranceRequest.objects.create(
-                client_name=f'A{i}', inn='1234567890',
-                insurance_type='КАСКО', created_by=cls.alice,
-                status='emails_sent',
-            )
-            InsuranceRequest.objects.filter(pk=r.pk).update(created_at=now - timedelta(days=i + 1))
-            if i == 0:
-                s = InsuranceSummary.objects.create(
-                    request=r, status='completed_accepted',
-                    selected_company='Альфа', selected_franchise_variant=1,
-                )
-                InsuranceSummary.objects.filter(pk=s.pk).update(
-                    created_at=now - timedelta(hours=20),
-                    completed_at=now - timedelta(hours=4),
-                )
-                InsuranceOffer.objects.create(
-                    summary=s, company_name='Альфа',
-                    insurance_sum=Decimal('1000000'), insurance_year=1,
-                    franchise_1=Decimal('0'),
-                    premium_with_franchise_1=Decimal('40000'),
-                )
-        # Bob: 1 заявка
-        r = InsuranceRequest.objects.create(
-            client_name='B', inn='1234567890',
-            insurance_type='КАСКО', created_by=cls.bob,
-        )
-        InsuranceRequest.objects.filter(pk=r.pk).update(created_at=now - timedelta(days=1))
-
-    def test_compare_filters_to_user_ids(self):
-        filters = analytics_managers.parse_filters({'period': '365'})
-        payload = analytics_managers.build_compare_payload([self.alice.pk], filters)
-        self.assertEqual([m['user_id'] for m in payload['managers']], [self.alice.pk])
-        self.assertIn('radar', payload)
-        self.assertEqual(len(payload['radar']['managers']), 1)
-
-    def test_compare_no_ids_returns_all(self):
-        filters = analytics_managers.parse_filters({'period': '365'})
-        payload = analytics_managers.build_compare_payload([], filters)
-        ids = sorted(m['user_id'] for m in payload['managers'])
-        self.assertEqual(ids, sorted([self.alice.pk, self.bob.pk]))
-
-    def test_leaderboard_sorts_by_quality_score(self):
-        filters = analytics_managers.parse_filters({'period': '365'})
-        payload = analytics_managers.build_leaderboard_payload(filters)
-        # Алиса должна быть впереди (есть accepted, выше quality)
-        self.assertGreater(len(payload['rows']), 0)
-        self.assertEqual(payload['rows'][0]['rank'], 1)
-        # Sanity: scores не возрастают по списку
-        scores = [r['quality_score'] or 0 for r in payload['rows']]
-        for i in range(len(scores) - 1):
-            self.assertGreaterEqual(scores[i], scores[i + 1])
-
-
 class IntegrationOverviewPhase3Tests(TestCase):
     def test_overview_includes_phase3_keys(self):
         user = User.objects.create_user(username='p', password='x')
@@ -218,7 +130,9 @@ class IntegrationOverviewPhase3Tests(TestCase):
         )
         filters = analytics_managers.parse_filters({'period': '365'})
         payload = analytics_managers.build_overview_payload(filters)
-        for key in ('backlog', 'day_hour', 'trend', 'radar', 'team_radar'):
+        for key in ('backlog', 'day_hour', 'trend'):
             self.assertIn(key, payload, msg=f'Missing key: {key}')
+        for key in ('radar', 'team_radar'):
+            self.assertNotIn(key, payload, msg=f'Unexpected key: {key}')
         # daily charts получили MA
         self.assertIn('moving_average_28d', payload['charts']['daily'])

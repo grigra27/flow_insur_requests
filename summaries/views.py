@@ -3192,32 +3192,6 @@ def analytics_manager_detail(request, user_id):
 
 
 @admin_required
-def analytics_managers_compare(request):
-    """Side-by-side сравнение нескольких сотрудников."""
-    filters = analytics_managers_service.parse_filters(request.GET)
-    raw_ids = request.GET.get('ids', '')
-    user_ids: list[int] = []
-    for token in raw_ids.split(','):
-        token = token.strip()
-        if not token:
-            continue
-        try:
-            user_ids.append(int(token))
-        except ValueError:
-            filters.errors.append(f'Некорректный id: {token!r}')
-    payload = analytics_managers_service.build_compare_payload(user_ids, filters)
-    return render(request, 'summaries/analytics_managers_compare.html', payload)
-
-
-@admin_required
-def analytics_managers_leaderboard(request):
-    """Леденборд сотрудников по composite efficiency-index (admin-only)."""
-    filters = analytics_managers_service.parse_filters(request.GET)
-    payload = analytics_managers_service.build_leaderboard_payload(filters)
-    return render(request, 'summaries/analytics_managers_leaderboard.html', payload)
-
-
-@admin_required
 def export_analytics_managers_widget(request, user_id=None):
     """XLSX-экспорт: общий обзор или досье одного сотрудника."""
     filters = analytics_managers_service.parse_filters(request.GET)

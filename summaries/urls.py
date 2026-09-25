@@ -2,6 +2,7 @@
 URL маршруты для приложения summaries (Своды)
 """
 from django.urls import path
+from django.views.generic import RedirectView
 from . import views
 
 app_name = 'summaries'
@@ -21,8 +22,9 @@ urlpatterns = [
     path('analytics/insurance-companies/', views.analytics_insurance_companies, name='analytics_insurance_companies'),
     path('analytics/insurance-companies/export/', views.export_analytics_insurance_companies_widget, name='export_analytics_insurance_companies_widget'),
     path('analytics/managers/', views.analytics_managers, name='analytics_managers'),
-    path('analytics/managers/compare/', views.analytics_managers_compare, name='analytics_managers_compare'),
-    path('analytics/managers/leaderboard/', views.analytics_managers_leaderboard, name='analytics_managers_leaderboard'),
+    # Сравнение и леденборд удалены (analytics_redesign_2026_09, задача 1.1) — старые ссылки ведут на обзор.
+    path('analytics/managers/compare/', RedirectView.as_view(pattern_name='summaries:analytics_managers', query_string=True)),
+    path('analytics/managers/leaderboard/', RedirectView.as_view(pattern_name='summaries:analytics_managers', query_string=True)),
     path('analytics/managers/export/', views.export_analytics_managers_widget, name='export_analytics_managers_widget'),
     path('analytics/managers/<int:user_id>/', views.analytics_manager_detail, name='analytics_manager_detail'),
     path('analytics/managers/<int:user_id>/export/', views.export_analytics_managers_widget, name='export_analytics_manager_detail'),

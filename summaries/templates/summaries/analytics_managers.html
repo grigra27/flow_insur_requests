@@ -113,18 +113,6 @@
         color: #cbd5e1;
         font-weight: 400;
     }
-    .mgr-quality-bar {
-        height: 6px;
-        background: #e2e8f0;
-        border-radius: 3px;
-        overflow: hidden;
-        position: relative;
-    }
-    .mgr-quality-bar > span {
-        display: block;
-        height: 100%;
-        background: linear-gradient(90deg, #ef4444 0%, #f59e0b 50%, #16a34a 100%);
-    }
     .mgr-flag-badge {
         display: inline-block;
         font-size: 0.78rem;
@@ -185,12 +173,6 @@
             <a href="{% url 'summaries:export_analytics_managers_widget' %}{% if filters.start_date_str %}?start_date={{ filters.start_date_str }}&end_date={{ filters.end_date_str }}{% endif %}"
                class="btn btn-outline-success">
                 <i class="bi bi-file-earmark-spreadsheet"></i> XLSX
-            </a>
-            <a href="{% url 'summaries:analytics_managers_compare' %}" class="btn btn-outline-secondary">
-                <i class="bi bi-people-fill"></i> Сравнение
-            </a>
-            <a href="{% url 'summaries:analytics_managers_leaderboard' %}" class="btn btn-outline-secondary">
-                <i class="bi bi-trophy"></i> Леденборд
             </a>
             <a href="{% url 'summaries:analytics' %}" class="btn btn-outline-primary">
                 <i class="bi bi-arrow-left"></i> К аналитике
@@ -356,7 +338,6 @@
                             <th class="num">Avg цикл, ч</th>
                             <th class="num">Активно</th>
                             <th class="num">Просрочка</th>
-                            <th class="num" title="Composite quality-score: completeness 40% + win-rate 30% + speed 20% + volume 10%">Quality</th>
                             <th>Последняя активность</th>
                         </tr>
                     </thead>
@@ -384,16 +365,10 @@
                             </td>
                             <td class="num">{{ row.active_total }}</td>
                             <td class="num {% if row.overdue_count %}text-danger fw-semibold{% endif %}">{{ row.overdue_count }}</td>
-                            <td class="num">
-                                {% if row.quality_score is not None %}
-                                    <div>{{ row.quality_score|floatformat:1 }}</div>
-                                    <div class="mgr-quality-bar"><span style="width: {{ row.quality_score|floatformat:0 }}%"></span></div>
-                                {% else %}—{% endif %}
-                            </td>
                             <td>{% if row.last_activity %}{{ row.last_activity|date:"d.m.Y H:i" }}{% else %}—{% endif %}</td>
                         </tr>
                         {% empty %}
-                        <tr><td colspan="12" class="text-center text-muted py-4">Нет данных за выбранный период.</td></tr>
+                        <tr><td colspan="11" class="text-center text-muted py-4">Нет данных за выбранный период.</td></tr>
                         {% endfor %}
                         {% if rows %}
                         <tr class="mgr-row-total">
@@ -407,7 +382,6 @@
                             <td class="num">—</td>
                             <td class="num">{{ team.active_total }}</td>
                             <td class="num {% if team.overdue_count %}text-danger fw-semibold{% endif %}">{{ team.overdue_count }}</td>
-                            <td class="num">{% if team.quality_score is not None %}{{ team.quality_score|floatformat:1 }}{% else %}—{% endif %}</td>
                             <td>—</td>
                         </tr>
                         {% endif %}
@@ -663,9 +637,9 @@
         </div>
     </div>
 
-    <!-- Trend WoW / MoM + Radar -->
+    <!-- Trend WoW / MoM -->
     <div class="row g-3 mb-4">
-        <div class="col-12 col-lg-6">
+        <div class="col-12">
             <div class="card mgr-trend-card mgr-table-card">
                 <div class="card-header">
                     <h5 class="mb-0"><i class="bi bi-arrow-down-up"></i> Динамика к прошлому периоду</h5>
@@ -713,19 +687,6 @@
                                 {% endfor %}
                             </tbody>
                         </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-12 col-lg-6">
-            <div class="card mgr-chart-card">
-                <div class="card-header">
-                    <h5 class="mb-0"><i class="bi bi-radar"></i> Радар сотрудников</h5>
-                </div>
-                <div class="card-body">
-                    <div class="mgr-chart-wrap mgr-chart-wrap--tall">
-                        <canvas id="mgr-radar"></canvas>
                     </div>
                 </div>
             </div>
@@ -1085,52 +1046,6 @@
             cell.style.backgroundColor = 'rgba(34, 197, 94, ' + alpha.toFixed(2) + ')';
         }
     });
-
-    // Radar chart
-    if (data.radar && data.radar.managers && data.radar.managers.length) {
-        var radarCanvas = document.getElementById('mgr-radar');
-        if (radarCanvas) {
-            var datasets = data.radar.managers.map(function (m, i) {
-                var color = palette[i % palette.length];
-                return {
-                    label: m.display,
-                    data: m.values,
-                    backgroundColor: color + '33',
-                    borderColor: color,
-                    pointBackgroundColor: color,
-                    borderWidth: 2,
-                };
-            });
-            // Команда — пунктирный overlay
-            if (data.radar.team) {
-                var teamValues = data.radar.axes.map(function (axis, idx) {
-                    // axes order = volume, speed, win_rate, quality, money, activity
-                    var keys = ['volume', 'speed', 'win_rate', 'quality', 'money', 'activity'];
-                    return data.radar.team[keys[idx]] || 0;
-                });
-                datasets.push({
-                    label: 'Команда',
-                    data: teamValues,
-                    backgroundColor: 'rgba(15, 23, 42, 0.05)',
-                    borderColor: 'rgba(15, 23, 42, 0.6)',
-                    borderDash: [4, 4],
-                    pointRadius: 0,
-                    borderWidth: 2,
-                });
-            }
-            new Chart(radarCanvas, {
-                type: 'radar',
-                data: { labels: data.radar.axes, datasets: datasets },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        r: { suggestedMin: 0, suggestedMax: 100, ticks: { stepSize: 25 } },
-                    },
-                },
-            });
-        }
-    }
 })();
 </script>
 {% endblock %}

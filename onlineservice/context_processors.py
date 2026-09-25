@@ -38,8 +38,6 @@ MAIN_NAV_ITEMS = [
             'analytics_insurance_companies',
             'analytics_managers',
             'analytics_manager_detail',
-            'analytics_managers_compare',
-            'analytics_managers_leaderboard',
             'deal_list',
             'deal_summary',
         },
@@ -62,8 +60,6 @@ MAIN_NAV_ITEMS = [
             'analytics_insurance_companies',
             'analytics_managers',
             'analytics_manager_detail',
-            'analytics_managers_compare',
-            'analytics_managers_leaderboard',
         },
         'children': [
             ('Обзор аналитики', 'summaries:analytics'),
@@ -124,8 +120,6 @@ ADMIN_ONLY_ROUTES = {
     'summaries:analytics_insurance_companies',
     'summaries:analytics_managers',
     'summaries:analytics_manager_detail',
-    'summaries:analytics_managers_compare',
-    'summaries:analytics_managers_leaderboard',
     'summaries:export_analytics_managers_widget',
     'summaries:export_analytics_manager_detail',
 }
@@ -142,8 +136,6 @@ SECTION_ROUTE_OVERRIDES = {
     ('summaries', 'analytics_insurance_companies'): 'analytics',
     ('summaries', 'analytics_managers'): 'analytics',
     ('summaries', 'analytics_manager_detail'): 'analytics',
-    ('summaries', 'analytics_managers_compare'): 'analytics',
-    ('summaries', 'analytics_managers_leaderboard'): 'analytics',
 }
 
 
@@ -169,8 +161,6 @@ PAGE_LABELS = {
     ('summaries', 'analytics_insurance_companies'): 'Аналитика страховых компаний',
     ('summaries', 'analytics_managers'): 'Аналитика по сотрудникам',
     ('summaries', 'analytics_manager_detail'): 'Досье сотрудника',
-    ('summaries', 'analytics_managers_compare'): 'Сравнение сотрудников',
-    ('summaries', 'analytics_managers_leaderboard'): 'Леденборд сотрудников',
     ('summaries', 'help'): 'Справка',
     ('summaries', 'offer_search'): 'Поиск предложений',
 }
@@ -255,16 +245,6 @@ BREADCRUMB_TEMPLATES = {
         ('Сотрудники', 'summaries:analytics_managers'),
         ('Досье', None),
     ],
-    ('summaries', 'analytics_managers_compare'): [
-        ('Аналитика', 'summaries:analytics'),
-        ('Сотрудники', 'summaries:analytics_managers'),
-        ('Сравнение', None),
-    ],
-    ('summaries', 'analytics_managers_leaderboard'): [
-        ('Аналитика', 'summaries:analytics'),
-        ('Сотрудники', 'summaries:analytics_managers'),
-        ('Леденборд', None),
-    ],
     ('summaries', 'help'): [
         ('Своды', 'summaries:summary_list'),
         ('Справка', None),
@@ -290,8 +270,6 @@ LAYOUT_MODE_BY_PAGE = {
     ('summaries', 'analytics_insurance_companies'): 'wide',
     ('summaries', 'analytics_managers'): 'wide',
     ('summaries', 'analytics_manager_detail'): 'wide',
-    ('summaries', 'analytics_managers_compare'): 'wide',
-    ('summaries', 'analytics_managers_leaderboard'): 'wide',
     ('summaries', 'deal_summary'): 'wide',
     ('summaries', 'summary_detail'): 'wide',
 }

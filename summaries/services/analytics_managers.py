@@ -1,8 +1,12 @@
 """Сервис аналитики по сотрудникам (Django-юзерам, загружающим заявки).
 
 Phase 1: filters, KPI, табличные метрики, time-to-*, charts, funnel, базовые алерты.
-Phase 2: качество данных, портфель, heatmap-связи, аномалии цикла, просадка объёма,
-композитный quality-score.
+Phase 2: качество данных, портфель, heatmap-связи, аномалии цикла, просадка объёма.
+
+Composite quality-score, радар, сравнение и рейтинг сотрудников удалены
+(docs/improvement_plans/analytics_redesign_2026_09.md, задача 1.1): индекс
+смешивал решение клиента (win-rate) и заполненность полей парсером с работой
+сотрудника.
 
 Реализация компромиссная: для прошлых данных нет точного таймстемпа смены статуса,
 поэтому стадии funnel считаются по снимку (current status + наличие summary).
@@ -28,13 +32,6 @@ from ..models import InsuranceSummary
 
 DEFAULT_PERIOD_DAYS = 365
 PERIOD_CHOICES = ('all', '30', '90', '365', 'custom')
-
-QUALITY_SCORE_WEIGHTS: dict[str, float] = {
-    'completeness': 0.40,
-    'win_rate': 0.30,
-    'speed': 0.20,
-    'volume': 0.10,
-}
 
 # Активные статусы (не завершённые) для подсчёта backlog’а.
 ACTIVE_REQUEST_STATUSES = {'uploaded', 'email_generated'}
@@ -868,7 +865,6 @@ def _build_manager_rows(filters: dict) -> tuple[list[dict], dict]:
     rows.sort(key=lambda r: (r['is_unassigned'], -r['requests_total'], r['display']))
 
     # Команда (агрегация)
-    real_rows = [r for r in rows if not r['is_unassigned']]
     all_requests = [req for reqs in requests_by_user.values() for req in reqs]
 
     team = {
@@ -888,49 +884,7 @@ def _build_manager_rows(filters: dict) -> tuple[list[dict], dict]:
     team['win_rate'] = (team['accepted'] / completed * 100) if completed else None
     team['avg_ticket'] = (team['premium_total'] / team['accepted']) if team['accepted'] else Decimal('0')
 
-    # Composite quality-score (нужны командные ориентиры)
-    team_max_volume = max((r['requests_total'] for r in real_rows), default=0)
-    cycle_values = [r['time_to']['avg_cycle_h'] for r in real_rows if r['time_to']['avg_cycle_h']]
-    team_best_cycle = min(cycle_values) if cycle_values else None
-    for row in rows:
-        row['quality_score'] = _compute_quality_score(row, team_max_volume, team_best_cycle)
-    if team_max_volume > 0:
-        # Команда — невзвешенное среднее по реальным сотрудникам
-        scores = [r['quality_score'] for r in real_rows if r['quality_score'] is not None]
-        team['quality_score'] = sum(scores) / len(scores) if scores else None
-    else:
-        team['quality_score'] = None
-
-    # Радар-координаты на каждую строку
-    for row in rows:
-        row['radar'] = _radar_axes_for_row(row, team)
-
     return rows, team
-
-
-def _compute_quality_score(row: dict, team_max_volume: int, team_best_cycle: float | None) -> float | None:
-    """Composite-score 0..100 по 4 компонентам (см. план §«Решения», п.4)."""
-    completeness = row['completeness']['overall_pct']
-    if completeness is None:
-        completeness = 0.0
-    win_rate = row['win_rate'] or 0.0
-    avg_cycle = row['time_to']['avg_cycle_h']
-    if avg_cycle and team_best_cycle and avg_cycle > 0:
-        speed = min(100.0, 100.0 * team_best_cycle / avg_cycle)
-    else:
-        speed = 0.0
-    if team_max_volume > 0:
-        volume = min(100.0, 100.0 * row['requests_total'] / team_max_volume)
-    else:
-        volume = 0.0
-
-    score = (
-        QUALITY_SCORE_WEIGHTS['completeness'] * completeness
-        + QUALITY_SCORE_WEIGHTS['win_rate'] * win_rate
-        + QUALITY_SCORE_WEIGHTS['speed'] * speed
-        + QUALITY_SCORE_WEIGHTS['volume'] * volume
-    )
-    return round(max(0.0, min(100.0, score)), 1)
 
 
 # --- Funnel -----------------------------------------------------------------
@@ -1312,7 +1266,6 @@ def build_overview_payload(filters: dict) -> dict[str, Any]:
     backlog = _backlog_age_buckets(filters)
     day_hour = _day_hour_heatmap(filters)
     trend = _team_trend(filters)
-    team_radar = _team_radar(rows)
 
     payload = {
         'filters': filters,
@@ -1329,7 +1282,6 @@ def build_overview_payload(filters: dict) -> dict[str, Any]:
             'avg_per_day': avg_per_day,
             'avg_per_week': avg_per_week,
             'avg_per_month': avg_per_month,
-            'team_quality_score': team.get('quality_score'),
         },
         'rows': rows,
         'team': team,
@@ -1342,93 +1294,18 @@ def build_overview_payload(filters: dict) -> dict[str, Any]:
         'backlog': backlog,
         'day_hour': day_hour,
         'trend': trend,
-        'team_radar': team_radar,
         'available_filters': _available_filters(),
     }
-    radar_payload = {
-        'axes': [label for _, label in RADAR_AXES],
-        'team': team_radar,
-        'managers': [
-            {
-                'user_id': r['user_id'],
-                'display': r['display'],
-                'values': [r['radar'][k] for k, _ in RADAR_AXES],
-            }
-            for r in rows if not r['is_unassigned']
-        ],
-    }
-    payload['radar'] = radar_payload
     payload['charts_json'] = json.dumps(
         {
             'daily': daily,
             'weekly': weekly,
             'day_hour': day_hour,
-            'radar': radar_payload,
         },
         ensure_ascii=False,
         default=str,
     )
     return payload
-
-
-RADAR_AXES = (
-    ('volume', 'Volume'),
-    ('speed', 'Speed'),
-    ('win_rate', 'Win-rate'),
-    ('quality', 'Quality'),
-    ('money', 'Money'),
-    ('activity', 'Activity'),
-)
-
-
-def _radar_axes_for_row(row: dict, team: dict) -> dict[str, float]:
-    """Нормализованные оси радара 0..100."""
-    real_max_volume = max((team['requests_total'], 1), key=lambda x: x)
-    if isinstance(real_max_volume, tuple):
-        real_max_volume = team['requests_total'] or 1
-    volume = (row['requests_total'] / real_max_volume * 100) if real_max_volume else 0.0
-    win_rate = row.get('win_rate') or 0.0
-
-    avg_cycle = row['time_to'].get('avg_cycle_h')
-    # speed: чем меньше cycle, тем больше score. Базис — 24 часа = 100 баллов.
-    if avg_cycle and avg_cycle > 0:
-        speed = min(100.0, 24.0 / avg_cycle * 100.0)
-    else:
-        speed = 0.0
-
-    quality = row.get('quality_score') or 0.0
-
-    team_premium = float(team.get('premium_total') or 0)
-    row_premium = float(row.get('premium_total') or 0)
-    money = (row_premium / team_premium * 100) if team_premium else 0.0
-
-    days_since_last = (row.get('patterns') or {}).get('days_since_last')
-    if days_since_last is None:
-        activity = 0.0
-    else:
-        # Чем меньше дней без активности, тем выше. 0 дней → 100, 14 дней → 0.
-        activity = max(0.0, min(100.0, 100.0 - (days_since_last / 14.0 * 100.0)))
-
-    return {
-        'volume': round(min(100.0, volume), 1),
-        'speed': round(speed, 1),
-        'win_rate': round(min(100.0, win_rate), 1),
-        'quality': round(quality, 1),
-        'money': round(min(100.0, money), 1),
-        'activity': round(activity, 1),
-    }
-
-
-def _team_radar(rows: list[dict]) -> dict[str, float]:
-    """Среднее по реальным сотрудникам — для overlay-фигуры на радаре."""
-    real = [r for r in rows if not r['is_unassigned'] and r.get('radar')]
-    if not real:
-        return {axis_key: 0.0 for axis_key, _ in RADAR_AXES}
-    out = {}
-    for axis_key, _ in RADAR_AXES:
-        vals = [r['radar'][axis_key] for r in real]
-        out[axis_key] = round(sum(vals) / len(vals), 1)
-    return out
 
 
 # Шумные поля, которые не показываем в timeline’е (auto-now / служебное / большие FileField’ы)
@@ -1826,7 +1703,6 @@ def build_manager_profile_payload(user_id: int, filters: dict) -> dict[str, Any]
         'user': user,
         'row': row,
         'team': overview['team'],
-        'team_radar': overview['team_radar'],
         'active_items': active_list,
         'overdue': overdue,
         'stuck': stuck,
@@ -1835,53 +1711,6 @@ def build_manager_profile_payload(user_id: int, filters: dict) -> dict[str, Any]
         'timeline': timeline,
         'self_benchmark': self_benchmark,
         'available_filters': overview['available_filters'],
-        'radar_json': json.dumps(
-            {
-                'axes': [label for _, label in RADAR_AXES],
-                'team': overview['team_radar'],
-                'manager': row['radar'] if row else None,
-                'display': row['display'] if row else (user.get_full_name() if user else f'#{user_id}'),
-            },
-            ensure_ascii=False,
-            default=str,
-        ),
-    }
-
-
-def build_compare_payload(user_ids: list[int], filters: dict) -> dict[str, Any]:
-    """Side-by-side сравнение нескольких сотрудников.
-
-    Если user_ids пуст — берём всех активных сотрудников за период.
-    """
-    overview = build_overview_payload(filters)
-    rows = overview['rows']
-    real_rows = [r for r in rows if not r['is_unassigned']]
-
-    if user_ids:
-        selected = [r for r in real_rows if r['user_id'] in user_ids]
-    else:
-        selected = real_rows
-
-    radar_data = {
-        'axes': [label for _, label in RADAR_AXES],
-        'team': overview.get('team_radar', {}),
-        'managers': [
-            {
-                'user_id': r['user_id'],
-                'display': r['display'],
-                'values': [r['radar'][k] for k, _ in RADAR_AXES],
-            }
-            for r in selected
-        ],
-    }
-    return {
-        'filters': filters,
-        'user_ids': user_ids,
-        'managers': selected,
-        'available_users': overview['available_filters']['users'],
-        'team': overview['team'],
-        'radar': radar_data,
-        'radar_json': json.dumps(radar_data, ensure_ascii=False, default=str),
     }
 
 
@@ -1924,7 +1753,6 @@ def export_overview_xlsx(filters: dict):
         ('Среднее заявок/день', kpi['avg_per_day']),
         ('Среднее заявок/неделя', kpi['avg_per_week']),
         ('Среднее заявок/месяц', kpi['avg_per_month']),
-        ('Quality-score команды', kpi.get('team_quality_score')),
     ]
     for label, value in rows:
         ws_kpi.append([label, value])
@@ -1934,7 +1762,7 @@ def export_overview_xlsx(filters: dict):
     _set_header(ws_mgr, [
         'Сотрудник', 'Заявок', 'Сводов', 'Акцепт', 'Не будет',
         'Win-rate, %', 'Σ премии', 'Средний чек', 'Avg цикл, ч',
-        'Активно', 'Просрочек', 'Quality',
+        'Активно', 'Просрочек',
     ])
     for r in payload['rows']:
         ws_mgr.append([
@@ -1949,7 +1777,6 @@ def export_overview_xlsx(filters: dict):
             r['time_to'].get('avg_cycle_h'),
             r['active_total'],
             r['overdue_count'],
-            r.get('quality_score'),
         ])
 
     # Sheet 3: Качество данных
@@ -2038,7 +1865,6 @@ def export_manager_dossier_xlsx(user_id: int, filters: dict):
         ws_kpi.append(['P90 цикла, ч', row['time_to'].get('p90_cycle_h')])
         ws_kpi.append(['Активно сейчас', row['active_total']])
         ws_kpi.append(['Просрочек', row['overdue_count']])
-        ws_kpi.append(['Quality-score', row.get('quality_score')])
 
     ws_active = wb.create_sheet('Активные')
     _set_header(ws_active, ['Тип', 'ID', 'DFA', 'Клиент', 'Статус', 'Возраст, дн.'])
@@ -2090,38 +1916,3 @@ def export_manager_dossier_xlsx(user_id: int, filters: dict):
     wb.save(output)
     output.seek(0)
     return output
-
-
-def build_leaderboard_payload(filters: dict) -> dict[str, Any]:
-    """Рейтинг по composite quality-score. Только реальные сотрудники."""
-    overview = build_overview_payload(filters)
-    real = [r for r in overview['rows'] if not r['is_unassigned']]
-
-    ranked = sorted(
-        real,
-        key=lambda r: (r.get('quality_score') is None, -(r.get('quality_score') or 0)),
-    )
-    rows = []
-    for idx, r in enumerate(ranked, start=1):
-        rows.append({
-            'rank': idx,
-            'user_id': r['user_id'],
-            'display': r['display'],
-            'username': r.get('username'),
-            'quality_score': r.get('quality_score'),
-            'breakdown': {
-                'completeness': (r.get('completeness') or {}).get('overall_pct'),
-                'win_rate': r.get('win_rate'),
-                'avg_cycle_h': (r.get('time_to') or {}).get('avg_cycle_h'),
-                'requests_total': r['requests_total'],
-                'premium_total': r.get('premium_total'),
-                'accepted': r.get('accepted'),
-            },
-        })
-
-    return {
-        'filters': filters,
-        'rows': rows,
-        'team_score': overview['team'].get('quality_score'),
-        'weights': QUALITY_SCORE_WEIGHTS,
-    }

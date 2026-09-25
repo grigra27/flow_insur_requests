@@ -31,8 +31,6 @@ class ManagerAnalyticsAccessTests(TestCase):
     def _admin_endpoints(self):
         return [
             (reverse('summaries:analytics_managers'), 200),
-            (reverse('summaries:analytics_managers_compare'), 200),
-            (reverse('summaries:analytics_managers_leaderboard'), 200),
             (
                 reverse('summaries:analytics_manager_detail', kwargs={'user_id': self.admin.pk}),
                 200,
@@ -57,6 +55,16 @@ class ManagerAnalyticsAccessTests(TestCase):
             with self.subTest(url=url):
                 response = self.client.get(url)
                 self.assertEqual(response.status_code, 403, msg=url)
+
+    def test_removed_compare_and_leaderboard_redirect_to_overview(self):
+        # Страницы удалены (analytics_redesign_2026_09, задача 1.1); старые ссылки
+        # ведут на обзор сотрудников с сохранением фильтров.
+        self.client.login(username='managers_admin', password='pwd')
+        overview = reverse('summaries:analytics_managers')
+        for path in ('/summaries/analytics/managers/compare/', '/summaries/analytics/managers/leaderboard/'):
+            with self.subTest(path=path):
+                response = self.client.get(path + '?period=90')
+                self.assertRedirects(response, overview + '?period=90', fetch_redirect_response=False)
 
     def test_anonymous_redirected_to_login(self):
         for url, _ in self._admin_endpoints():

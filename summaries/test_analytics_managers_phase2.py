@@ -126,41 +126,6 @@ class CompletenessAndPortfolioTests(TestCase):
         self.assertEqual(agg['property_pct'], 100.0)
 
 
-class QualityScoreTests(TestCase):
-    def test_quality_score_components(self):
-        row = {
-            'completeness': {'overall_pct': 100.0},
-            'win_rate': 100.0,
-            'time_to': {'avg_cycle_h': 10.0},
-            'requests_total': 5,
-        }
-        # max_volume = 5, best_cycle = 10 → speed=100, volume=100
-        score = analytics_managers._compute_quality_score(row, 5, 10.0)
-        self.assertAlmostEqual(score, 100.0)
-
-    def test_quality_score_partial(self):
-        row = {
-            'completeness': {'overall_pct': 50.0},
-            'win_rate': 60.0,
-            'time_to': {'avg_cycle_h': 20.0},
-            'requests_total': 2,
-        }
-        # max_volume=4, best=10 → speed=50 (10/20*100), volume=50 (2/4*100)
-        # 0.4*50 + 0.3*60 + 0.2*50 + 0.1*50 = 20 + 18 + 10 + 5 = 53
-        score = analytics_managers._compute_quality_score(row, 4, 10.0)
-        self.assertAlmostEqual(score, 53.0, places=1)
-
-    def test_quality_score_no_data(self):
-        row = {
-            'completeness': {'overall_pct': None},
-            'win_rate': None,
-            'time_to': {'avg_cycle_h': None},
-            'requests_total': 0,
-        }
-        score = analytics_managers._compute_quality_score(row, 0, None)
-        self.assertEqual(score, 0.0)
-
-
 class HeatmapTests(TestCase):
     def test_heatmap_basic(self):
         pairs = [
@@ -236,13 +201,13 @@ class Phase2OverviewIntegrationTests(TestCase):
         moscow_idx = branch_hm['columns'].index('Москва')
         self.assertEqual(alice_row['cells'][moscow_idx], 2)
 
-    def test_quality_score_on_rows(self):
+    def test_rows_have_no_composite_score(self):
+        # Composite quality-score и радар удалены (analytics_redesign_2026_09, 1.1).
         payload = analytics_managers.build_overview_payload(self._filters())
+        self.assertNotIn('team_quality_score', payload['kpi'])
         for row in payload['rows']:
-            self.assertIn('quality_score', row)
-            if row['quality_score'] is not None:
-                self.assertGreaterEqual(row['quality_score'], 0.0)
-                self.assertLessEqual(row['quality_score'], 100.0)
+            self.assertNotIn('quality_score', row)
+            self.assertNotIn('radar', row)
 
 
 class VolumeDropAlertTests(TestCase):

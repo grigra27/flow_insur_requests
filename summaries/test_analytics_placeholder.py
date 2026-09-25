@@ -102,8 +102,6 @@ class AnalyticsPlaceholderAccessTests(TestCase):
 
         urls = [
             reverse('summaries:analytics_managers'),
-            reverse('summaries:analytics_managers_compare'),
-            reverse('summaries:analytics_managers_leaderboard'),
             reverse('summaries:analytics_manager_detail', kwargs={'user_id': self.admin_user.pk}),
         ]
 

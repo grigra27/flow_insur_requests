@@ -8,7 +8,6 @@
     .det-card { border: 0; box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08); }
     .det-kpi-card { border: 0; box-shadow: 0 8px 16px rgba(15, 23, 42, 0.05); height: 100%; }
     .det-kpi-value { font-size: 1.5rem; font-weight: 700; line-height: 1.1; }
-    .det-radar-wrap { position: relative; height: 380px; }
     .det-list { max-height: 360px; overflow-y: auto; }
     .det-timeline-item {
         padding: 0.5rem 0.75rem;
@@ -128,17 +127,6 @@
     <div class="col-12 col-md-6 col-xl-3">
         <div class="card det-kpi-card">
             <div class="card-body">
-                <div class="text-muted mb-1">Quality-score</div>
-                <div class="det-kpi-value">
-                    {% if row.quality_score is not None %}{{ row.quality_score|floatformat:1 }}{% else %}—{% endif %}
-                </div>
-                <small class="text-muted">Команда: {% if team.quality_score is not None %}{{ team.quality_score|floatformat:1 }}{% else %}—{% endif %}</small>
-            </div>
-        </div>
-    </div>
-    <div class="col-12 col-md-6 col-xl-3">
-        <div class="card det-kpi-card">
-            <div class="card-body">
                 <div class="text-muted mb-1">Avg цикл, ч</div>
                 <div class="det-kpi-value">
                     {% if row.time_to.avg_cycle_h %}{{ row.time_to.avg_cycle_h|floatformat:1 }}{% else %}—{% endif %}
@@ -189,17 +177,9 @@
 {% endif %}
 
 <div class="row g-3 mb-4">
-    <div class="col-12 col-lg-6">
-        <div class="card det-card">
-            <div class="card-header"><h5 class="mb-0"><i class="bi bi-radar"></i> Радар (vs команда)</h5></div>
-            <div class="card-body">
-                <div class="det-radar-wrap"><canvas id="det-radar"></canvas></div>
-            </div>
-        </div>
-    </div>
-    <div class="col-12 col-lg-6">
+    <div class="col-12">
         <div class="row g-3">
-            <div class="col-12">
+            <div class="col-12 col-lg-6">
                 <div class="card det-card">
                     <div class="card-header"><h5 class="mb-0"><i class="bi bi-building"></i> Любимые СК (топ-5 по accepted)</h5></div>
                     <div class="card-body">
@@ -213,7 +193,7 @@
                     </div>
                 </div>
             </div>
-            <div class="col-12">
+            <div class="col-12 col-lg-6">
                 <div class="card det-card">
                     <div class="card-header"><h5 class="mb-0"><i class="bi bi-geo"></i> Любимые филиалы (топ-5)</h5></div>
                     <div class="card-body">
@@ -397,52 +377,6 @@
 })();
 </script>
 
-{{ radar_json|json_script:"det-radar-data" }}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
-<script>
-(function () {
-    var raw = document.getElementById('det-radar-data');
-    if (!raw) return;
-    var data;
-    try { data = JSON.parse(raw.textContent); } catch (e) { return; }
-    if (!data.manager) return;
-    var canvas = document.getElementById('det-radar');
-    if (!canvas) return;
-    var keys = ['volume', 'speed', 'win_rate', 'quality', 'money', 'activity'];
-    var managerVals = keys.map(function (k) { return data.manager[k] || 0; });
-    var teamVals = keys.map(function (k) { return (data.team || {})[k] || 0; });
-    new Chart(canvas, {
-        type: 'radar',
-        data: {
-            labels: data.axes,
-            datasets: [
-                {
-                    label: data.display,
-                    data: managerVals,
-                    backgroundColor: 'rgba(37, 99, 235, 0.2)',
-                    borderColor: '#2563eb',
-                    pointBackgroundColor: '#2563eb',
-                    borderWidth: 2,
-                },
-                {
-                    label: 'Команда',
-                    data: teamVals,
-                    backgroundColor: 'rgba(15, 23, 42, 0.05)',
-                    borderColor: 'rgba(15, 23, 42, 0.6)',
-                    borderDash: [4, 4],
-                    pointRadius: 0,
-                    borderWidth: 2,
-                },
-            ],
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: { r: { suggestedMin: 0, suggestedMax: 100, ticks: { stepSize: 25 } } },
-        },
-    });
-})();
-</script>
 
 {% endif %}
 {% endblock %}
