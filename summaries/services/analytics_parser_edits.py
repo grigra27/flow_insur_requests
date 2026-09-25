@@ -107,7 +107,8 @@ def build_payload(filters):
     total_v2 = v2_requests.count()
     requests_with_edits = v2_requests.filter(manual_edits_count__gt=0).count()
 
-    edits = RequestFieldEdit.objects.filter(created_at__gte=since)
+    # Только правки на входе (превью): правки после создания — отдельная страница (scope='post').
+    edits = RequestFieldEdit.objects.filter(created_at__gte=since, scope__in=RequestFieldEdit.INTAKE_SCOPES)
     total_edits = edits.count()
 
     # Топ полей с метрикой точности парсера: доля заявок, где оператор

@@ -320,3 +320,71 @@ def object_comparison_rows(
     meta = get_object_field_meta()
     field_names = [name for name in meta if name not in _OBJECT_FIELDS_EXCLUDED]
     return _comparison_rows(object_original, object_edits, field_names, meta)
+
+
+# --- Правки после создания (scope='post') -----------------------------------
+
+# Поля, которые парсер не распознаёт по смыслу: служебное примечание оператора.
+_POST_FIELDS_EXCLUDED = {'notes'}
+# Хвост самого создания (статусные сейвы в той же транзакции) — не «поздняя» правка.
+POST_CREATE_GRACE_SECONDS = 5
+
+
+def get_post_creation_field_meta() -> Dict[str, Dict[str, Any]]:
+    """Метаданные полей, которые распознаёт парсер и которые есть в модели заявки."""
+    from .models import InsuranceRequest
+
+    model_fields = {
+        field.name for field in InsuranceRequest._meta.get_fields() if getattr(field, 'concrete', False)
+    }
+    meta: Dict[str, Dict[str, Any]] = {}
+    for source in (get_object_field_meta(), get_scalar_field_meta()):
+        for name, field_meta in source.items():
+            if name in model_fields and name not in _POST_FIELDS_EXCLUDED:
+                meta[name] = field_meta
+    return meta
+
+
+def _post_canonical(name: str, value: Any, meta: Dict[str, Dict[str, Any]]) -> str:
+    if isinstance(value, str) and value.strip() in _PLACEHOLDER_VALUES:
+        value = ''
+    if isinstance(value, str) and value.strip() == 'None':
+        value = ''  # так easy-audit сериализует None
+    if isinstance(value, _dt.datetime):
+        from django.utils import timezone as djtz
+        value = djtz.localtime(value).strftime('%Y-%m-%d %H:%M') if djtz.is_aware(value) else value.isoformat()
+    if meta.get(name, {}).get('is_bool') and isinstance(value, str):
+        value = value.strip().lower() in ('true', '1', 'да')
+    return _canonical(name, value, meta)
+
+
+def diff_model_values(
+    before: Dict[str, Any],
+    after: Dict[str, Any],
+    meta: Dict[str, Dict[str, Any]],
+) -> List[Dict[str, str]]:
+    """Правки между двумя состояниями сохранённой заявки (значения полей модели).
+
+    Пустые значения сводятся к одному виду (None, '', плейсхолдеры, строка 'None'),
+    поэтому переходы «None → ''» правкой не считаются.
+    """
+    edits: List[Dict[str, str]] = []
+    for name in meta:
+        if name not in before and name not in after:
+            continue
+        before_value, after_value = before.get(name), after.get(name)
+        before_canonical = _post_canonical(name, before_value, meta)
+        after_canonical = _post_canonical(name, after_value, meta)
+        if before_canonical == after_canonical:
+            continue
+        if meta.get(name, {}).get('is_bool'):
+            before_value = before_canonical == '1'
+            after_value = after_canonical == '1'
+        edits.append({
+            'field': name,
+            'label': meta[name].get('label', name),
+            'original': '' if before_canonical == '' else current_display_value(name, before_value, meta),
+            'modified': '' if after_canonical == '' else current_display_value(name, after_value, meta),
+            'edit_type': _edit_type(before_canonical, after_canonical),
+        })
+    return edits

@@ -865,11 +865,17 @@ class RequestFieldEdit(models.Model):
     создаются пакетно при сохранении заявки из V2-превью. Общие (scope=
     'common') правки записываются один раз на партию (к первой заявке),
     объектные (scope='object') — к своей заявке-сестре.
+
+    scope='post' — правка уже сохранённой V2-заявки (форма редактирования,
+    админка и т. п.), пишется сигналом `record_post_creation_edits`; кто правил —
+    в `edited_by`. Хранится бессрочно, в отличие от журнала easy-audit.
     """
 
+    INTAKE_SCOPES = ('common', 'object')
     SCOPE_CHOICES = [
         ('common', 'Общее поле'),
         ('object', 'Поле объекта'),
+        ('post', 'После создания'),
     ]
     EDIT_TYPE_CHOICES = [
         ('filled', 'Дозаполнено'),
@@ -886,6 +892,15 @@ class RequestFieldEdit(models.Model):
     scope = models.CharField(
         max_length=10, choices=SCOPE_CHOICES, default='common',
         verbose_name='Область поля',
+    )
+    edited_by = models.ForeignKey(
+        'auth.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='+',
+        verbose_name='Кто правил',
+        help_text='Заполняется для правок после создания; правки на входе делает автор заявки',
     )
     field_name = models.CharField(max_length=100, db_index=True, verbose_name='Поле')
     field_label = models.CharField(max_length=255, verbose_name='Подпись поля')

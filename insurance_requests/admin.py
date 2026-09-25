@@ -234,15 +234,15 @@ class RequestAttachmentAdmin(admin.ModelAdmin):
 class RequestFieldEditAdmin(admin.ModelAdmin):
     list_display = [
         'field_label', 'scope', 'edit_type',
-        'original_value', 'modified_value', 'get_request_display', 'created_at'
+        'original_value', 'modified_value', 'get_request_display', 'edited_by', 'created_at'
     ]
-    list_filter = ['scope', 'edit_type', 'field_name', 'created_at']
+    list_filter = ['scope', 'edit_type', 'edited_by', 'field_name', 'created_at']
     search_fields = [
         'field_name', 'field_label', 'original_value', 'modified_value',
         'request__client_name', 'request__dfa_number'
     ]
     readonly_fields = [
-        'request', 'scope', 'field_name', 'field_label',
+        'request', 'scope', 'edited_by', 'field_name', 'field_label',
         'original_value', 'modified_value', 'edit_type', 'created_at'
     ]
 
@@ -252,5 +252,5 @@ class RequestFieldEditAdmin(admin.ModelAdmin):
     get_request_display.short_description = 'Заявка'
 
     def has_add_permission(self, request):
-        # Строки создаются только при сохранении заявки из превью.
+        # Строки создаются при сохранении заявки из превью и сигналом при правке после создания.
         return False
