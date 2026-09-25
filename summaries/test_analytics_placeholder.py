@@ -134,3 +134,29 @@ class AnalyticsPlaceholderAccessTests(TestCase):
                     response.context['app_navigation']['current_section']['label'],
                     'Аналитика',
                 )
+
+    def test_recognition_quality_pages_live_in_analytics_service_section(self):
+        # Задача 1.5: правки парсера — подраздел «Служебное» в меню «Аналитика».
+        self.client.login(username='analytics_admin', password='testpass123')
+
+        for route in ('summaries:analytics_parser_edits', 'summaries:analytics_post_creation'):
+            with self.subTest(route=route):
+                response = self.client.get(reverse(route))
+
+                self.assertEqual(response.status_code, 200)
+                navigation = response.context['app_navigation']
+                main_items = {item['label']: item['active'] for item in navigation['main_items']}
+                self.assertTrue(main_items['Аналитика'])
+                self.assertFalse(main_items['Своды'])
+                self.assertEqual(navigation['current_section']['label'], 'Аналитика')
+                section_labels = [item['label'] for item in navigation['section_items']]
+                self.assertIn('Служебное: распознавание', section_labels)
+                self.assertIn('Служебное: после создания', section_labels)
+
+    def test_recognition_quality_links_hidden_from_regular_users(self):
+        self.client.login(username='analytics_user', password='testpass123')
+
+        response = self.client.get(reverse('summaries:summary_list'))
+
+        self.assertNotContains(response, reverse('summaries:analytics_parser_edits'))
+        self.assertNotContains(response, reverse('summaries:analytics_post_creation'))

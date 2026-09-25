@@ -37,6 +37,8 @@ MAIN_NAV_ITEMS = [
             'analytics_insurance_companies',
             'analytics_managers',
             'analytics_manager_detail',
+            'analytics_parser_edits',
+            'analytics_post_creation',
             'deal_list',
             'deal_summary',
         },
@@ -58,11 +60,15 @@ MAIN_NAV_ITEMS = [
             'analytics_insurance_companies',
             'analytics_managers',
             'analytics_manager_detail',
+            'analytics_parser_edits',
+            'analytics_post_creation',
         },
         'children': [
             ('Обзор аналитики', 'summaries:analytics'),
-            ('Аналитика по страховым компаниям', 'summaries:analytics_insurance_companies'),
-            ('Аналитика по сотрудникам', 'summaries:analytics_managers'),
+            ('Страховые компании', 'summaries:analytics_insurance_companies'),
+            ('Сотрудники', 'summaries:analytics_managers'),
+            ('Служебное: правки распознавания', 'summaries:analytics_parser_edits'),
+            ('Служебное: правки после создания', 'summaries:analytics_post_creation'),
         ],
         'requires_admin': True,
     },
@@ -104,6 +110,8 @@ SECTION_CONFIG = {
             ('Обзор аналитики', 'summaries:analytics'),
             ('Страховые компании', 'summaries:analytics_insurance_companies'),
             ('Сотрудники', 'summaries:analytics_managers'),
+            ('Служебное: распознавание', 'summaries:analytics_parser_edits'),
+            ('Служебное: после создания', 'summaries:analytics_post_creation'),
         ],
     },
 }
@@ -116,6 +124,8 @@ ADMIN_ONLY_ROUTES = {
     'summaries:analytics_manager_detail',
     'summaries:export_analytics_managers_widget',
     'summaries:export_analytics_manager_detail',
+    'summaries:analytics_parser_edits',
+    'summaries:analytics_post_creation',
 }
 
 
@@ -129,6 +139,8 @@ SECTION_ROUTE_OVERRIDES = {
     ('summaries', 'analytics_insurance_companies'): 'analytics',
     ('summaries', 'analytics_managers'): 'analytics',
     ('summaries', 'analytics_manager_detail'): 'analytics',
+    ('summaries', 'analytics_parser_edits'): 'analytics',
+    ('summaries', 'analytics_post_creation'): 'analytics',
 }
 
 
@@ -152,6 +164,8 @@ PAGE_LABELS = {
     ('summaries', 'analytics_insurance_companies'): 'Аналитика страховых компаний',
     ('summaries', 'analytics_managers'): 'Аналитика по сотрудникам',
     ('summaries', 'analytics_manager_detail'): 'Досье сотрудника',
+    ('summaries', 'analytics_parser_edits'): 'Служебное: правки распознавания',
+    ('summaries', 'analytics_post_creation'): 'Служебное: правки после создания',
     ('summaries', 'help'): 'Справка',
     ('summaries', 'offer_search'): 'Поиск предложений',
 }
@@ -228,6 +242,16 @@ BREADCRUMB_TEMPLATES = {
         ('Сотрудники', 'summaries:analytics_managers'),
         ('Досье', None),
     ],
+    ('summaries', 'analytics_parser_edits'): [
+        ('Аналитика', 'summaries:analytics'),
+        ('Служебное', None),
+        ('Правки распознавания', None),
+    ],
+    ('summaries', 'analytics_post_creation'): [
+        ('Аналитика', 'summaries:analytics'),
+        ('Служебное', None),
+        ('Правки после создания', None),
+    ],
     ('summaries', 'help'): [
         ('Своды', 'summaries:summary_list'),
         ('Справка', None),
@@ -251,6 +275,8 @@ LAYOUT_MODE_BY_PAGE = {
     ('summaries', 'analytics_insurance_companies'): 'wide',
     ('summaries', 'analytics_managers'): 'wide',
     ('summaries', 'analytics_manager_detail'): 'wide',
+    ('summaries', 'analytics_parser_edits'): 'wide',
+    ('summaries', 'analytics_post_creation'): 'wide',
     ('summaries', 'deal_summary'): 'wide',
     ('summaries', 'summary_detail'): 'wide',
 }
