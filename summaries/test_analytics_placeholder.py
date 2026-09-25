@@ -40,25 +40,39 @@ class AnalyticsPlaceholderAccessTests(TestCase):
         self.assertEqual(response.status_code, 403)
         self.assertTemplateUsed(response, 'insurance_requests/access_denied.html')
 
-    def test_analytics_companies_page_access_matches_statistics_for_admin(self):
+    def test_analytics_companies_page_available_for_admin(self):
         self.client.login(username='analytics_admin', password='testpass123')
 
-        analytics_response = self.client.get(reverse('summaries:analytics_insurance_companies'))
-        statistics_response = self.client.get(reverse('summaries:statistics'))
+        response = self.client.get(reverse('summaries:analytics_insurance_companies'))
 
-        self.assertEqual(analytics_response.status_code, 200)
-        self.assertEqual(statistics_response.status_code, 200)
+        self.assertEqual(response.status_code, 200)
 
-    def test_analytics_companies_page_access_matches_statistics_for_regular_user(self):
+    def test_analytics_companies_page_forbidden_for_regular_user(self):
         self.client.login(username='analytics_user', password='testpass123')
 
-        analytics_response = self.client.get(reverse('summaries:analytics_insurance_companies'))
-        statistics_response = self.client.get(reverse('summaries:statistics'))
+        response = self.client.get(reverse('summaries:analytics_insurance_companies'))
 
-        self.assertEqual(analytics_response.status_code, 403)
-        self.assertEqual(statistics_response.status_code, 403)
-        self.assertTemplateUsed(analytics_response, 'insurance_requests/access_denied.html')
-        self.assertTemplateUsed(statistics_response, 'insurance_requests/access_denied.html')
+        self.assertEqual(response.status_code, 403)
+        self.assertTemplateUsed(response, 'insurance_requests/access_denied.html')
+
+    def test_removed_statistics_pages_redirect_to_analytics(self):
+        # Старая «Статистика» удалена (analytics_redesign_2026_09, задача 1.3).
+        self.client.login(username='analytics_admin', password='testpass123')
+
+        for path in ('/summaries/statistics/', '/summaries/statistics/export/'):
+            with self.subTest(path=path):
+                response = self.client.get(path, {'period': '30'})
+                self.assertRedirects(
+                    response, reverse('summaries:analytics'), fetch_redirect_response=False,
+                )
+
+    def test_summary_list_has_no_statistics_button(self):
+        self.client.login(username='analytics_user', password='testpass123')
+
+        response = self.client.get(reverse('summaries:summary_list'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, '/summaries/statistics/')
 
     def test_top_menu_item_visible_only_for_admin_group(self):
         analytics_url = reverse('summaries:analytics')

@@ -13,8 +13,9 @@ urlpatterns = [
     path('deals/', views.deal_list, name='deal_list'),
     path('<int:pk>/', views.summary_detail, name='summary_detail'),
     path('<int:summary_id>/deal-summary/', views.deal_summary, name='deal_summary'),
-    path('statistics/', views.summary_statistics, name='statistics'),
-    path('statistics/export/', views.export_statistics_widget, name='export_statistics_widget'),
+    # Старая «Статистика» удалена (analytics_redesign_2026_09, задача 1.3) — ссылки ведут на обзор аналитики.
+    path('statistics/', RedirectView.as_view(pattern_name='summaries:analytics')),
+    path('statistics/export/', RedirectView.as_view(pattern_name='summaries:analytics')),
     path('analytics/', views.analytics_placeholder, name='analytics'),
     path('analytics/parser-edits/', views.analytics_parser_edits, name='analytics_parser_edits'),
     path('analytics/post-creation/', views.analytics_post_creation, name='analytics_post_creation'),

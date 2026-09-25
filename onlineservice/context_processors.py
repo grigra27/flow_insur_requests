@@ -85,7 +85,6 @@ SECTION_CONFIG = {
         'root': 'summaries:summary_list',
         'links': [
             ('Список сводов', 'summaries:summary_list'),
-            ('Статистика', 'summaries:statistics'),
             ('Справка', 'summaries:help'),
         ],
     },
@@ -149,7 +148,6 @@ PAGE_LABELS = {
     ('summaries', 'edit_offer'): 'Редактирование предложения',
     ('summaries', 'copy_offer'): 'Копирование предложения',
     ('summaries', 'deal_summary'): 'Резюме по сделке',
-    ('summaries', 'statistics'): 'Статистика',
     ('summaries', 'analytics'): 'Аналитика',
     ('summaries', 'analytics_insurance_companies'): 'Аналитика страховых компаний',
     ('summaries', 'analytics_managers'): 'Аналитика по сотрудникам',
@@ -216,10 +214,6 @@ BREADCRUMB_TEMPLATES = {
         ('Сделки', 'summaries:deal_list'),
         ('Резюме по сделке', None),
     ],
-    ('summaries', 'statistics'): [
-        ('Своды', 'summaries:summary_list'),
-        ('Статистика', None),
-    ],
     ('summaries', 'analytics'): [('Аналитика', None)],
     ('summaries', 'analytics_insurance_companies'): [
         ('Аналитика', 'summaries:analytics'),
@@ -253,7 +247,6 @@ LAYOUT_MODE_BY_PAGE = {
     ('insurance_requests', 'request_detail'): 'wide',
     ('summaries', 'summary_list'): 'wide',
     ('summaries', 'deal_list'): 'wide',
-    ('summaries', 'statistics'): 'wide',
     ('summaries', 'analytics'): 'wide',
     ('summaries', 'analytics_insurance_companies'): 'wide',
     ('summaries', 'analytics_managers'): 'wide',
