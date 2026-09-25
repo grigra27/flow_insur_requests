@@ -26,6 +26,7 @@ from .services.analytics_insurance_companies import (
     build_available_filters as build_company_analytics_available_filters,
 )
 from .services import analytics_managers as analytics_managers_service
+from .services import analytics_employees as analytics_employees_service
 from .services.analytics_overview import build_overview_payload as build_analytics_overview_payload
 from .services import analytics_parser_edits as analytics_parser_edits_service
 from .services import analytics_post_creation as analytics_post_creation_service
@@ -2496,11 +2497,12 @@ def analytics_post_creation(request):
 
 @admin_required
 def analytics_managers(request):
-    """Аналитика по сотрудникам — обзор."""
-    filters = analytics_managers_service.parse_filters(request.GET)
-    payload = analytics_managers_service.build_overview_payload(filters)
-    payload['alerts'] = analytics_managers_service.build_alerts(filters)
-    return render(request, 'summaries/analytics_managers.html', payload)
+    """Сотрудники: нагрузка, присутствие и скорость на своих этапах за период."""
+    filters = analytics_employees_service.parse_filters(request.GET)
+    for error_message in filters.errors:
+        messages.warning(request, error_message)
+    payload = analytics_employees_service.build_payload(filters)
+    return render(request, 'summaries/analytics_employees.html', payload)
 
 
 @admin_required

@@ -1,0 +1,278 @@
+{% extends 'base.html' %}
+{% load summary_extras %}
+
+{% block title %}Сотрудники - {{ block.super }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .emp-card {
+        border: 0;
+        box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+    }
+
+    .emp-filter-card {
+        background: linear-gradient(135deg, #f8fafc 0%, #e8f6f2 100%);
+    }
+
+    .emp-kpi-label {
+        font-size: 0.78rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: #64748b;
+    }
+
+    .emp-kpi-value {
+        font-size: 1.6rem;
+        line-height: 1.15;
+        font-weight: 700;
+        color: #0f172a;
+    }
+
+    .emp-table th,
+    .emp-table td {
+        white-space: nowrap;
+        vertical-align: middle;
+    }
+
+    .emp-table .num {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .emp-table .muted {
+        color: #64748b;
+        font-size: 0.82rem;
+        margin-left: 0.3rem;
+    }
+
+    .emp-table tr.emp-reader td {
+        color: #94a3b8;
+    }
+
+    .emp-swatch {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-radius: 2px;
+        margin-right: 0.45rem;
+        vertical-align: baseline;
+    }
+
+    .emp-delta-up { color: #15803d; }
+    .emp-delta-down { color: #b91c1c; }
+
+    .emp-chart-wrap {
+        position: relative;
+        height: 300px;
+    }
+
+    .emp-hint {
+        font-size: 0.82rem;
+        color: #64748b;
+    }
+
+    .emp-block-title {
+        margin: 2rem 0 1rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+    <div>
+        <h1 class="h3 mb-1"><i class="bi bi-people"></i> Сотрудники</h1>
+        <p class="text-muted mb-0">Нагрузка, присутствие и скорость на своих этапах за период.</p>
+    </div>
+    <a href="{% url 'summaries:analytics' %}" class="btn btn-outline-primary"><i class="bi bi-arrow-left"></i> К аналитике</a>
+</div>
+
+<div class="card emp-card emp-filter-card mb-4">
+    <div class="card-body">
+        <form method="get" class="d-flex flex-wrap align-items-end gap-2">
+            <div>
+                <label class="form-label mb-1 d-block">Период</label>
+                <div class="btn-group" role="group" aria-label="Быстрый период">
+                    {% for value, label in period_choices %}
+                    <a href="{% qs_replace period=value start_date='' end_date='' %}"
+                       class="btn btn-outline-secondary {% if filters.period == value %}active{% endif %}">{{ label }}</a>
+                    {% endfor %}
+                </div>
+            </div>
+            <div>
+                <label class="form-label mb-1" for="emp-start">С</label>
+                <input type="date" class="form-control" id="emp-start" name="start_date" value="{{ filters.start_date }}">
+            </div>
+            <div>
+                <label class="form-label mb-1" for="emp-end">По</label>
+                <input type="date" class="form-control" id="emp-end" name="end_date" value="{{ filters.end_date }}">
+            </div>
+            <button type="submit" class="btn btn-primary">Показать</button>
+        </form>
+    </div>
+</div>
+
+<h2 class="h4 emp-block-title"><i class="bi bi-briefcase"></i> Нагрузка за период</h2>
+
+<div class="row g-3 mb-3">
+    <div class="col-6 col-lg">
+        <div class="card emp-card h-100"><div class="card-body">
+            <div class="emp-kpi-label">Заявок загружено</div>
+            <div class="emp-kpi-value">{{ load.totals.requests }}</div>
+            <small class="text-muted">файлов: {{ load.totals.files }}</small>
+        </div></div>
+    </div>
+    <div class="col-6 col-lg">
+        <div class="card emp-card h-100"><div class="card-body">
+            <div class="emp-kpi-label">В неделю</div>
+            <div class="emp-kpi-value">{% if load.totals.per_week is not None %}{{ load.totals.per_week|floatformat:1 }}{% else %}—{% endif %}</div>
+            <small class="text-muted">
+                к прошлому периоду:
+                {% if load.totals.change_pct is not None %}
+                <span class="{% if load.totals.change_pct >= 0 %}emp-delta-up{% else %}emp-delta-down{% endif %}">{% if load.totals.change_pct > 0 %}+{% endif %}{{ load.totals.change_pct|floatformat:0 }}%</span>
+                {% else %}—{% endif %}
+            </small>
+        </div></div>
+    </div>
+    <div class="col-6 col-lg">
+        <div class="card emp-card h-100"><div class="card-body">
+            <div class="emp-kpi-label">Предложений внесено</div>
+            <div class="emp-kpi-value">{{ load.totals.offers }}</div>
+            <small class="text-muted">по дате ввода</small>
+        </div></div>
+    </div>
+    <div class="col-6 col-lg">
+        <div class="card emp-card h-100"><div class="card-body">
+            <div class="emp-kpi-label">Отправлено клиенту</div>
+            <div class="emp-kpi-value">{{ load.totals.sent }}</div>
+            <small class="text-muted">собрано сводов: {{ load.totals.assembled }}</small>
+        </div></div>
+    </div>
+    <div class="col-12 col-lg">
+        <div class="card emp-card h-100"><div class="card-body">
+            <div class="emp-kpi-label">Закрыто сделок</div>
+            <div class="emp-kpi-value">{{ load.totals.accepted }}</div>
+            <small class="text-muted">«не будет» вручную: {{ load.totals.rejected }}</small>
+        </div></div>
+    </div>
+</div>
+
+<div class="card emp-card mb-3">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0 emp-table">
+                <thead>
+                    <tr>
+                        <th>Сотрудник</th>
+                        <th class="num" title="Заявок (объектов) и файлов: одна загрузка с несколькими объектами — один файл">Заявок · файлов</th>
+                        <th class="num">Доля команды</th>
+                        <th class="num">В неделю</th>
+                        <th class="num" title="К такому же предыдущему периоду: {{ load.previous_period.start|date:'d.m.Y' }} – {{ load.previous_period.end|date:'d.m.Y' }}">К прошлому периоду</th>
+                        <th class="num">Предложений</th>
+                        <th class="num" title="Кто сменил статус свода">Собрано · отправлено</th>
+                        <th class="num" title="Кто сменил статус свода">Акцепт · «не будет»</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in load.rows %}
+                    <tr class="{% if row.is_reader %}emp-reader{% endif %}">
+                        <td class="fw-semibold">
+                            <span class="emp-swatch" style="background: {{ row.color }}"></span>
+                            <a href="{% url 'summaries:analytics_manager_detail' row.user_id %}{% qs_replace %}">{{ row.name }}</a>
+                            {% if row.is_reader %}<span class="muted">только просмотр</span>{% endif %}
+                        </td>
+                        <td class="num">{{ row.requests }}<span class="muted">· {{ row.files }}</span></td>
+                        <td class="num">{% if row.share_pct is not None and row.requests %}{{ row.share_pct|floatformat:0 }}%{% else %}—{% endif %}</td>
+                        <td class="num">{% if row.requests %}{{ row.per_week|floatformat:1 }}{% else %}—{% endif %}</td>
+                        <td class="num">
+                            {% if row.change_pct is not None %}
+                            <span class="{% if row.change_pct >= 0 %}emp-delta-up{% else %}emp-delta-down{% endif %}">{% if row.change_pct > 0 %}+{% endif %}{{ row.change_pct|floatformat:0 }}%</span>
+                            <span class="muted">было {{ row.previous_requests }}</span>
+                            {% elif row.requests %}новое{% else %}—{% endif %}
+                        </td>
+                        <td class="num">{{ row.offers }}</td>
+                        <td class="num">{{ row.assembled }}<span class="muted">· {{ row.sent }}</span></td>
+                        <td class="num">{{ row.accepted }}<span class="muted">· {{ row.rejected }}</span></td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="8" class="text-center text-muted py-4">Нет сотрудников.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+<p class="emp-hint mb-3">
+    Заявки — по автору загрузки; предложения — по владельцу свода и дате ввода; собрано / отправлено / закрыто —
+    по тому, кто сменил статус свода.
+    {% if load.status_log_partial %}Журнал смен статусов ведётся с 27.04.2026 — до этой даты эти колонки неполные.{% endif %}
+    Автозакрытие сводов без решения сюда не входит.
+</p>
+
+{% if load.chart.series %}
+<div class="card emp-card mb-4">
+    <div class="card-header">
+        <h3 class="h6 mb-0">Загружено заявок по {% if load.chart.granularity == 'week' %}неделям{% else %}месяцам{% endif %}</h3>
+    </div>
+    <div class="card-body">
+        <div class="emp-chart-wrap"><canvas id="empLoadChart" aria-label="Загружено заявок по сотрудникам"></canvas></div>
+    </div>
+</div>
+{% endif %}
+
+{{ load.chart|json_script:"emp-load-chart" }}
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        if (typeof Chart === 'undefined') {
+            return;
+        }
+        const loadEl = document.getElementById('emp-load-chart');
+        const loadCanvas = document.getElementById('empLoadChart');
+        if (loadEl && loadCanvas) {
+            const chart = JSON.parse(loadEl.textContent);
+            new Chart(loadCanvas, {
+                type: 'bar',
+                data: {
+                    labels: chart.labels,
+                    datasets: chart.series.map(function (series) {
+                        return {
+                            label: series.label,
+                            data: series.data,
+                            backgroundColor: series.color,
+                            borderColor: '#ffffff',
+                            borderWidth: { top: 2, bottom: 0, left: 0, right: 0 },
+                            borderRadius: 4,
+                            borderSkipped: 'bottom',
+                            maxBarThickness: 40,
+                        };
+                    }),
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    scales: {
+                        x: { stacked: true, grid: { display: false } },
+                        y: { stacked: true, beginAtZero: true, grid: { color: '#eef2f6' }, ticks: { precision: 0 } },
+                    },
+                    plugins: {
+                        legend: { position: 'bottom', labels: { boxWidth: 12, boxHeight: 12 } },
+                        tooltip: {
+                            filter: function (item) { return item.raw > 0; },
+                            callbacks: {
+                                footer: function (items) {
+                                    return 'Итого: ' + items.reduce(function (sum, item) { return sum + item.raw; }, 0);
+                                },
+                            },
+                        },
+                    },
+                },
+            });
+        }
+    });
+</script>
+{% endblock %}
