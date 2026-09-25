@@ -1,94 +1,270 @@
 {% extends 'base.html' %}
+{% load summary_extras %}
 
 {% block title %}Аналитика - {{ block.super }}{% endblock %}
 
 {% block extra_css %}
 <style>
-    .analytics-index-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-        gap: 1rem;
-    }
-
-    .analytics-index-card {
+    .overview-card {
         border: 0;
         box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
         height: 100%;
     }
 
-    .analytics-index-meta {
+    .overview-kpi-label {
+        font-size: 0.78rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
         color: #64748b;
-        font-size: 0.88rem;
+    }
+
+    .overview-kpi-value {
+        font-size: 1.6rem;
+        line-height: 1.15;
+        font-weight: 700;
+        color: #0f172a;
+    }
+
+    .overview-top-list li {
+        display: flex;
+        justify-content: space-between;
+        gap: 0.75rem;
+        padding: 0.2rem 0;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .overview-chart-wrap {
+        position: relative;
+        height: 300px;
+    }
+
+    .overview-hint {
+        font-size: 0.82rem;
+        color: #64748b;
+    }
+
+    .overview-section-card .card-body {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .overview-section-card .overview-section-actions {
+        margin-top: auto;
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-4">
     <div>
-        <h1 class="h3 mb-1">
-            <i class="bi bi-bar-chart-line"></i> Аналитика
-        </h1>
-        <p class="text-muted mb-0">
-            Каталог аналитических разделов. Новые отчеты будут добавляться в этот список.
-        </p>
+        <h1 class="h3 mb-1"><i class="bi bi-bar-chart-line"></i> Аналитика</h1>
+        <p class="text-muted mb-0">Главное за период: заявки, сделки, деньги и куда уходит бизнес.</p>
+    </div>
+    <form method="get" class="d-flex flex-wrap align-items-end gap-2">
+        <div class="btn-group flex-wrap" role="group" aria-label="Быстрый период">
+            {% for value, label in period_choices %}
+            <a href="{% qs_replace period=value start_date='' end_date='' %}"
+               class="btn btn-outline-secondary {% if filters.period == value %}active{% endif %}">{{ label }}</a>
+            {% endfor %}
+        </div>
+        <input type="date" class="form-control w-auto" name="start_date" value="{{ filters.start_date }}" aria-label="С">
+        <input type="date" class="form-control w-auto" name="end_date" value="{{ filters.end_date }}" aria-label="По">
+        <button type="submit" class="btn btn-primary">Показать</button>
+    </form>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-lg">
+        <div class="card overview-card"><div class="card-body">
+            <div class="overview-kpi-label">Заявок</div>
+            <div class="overview-kpi-value">{{ kpi.requests }}</div>
+            <small class="text-muted">загружено за период</small>
+        </div></div>
+    </div>
+    <div class="col-6 col-lg">
+        <div class="card overview-card"><div class="card-body">
+            <div class="overview-kpi-label">Сделок</div>
+            <div class="overview-kpi-value">{{ kpi.deals }}</div>
+            <small class="text-muted">акцептованных сводов</small>
+        </div></div>
+    </div>
+    <div class="col-6 col-lg">
+        <div class="card overview-card"><div class="card-body">
+            <div class="overview-kpi-label">Страховая сумма</div>
+            <div class="overview-kpi-value">{{ kpi.insured_sum_total|money_short }}</div>
+            <small class="text-muted">по 1-му году</small>
+        </div></div>
+    </div>
+    <div class="col-6 col-lg">
+        <div class="card overview-card"><div class="card-body">
+            <div class="overview-kpi-label">Премия</div>
+            <div class="overview-kpi-value">{{ kpi.premium_total|money_short }}</div>
+            <small class="text-muted">все годы · тариф {% if kpi.avg_tariff_pct is not None %}{{ kpi.avg_tariff_pct|floatformat:2 }}%{% else %}—{% endif %}</small>
+        </div></div>
+    </div>
+    <div class="col-12 col-lg">
+        <div class="card overview-card"><div class="card-body">
+            <div class="overview-kpi-label">Открытые своды</div>
+            <div class="overview-kpi-value">{{ kpi.open_summaries }}</div>
+            <small class="text-muted">сейчас: {% for item in kpi.open_breakdown %}{{ item.label }} {{ item.count }}{% if not forloop.last %} · {% endif %}{% endfor %}</small>
+        </div></div>
     </div>
 </div>
 
-<div class="analytics-index-grid">
-    <div class="card analytics-index-card">
-        <div class="card-body">
-            <div class="d-flex justify-content-between align-items-start mb-2">
-                <h2 class="h5 mb-0">Аналитика по страховым компаниям</h2>
-                <span class="badge bg-success">Доступно</span>
+<div class="row g-3 mb-4">
+    <div class="col-12 col-xl-7">
+        <div class="card overview-card">
+            <div class="card-header">
+                <h2 class="h5 mb-0"><i class="bi bi-bar-chart"></i> Заявки и сделки по месяцам</h2>
+                <div class="overview-hint">Заявки — по дате загрузки, сделки — по дате создания свода.</div>
             </div>
-            <p class="text-muted mb-3">
-                Куда уходит бизнес: сделки, страховая сумма и премия по СК, доли по месяцам, разрезы по филиалам и типам.
-            </p>
-            <div class="analytics-index-meta mb-3">
-                Компания как центральный объект анализа
+            <div class="card-body">
+                {% if charts.monthly.labels %}
+                <div class="overview-chart-wrap"><canvas id="chartOverviewMonthly" aria-label="Заявки и сделки по месяцам"></canvas></div>
+                {% else %}
+                <p class="text-muted text-center py-5 mb-0">Нет данных за выбранный период.</p>
+                {% endif %}
             </div>
-            <a href="{% url 'summaries:analytics_insurance_companies' %}" class="btn btn-primary">
-                Открыть раздел
-            </a>
         </div>
     </div>
-
-    <div class="card analytics-index-card">
-        <div class="card-body">
-            <div class="d-flex justify-content-between align-items-start mb-2">
-                <h2 class="h5 mb-0">Аналитика по сотрудникам</h2>
-                <span class="badge bg-warning text-dark">В разработке</span>
+    <div class="col-12 col-xl-5">
+        <div class="card overview-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h2 class="h5 mb-0"><i class="bi bi-pie-chart"></i> Доли СК по сделкам</h2>
+                <a href="{% url 'summaries:analytics_insurance_companies' %}{% qs_replace %}" class="small">Подробнее →</a>
             </div>
-            <p class="text-muted mb-3">
-                Объёмы загрузок, скорость закрытия сделок и backlog по каждому сотруднику.
-            </p>
-            <div class="analytics-index-meta mb-3">
-                Эффективность работы команды
-            </div>
-            <a href="{% url 'summaries:analytics_managers' %}" class="btn btn-primary">
-                Открыть раздел
-            </a>
-        </div>
-    </div>
-
-    <div class="card analytics-index-card">
-        <div class="card-body">
-            <div class="d-flex justify-content-between align-items-start mb-2">
-                <h2 class="h5 mb-0">Служебное: качество распознавания</h2>
-                <span class="badge bg-secondary">Служебное</span>
-            </div>
-            <p class="text-muted mb-3">
-                Насколько точно парсер V2 распознаёт Excel-заявки: что сотрудники правят при загрузке и что меняют в заявке уже после сохранения.
-            </p>
-            <div class="analytics-index-meta mb-3">
-                Контроль качества парсера
-            </div>
-            <div class="d-flex flex-wrap gap-2">
-                <a href="{% url 'summaries:analytics_parser_edits' %}" class="btn btn-primary">Правки при загрузке</a>
-                <a href="{% url 'summaries:analytics_post_creation' %}" class="btn btn-outline-primary">Правки после создания</a>
+            <div class="card-body">
+                {% if charts.shares.labels %}
+                <div class="overview-chart-wrap"><canvas id="chartOverviewShares" aria-label="Доли страховых компаний по сделкам"></canvas></div>
+                {% else %}
+                <p class="text-muted text-center py-5 mb-0">Нет сделок за выбранный период.</p>
+                {% endif %}
             </div>
         </div>
     </div>
 </div>
+
+<div class="row g-3 mb-4">
+    <div class="col-12 col-lg-4">
+        <div class="card overview-card overview-section-card">
+            <div class="card-body">
+                <h2 class="h5"><i class="bi bi-building"></i> Страховые компании</h2>
+                {% if top_companies %}
+                <div class="overview-hint mb-1">Топ-3 по сделкам</div>
+                <ol class="list-unstyled overview-top-list mb-3">
+                    {% for row in top_companies %}
+                    <li><span>{{ forloop.counter }}. {{ row.company_name }}</span><span>{{ row.deals }} · {{ row.deals_share_pct|floatformat:0 }}% · {{ row.insured_sum|money_short }}</span></li>
+                    {% endfor %}
+                </ol>
+                {% else %}
+                <p class="text-muted">Нет сделок за выбранный период.</p>
+                {% endif %}
+                <div class="overview-section-actions">
+                    <a href="{% url 'summaries:analytics_insurance_companies' %}{% qs_replace %}" class="btn btn-primary">Куда уходит бизнес</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-lg-4">
+        <div class="card overview-card overview-section-card">
+            <div class="card-body">
+                <h2 class="h5"><i class="bi bi-people"></i> Сотрудники</h2>
+                <p class="text-muted">Объёмы загрузок, скорость закрытия сделок и backlog по каждому сотруднику.</p>
+                <div class="overview-section-actions">
+                    <a href="{% url 'summaries:analytics_managers' %}" class="btn btn-outline-primary">Открыть</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-lg-4">
+        <div class="card overview-card overview-section-card">
+            <div class="card-body">
+                <h2 class="h5"><i class="bi bi-tools"></i> Служебное: качество распознавания</h2>
+                <p class="text-muted">Насколько точно парсер V2 распознаёт Excel-заявки: что сотрудники правят при загрузке и после сохранения.</p>
+                <div class="overview-section-actions d-flex flex-wrap gap-2">
+                    <a href="{% url 'summaries:analytics_parser_edits' %}" class="btn btn-outline-secondary">Правки при загрузке</a>
+                    <a href="{% url 'summaries:analytics_post_creation' %}" class="btn btn-outline-secondary">Правки после создания</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{ charts|json_script:"analytics-overview-chart-data" }}
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const dataEl = document.getElementById('analytics-overview-chart-data');
+        if (!dataEl || typeof Chart === 'undefined') {
+            return;
+        }
+        const charts = JSON.parse(dataEl.textContent);
+        const grid = '#eef2f6';
+
+        const monthlyCanvas = document.getElementById('chartOverviewMonthly');
+        if (monthlyCanvas && charts.monthly.labels.length) {
+            new Chart(monthlyCanvas, {
+                type: 'bar',
+                data: {
+                    labels: charts.monthly.labels,
+                    datasets: [
+                        { label: 'Заявки', data: charts.monthly.requests, backgroundColor: '#2a78d6', borderRadius: 4, maxBarThickness: 28 },
+                        { label: 'Сделки', data: charts.monthly.deals, backgroundColor: '#eb6834', borderRadius: 4, maxBarThickness: 28 },
+                    ],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    scales: {
+                        x: { grid: { display: false } },
+                        y: { beginAtZero: true, grid: { color: grid }, ticks: { precision: 0 } },
+                    },
+                    plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, boxHeight: 12 } } },
+                },
+            });
+        }
+
+        const sharesCanvas = document.getElementById('chartOverviewShares');
+        if (sharesCanvas && charts.shares.labels.length) {
+            new Chart(sharesCanvas, {
+                type: 'bar',
+                data: {
+                    labels: charts.shares.labels,
+                    datasets: [{
+                        label: 'Доля сделок',
+                        data: charts.shares.percents,
+                        backgroundColor: charts.shares.colors,
+                        borderRadius: 4,
+                        maxBarThickness: 22,
+                    }],
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { beginAtZero: true, grid: { color: grid }, ticks: { callback: function (value) { return value + '%'; } } },
+                        y: { grid: { display: false } },
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function (item) {
+                                    const deals = charts.shares.values[item.dataIndex];
+                                    return item.raw.toLocaleString('ru-RU', { maximumFractionDigits: 0 }) + '% · сделок: ' + deals;
+                                },
+                            },
+                        },
+                    },
+                },
+            });
+        }
+    });
+</script>
 {% endblock %}

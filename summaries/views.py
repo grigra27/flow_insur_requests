@@ -26,6 +26,7 @@ from .services.analytics_insurance_companies import (
     build_available_filters as build_company_analytics_available_filters,
 )
 from .services import analytics_managers as analytics_managers_service
+from .services.analytics_overview import build_overview_payload as build_analytics_overview_payload
 from .services import analytics_parser_edits as analytics_parser_edits_service
 from .services import analytics_post_creation as analytics_post_creation_service
 
@@ -2447,8 +2448,28 @@ def export_analytics_insurance_companies_widget(request):
 
 @admin_required
 def analytics_placeholder(request):
-    """Индексный экран раздела аналитики со списком вложенных отчетов."""
-    return render(request, 'summaries/analytics_placeholder.html')
+    """Обзор аналитики: главные цифры за период, два графика и переходы в разделы."""
+    filters = _parse_statistics_filters(request)
+    for error_message in filters['errors']:
+        messages.warning(request, error_message)
+
+    payload = build_analytics_overview_payload(
+        start_date=filters['start_date'],
+        end_date=filters['end_date'],
+        price_row_builder=_build_deal_price_row,
+    )
+    context = {
+        **payload,
+        'filters': {
+            'period': filters['period'],
+            'start_date': filters['start_date_str'],
+            'end_date': filters['end_date_str'],
+        },
+        'period_choices': [
+            ('30', '30 дней'), ('90', '90 дней'), ('180', '180 дней'), ('365', '365 дней'), ('all', 'Всё время'),
+        ],
+    }
+    return render(request, 'summaries/analytics_placeholder.html', context)
 
 
 @admin_required
