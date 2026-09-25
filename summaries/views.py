@@ -1428,7 +1428,13 @@ def change_summary_status(request, summary_id):
             summary.selected_company = None
             summary.selected_franchise_variant = None
             summary.deal_summary_note = ''
-            summary.completed_at = None
+            # «Не будет» — тоже закрытие сделки: фиксируем дату, чтобы считать длительность
+            # цикла по отказам (analytics_redesign_2026_09, задача 1.7).
+            if new_status == 'completed_rejected':
+                if old_status != 'completed_rejected' or not summary.completed_at:
+                    summary.completed_at = timezone.now()
+            else:
+                summary.completed_at = None
         
         # Если статус изменен на "Отправлен в Альянс", устанавливаем время отправки
         if new_status == 'sent':

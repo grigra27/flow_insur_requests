@@ -5,6 +5,10 @@ Rule:
 - If summary is older than N days (default: 30),
 - And summary is not completed with acceptance,
 - Then move summary to "completed_rejected".
+
+The close time is stored in completed_at and a StatusEvent with a note is
+written for every closed summary: .update() bypasses the status signals, and
+analytics needs to tell auto-closures apart from explicit "не будет".
 """
 
 from datetime import timedelta
@@ -14,7 +18,9 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.utils import timezone
 
-from summaries.models import InsuranceSummary
+from django.contrib.contenttypes.models import ContentType
+
+from summaries.models import InsuranceSummary, StatusEvent
 
 
 logger = logging.getLogger(__name__)
@@ -70,12 +76,28 @@ class Command(BaseCommand):
             return
 
         with transaction.atomic():
-            updated_count = stale_summaries.update(
+            previous_statuses = list(stale_summaries.values_list("pk", "status"))
+            updated_count = InsuranceSummary.objects.filter(
+                pk__in=[pk for pk, _ in previous_statuses]
+            ).update(
                 status="completed_rejected",
                 selected_company=None,
                 selected_franchise_variant=None,
+                completed_at=now,
                 updated_at=now,
             )
+            content_type = ContentType.objects.get_for_model(InsuranceSummary)
+            note = f"Автозакрытие: нет решения {days} дн."
+            StatusEvent.objects.bulk_create([
+                StatusEvent(
+                    content_type=content_type,
+                    object_id=pk,
+                    from_status=old_status,
+                    to_status="completed_rejected",
+                    note=note,
+                )
+                for pk, old_status in previous_statuses
+            ])
 
         logger.info(
             "Auto-closed stale summaries: updated=%s cutoff=%s days=%s",

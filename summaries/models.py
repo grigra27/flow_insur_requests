@@ -141,12 +141,13 @@ class InsuranceSummary(models.Model):
     # Отправка клиенту
     sent_to_client_at = models.DateTimeField(null=True, blank=True, verbose_name='Отправлен клиенту')
 
-    # Дата фактического закрытия сделки (для статуса completed_accepted)
+    # Дата фактического закрытия сделки (completed_accepted и completed_rejected)
     completed_at = models.DateTimeField(
         null=True,
         blank=True,
         verbose_name='Дата закрытия сделки',
-        help_text='Фиксируется при переводе свода в статус "Завершен: акцепт/распоряжение"'
+        help_text='Фиксируется при переводе свода в статус "Завершен: акцепт/распоряжение" или "Завершен: не будет" '
+                  '(в том числе при автозакрытии)'
     )
     
     # Примечание к своду
