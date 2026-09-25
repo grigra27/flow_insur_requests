@@ -3,7 +3,7 @@
 # audit-cron-setup.sh
 #
 # Идемпотентно прописывает в crontab текущего пользователя ежедневную задачу
-# чистки журналов django-easy-audit (LoginEvent/CRUDEvent старше 90 дней,
+# чистки журналов django-easy-audit (LoginEvent/CRUDEvent старше 365 дней,
 # RequestEvent старше 1 дня).
 #
 # Запуск из корня проекта:

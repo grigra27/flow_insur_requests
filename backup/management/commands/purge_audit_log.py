@@ -3,7 +3,9 @@
 
 Зачем разные сроки: RequestEvent растёт быстро (одна запись на каждый
 HTTP-запрос пользователя) — хранить долго бессмысленно. LoginEvent и CRUDEvent
-нужны для разбора инцидентов и аудита, поэтому хранятся 90 дней.
+нужны для разбора инцидентов, аудита и аналитики сотрудников и правок
+(раздел «Аналитика»), поэтому хранятся 365 дней. Объём небольшой:
+~1 000 CRUD и ~120 входов в месяц.
 
 Удаление идёт партиями: easy-audit подписан на post_delete, поэтому Django не
 может сделать быстрый DELETE и загружает удаляемые объекты в память. Одним
@@ -27,14 +29,14 @@ logger = logging.getLogger('backup.purge_audit_log')
 class Command(BaseCommand):
     help = (
         'Чистит старые записи django-easy-audit: LoginEvent и CRUDEvent старше '
-        '90 дней (по умолчанию), RequestEvent старше 1 дня.'
+        '365 дней (по умолчанию), RequestEvent старше 1 дня.'
     )
 
     def add_arguments(self, parser):
-        parser.add_argument('--login-days', type=int, default=90,
-                            help='Срок хранения LoginEvent (default: 90)')
-        parser.add_argument('--crud-days', type=int, default=90,
-                            help='Срок хранения CRUDEvent (default: 90)')
+        parser.add_argument('--login-days', type=int, default=365,
+                            help='Срок хранения LoginEvent (default: 365)')
+        parser.add_argument('--crud-days', type=int, default=365,
+                            help='Срок хранения CRUDEvent (default: 365)')
         parser.add_argument('--request-days', type=int, default=1,
                             help='Срок хранения RequestEvent (default: 1)')
         parser.add_argument('--batch-size', type=int, default=5000,

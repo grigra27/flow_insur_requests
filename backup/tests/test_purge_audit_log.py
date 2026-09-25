@@ -29,8 +29,8 @@ class PurgeAuditLogTests(TestCase):
         RequestEvent.objects.all().delete()
 
         now = timezone.now()
-        self.old = now - timedelta(days=120)   # старше 90д
-        self.medium = now - timedelta(days=10)  # моложе 90д, старше 1д
+        self.old = now - timedelta(days=400)   # старше 365д
+        self.medium = now - timedelta(days=120)  # моложе 365д, старше 1д
         self.fresh = now - timedelta(hours=1)   # моложе всего
 
         # LoginEvent
@@ -55,11 +55,11 @@ class PurgeAuditLogTests(TestCase):
             ev = RequestEvent.objects.create(url='/test/', method='GET', remote_ip='127.0.0.1')
             _backdate(ev, 'datetime', dt)
 
-    def test_default_retention_90d_login_crud_1d_request(self):
+    def test_default_retention_365d_login_crud_1d_request(self):
         """LoginEvent/CRUDEvent: остаются moderate+fresh; RequestEvent: только fresh."""
         call_command('purge_audit_log', stdout=StringIO())
 
-        self.assertEqual(self.LoginEvent.objects.count(), 2)   # удалили old (120д)
+        self.assertEqual(self.LoginEvent.objects.count(), 2)   # удалили old (400д)
         self.assertEqual(self.CRUDEvent.objects.count(), 2)
         self.assertEqual(self.RequestEvent.objects.count(), 1)  # удалили old + medium
 
