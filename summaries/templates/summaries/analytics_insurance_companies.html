@@ -172,6 +172,7 @@
             </form>
             <div class="company-hint mt-2">
                 Сделка — акцептованный свод с выбранной СК. Период — по дате создания свода.
+                Нажмите на название СК, чтобы открыть её карточку.
             </div>
         </div>
     </div>
@@ -241,7 +242,7 @@
                     <tbody>
                         {% for row in company_rows %}
                         <tr class="{% if not row.is_winner %}company-row-no-wins{% endif %}">
-                            <td class="fw-semibold">{{ row.company_name }}</td>
+                            <td class="fw-semibold"><a href="{% url 'summaries:analytics_insurance_company_card' row.company_name %}?{{ request.GET.urlencode }}">{{ row.company_name }}</a></td>
                             <td class="num">
                                 {{ row.deals }}{% if row.is_winner %}<span class="share">{{ row.deals_share_pct|floatformat:0 }}%</span>{% endif %}
                                 {% if row.is_winner %}<div class="company-share-bar"><span style="width: {{ row.deals_share_pct|floatformat:0 }}%"></span></div>{% endif %}

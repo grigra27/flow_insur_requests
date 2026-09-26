@@ -1,6 +1,9 @@
 """
 Представления для работы со сводами предложений
 """
+import re
+from urllib.parse import quote
+
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.contrib import messages
@@ -31,6 +34,7 @@ from .services.analytics_overview import build_overview_payload as build_analyti
 from .services import analytics_parser_edits as analytics_parser_edits_service
 from .services import analytics_post_creation as analytics_post_creation_service
 from .services import company_statuses
+from .services import analytics_insurance_company_card as company_card_service
 
 logger = logging.getLogger(__name__)
 
@@ -2427,6 +2431,149 @@ def analytics_insurance_companies(request):
 
 def _decimal_to_float(value):
     return float(value) if value is not None else None
+
+
+def _company_card_context(request, company):
+    if not company_card_service.company_exists(company):
+        raise Http404('Страховая компания не найдена')
+    filters = _parse_company_analytics_filters(request)
+    for error_message in filters['errors']:
+        messages.warning(request, error_message)
+    payload = company_card_service.build_card_payload(company, filters, _build_deal_price_row)
+    return filters, payload
+
+
+@admin_required
+def analytics_insurance_company_card(request, company):
+    """Карточка страховой компании (analytics_redesign_2026_09, этап 3)."""
+    filters, payload = _company_card_context(request, company)
+    context = {
+        **payload,
+        'company_choices': company_card_service.company_choices(),
+        'funnel_tables': [
+            ('по типам', payload['funnel']['by_type']),
+            ('по филиалам', payload['funnel']['by_branch']),
+            ('по виду лизинга', payload['funnel']['by_kind']),
+        ],
+        'available_filters': build_company_analytics_available_filters(filters['start_date'], filters['end_date']),
+        'filters': {
+            'period': filters['period'],
+            'start_date': filters['start_date_str'],
+            'end_date': filters['end_date_str'],
+            'branch': filters['branch'],
+            'insurance_type': filters['insurance_type'],
+        },
+        'period_choices': [
+            ('30', '30 дней'), ('90', '90 дней'), ('180', '180 дней'), ('365', '365 дней'), ('all', 'Всё время'),
+        ],
+    }
+    return render(request, 'summaries/analytics_insurance_company_card.html', context)
+
+
+@admin_required
+def export_analytics_insurance_company_card(request, company):
+    """XLSX карточки СК: сводка, месяцы, разрезы, цена, воронка, сделки."""
+    from io import BytesIO
+    from openpyxl import Workbook
+    from openpyxl.styles import Font
+
+    filters, payload = _company_card_context(request, company)
+    kpi, price, funnel = payload['kpi'], payload['price'], payload['funnel']
+    period = (f"{filters['start_date_str'] or '…'} — {filters['end_date_str'] or '…'}"
+              if filters['start_date'] or filters['end_date'] else 'Всё время')
+    scope = [f'СК: {company}', f'Период (дата создания свода): {period}']
+    if filters['branch']:
+        scope.append(f"Филиал: {filters['branch']}")
+    if filters['insurance_type']:
+        scope.append(f"Тип страхования: {filters['insurance_type']}")
+    workbook = Workbook()
+
+    def add_sheet(title, headers, rows, first=False):
+        worksheet = workbook.active if first else workbook.create_sheet()
+        worksheet.title = title[:31]
+        worksheet.append([title])
+        worksheet['A1'].font = Font(bold=True, size=14)
+        worksheet.append(['; '.join(scope)])
+        worksheet.append([f"Сформировано: {timezone.localtime().strftime('%d.%m.%Y %H:%M')}"])
+        worksheet.append([])
+        worksheet.append(headers)
+        for cell in worksheet[5]:
+            cell.font = Font(bold=True)
+        for row in rows:
+            worksheet.append(row)
+        for column in worksheet.iter_cols(min_row=5):
+            width = max(len('' if cell.value is None else str(cell.value)) for cell in column)
+            worksheet.column_dimensions[column[0].column_letter].width = min(width + 2, 60)
+
+    f = _decimal_to_float
+    add_sheet('Сводка', ['Показатель', 'Значение'], [
+        ['Сделок', kpi['deals']],
+        ['Доля в сделках, %', f(kpi['deals_share_pct'])],
+        ['Страховая сумма, 1-й год, ₽', f(kpi['insured_sum'])],
+        ['Доля в страховой сумме, %', f(kpi['insured_sum_share_pct'])],
+        ['Премия, все годы, ₽', f(kpi['premium_total'])],
+        ['Доля в премии, %', f(kpi['premium_share_pct'])],
+        ['Тариф 1-го года, %', f(kpi['tariff_pct'])],
+        ['Участвовала в сделках', price['participated']],
+        ['Выиграла', price['won']],
+        ['Доля выигрышей, %', f(price['win_rate_pct'])],
+        ['Выиграла, будучи самой дешёвой', price['won_cheapest']],
+        ['Выиграла не ценой (была дороже минимума)', price['won_not_cheapest']],
+        ['Была самой дешёвой, но проиграла', price['cheapest_lost']],
+        ['Средний ранг по цене (1 — самая дешёвая)', f(price['avg_rank'])],
+        ['Средний отрыв от минимальной цены, %', f(price['avg_delta_pct'])],
+    ], first=True)
+    add_sheet('Тариф по типам', ['Тип', 'Сделок', 'Тариф СК, %', 'Тариф рынка, %'], [
+        [row['label'], row['deals'], f(row['own_pct']), f(row['market_pct'])] for row in payload['tariff_rows']
+    ])
+    add_sheet('По месяцам', ['Месяц', 'Сделок СК', 'Сделок всего', 'Доля СК, %', 'Страховая сумма СК, ₽'], [
+        [row['label'], row['deals'], row['market_deals'], f(row['share_pct']), f(row['insured_sum'])]
+        for row in payload['monthly_rows']
+    ])
+    dimension_rows = []
+    for title, rows in payload['dimensions']:
+        dimension_rows += [[title, row['label'], row['deals'], f(row['share_pct']), f(row['insured_sum'])] for row in rows]
+    dimension_rows += [['Марки (заявки V2)', row['label'], row['deals'], f(row['share_pct']), f(row['insured_sum'])]
+                       for row in payload['brand_rows']]
+    add_sheet('Что пришло', ['Разрез', 'Значение', 'Сделок', 'Доля, %', 'Страховая сумма, ₽'], dimension_rows)
+    add_sheet('Клиенты', ['Лизингополучатель', 'Сделок', 'Страховая сумма, ₽'], [
+        [row['label'], row['deals'], f(row['insured_sum'])] for row in payload['client_rows']
+    ])
+    add_sheet('Цена по филиалам', ['Филиал', 'Участвовала', 'Выиграла', 'Доля выигрышей, %', 'Самая дешёвая, но проиграла'], [
+        [row['label'], row['participated'], row['won'], f(row['win_rate_pct']), row['cheapest_lost']]
+        for row in payload['branch_price_rows']
+    ])
+    add_sheet('Воронка', ['Показатель', 'Значение'], [
+        ['Запрошена (всего)', funnel['asked']],
+        ['Предложение', funnel['offered']],
+        ['Отказ', funnel['declined']],
+        ['Нет ответа', funnel['no_answer']],
+        ['Выигрыш', funnel['won']],
+        ['Не запрашивалась', funnel['not_requested']],
+        ['Доля отказов, %', f(funnel['declined_pct'])],
+        ['Из них восстановлено по старым сводам', funnel['restored']],
+    ])
+    add_sheet('Сделки', ['Дата свода', 'Свод', 'ДФА', 'Клиент', 'Филиал', 'Тип', 'Вид лизинга', 'Итог', 'Выбрана СК',
+                         'Премия СК, ₽', 'Минимальная премия, ₽', 'Отрыв от минимума, %', 'Место по цене', 'Сравнивалось СК'], [
+        [
+            timezone.localtime(row['created_at']).strftime('%d.%m.%Y'), row['summary'].pk, row['request'].dfa_number,
+            row['request'].client_name, row['branch'], row['insurance_type'], row['kind'],
+            'выиграла' if row['won'] else 'проиграла', row['winner'], f(row['own_total']), f(row['min_total']),
+            f(row['delta_pct']), row['rank'], row['compared'],
+        ]
+        for row in payload['deal_rows']
+    ])
+
+    output = BytesIO()
+    workbook.save(output)
+    today = timezone.localtime().strftime('%d_%m_%Y')
+    safe_name = re.sub(r'[^0-9A-Za-zА-Яа-яЁё_-]+', '_', company)
+    response = HttpResponse(output.getvalue(),
+                            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = (
+        f"attachment; filename=\"company_card.xlsx\"; filename*=UTF-8''{quote(f'company_{safe_name}_{today}.xlsx')}"
+    )
+    return response
 
 
 @admin_required

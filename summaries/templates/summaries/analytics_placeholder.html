@@ -154,7 +154,7 @@
                 <div class="overview-hint mb-1">Топ-3 по сделкам</div>
                 <ol class="list-unstyled overview-top-list mb-3">
                     {% for row in top_companies %}
-                    <li><span>{{ forloop.counter }}. {{ row.company_name }}</span><span>{{ row.deals }} · {{ row.deals_share_pct|floatformat:0 }}% · {{ row.insured_sum|money_short }}</span></li>
+                    <li><span>{{ forloop.counter }}. <a href="{% url 'summaries:analytics_insurance_company_card' row.company_name %}{% qs_replace %}">{{ row.company_name }}</a></span><span>{{ row.deals }} · {{ row.deals_share_pct|floatformat:0 }}% · {{ row.insured_sum|money_short }}</span></li>
                     {% endfor %}
                 </ol>
                 {% else %}

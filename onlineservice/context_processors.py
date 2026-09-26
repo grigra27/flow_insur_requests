@@ -35,6 +35,7 @@ MAIN_NAV_ITEMS = [
         'exclude_urls': {
             'analytics',
             'analytics_insurance_companies',
+            'analytics_insurance_company_card',
             'analytics_managers',
             'analytics_manager_detail',
             'analytics_parser_edits',
@@ -58,6 +59,7 @@ MAIN_NAV_ITEMS = [
         'include_urls': {
             'analytics',
             'analytics_insurance_companies',
+            'analytics_insurance_company_card',
             'analytics_managers',
             'analytics_manager_detail',
             'analytics_parser_edits',
@@ -118,6 +120,8 @@ SECTION_CONFIG = {
 ADMIN_ONLY_ROUTES = {
     'summaries:analytics',
     'summaries:analytics_insurance_companies',
+    'summaries:analytics_insurance_company_card',
+    'summaries:export_analytics_insurance_company_card',
     'summaries:analytics_managers',
     'summaries:analytics_manager_detail',
     'summaries:export_analytics_managers_widget',
@@ -135,6 +139,7 @@ SECTION_ROUTE_OVERRIDES = {
     ('summaries', 'deal_summary'): 'deals',
     ('summaries', 'analytics'): 'analytics',
     ('summaries', 'analytics_insurance_companies'): 'analytics',
+    ('summaries', 'analytics_insurance_company_card'): 'analytics',
     ('summaries', 'analytics_managers'): 'analytics',
     ('summaries', 'analytics_manager_detail'): 'analytics',
     ('summaries', 'analytics_parser_edits'): 'analytics',
@@ -160,6 +165,7 @@ PAGE_LABELS = {
     ('summaries', 'deal_summary'): 'Резюме по сделке',
     ('summaries', 'analytics'): 'Аналитика',
     ('summaries', 'analytics_insurance_companies'): 'Аналитика страховых компаний',
+    ('summaries', 'analytics_insurance_company_card'): 'Карточка страховой компании',
     ('summaries', 'analytics_managers'): 'Аналитика по сотрудникам',
     ('summaries', 'analytics_manager_detail'): 'Досье сотрудника',
     ('summaries', 'analytics_parser_edits'): 'Служебное: качество распознавания',
@@ -231,6 +237,11 @@ BREADCRUMB_TEMPLATES = {
         ('Аналитика', 'summaries:analytics'),
         ('Страховые компании', None),
     ],
+    ('summaries', 'analytics_insurance_company_card'): [
+        ('Аналитика', 'summaries:analytics'),
+        ('Страховые компании', 'summaries:analytics_insurance_companies'),
+        ('Карточка', None),
+    ],
     ('summaries', 'analytics_managers'): [
         ('Аналитика', 'summaries:analytics'),
         ('Сотрудники', None),
@@ -271,6 +282,7 @@ LAYOUT_MODE_BY_PAGE = {
     ('summaries', 'deal_list'): 'wide',
     ('summaries', 'analytics'): 'wide',
     ('summaries', 'analytics_insurance_companies'): 'wide',
+    ('summaries', 'analytics_insurance_company_card'): 'wide',
     ('summaries', 'analytics_managers'): 'wide',
     ('summaries', 'analytics_manager_detail'): 'wide',
     ('summaries', 'analytics_parser_edits'): 'wide',

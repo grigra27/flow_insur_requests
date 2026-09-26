@@ -1,0 +1,488 @@
+{% extends 'base.html' %}
+{% load summary_extras tz %}
+
+{% block title %}{{ company }} · карточка СК - {{ block.super }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .cc-card { border: 0; box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08); }
+    .cc-filter { background: linear-gradient(135deg, #f8fafc 0%, #e8f6f2 100%); }
+    .cc-kpi-label { font-size: .78rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: #64748b; }
+    .cc-kpi-value { font-size: 1.6rem; line-height: 1.15; font-weight: 700; color: #0f172a; }
+    .cc-hint { font-size: .82rem; color: #64748b; }
+    .cc-table th, .cc-table td { vertical-align: middle; }
+    .cc-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .cc-table .share { color: #64748b; font-size: .82rem; margin-left: .35rem; }
+    .cc-bar { height: 4px; border-radius: 2px; background: #e2e8f0; margin-top: 3px; overflow: hidden; }
+    .cc-bar > span { display: block; height: 100%; background: var(--cc-color); }
+    .cc-chart-wrap { position: relative; height: 260px; }
+    .cc-swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; background: var(--cc-color); margin-right: .4rem; vertical-align: -1px; }
+    .cc-funnel { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .75rem; }
+    .cc-funnel .step { border: 1px solid #e2e8f0; border-radius: 8px; padding: .6rem .8rem; background: #fff; }
+    .cc-funnel .step b { display: block; font-size: 1.4rem; color: #0f172a; }
+    .cc-funnel .step.declined { border-left: 4px solid #e34948; }
+    .cc-funnel .step.offered { border-left: 4px solid #1baf7a; }
+    .cc-funnel .step.no-answer { border-left: 4px solid #eda100; }
+    .cc-funnel .step.asked { border-left: 4px solid #2a78d6; }
+    .cc-funnel .step.won { border-left: 4px solid #4a3aa7; }
+    .cc-result-won { color: #0b6b43; font-weight: 600; }
+    .cc-result-lost { color: #64748b; }
+    .cc-cheapest { color: #b42318; font-weight: 600; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="cc-page" style="--cc-color: {{ color }}">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+        <div>
+            <div class="cc-hint"><a href="{% url 'summaries:analytics_insurance_companies' %}?{{ request.GET.urlencode }}">Страховые компании</a> / карточка</div>
+            <h1 class="h3 mb-1"><span class="cc-swatch"></span>{{ company }}</h1>
+            <p class="text-muted mb-0">Сколько бизнеса ушло в компанию, что именно, почему выигрывает и где отказывает.</p>
+        </div>
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+            <select class="form-select w-auto" id="cc-company-switch" aria-label="Другая страховая компания">
+                {% for name in company_choices %}
+                <option value="{% url 'summaries:analytics_insurance_company_card' name %}" {% if name == company %}selected{% endif %}>{{ name }}</option>
+                {% endfor %}
+            </select>
+            <a href="{% url 'summaries:export_analytics_insurance_company_card' company %}?{{ request.GET.urlencode }}" class="btn btn-outline-success">
+                <i class="bi bi-file-earmark-spreadsheet"></i> XLSX
+            </a>
+        </div>
+    </div>
+
+    <div class="card cc-card cc-filter mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3 align-items-end">
+                <div class="col-12 col-xl-auto">
+                    <label class="form-label mb-1 d-block">Период</label>
+                    <div class="btn-group flex-wrap" role="group" aria-label="Быстрый период">
+                        {% for value, label in period_choices %}
+                        <a href="{% qs_replace period=value start_date='' end_date='' %}"
+                           class="btn btn-outline-secondary {% if filters.period == value %}active{% endif %}">{{ label }}</a>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="col-6 col-md-3 col-xl-2">
+                    <label class="form-label mb-1" for="filter-start">С</label>
+                    <input type="date" class="form-control" id="filter-start" name="start_date" value="{{ filters.start_date }}">
+                </div>
+                <div class="col-6 col-md-3 col-xl-2">
+                    <label class="form-label mb-1" for="filter-end">По</label>
+                    <input type="date" class="form-control" id="filter-end" name="end_date" value="{{ filters.end_date }}">
+                </div>
+                <div class="col-12 col-md-3 col-xl-2">
+                    <label class="form-label mb-1" for="filter-branch">Филиал</label>
+                    <select class="form-select" id="filter-branch" name="branch">
+                        <option value="">Все филиалы</option>
+                        {% for branch in available_filters.branches %}
+                        <option value="{{ branch }}" {% if filters.branch == branch %}selected{% endif %}>{{ branch }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-12 col-md-3 col-xl-2">
+                    <label class="form-label mb-1" for="filter-type">Тип страхования</label>
+                    <select class="form-select" id="filter-type" name="insurance_type">
+                        <option value="">Все типы</option>
+                        {% for insurance_type in available_filters.insurance_types %}
+                        <option value="{{ insurance_type }}" {% if filters.insurance_type == insurance_type %}selected{% endif %}>{{ insurance_type }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-12 col-xl-auto d-flex gap-2">
+                    {% if filters.period != 'custom' %}<input type="hidden" name="period" value="{{ filters.period }}">{% endif %}
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-funnel"></i> Применить</button>
+                    <a href="{% url 'summaries:analytics_insurance_company_card' company %}" class="btn btn-outline-secondary">Сбросить</a>
+                </div>
+            </form>
+            <div class="cc-hint mt-2">Сделка — акцептованный свод с выбранной СК. Период — по дате создания свода. Доли — от всех сделок периода с теми же фильтрами.</div>
+        </div>
+    </div>
+
+    <!-- 3.1 Объём -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-lg">
+            <div class="card cc-card h-100"><div class="card-body">
+                <div class="cc-kpi-label">Сделок</div>
+                <div class="cc-kpi-value">{{ kpi.deals }}</div>
+                <small class="text-muted">{% if kpi.deals_share_pct is not None %}{{ kpi.deals_share_pct|floatformat:0 }}% от {{ kpi.market_deals }}{% else %}сделок в периоде нет{% endif %}</small>
+            </div></div>
+        </div>
+        <div class="col-6 col-lg">
+            <div class="card cc-card h-100"><div class="card-body">
+                <div class="cc-kpi-label">Страховая сумма</div>
+                <div class="cc-kpi-value">{{ kpi.insured_sum|money_short }}</div>
+                <small class="text-muted">1-й год{% if kpi.insured_sum_share_pct is not None %} · {{ kpi.insured_sum_share_pct|floatformat:0 }}% рынка{% endif %}</small>
+            </div></div>
+        </div>
+        <div class="col-6 col-lg">
+            <div class="card cc-card h-100"><div class="card-body">
+                <div class="cc-kpi-label">Премия</div>
+                <div class="cc-kpi-value">{{ kpi.premium_total|money_short }}</div>
+                <small class="text-muted">все годы{% if kpi.premium_share_pct is not None %} · {{ kpi.premium_share_pct|floatformat:0 }}% рынка{% endif %}</small>
+            </div></div>
+        </div>
+        <div class="col-6 col-lg">
+            <div class="card cc-card h-100"><div class="card-body">
+                <div class="cc-kpi-label">Тариф</div>
+                <div class="cc-kpi-value">{% if kpi.tariff_pct is not None %}{{ kpi.tariff_pct|floatformat:2 }}%{% else %}—{% endif %}</div>
+                <small class="text-muted">премия / СС 1-го года</small>
+            </div></div>
+        </div>
+        <div class="col-12 col-lg">
+            <div class="card cc-card h-100"><div class="card-body">
+                <div class="cc-kpi-label">Участвовала → выиграла</div>
+                <div class="cc-kpi-value">{{ price.participated }} → {{ price.won }}</div>
+                <small class="text-muted">{% if price.win_rate_pct is not None %}{{ price.win_rate_pct|floatformat:0 }}% выигрышей{% else %}нет участий{% endif %}</small>
+            </div></div>
+        </div>
+    </div>
+
+    {% if charts.labels %}
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-xl-6">
+            <div class="card cc-card h-100">
+                <div class="card-header"><h2 class="h6 mb-0"><i class="bi bi-bar-chart"></i> Сделки по месяцам</h2></div>
+                <div class="card-body"><div class="cc-chart-wrap"><canvas id="ccDeals" aria-label="Сделки СК по месяцам"></canvas></div></div>
+            </div>
+        </div>
+        <div class="col-12 col-xl-6">
+            <div class="card cc-card h-100">
+                <div class="card-header"><h2 class="h6 mb-0"><i class="bi bi-graph-up"></i> Доля в сделках по месяцам, %</h2></div>
+                <div class="card-body"><div class="cc-chart-wrap"><canvas id="ccShare" aria-label="Доля СК в сделках по месяцам"></canvas></div></div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-xl-7">
+            <div class="card cc-card h-100">
+                <div class="card-header"><h2 class="h6 mb-0"><i class="bi bi-calendar3"></i> По месяцам</h2></div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0 cc-table">
+                            <thead><tr><th>Месяц</th><th class="num">Сделок СК</th><th class="num">Всего</th><th class="num">Доля</th><th class="num">Страховая сумма</th></tr></thead>
+                            <tbody>
+                            {% for row in monthly_rows %}
+                                <tr><td>{{ row.label }}</td><td class="num">{{ row.deals }}</td><td class="num">{{ row.market_deals }}</td>
+                                    <td class="num">{% if row.share_pct is not None %}{{ row.share_pct|floatformat:0 }}%{% else %}—{% endif %}</td>
+                                    <td class="num">{{ row.insured_sum|money_short }}</td></tr>
+                            {% empty %}
+                                <tr><td colspan="5" class="text-center text-muted py-3">Нет сделок за период.</td></tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-xl-5">
+            <div class="card cc-card h-100">
+                <div class="card-header">
+                    <h2 class="h6 mb-0"><i class="bi bi-percent"></i> Тариф по типам: СК и рынок</h2>
+                    <div class="cc-hint">Рынок — все сделки периода этого типа, в какую бы СК они ни ушли.</div>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0 cc-table">
+                        <thead><tr><th>Тип</th><th class="num">Сделок СК</th><th class="num">Тариф СК</th><th class="num">Рынок</th></tr></thead>
+                        <tbody>
+                        {% for row in tariff_rows %}
+                            <tr><td>{{ row.label }}</td><td class="num">{{ row.deals }}</td>
+                                <td class="num">{% if row.own_pct is not None %}{{ row.own_pct|floatformat:2 }}%{% else %}—{% endif %}</td>
+                                <td class="num">{% if row.market_pct is not None %}{{ row.market_pct|floatformat:2 }}%{% else %}—{% endif %}</td></tr>
+                        {% empty %}
+                            <tr><td colspan="4" class="text-center text-muted py-3">Нет данных.</td></tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3.2 Что пришло -->
+    <h2 class="h5 mb-2"><i class="bi bi-box-seam"></i> Что пришло в компанию</h2>
+    <p class="cc-hint mb-3">Выигранные сделки: число, доля от сделок СК и страховая сумма.</p>
+    <div class="row g-3 mb-4">
+        {% for title, rows in dimensions %}
+        <div class="col-12 col-md-6 col-xl-4">
+            <div class="card cc-card h-100">
+                <div class="card-header"><h3 class="h6 mb-0">{{ title }}</h3></div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0 cc-table">
+                        <tbody>
+                        {% for row in rows %}
+                            <tr>
+                                <td>{{ row.label }}<div class="cc-bar"><span style="width: {{ row.share_pct|floatformat:0 }}%"></span></div></td>
+                                <td class="num">{{ row.deals }}<span class="share">{{ row.share_pct|floatformat:0 }}%</span></td>
+                                <td class="num text-muted">{{ row.insured_sum|money_short }}</td>
+                            </tr>
+                        {% empty %}
+                            <tr><td class="text-center text-muted py-3">Нет сделок.</td></tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+        <div class="col-12 col-md-6 col-xl-4">
+            <div class="card cc-card h-100">
+                <div class="card-header">
+                    <h3 class="h6 mb-0">Марки техники</h3>
+                    <div class="cc-hint">Только заявки нового формата: {{ brand_coverage.with_brand }} из {{ brand_coverage.deals }} сделок.</div>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0 cc-table">
+                        <tbody>
+                        {% for row in brand_rows %}
+                            <tr><td>{{ row.label }}</td><td class="num">{{ row.deals }}</td><td class="num text-muted">{{ row.insured_sum|money_short }}</td></tr>
+                        {% empty %}
+                            <tr><td class="text-center text-muted py-3">Нет данных.</td></tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-xl-8">
+            <div class="card cc-card h-100">
+                <div class="card-header"><h3 class="h6 mb-0">Крупнейшие лизингополучатели</h3></div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0 cc-table">
+                        <thead><tr><th>Клиент</th><th class="num">Сделок</th><th class="num">Страховая сумма</th></tr></thead>
+                        <tbody>
+                        {% for row in client_rows %}
+                            <tr><td>{{ row.label }}</td><td class="num">{{ row.deals }}</td><td class="num">{{ row.insured_sum|money_short }}</td></tr>
+                        {% empty %}
+                            <tr><td colspan="3" class="text-center text-muted py-3">Нет сделок.</td></tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3.3 Цена -->
+    <h2 class="h5 mb-2"><i class="bi bi-tags"></i> Почему выигрывает и проигрывает</h2>
+    <p class="cc-hint mb-3">Сделки, где у СК было предложение. Цены сравниваются за те же годы и по варианту франшизы, выбранному в сделке; «место по цене» 1 — самая дешёвая.</p>
+    <div class="row g-3 mb-3">
+        <div class="col-6 col-lg">
+            <div class="card cc-card h-100"><div class="card-body">
+                <div class="cc-kpi-label">Выиграла ценой</div>
+                <div class="cc-kpi-value">{{ price.won_cheapest }}</div>
+                <small class="text-muted">была самой дешёвой</small>
+            </div></div>
+        </div>
+        <div class="col-6 col-lg">
+            <div class="card cc-card h-100"><div class="card-body">
+                <div class="cc-kpi-label">Выиграла не ценой</div>
+                <div class="cc-kpi-value">{{ price.won_not_cheapest }}</div>
+                <small class="text-muted">дороже минимума{% if price.won_not_comparable %} · ещё {{ price.won_not_comparable }} без сравнения{% endif %}</small>
+            </div></div>
+        </div>
+        <div class="col-6 col-lg">
+            <div class="card cc-card h-100"><div class="card-body">
+                <div class="cc-kpi-label">Самая дешёвая, но проиграла</div>
+                <div class="cc-kpi-value">{{ price.cheapest_lost }}</div>
+                <small class="text-muted">из {{ price.lost }} проигрышей</small>
+            </div></div>
+        </div>
+        <div class="col-6 col-lg">
+            <div class="card cc-card h-100"><div class="card-body">
+                <div class="cc-kpi-label">Среднее место по цене</div>
+                <div class="cc-kpi-value">{% if price.avg_rank is not None %}{{ price.avg_rank|floatformat:1 }}{% else %}—{% endif %}</div>
+                <small class="text-muted">{{ price.comparable }} сопоставимых сделок</small>
+            </div></div>
+        </div>
+        <div class="col-12 col-lg">
+            <div class="card cc-card h-100"><div class="card-body">
+                <div class="cc-kpi-label">Отрыв от минимума</div>
+                <div class="cc-kpi-value">{% if price.avg_delta_pct is not None %}+{{ price.avg_delta_pct|floatformat:1 }}%{% else %}—{% endif %}</div>
+                <small class="text-muted">в среднем по сопоставимым</small>
+            </div></div>
+        </div>
+    </div>
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-md-6 col-xl-3">
+            <div class="card cc-card h-100">
+                <div class="card-header"><h3 class="h6 mb-0">Кому проиграла</h3></div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0 cc-table"><tbody>
+                    {% for name, count in lost_to %}
+                        <tr><td><a href="{% url 'summaries:analytics_insurance_company_card' name %}?{{ request.GET.urlencode }}">{{ name }}</a></td><td class="num">{{ count }}</td></tr>
+                    {% empty %}<tr><td class="text-center text-muted py-3">Проигрышей нет.</td></tr>{% endfor %}
+                    </tbody></table>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-6 col-xl-3">
+            <div class="card cc-card h-100">
+                <div class="card-header">
+                    <h3 class="h6 mb-0">Была дешевле всех, но выбрали</h3>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0 cc-table"><tbody>
+                    {% for name, count in cheapest_lost_to %}
+                        <tr><td>{{ name }}</td><td class="num">{{ count }}</td></tr>
+                    {% empty %}<tr><td class="text-center text-muted py-3">Таких сделок нет.</td></tr>{% endfor %}
+                    </tbody></table>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-xl-6">
+            <div class="card cc-card h-100">
+                <div class="card-header"><h3 class="h6 mb-0">По филиалам</h3></div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0 cc-table">
+                            <thead><tr><th>Филиал</th><th class="num">Участвовала</th><th class="num">Выиграла</th><th class="num">Доля</th><th class="num" title="Была самой дешёвой, но выбрали другую СК">Дешевле всех, но проиграла</th></tr></thead>
+                            <tbody>
+                            {% for row in branch_price_rows %}
+                                <tr><td>{{ row.label }}</td><td class="num">{{ row.participated }}</td><td class="num">{{ row.won }}</td>
+                                    <td class="num">{% if row.win_rate_pct is not None %}{{ row.win_rate_pct|floatformat:0 }}%{% else %}—{% endif %}</td>
+                                    <td class="num">{% if row.cheapest_lost %}<span class="cc-cheapest">{{ row.cheapest_lost }}</span>{% else %}—{% endif %}</td></tr>
+                            {% empty %}<tr><td colspan="5" class="text-center text-muted py-3">Нет участий.</td></tr>{% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3.4 Воронка -->
+    <div class="card cc-card mb-4">
+        <div class="card-header">
+            <h2 class="h5 mb-0"><i class="bi bi-funnel"></i> Воронка: запрос → ответ → выигрыш</h2>
+            <div class="cc-hint">
+                По статусам СК в сводах (все своды периода, не только акцептованные).
+                {% if funnel.tracking_started %}Статусы ведутся с {% timezone "Europe/Moscow" %}{{ funnel.tracking_started|date:"d.m.Y" }}{% endtimezone %}.{% else %}Статусы начнут копиться с первым новым сводом.{% endif %}
+                {% if funnel.restored %}Из них {{ funnel.restored }} восстановлено по старым сводам (предложения и примечания).{% endif %}
+            </div>
+        </div>
+        <div class="card-body">
+            {% if funnel.has_data %}
+            <div class="cc-funnel mb-3">
+                <div class="step asked"><span class="cc-hint">Запрошена</span><b>{{ funnel.asked }}</b></div>
+                <div class="step offered"><span class="cc-hint">Предложение</span><b>{{ funnel.offered }}</b>{% if funnel.offered_pct is not None %}<span class="cc-hint">{{ funnel.offered_pct|floatformat:0 }}%</span>{% endif %}</div>
+                <div class="step declined"><span class="cc-hint">Отказ</span><b>{{ funnel.declined }}</b>{% if funnel.declined_pct is not None %}<span class="cc-hint">{{ funnel.declined_pct|floatformat:0 }}%</span>{% endif %}</div>
+                <div class="step no-answer"><span class="cc-hint">Нет ответа</span><b>{{ funnel.no_answer }}</b>{% if funnel.no_answer_pct is not None %}<span class="cc-hint">{{ funnel.no_answer_pct|floatformat:0 }}%</span>{% endif %}</div>
+                <div class="step won"><span class="cc-hint">Выигрыш</span><b>{{ funnel.won }}</b>{% if funnel.won_pct is not None %}<span class="cc-hint">{{ funnel.won_pct|floatformat:0 }}% предложений</span>{% endif %}</div>
+            </div>
+            <div class="cc-hint mb-3">Не запрашивалась: {{ funnel.not_requested }}{% if funnel.undefined %} · без статуса (своды в работе): {{ funnel.undefined }}{% endif %}.</div>
+            <div class="row g-3">
+                {% for title, rows in funnel_tables %}
+                <div class="col-12 col-xl-4">
+                    <h3 class="h6">Доля отказов · {{ title }}</h3>
+                    <table class="table table-sm mb-0 cc-table">
+                        <thead><tr><th></th><th class="num">Запрошена</th><th class="num">Отказ</th><th class="num">Доля</th></tr></thead>
+                        <tbody>
+                        {% for row in rows %}
+                            <tr><td>{{ row.label }}</td><td class="num">{{ row.asked }}</td><td class="num">{{ row.declined }}</td>
+                                <td class="num">{% if row.declined_pct is not None %}{{ row.declined_pct|floatformat:0 }}%{% else %}—{% endif %}</td></tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-muted mb-0">
+                Пока нет данных: статусы СК (запрошена, отказ, предложение) ведутся только в новых сводах.
+                Воронка наполнится по мере работы сотрудников; историю старых сводов можно восстановить отдельно (план, §7, вопрос 7).
+            </p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- 3.5 Сделки -->
+    <div class="card cc-card mb-4">
+        <div class="card-header">
+            <h2 class="h5 mb-0"><i class="bi bi-list-ul"></i> Сделки с участием {{ company }}</h2>
+            <div class="cc-hint">{{ deal_rows|length }} акцептованных сводов, где у компании было предложение. Премии — за все годы по варианту франшизы сделки.</div>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0 cc-table">
+                    <thead><tr><th>Дата</th><th>Заявка</th><th>Клиент</th><th>Филиал</th><th>Вид</th><th>Итог</th><th class="num">Премия СК</th><th class="num">Минимум</th><th class="num">Место</th></tr></thead>
+                    <tbody>
+                    {% for row in deal_rows %}
+                        <tr>
+                            <td class="text-nowrap">{% timezone "Europe/Moscow" %}{{ row.created_at|date:"d.m.Y" }}{% endtimezone %}</td>
+                            <td class="text-nowrap"><a href="{% url 'summaries:summary_detail' row.summary.pk %}">{{ row.request.dfa_number|default:row.summary.pk }}</a></td>
+                            <td>{{ row.request.client_name }}</td>
+                            <td>{{ row.branch }}</td>
+                            <td class="text-nowrap">{{ row.kind }}</td>
+                            <td class="text-nowrap">{% if row.won %}<span class="cc-result-won">выиграла</span>{% else %}<span class="cc-result-lost">→ {{ row.winner }}</span>{% endif %}</td>
+                            <td class="num">{{ row.own_total|money_short }}</td>
+                            <td class="num">{% if row.min_total is not None %}{{ row.min_total|money_short }}{% if row.delta_pct %}<span class="share">+{{ row.delta_pct|floatformat:0 }}%</span>{% endif %}{% else %}—{% endif %}</td>
+                            <td class="num">{% if row.rank %}{% if row.is_cheapest and not row.won %}<span class="cc-cheapest">{{ row.rank }} из {{ row.compared }}</span>{% else %}{{ row.rank }} из {{ row.compared }}{% endif %}{% else %}—{% endif %}</td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="9" class="text-center text-muted py-4">Нет сделок с участием компании за период.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{ charts|json_script:"cc-chart-data" }}
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const switcher = document.getElementById('cc-company-switch');
+        if (switcher) {
+            switcher.addEventListener('change', function () {
+                window.location.href = switcher.value + window.location.search;
+            });
+        }
+        const dataEl = document.getElementById('cc-chart-data');
+        if (!dataEl || typeof Chart === 'undefined') {
+            return;
+        }
+        const charts = JSON.parse(dataEl.textContent);
+        if (!charts.labels.length) {
+            return;
+        }
+        const grid = '#eef2f6';
+        const deals = document.getElementById('ccDeals');
+        if (deals) {
+            new Chart(deals, {
+                type: 'bar',
+                data: { labels: charts.labels, datasets: [{ label: 'Сделки', data: charts.deals, backgroundColor: charts.color, borderRadius: 4, maxBarThickness: 36 }] },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    scales: { x: { grid: { display: false } }, y: { beginAtZero: true, grid: { color: grid }, ticks: { precision: 0 } } },
+                    plugins: { legend: { display: false } },
+                },
+            });
+        }
+        const share = document.getElementById('ccShare');
+        if (share) {
+            new Chart(share, {
+                type: 'line',
+                data: { labels: charts.labels, datasets: [{ label: 'Доля, %', data: charts.share, borderColor: charts.color, backgroundColor: charts.color, borderWidth: 2, pointRadius: 4, tension: 0.2 }] },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    scales: {
+                        x: { grid: { display: false } },
+                        y: { beginAtZero: true, suggestedMax: 50, grid: { color: grid }, ticks: { callback: function (value) { return value + '%'; } } },
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { callbacks: { label: function (item) { return item.raw.toLocaleString('ru-RU', { maximumFractionDigits: 1 }) + '%'; } } },
+                    },
+                },
+            });
+        }
+    });
+</script>
+{% endblock %}
