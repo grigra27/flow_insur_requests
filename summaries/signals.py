@@ -8,13 +8,13 @@ import logging
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
-from django.db.models.signals import post_save, pre_save
+from django.db.models.signals import post_delete, post_save, pre_save
 from django.dispatch import receiver
 
 from insurance_requests.models import InsuranceRequest
 
 from ._current_user import get_current_user
-from .models import InsuranceSummary, StatusEvent
+from .models import InsuranceOffer, InsuranceSummary, StatusEvent, SummaryCompanyStatus
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +64,9 @@ def _emit_status_event(sender: type[models.Model], instance, created: bool) -> N
     # Не пишем «создание» как событие смены, если это пустой статус.
     if is_create and not to_status:
         return
+    # Строки статусов СК создаются пачкой «не определён» при создании свода — это не смена.
+    if is_create and sender is SummaryCompanyStatus and to_status == SummaryCompanyStatus.UNDEFINED:
+        return
 
     try:
         StatusEvent.objects.create(
@@ -95,3 +98,49 @@ def insurance_summary_pre_save(sender, instance, **kwargs):
 @receiver(post_save, sender=InsuranceSummary)
 def insurance_summary_post_save(sender, instance, created, **kwargs):
     _emit_status_event(sender, instance, created)
+
+
+# Статусы СК в своде (analytics_redesign_2026_09, этап 2): смены статуса — в тот же журнал,
+# «предложение» — синхронно с наличием предложений.
+@receiver(pre_save, sender=SummaryCompanyStatus)
+def company_status_pre_save(sender, instance, **kwargs):
+    _capture_status_change(sender, instance)
+
+
+@receiver(post_save, sender=SummaryCompanyStatus)
+def company_status_post_save(sender, instance, created, **kwargs):
+    _emit_status_event(sender, instance, created)
+
+
+_FLAG_OLD_COMPANY = '_company_status_old_company'
+
+
+@receiver(pre_save, sender=InsuranceOffer)
+def offer_pre_save(sender, instance, **kwargs):
+    if instance.pk:
+        old = sender.objects.filter(pk=instance.pk).values_list('summary_id', 'company_name').first()
+        if old and old != (instance.summary_id, instance.company_name):
+            setattr(instance, _FLAG_OLD_COMPANY, old)
+
+
+def _sync_offered(summary_id, company_name):
+    from .services.company_statuses import sync_offered
+
+    try:
+        sync_offered(summary_id, company_name)
+    except Exception:  # noqa: BLE001 — статус СК не должен ронять сохранение предложения
+        logger.exception('Company status sync failed for summary #%s, %s', summary_id, company_name)
+
+
+@receiver(post_save, sender=InsuranceOffer)
+def offer_post_save(sender, instance, **kwargs):
+    old = getattr(instance, _FLAG_OLD_COMPANY, None)
+    if old:
+        delattr(instance, _FLAG_OLD_COMPANY)
+        _sync_offered(*old)  # предложение перенесли на другую СК — у прежней могло не остаться предложений
+    _sync_offered(instance.summary_id, instance.company_name)
+
+
+@receiver(post_delete, sender=InsuranceOffer)
+def offer_post_delete(sender, instance, **kwargs):
+    _sync_offered(instance.summary_id, instance.company_name)

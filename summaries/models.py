@@ -175,6 +175,14 @@ class InsuranceSummary(models.Model):
         verbose_name='Выбранный вариант франшизы',
         help_text='Выбранный вариант предложения (1 или 2) при акцепте/распоряжении'
     )
+
+    # Статусы СК (analytics_redesign_2026_09, этап 2): у сводов, созданных после запуска,
+    # статус свода нельзя менять, пока у какой-либо СК статус «не определён».
+    company_statuses_required = models.BooleanField(
+        default=False,
+        verbose_name='Статусы СК обязательны',
+        help_text='Свод создан после запуска статусов СК: смена статуса свода требует статуса у каждой СК'
+    )
     
     class Meta:
         verbose_name = 'Свод предложений'
@@ -710,6 +718,71 @@ class InsuranceOffer(models.Model):
         # Выполняем валидацию перед сохранением
         self.full_clean()
         super().save(*args, **kwargs)
+
+
+class SummaryCompanyStatus(models.Model):
+    """Статус страховой компании в своде: запрошена ли, отказала ли, дала ли предложение.
+
+    docs/improvement_plans/analytics_redesign_2026_09.md, этап 2. «Предложение» выставляется
+    автоматически по наличию InsuranceOffer (summaries.services.company_statuses), остальные
+    статусы — сотрудником на карточке свода. Смены пишутся в StatusEvent.
+    """
+
+    UNDEFINED = 'undefined'
+    NOT_REQUESTED = 'not_requested'
+    REQUESTED = 'requested'
+    DECLINED = 'declined'
+    OFFERED = 'offered'
+    STATUS_CHOICES = [
+        (UNDEFINED, 'Не определён'),
+        (NOT_REQUESTED, 'Не запрашивалась'),
+        (REQUESTED, 'Запрошена'),
+        (DECLINED, 'Отказ'),
+        (OFFERED, 'Предложение'),
+    ]
+    MANUAL_STATUSES = (NOT_REQUESTED, REQUESTED, DECLINED)
+
+    summary = models.ForeignKey(
+        InsuranceSummary,
+        on_delete=models.CASCADE,
+        related_name='company_statuses',
+        verbose_name='Свод',
+    )
+    company = models.ForeignKey(
+        InsuranceCompany,
+        on_delete=models.PROTECT,
+        related_name='summary_statuses',
+        verbose_name='Страховая компания',
+    )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=UNDEFINED, verbose_name='Статус')
+    status_changed_at = models.DateTimeField(null=True, blank=True, verbose_name='Статус изменён')
+    changed_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='+',
+        verbose_name='Кто изменил',
+    )
+    restored = models.BooleanField(
+        default=False,
+        verbose_name='Восстановлен',
+        help_text='Статус восстановлен для старого свода по предложениям и примечанию (задача 2.5)',
+    )
+
+    class Meta:
+        verbose_name = 'Статус СК в своде'
+        verbose_name_plural = 'Статусы СК в сводах'
+        ordering = ['company__sort_order', 'company__name']
+        constraints = [
+            models.UniqueConstraint(fields=['summary', 'company'], name='unique_summary_company_status'),
+        ]
+        indexes = [
+            models.Index(fields=['company', 'status']),
+        ]
+
+    def __str__(self):
+        return f'{self.company} в своде #{self.summary_id}: {self.get_status_display()}'
 
 
 class SummaryTemplate(models.Model):

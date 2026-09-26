@@ -314,8 +314,14 @@ class FullCycleExcelGenerationTests(ExcelExportIntegrationTestCase):
         # Проверяем, что предложение добавилось
         self.assertEqual(new_summary.offers.count(), 1)
         
-        # Изменяем статус на "Готов к отправке"
+        # Изменяем статус на "Готов к отправке" — сначала блокирует незаполненный статус СК (этап 2)
         change_status_url = reverse('summaries:change_summary_status', args=[new_summary.pk])
+        response = self.client.post(change_status_url, {'status': 'ready'})
+        self.assertFalse(response.json()['success'])
+
+        # Остальные СК — «не запрашивались», после этого статус свода меняется
+        remaining_url = reverse('summaries:set_remaining_company_statuses', args=[new_summary.pk])
+        self.assertTrue(self.client.post(remaining_url, {'status': 'not_requested'}).json()['success'])
         response = self.client.post(change_status_url, {'status': 'ready'})
         self.assertEqual(response.status_code, 200)
         

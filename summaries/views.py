@@ -30,6 +30,7 @@ from .services import analytics_employees as analytics_employees_service
 from .services.analytics_overview import build_overview_payload as build_analytics_overview_payload
 from .services import analytics_parser_edits as analytics_parser_edits_service
 from .services import analytics_post_creation as analytics_post_creation_service
+from .services import company_statuses
 
 logger = logging.getLogger(__name__)
 
@@ -754,6 +755,61 @@ def summary_detail(request, pk):
         'company_notes': company_notes,
         'summary_analytics': summary_analytics,
         'company_variant_requirements': company_variant_requirements,
+        'company_status_rows': company_statuses.rows_for_display(summary),
+        'company_status_counts': company_statuses.counts(summary),
+        'company_status_missing': company_statuses.missing_companies(summary),
+        'company_status_manual': [
+            (value, company_statuses.STATUS_LABELS[value]) for value in company_statuses.MANUAL_STATUSES
+        ],
+        'declined_companies': company_statuses.declined_company_names(summary),
+    })
+
+
+def _company_status_payload(summary):
+    return {
+        'counts': company_statuses.counts(summary),
+        'missing': company_statuses.missing_companies(summary),
+        'declined': company_statuses.declined_company_names(summary),
+    }
+
+
+@require_http_methods(["POST"])
+@user_required
+def set_company_status(request, summary_id):
+    """Статус одной СК в своде (этап 2): не запрашивалась / запрошена / отказ."""
+    summary = get_object_or_404(InsuranceSummary, pk=summary_id)
+    try:
+        company_id = int(request.POST.get('company_id', ''))
+        row = company_statuses.set_status(summary, company_id, request.POST.get('status', ''), request.user)
+    except (TypeError, ValueError) as error:
+        message = str(error) if isinstance(error, company_statuses.CompanyStatusError) else 'Некорректный запрос.'
+        return JsonResponse({'success': False, 'error': message}, status=400)
+    return JsonResponse({
+        'success': True,
+        'company_id': row.company_id,
+        'status': row.status,
+        'status_label': row.get_status_display(),
+        **_company_status_payload(summary),
+    })
+
+
+@require_http_methods(["POST"])
+@user_required
+def set_remaining_company_statuses(request, summary_id):
+    """Массово: все СК со статусом «не определён» → выбранный статус (обычно «не запрашивалась»)."""
+    summary = get_object_or_404(InsuranceSummary, pk=summary_id)
+    try:
+        changed = company_statuses.set_undefined_to(summary, request.POST.get('status', ''), request.user)
+    except company_statuses.CompanyStatusError as error:
+        return JsonResponse({'success': False, 'error': str(error)}, status=400)
+    return JsonResponse({
+        'success': True,
+        'changed': changed,
+        'rows': [
+            {'company_id': row['company'].pk, 'status': row['status'], 'status_label': row['status_label']}
+            for row in company_statuses.rows_for_display(summary)
+        ],
+        **_company_status_payload(summary),
     })
 
 
@@ -917,6 +973,7 @@ def create_summary(request, request_id):
                 request=insurance_request,
                 status='collecting'
             )
+            company_statuses.init_for_summary(summary)  # все СК «не определён» (этап 2)
             
             # Обновляем статус заявки, если необходимо
             if insurance_request.status == 'uploaded':
@@ -1365,6 +1422,16 @@ def change_summary_status(request, summary_id):
     selected_franchise_variant_raw = request.POST.get('selected_franchise_variant', '').strip()
     deal_summary_note = request.POST.get('deal_summary_note', '').strip()
     selected_franchise_variant = None
+
+    # Статус свода не меняется, пока у какой-либо СК статус «не определён» (этап 2).
+    if new_status != summary.status:
+        missing = company_statuses.missing_companies(summary)
+        if missing:
+            return JsonResponse({
+                'success': False,
+                'error': company_statuses.missing_message(missing),
+                'missing_companies': missing,
+            })
     
     # Валидация статуса "Завершен: акцепт/распоряжение"
     if new_status == 'completed_accepted':

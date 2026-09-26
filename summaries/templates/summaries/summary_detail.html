@@ -297,6 +297,68 @@
                         </a>
                     </div>
                 {% endif %}
+                <div id="declined-companies-block" class="declined-block{% if not declined_companies %} d-none{% endif %}">
+                    <i class="bi bi-x-octagon me-1"></i>Отказались от страхования:
+                    <strong id="declined-companies-list">{{ declined_companies|join:", " }}</strong>
+                    <span class="text-muted small ms-1">— выводятся в Excel-свод автоматически</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Статусы страховых компаний (analytics_redesign_2026_09, этап 2) -->
+        <div class="card mb-4" id="company-statuses" data-summary-id="{{ summary.pk }}"
+             data-set-url="{% url 'summaries:set_company_status' summary.pk %}"
+             data-remaining-url="{% url 'summaries:set_remaining_company_statuses' summary.pk %}">
+            <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div>
+                    <h6 class="mb-0"><i class="bi bi-list-check"></i> Статусы страховых компаний</h6>
+                    <div class="small text-muted" id="company-status-counts">
+                        {% include "summaries/_company_status_counts.html" with counts=company_status_counts %}
+                    </div>
+                </div>
+                <button type="button" class="btn btn-outline-secondary btn-sm js-cs-remaining{% if not company_status_counts.undefined %} d-none{% endif %}"
+                        data-status="not_requested">
+                    Остальные — не запрашивались
+                </button>
+            </div>
+            <div class="card-body pt-2">
+                {% if summary.company_statuses_required %}
+                <div id="company-status-alert" class="alert alert-warning py-2 small mb-2{% if not company_status_missing %} d-none{% endif %}">
+                    <i class="bi bi-exclamation-triangle me-1"></i>
+                    Укажите статус по каждой страховой компании — до этого статус свода не меняется.
+                    «Предложение» ставится само при загрузке предложения.
+                </div>
+                {% else %}
+                <div class="alert alert-light border py-2 small mb-2">
+                    <i class="bi bi-info-circle me-1"></i>
+                    Свод создан до запуска статусов СК — заполнять необязательно, смену статуса свода это не блокирует.
+                </div>
+                {% endif %}
+                <table class="table table-sm align-middle mb-0 company-status-table">
+                    <tbody>
+                    {% for item in company_status_rows %}
+                        <tr data-company-id="{{ item.company.pk }}" data-status="{{ item.status }}"
+                            class="{% if item.status == 'undefined' %}cs-undefined{% endif %}">
+                            <td class="cs-name">
+                                {{ item.company }}
+                                <span class="cs-undefined-mark">не определён</span>
+                            </td>
+                            <td class="text-end">
+                                {% if item.locked %}
+                                    <span class="badge bg-success"><i class="bi bi-check2-circle me-1"></i>Предложение</span>
+                                {% else %}
+                                    <div class="btn-group btn-group-sm" role="group" aria-label="Статус {{ item.company }}">
+                                        {% for value, label in company_status_manual %}
+                                        <button type="button" class="btn js-cs-btn cs-btn-{{ value }}{% if item.status == value %} active{% endif %}"
+                                                data-status="{{ value }}" aria-pressed="{% if item.status == value %}true{% else %}false{% endif %}">{{ label }}</button>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
@@ -334,7 +396,12 @@
                             <textarea class="form-control" id="notes-textarea" name="notes" rows="4" 
                                       placeholder="Введите примечание к своду...">{{ summary.notes }}</textarea>
                             <div class="form-text">
+                                {% if summary.company_statuses_required %}
+                                Это общее примечание ко всему своду, например данные об ОСАГО. Отказы СК отмечайте статусом
+                                в блоке «Статусы страховых компаний» — в Excel-свод они выводятся автоматически.
+                                {% else %}
                                 Это общее примечание ко всему своду. Сюда можно внести данные об ОСАГО и отказах СК от страхования
+                                {% endif %}
                             </div>
                         </div>
                         <div class="d-flex gap-2">
@@ -498,6 +565,10 @@
                 <h6 class="mb-0"><i class="bi bi-gear"></i> Управление статусом</h6>
             </div>
             <div class="card-body">
+                <div id="status-blocked-alert" class="alert alert-warning py-2 small{% if not company_status_missing %} d-none{% endif %}">
+                    <i class="bi bi-lock me-1"></i>Статус свода можно изменить после того, как у каждой страховой
+                    компании будет статус. <a href="#company-statuses">Без статуса: <span id="status-blocked-count">{{ company_status_missing|length }}</span></a>
+                </div>
                 <div class="mb-3">
                     <label class="form-label">Текущий статус:</label>
                     <div>
@@ -1394,6 +1465,23 @@
     #company-response-form .form-text {
         font-size: 0.85rem;
     }
+}
+
+/* Статусы страховых компаний (этап 2) */
+.company-status-table td { padding-top: .3rem; padding-bottom: .3rem; }
+.company-status-table .cs-name { font-weight: 500; }
+.company-status-table .cs-undefined-mark { display: none; margin-left: .4rem; font-size: .75rem; color: #b42318; font-weight: 400; }
+.company-status-table tr.cs-undefined { background: #fff8e6; }
+.company-status-table tr.cs-undefined .cs-undefined-mark { display: inline; }
+.company-status-table .btn { border: 1px solid #ced4da; color: #495057; background: #fff; }
+.company-status-table .btn:hover { background: #f1f3f5; }
+.company-status-table .cs-btn-not_requested.active { background: #6c757d; border-color: #6c757d; color: #fff; }
+.company-status-table .cs-btn-requested.active { background: #0d6efd; border-color: #0d6efd; color: #fff; }
+.company-status-table .cs-btn-declined.active { background: #dc3545; border-color: #dc3545; color: #fff; }
+.declined-block { margin-top: .75rem; padding: .5rem .75rem; border-left: 4px solid #dc3545; background: #fdf1f1; border-radius: 4px; }
+@media (max-width: 575.98px) {
+    .company-status-table .btn-group { display: flex; flex-wrap: wrap; justify-content: flex-end; }
+    .company-status-table .btn { font-size: .72rem; padding: .15rem .35rem; }
 }
 </style>
 {% endblock %}
@@ -3058,7 +3146,8 @@ function changeStatus(summaryId) {
                 location.reload();
             }, 1500);
         } else {
-            showErrorMessage('Ошибка: ' + (data.error || 'Неизвестная ошибка'));
+            showErrorMessage('Ошибка: ' + (data.error || 'Неизвестная ошибка'), data.missing_companies ? 9000 : 3000);
+            showCompanyStatusesIfMissing(data);
         }
     })
     .catch(error => {
@@ -3128,7 +3217,8 @@ function quickStatusChange(summaryId, newStatus) {
                     location.reload();
                 }, 1000);
             } else {
-                showErrorMessage('Ошибка: ' + data.error);
+                showErrorMessage('Ошибка: ' + data.error, data.missing_companies ? 9000 : 3000);
+                showCompanyStatusesIfMissing(data);
             }
         })
         .catch(error => {
@@ -3477,5 +3567,112 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Инициализация при загрузке страницы
 // Дублирующийся вызов удален - функция уже вызывается выше в строке 1827
+// Статусы страховых компаний (analytics_redesign_2026_09, этап 2)
+function showCompanyStatusesIfMissing(data) {
+    const card = document.getElementById('company-statuses');
+    if (!card || !data || !data.missing_companies) {
+        return;
+    }
+    card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+(function () {
+    const card = document.getElementById('company-statuses');
+    if (!card) {
+        return;
+    }
+    const csrf = () => document.querySelector('[name=csrfmiddlewaretoken]').value;
+    const labels = { offered: 'Предложения', requested: 'Запрошены', declined: 'Отказы', not_requested: 'Не запрашивались' };
+
+    function renderCounts(counts) {
+        let html = ['offered', 'requested', 'declined', 'not_requested']
+            .map(key => labels[key] + ': ' + counts[key]).join(' · ');
+        if (counts.undefined) {
+            html += ' · <span class="text-danger fw-semibold">Без статуса: ' + counts.undefined + '</span>';
+        }
+        document.getElementById('company-status-counts').innerHTML = html;
+        card.querySelector('.js-cs-remaining').classList.toggle('d-none', !counts.undefined);
+    }
+
+    function renderRow(companyId, status) {
+        const row = card.querySelector('tr[data-company-id="' + companyId + '"]');
+        if (!row) {
+            return;
+        }
+        row.dataset.status = status;
+        row.classList.toggle('cs-undefined', status === 'undefined');
+        row.querySelectorAll('.js-cs-btn').forEach(btn => {
+            const active = btn.dataset.status === status;
+            btn.classList.toggle('active', active);
+            btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+        });
+    }
+
+    function renderPayload(data) {
+        renderCounts(data.counts);
+        const missing = data.missing || [];
+        const alert = document.getElementById('company-status-alert');
+        if (alert) {
+            alert.classList.toggle('d-none', !missing.length);
+        }
+        const blocked = document.getElementById('status-blocked-alert');
+        if (blocked) {
+            blocked.classList.toggle('d-none', !missing.length);
+            document.getElementById('status-blocked-count').textContent = missing.length;
+        }
+        const declined = data.declined || [];
+        document.getElementById('declined-companies-block').classList.toggle('d-none', !declined.length);
+        document.getElementById('declined-companies-list').textContent = declined.join(', ');
+    }
+
+    function post(url, fields) {
+        const body = new FormData();
+        Object.keys(fields).forEach(key => body.append(key, fields[key]));
+        body.append('csrfmiddlewaretoken', csrf());
+        return fetch(url, { method: 'POST', body: body, headers: { 'X-CSRFToken': csrf() } })
+            .then(response => response.json().catch(() => ({ success: false, error: 'Ошибка сервера' })));
+    }
+
+    card.addEventListener('click', function (event) {
+        const btn = event.target.closest('.js-cs-btn');
+        if (btn) {
+            const row = btn.closest('tr');
+            if (btn.classList.contains('active')) {
+                return;
+            }
+            const previous = row.dataset.status;
+            renderRow(row.dataset.companyId, btn.dataset.status);  // сразу, без ожидания сервера
+            post(card.dataset.setUrl, { company_id: row.dataset.companyId, status: btn.dataset.status })
+                .then(data => {
+                    if (data.success) {
+                        renderRow(data.company_id, data.status);
+                        renderPayload(data);
+                    } else {
+                        renderRow(row.dataset.companyId, previous);
+                        showErrorMessage(data.error || 'Не удалось изменить статус', 6000);
+                    }
+                })
+                .catch(() => {
+                    renderRow(row.dataset.companyId, previous);
+                    showErrorMessage('Не удалось изменить статус — проверьте соединение', 6000);
+                });
+            return;
+        }
+        const remaining = event.target.closest('.js-cs-remaining');
+        if (remaining) {
+            remaining.disabled = true;
+            post(card.dataset.remainingUrl, { status: remaining.dataset.status })
+                .then(data => {
+                    if (data.success) {
+                        data.rows.forEach(item => renderRow(item.company_id, item.status));
+                        renderPayload(data);
+                    } else {
+                        showErrorMessage(data.error || 'Не удалось изменить статусы', 6000);
+                    }
+                })
+                .finally(() => { remaining.disabled = false; });
+        }
+    });
+})();
 </script>
 {% endblock %}

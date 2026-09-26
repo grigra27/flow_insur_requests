@@ -1,0 +1,1 @@
+Предложения: {{ counts.offered }} · Запрошены: {{ counts.requested }} · Отказы: {{ counts.declined }} · Не запрашивались: {{ counts.not_requested }}{% if counts.undefined %} · <span class="text-danger fw-semibold">Без статуса: {{ counts.undefined }}</span>{% endif %}

@@ -3,7 +3,10 @@ from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.http import HttpResponseRedirect
 from django.urls import reverse
-from .models import InsuranceCompany, InsuranceSummary, InsuranceOffer, StatusEvent, SummaryTemplate, UserDailyActivity
+from .models import (
+    InsuranceCompany, InsuranceSummary, InsuranceOffer, StatusEvent, SummaryCompanyStatus, SummaryTemplate,
+    UserDailyActivity,
+)
 
 
 @admin.register(InsuranceCompany)
@@ -118,8 +121,17 @@ class InsuranceCompanyAdmin(admin.ModelAdmin):
         return form
 
 
+class SummaryCompanyStatusInline(admin.TabularInline):
+    model = SummaryCompanyStatus
+    extra = 0
+    fields = ['company', 'status', 'status_changed_at', 'changed_by', 'restored']
+    readonly_fields = ['status_changed_at', 'changed_by', 'restored']
+    verbose_name_plural = 'Статусы страховых компаний'
+
+
 @admin.register(InsuranceSummary)
 class InsuranceSummaryAdmin(admin.ModelAdmin):
+    inlines = [SummaryCompanyStatusInline]
     list_display = ['id', 'request', 'status', 'selected_company', 'selected_franchise_variant', 'total_offers', 'created_at']
     list_filter = ['status', 'created_at']
     search_fields = ['request__client_name', 'request__inn']
@@ -127,7 +139,7 @@ class InsuranceSummaryAdmin(admin.ModelAdmin):
     
     fieldsets = (
         ('Основная информация', {
-            'fields': ('request', 'status', 'selected_company', 'selected_franchise_variant')
+            'fields': ('request', 'status', 'selected_company', 'selected_franchise_variant', 'company_statuses_required')
         }),
         ('Резюме по сделке', {
             'fields': ('deal_summary_note',)
@@ -220,3 +232,12 @@ class UserDailyActivityAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+@admin.register(SummaryCompanyStatus)
+class SummaryCompanyStatusAdmin(admin.ModelAdmin):
+    list_display = ['summary', 'company', 'status', 'status_changed_at', 'changed_by', 'restored']
+    list_filter = ['status', 'company', 'restored']
+    search_fields = ['summary__request__client_name', 'summary__request__dfa_number']
+    raw_id_fields = ['summary']
+    readonly_fields = ['status_changed_at', 'changed_by']
