@@ -163,13 +163,19 @@ class AutostartRegressionTests(SimpleTestCase):
 class PremiumFrequencyRegressionTests(SimpleTestCase):
     """Порядок уплаты и рассрочка (§4.5: 7 + 7 правок, 1 скрытая ошибка; задача 6.3)."""
 
+    def test_annual_mark_next_to_option(self):
+        wb = build_casco_application()
+        wb.active['F34'] = MARK  # «ежегодно» — самая частая раскладка в корпусе (101 из 120)
+        data = parse(wb)
+        self.assertEqual(data['premium_frequency'], 'annual')
+        self.assertFalse(data['has_installment'])
+
     def test_quarterly_mark_next_to_option(self):
         data = parse(build_casco_application(quarterly_mark=MARK))
         self.assertEqual(data['premium_frequency'], 'quarterly')
         self.assertTrue(data['has_installment'])
 
-    @unittest.expectedFailure  # 6.3: «Х» под «Единовременно» читается как «ежеквартально»
-    def test_mark_under_single_payment_header(self):
+    def test_mark_under_single_payment_header(self):  # исправлено в 6.3
         data = parse(build_casco_application(single_payment_mark=MARK))
         self.assertEqual(data['premium_frequency'], 'single')
         self.assertFalse(data['has_installment'])

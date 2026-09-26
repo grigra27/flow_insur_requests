@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 #   2.1.0 — этап 6 плана analytics_redesign_2026_09 (исправления по ручным правкам):
 #           6.1 срок страхования по отметке «Х» (раньше всегда «на весь срок лизинга»);
 #           6.2 автозапуск: значение «автозапуск» из списка = есть (раньше понималось только «да»);
+#           6.3 порядок уплаты: «Х» под «Единовременно» = единовременно (раньше читалось как «ежеквартально»);
 PARSER_V2_VERSION = "2.1.0"
 MISSING_CLIENT = "Клиент не указан"
 MISSING_DFA = "Номер ДФА не указан"
@@ -2078,6 +2079,20 @@ class ExcelRequestParserV2:
         if anchor is None:
             return None, ""
 
+        # «Х» в ячейке под заголовком «Единовременно» (D под D31) — единовременная оплата.
+        # До 2.1.0 эта отметка попадала в строку «ежеквартально» (E32) и читалась как рассрочка.
+        for header_row in (anchor.row, anchor.row + 1):
+            single_header = next(
+                (cell for cell in rows.get(header_row, []) if "единовременно" in cell.normalized), None,
+            )
+            if single_header is not None:
+                below = next(
+                    (cell for cell in rows.get(single_header.row + 1, []) if cell.col == single_header.col), None,
+                )
+                if self._is_mark(below):
+                    return "single", below.coordinate
+                break
+
         # The anchor lives in row N; option labels sit in rows N..N+4.
         for row_offset in range(0, 5):
             row_cells = rows.get(anchor.row + row_offset, [])
@@ -2091,7 +2106,8 @@ class ExcelRequestParserV2:
             if label_value is None:
                 continue
             marked = False
-            for col in (4, 5, 6, 7):
+            # Отметка варианта — только справа от его названия (слева стоит отметка «Единовременно»).
+            for col in (label_cell.col + 1, label_cell.col + 2):
                 cell = row_by_col.get(col)
                 if cell is None or cell is label_cell:
                     continue
