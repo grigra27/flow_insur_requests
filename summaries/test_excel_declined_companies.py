@@ -65,7 +65,10 @@ class DeclinedCompaniesExcelTests(TestCase):
         self.offer('Альфа', 1)
         self.decline('Зетта')
 
-        ws = self.sheet()
+        for client in (False, True):
+            self._check_full_template(self.sheet(client))
+
+    def _check_full_template(self, ws):
         rows = self.rows(ws)
         self.assertEqual((rows[10]['A'], rows[13]['A']), ('Абсолют', 'Альфа'))  # 11 — 2-й год, 12 — разделитель
         self.assertEqual(rows[14], {})
