@@ -99,6 +99,26 @@
         font-variant-numeric: tabular-nums;
     }
     .emp-days { max-height: 420px; overflow-y: auto; }
+    .emp-help {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 16px;
+        height: 16px;
+        margin-left: 0.3rem;
+        padding: 0;
+        border: 1px solid #94a3b8;
+        border-radius: 50%;
+        background: transparent;
+        color: #64748b;
+        font-size: 0.68rem;
+        font-weight: 700;
+        line-height: 1;
+        vertical-align: middle;
+        cursor: pointer;
+    }
+    .emp-help:hover, .emp-help:focus { border-color: #2a78d6; color: #2a78d6; outline: none; text-decoration: none; }
+    .popover { max-width: 340px; font-size: 0.85rem; }
     .det-list { max-height: 360px; overflow-y: auto; }
     .det-timeline-item {
         padding: 0.5rem 0.75rem;
@@ -265,7 +285,7 @@
                 {% if day_rows %}
                 <div class="table-responsive emp-days">
                     <table class="table table-sm mb-0 emp-table">
-                        <thead><tr><th>День</th><th class="num">С · до</th><th class="num">Активно</th><th class="num">Входы</th><th class="num">Просмотры · формы</th><th class="num">Изменения</th><th>Где работал</th></tr></thead>
+                        <thead><tr><th>День<a tabindex="0" role="button" class="emp-help" data-bs-toggle="popover" data-bs-trigger="focus" data-bs-placement="top" title="День" data-bs-content="Календарный день по московскому времени. Строка собирается автоматически каждую ночь в 04:00 из журналов действий за прошедший день (дневной агрегат активности)." aria-label="Как считается «День»">?</a></th><th class="num">С · до<a tabindex="0" role="button" class="emp-help" data-bs-toggle="popover" data-bs-trigger="focus" data-bs-placement="top" title="С · до" data-bs-content="Первое и последнее действие сотрудника в системе за день (МСК): вход, открытие страницы, отправка формы или изменение данных. Это не время прихода и ухода с работы, а первое и последнее действие именно в системе." aria-label="Как считается «С · до»">?</a></th><th class="num">Активно<a tabindex="0" role="button" class="emp-help" data-bs-toggle="popover" data-bs-trigger="focus" data-bs-placement="top" title="Активно" data-bs-content="Время в системе. Все действия дня выстраиваются по времени и объединяются в сессии: если между соседними действиями не больше 30 минут, это одна сессия. Длительность сессии — от первого до последнего действия, но не меньше 5 минут. Работа вне системы (почта, Excel, звонки) сюда не попадает." aria-label="Как считается «Активно»">?</a></th><th class="num">Входы<a tabindex="0" role="button" class="emp-help" data-bs-toggle="popover" data-bs-trigger="focus" data-bs-placement="top" title="Входы" data-bs-content="Сколько раз сотрудник вошёл в систему через страницу входа — по журналу входов. Систему автоматически закрывает после часа без действий и при закрытии браузера, поэтому каждый рабочий день начинается со входа, а повторные входы за день обычно означают перерыв дольше часа." aria-label="Как считается «Входы»">?</a></th><th class="num">Просмотры · формы<a tabindex="0" role="button" class="emp-help" data-bs-toggle="popover" data-bs-trigger="focus" data-bs-placement="top" title="Просмотры · формы" data-bs-content="Просмотры — открытые страницы (GET-запросы). Формы — отправленные действия: сохранение, загрузка файла, смена статуса, добавление предложения (POST-запросы). Журнал страниц хранится одни сутки и сворачивается сюда каждую ночь, поэтому данные есть с 25.09.2026; для более ранних дней — «нет данных»." aria-label="Как считается «Просмотры · формы»">?</a></th><th class="num">Изменения<a tabindex="0" role="button" class="emp-help" data-bs-toggle="popover" data-bs-trigger="focus" data-bs-placement="top" title="Изменения" data-bs-content="Сколько записей сотрудник создал, изменил или удалил: заявки, своды, предложения, вложения — по журналу изменений. Служебное обновление учётной записи при входе не считается." aria-label="Как считается «Изменения»">?</a></th><th>Где работал<a tabindex="0" role="button" class="emp-help" data-bs-toggle="popover" data-bs-trigger="focus" data-bs-placement="top" title="Где работал" data-bs-content="До трёх разделов, где за день было больше всего запросов: Загрузка заявок, Заявки, Своды, Сделки, Аналитика, Админка. Число — сколько запросов в разделе (просмотры и формы вместе). Есть только для дней с данными о просмотрах." aria-label="Как считается «Где работал»">?</a></th></tr></thead>
                         <tbody>
                             {% for day in day_rows %}
                             <tr>
@@ -460,6 +480,12 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function () {
+        // Подсказки «?» у столбцов таблицы «По дням»: открываются по клику, закрываются кликом в любом месте.
+        if (window.bootstrap && bootstrap.Popover) {
+            document.querySelectorAll('.emp-help[data-bs-toggle="popover"]').forEach(function (button) {
+                new bootstrap.Popover(button, { container: 'body' });
+            });
+        }
         const heatmapEl = document.getElementById('emp-heatmap-data');
         if (heatmapEl) {
             const grid = JSON.parse(heatmapEl.textContent).grid;

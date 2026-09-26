@@ -295,6 +295,14 @@ class DossierAndExportTests(EmployeesTestBase):
         for removed in ('Радар', 'Quality', 'Любимые СК'):
             self.assertNotContains(response, removed)
 
+    def test_daily_table_has_column_help(self):
+        response = self.client.get(reverse('summaries:analytics_manager_detail', args=[self.anna.pk]))
+
+        self.assertContains(response, 'class="emp-help"', count=7)
+        for column in ('День', 'С · до', 'Активно', 'Входы', 'Просмотры · формы', 'Изменения', 'Где работал'):
+            self.assertContains(response, f'aria-label="Как считается «{column}»"')
+        self.assertContains(response, 'не больше 30 минут, это одна сессия')
+
     def test_dossier_for_reader_and_unknown_user(self):
         reader = self.client.get(reverse('summaries:analytics_manager_detail', args=[self.reader.pk]))
         self.assertEqual(reader.status_code, 200)
