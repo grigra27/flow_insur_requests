@@ -30,6 +30,8 @@ logger = logging.getLogger(__name__)
 #           6.2 автозапуск: значение «автозапуск» из списка = есть (раньше понималось только «да»);
 #           6.3 порядок уплаты: «Х» под «Единовременно» = единовременно (раньше читалось как «ежеквартально»);
 #           6.4 дата рождения с двузначным годом не бывает в будущем («61» → 1961, раньше 2061);
+#           6.5 номер ДФА: не год и не дата; «ПРЕДВАРИТЕЛЬНАЯ» как есть; суффикс из имени файла;
+#               филиал по коду в номере; сверка вида с типом; подсказка полного номера;
 PARSER_V2_VERSION = "2.1.0"
 MISSING_CLIENT = "Клиент не указан"
 MISSING_DFA = "Номер ДФА не указан"
@@ -491,6 +493,79 @@ def parse_birth_date_value(value: Any, today: Optional[date] = None) -> Optional
     return parsed
 
 
+# --- Номер ДФА: суффикс «вид лизинга — филиал» (задача 6.5, §4.6 плана) -----
+#
+# Полный номер: «ТС-20842-ГА-МН» — префикс, номер, [номер допсоглашения], вид лизинга, филиал.
+# Коды подтверждены владельцем 2026-09-25 и сверены с базой (код филиала ↔ филиал без исключений).
+DFA_KIND_CODES = {
+    "ЛА": "легковой автотранспорт",
+    "ГА": "грузовой автотранспорт",
+    "ЛТ": "спецтехника",
+    "ЛО": "оборудование, имущество",
+}
+DFA_BRANCH_CODES = {
+    "АР": "Архангельск",
+    "ВН": "Великий Новгород",
+    "КЗ": "Казань",
+    "КР": "Краснодар",
+    "СТ": "Краснодар",  # Ставропольское подразделение Краснодарского филиала
+    "МН": "Мурманск",
+    "МСК": "Москва",
+    "МС": "Москва",
+    "НН": "Нижний Новгород",
+    "ПС": "Псков",
+    "ЧЛ": "Челябинск",
+}
+# Код для подсказки полного номера (СПб в номерах кода не имеет).
+BRANCH_DFA_CODE = {
+    "Архангельск": "АР", "Великий Новгород": "ВН", "Казань": "КЗ", "Краснодар": "КР", "Мурманск": "МН",
+    "Москва": "МСК", "Нижний Новгород": "НН", "Псков": "ПС", "Челябинск": "ЧЛ",
+}
+# Какой тип страхования ожидается для вида лизинга (ЛО бывает и спецтехникой — оборудование).
+DFA_KIND_INSURANCE_TYPES = {
+    "ЛА": {"КАСКО"},
+    "ГА": {"КАСКО"},
+    "ЛТ": {"страхование спецтехники"},
+    "ЛО": {"страхование имущества", "страхование спецтехники", "другое"},
+}
+DFA_SUFFIX_RE = re.compile(r"-(ЛА|ГА|ЛТ|ЛО)-(МСК|[А-Я]{2})(?![А-ЯЁа-яё])")
+# КАСКО категории B, который всё равно «грузовой»: лёгкий коммерческий транспорт.
+_COMMERCIAL_VEHICLE_WORDS = (
+    "газел", "gazelle", "соболь", "уаз", "фургон", "бортов", "изотерм", "самосвал", "тягач", "грузов",
+    "цистерн", "автобус", "эвакуатор", "манипулятор", "рефрижератор", "шасси", "полуприцеп", "прицеп",
+)
+
+
+def parse_dfa_suffix(dfa_number: str) -> Tuple[Optional[str], Optional[str]]:
+    """(код вида, код филиала) из полного номера ДФА или (None, None)."""
+    match = DFA_SUFFIX_RE.search(dfa_number or "")
+    if not match:
+        return None, None
+    return match.group(1), match.group(2)
+
+
+def suggest_dfa_kind(insurance_type: str, insured_objects: List[Dict[str, Any]]) -> Optional[str]:
+    """Вид лизинга для подсказки полного номера. None — если однозначно не определить."""
+    if insurance_type == "страхование спецтехники":
+        return "ЛТ"
+    if insurance_type == "страхование имущества":
+        return "ЛО"
+    if insurance_type != "КАСКО" or not insured_objects:
+        return None
+    first = insured_objects[0]
+    category = str(first.get("vehicle_category") or first.get("equipment_type") or "").upper()
+    if any(letter in category for letter in ("C", "D", "E", "С", "Е")) and "B" not in category:
+        return "ГА"
+    text = " ".join(
+        str(first.get(key) or "") for key in ("description", "object_description", "brand", "model")
+    ).lower()
+    if any(word in text for word in _COMMERCIAL_VEHICLE_WORDS) or re.search(r"\bгаз\b|на базе", text):
+        return "ГА"
+    if "B" in category or "В" in category:
+        return "ЛА"
+    return None
+
+
 def normalize_insured_party(value: Any) -> Optional[str]:
     """Map a raw cell value to the lease.insured_party enum.
 
@@ -630,10 +705,32 @@ class ExcelRequestParserV2:
             data["branch"] = map_branch_name(branch_raw)
             source_map["branch"] = source
 
-        dfa_number, source = self._extract_dfa_number(cells, original_filename)
+        dfa_number, source, dfa_preliminary = self._extract_dfa_number(cells, original_filename, rows)
         if dfa_number:
             data["dfa_number"] = dfa_number
             source_map["dfa_number"] = source
+        if dfa_preliminary:
+            warnings.append({
+                "level": "info",
+                "field": "dfa_number",
+                "message": "Номер ДФА ещё не присвоен (предварительная заявка).",
+                "source": source,
+            })
+
+        # Филиал по коду в номере ДФА — если в бланке филиала нет (бланки СПб и др.).
+        _, dfa_branch_code = parse_dfa_suffix(data.get("dfa_number", ""))
+        dfa_branch = DFA_BRANCH_CODES.get(dfa_branch_code or "")
+        if dfa_branch and not data.get("branch"):
+            data["branch"] = dfa_branch
+            source_map["branch"] = f"код «{dfa_branch_code}» в номере ДФА"
+        elif dfa_branch and data.get("branch") and data["branch"] != dfa_branch:
+            warnings.append({
+                "level": "check",
+                "field": "branch",
+                "message": f"Филиал «{data['branch']}» не совпадает с кодом «{dfa_branch_code}» в номере ДФА "
+                           f"({dfa_branch}) — проверьте.",
+                "source": source_map.get("branch", ""),
+            })
 
         data["insurance_type"], insurance_type_source = self._extract_insurance_type(cells, rows)
         if insurance_type_source:
@@ -801,7 +898,10 @@ class ExcelRequestParserV2:
         # are not considered installments by the insurers we mail.
         data["has_installment"] = data.get("premium_frequency") in ("quarterly", "biannual")
 
+        dfa_suggestion = self._dfa_checks_and_suggestion(data, insured_objects, warnings)
+
         parser_payload = {
+            "dfa_suggestion": dfa_suggestion,
             "insured_objects": insured_objects,
             "object_grouping": object_grouping,
             "raw_branch": branch_raw,
@@ -1013,23 +1113,107 @@ class ExcelRequestParserV2:
                 return c4.value, c4.coordinate
         return "", ""
 
-    def _extract_dfa_number(self, cells: List[GridCell], original_filename: str) -> Tuple[str, str]:
-        # Match: optional 1–3 letter prefix («ОБ-», «ОБ_», …), the 4–6 digit
-        # base number, and zero or more short uppercase region suffixes
-        # («-ЛО», «-КР», «_СПб»). Lookahead `(?![а-яёa-z])` keeps the regex
-        # from greedily eating long lowercase words like «Невский» that may
-        # follow the number in filenames.
-        pattern = re.compile(
-            r"(?:[A-ZА-ЯЁ]{1,3}[-_])?\d{4,6}(?:[-_/][A-ZА-ЯЁ0-9]{1,5}(?![а-яёa-z]))*"
+    _DFA_PATTERN = re.compile(
+        r"(?:[A-ZА-ЯЁ]{1,3}[-_])?\d{4,6}(?:[-_/][A-ZА-ЯЁ0-9]{1,5}(?![а-яёa-z]))*"
+    )
+    _BARE_YEAR_RE = re.compile(r"^(19|20)\d{2}$")
+    _DATE_CELL_RE = re.compile(r"^\d{1,2}[./]\d{1,2}[./]\d{2,4}$|^\d{4}-\d{2}-\d{2}")
+
+    def _dfa_match(self, text: str) -> Optional[str]:
+        """Номер ДФА из текста — не год и не часть даты («08.07.2026», «2026-06-09»)."""
+        text = clean_value(text)
+        if not text or self._DATE_CELL_RE.match(text):
+            return None
+        for match in self._DFA_PATTERN.finditer(text):
+            value = match.group(0)
+            if self._BARE_YEAR_RE.match(value):
+                continue
+            return value
+        return None
+
+    def _extract_dfa_number(
+        self, cells: List[GridCell], original_filename: str, rows: Optional[Dict[int, List[GridCell]]] = None,
+    ) -> Tuple[str, str, bool]:
+        """Номер ДФА: (значение, источник, «предварительная заявка»).
+
+        Match: optional 1–3 letter prefix («ОБ-», «ОБ_», …), the 4–6 digit
+        base number, and zero or more short uppercase region suffixes
+        («-ЛО», «-КР», «_СПб»). Lookahead `(?![а-яёa-z])` keeps the regex
+        from greedily eating long lowercase words like «Невский» that may
+        follow the number in filenames.
+
+        С 2.1.0 (задача 6.5): сначала смотрим ячейку справа от «Заявка на страхование №»;
+        слово вместо номера («ПРЕДВАРИТЕЛЬНАЯ») берём как есть; одиночный год и даты
+        номером не считаем (раньше из даты заявки получалось «2026»); если в ячейке номер
+        без суффикса, а в имени файла тот же номер с суффиксом — дополняем из имени файла.
+        """
+        rows = rows or self._rows(cells)
+        value, source, preliminary = "", "", False
+        header = next(
+            (cell for cell in cells if cell.row <= 5 and "заявка на" in cell.normalized and " no" in f" {cell.normalized}"),
+            None,
         )
-        for cell in cells:
-            match = pattern.search(cell.value)
-            if match:
-                return match.group(0), cell.coordinate
-        filename_match = pattern.search(original_filename or "")
-        if filename_match:
-            return filename_match.group(0), "filename"
-        return "", ""
+        if header is not None:
+            for cell in sorted(rows.get(header.row, []), key=lambda item: item.col):
+                if cell.col <= header.col or not cell.normalized or self._DATE_CELL_RE.match(clean_value(cell.value)):
+                    continue
+                number = self._dfa_match(cell.value)
+                if number:
+                    value, source = number, cell.coordinate
+                elif not re.search(r"\d", cell.value):
+                    value, source, preliminary = clean_value(cell.value), cell.coordinate, True
+                break
+        if not value:
+            for cell in cells:
+                number = self._dfa_match(cell.value)
+                if number:
+                    value, source = number, cell.coordinate
+                    break
+        filename_number = self._dfa_match(original_filename or "")
+        if not value and filename_number:
+            return filename_number, "filename", False
+        if value and not preliminary and filename_number:
+            base = re.search(r"\d{4,6}", value)
+            if base and base.group(0) in filename_number and parse_dfa_suffix(filename_number)[0] \
+                    and not parse_dfa_suffix(value)[0]:
+                prefix = value[: base.start()]
+                suffix = filename_number[filename_number.index(base.group(0)) + len(base.group(0)):]
+                return f"{prefix}{base.group(0)}{suffix}", f"{source} + имя файла", False
+        return value, source, preliminary
+
+    def _dfa_checks_and_suggestion(
+        self, data: Dict[str, Any], insured_objects: List[Dict[str, Any]], warnings: List[Dict[str, str]],
+    ) -> str:
+        """Сверка вида лизинга в номере с типом страхования и подсказка полного номера (6.5)."""
+        dfa_number = data.get("dfa_number") or ""
+        kind_code, _ = parse_dfa_suffix(dfa_number)
+        insurance_type = data.get("insurance_type") or ""
+        if kind_code:
+            expected = DFA_KIND_INSURANCE_TYPES.get(kind_code, set())
+            if insurance_type and insurance_type not in expected:
+                warnings.append({
+                    "level": "check",
+                    "field": "insurance_type",
+                    "message": f"В номере ДФА вид «{kind_code}» ({DFA_KIND_CODES[kind_code]}), "
+                               f"а тип страхования — «{insurance_type}». Проверьте тип или номер.",
+                    "source": "",
+                })
+            return ""
+        if not re.search(r"\d{4,6}", dfa_number):
+            return ""
+        suggested_kind = suggest_dfa_kind(insurance_type, insured_objects)
+        branch_code = BRANCH_DFA_CODE.get(data.get("branch") or "")
+        if not suggested_kind or not branch_code:
+            return ""
+        suggestion = f"{dfa_number}-{suggested_kind}-{branch_code}"
+        warnings.append({
+            "level": "info",
+            "field": "dfa_number",
+            "message": f"В номере ДФА нет суффикса вида и филиала. Предлагаемый полный номер: {suggestion} "
+                       f"({DFA_KIND_CODES[suggested_kind]}) — подставьте, если верно.",
+            "source": "",
+        })
+        return suggestion
 
     def _extract_insurance_type(self, cells: List[GridCell], rows: Dict[int, List[GridCell]]) -> Tuple[str, str]:
         """Extract insurance type with priority for X-marked option rows.

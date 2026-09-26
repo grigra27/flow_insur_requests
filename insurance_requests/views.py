@@ -474,6 +474,7 @@ def _render_parser_v2_preview(request, draft_id, draft, preview_form=None, objec
         'draft_id': draft_id,
         'parse_result': parse_result,
         'insured_objects': insured_objects,
+        'dfa_suggestion': payload.get('dfa_suggestion') or '',
         'batch_size': batch_size,
         'is_batch': batch_size >= 2,
         'has_objects': batch_size >= 1,

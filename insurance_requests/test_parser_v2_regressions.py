@@ -29,7 +29,7 @@ MARK = 'Х'  # кириллическая «Х», как в бланках
 
 def build_casco_application(
     *,
-    dfa='ТС-20842',
+    dfa='ТС-20842',  # None — ячейка номера пустая
     period_one_year_mark=None,
     period_whole_term_value=MARK,
     autostart_value='',
@@ -43,7 +43,8 @@ def build_casco_application(
     wb = Workbook()
     sheet = wb.active
     sheet['B2'] = 'Заявка на страхование №'
-    sheet['H2'] = dfa
+    if dfa is not None:
+        sheet['H2'] = dfa
     sheet['M2'] = '26.08.2026'
     sheet['B5'] = 'Менеджер'
     sheet['C5'] = 'Тестов Т.Т. (менеджер УКО)'
@@ -208,11 +209,47 @@ class DfaNumberRegressionTests(SimpleTestCase):
     def test_full_number_with_suffix(self):
         self.assertEqual(parse(build_casco_application(dfa='ТС-20842-ГА-МН'))['dfa_number'], 'ТС-20842-ГА-МН')
 
-    @unittest.expectedFailure  # 6.5: вместо «ПРЕДВАРИТЕЛЬНАЯ» берётся год из даты заявки — «2026»
-    def test_preliminary_application_is_not_a_year(self):
-        data = parse(build_casco_application(dfa='ПРЕДВАРИТЕЛЬНАЯ'))
-        self.assertNotEqual(data['dfa_number'], '2026')
-        self.assertEqual(data['dfa_number'].lower(), 'предварительная')
+    def test_preliminary_application_is_not_a_year(self):  # исправлено в 6.5
+        result = parse_result(build_casco_application(dfa='ПРЕДВАРИТЕЛЬНАЯ'))
+        self.assertEqual(result.data['dfa_number'], 'ПРЕДВАРИТЕЛЬНАЯ')
+        self.assertIn('Номер ДФА ещё не присвоен', ' '.join(w['message'] for w in result.warnings))
+
+    def test_iso_date_is_not_a_number(self):
+        # Реальный случай: «2026-06-09» из даты заявки становился номером ДФА.
+        wb = build_casco_application(dfa=None)
+        wb.active['M2'] = '2026-06-09 00:00:00'
+        self.assertNotIn('2026', parse(wb, filename='заявка б-н от 09.06.26 - TANK 500.xls')['dfa_number'])
+
+    def test_suffix_completed_from_filename(self):
+        data = parse(build_casco_application(dfa='ТС-20784'), filename='заявка 20784-ЛТ-КР - Фронт. погрузчик.xls')
+        self.assertEqual(data['dfa_number'], 'ТС-20784-ЛТ-КР')
+
+    def test_branch_from_dfa_code_when_form_has_none(self):
+        data = parse(build_casco_application(dfa='ТС-20842-ГА-МН'))
+        self.assertEqual(data['branch'], 'Мурманск')
+
+    def test_kind_code_mismatch_with_insurance_type_warns(self):
+        # КАСКО в бланке, а в номере «ЛТ» (спецтехника).
+        result = parse_result(build_casco_application(dfa='ТС-20842-ЛТ-МН'))
+        checks = [w for w in result.warnings if w['level'] == 'check']
+        self.assertTrue(any('вид «ЛТ»' in w['message'] for w in checks))
+
+    def test_kind_suggestion_for_special_vehicle_on_gaz_chassis(self):
+        from .parsers.excel_v2.parser import suggest_dfa_kind
+
+        objects = [{'description': 'спец. для нанесения дорожной разметки Шмель 11А (на базе ГАЗ 3302)',
+                    'vehicle_category': 'B'}]
+        self.assertEqual(suggest_dfa_kind('КАСКО', objects), 'ГА')
+        self.assertEqual(suggest_dfa_kind('КАСКО', [{'description': 'HAVAL Jolion', 'vehicle_category': 'B'}]), 'ЛА')
+        self.assertEqual(suggest_dfa_kind('страхование спецтехники', []), 'ЛТ')
+
+    def test_full_number_suggested_but_not_applied(self):
+        wb = build_casco_application(dfa='ТС-20842', object_description='1 фургон изотермический 278856 2024 новое 2800000 руб')
+        wb.active['B3'] = 'Филиал'
+        wb.active['C3'] = 'Мурманский филиал'
+        result = parse_result(wb, filename='Заявка 20842 - фургон изотермический.xls')
+        self.assertEqual(result.data['dfa_number'], 'ТС-20842')  # молча не подставляем
+        self.assertEqual(result.data['parser_v2_payload']['dfa_suggestion'], 'ТС-20842-ГА-МН')
 
 
 class ParserCorpusCheckCommandTests(TestCase):

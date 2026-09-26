@@ -82,6 +82,16 @@
                                 <label class="form-label fw-semibold" for="{{ form.dfa_number.id_for_label }}">{{ form.dfa_number.label }}</label>
                                 {{ form.dfa_number }}
                                 {% for error in form.dfa_number.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                                {% if dfa_suggestion %}
+                                <div class="small mt-1 js-dfa-suggestion">
+                                    Предлагаемый полный номер: <strong>{{ dfa_suggestion }}</strong>
+                                    <button type="button" class="btn btn-sm btn-outline-primary py-0 ms-1"
+                                            data-target="{{ form.dfa_number.id_for_label }}" data-value="{{ dfa_suggestion }}"
+                                            onclick="document.getElementById(this.dataset.target).value = this.dataset.value; this.closest('.js-dfa-suggestion').remove();">
+                                        Подставить
+                                    </button>
+                                </div>
+                                {% endif %}
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label fw-semibold" for="{{ form.branch.id_for_label }}">{{ form.branch.label }}</label>
