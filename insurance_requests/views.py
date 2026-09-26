@@ -49,6 +49,7 @@ from .security import (
 )
 from .parsers.excel_v2 import ExcelRequestParserV2
 from .plausibility import check_values as check_plausibility
+from .branch_hint import apply_branch_hint
 from core.excel_utils import ExcelReader
 from core.templates import EmailTemplateGenerator
 
@@ -1156,6 +1157,8 @@ def upload_excel_v2(request):
                         os.unlink(temp_copy_path)
                     except Exception as cleanup_error:
                         logger.warning("Could not delete Parser V2 temp copy %s: %s", temp_copy_path, cleanup_error)
+
+            apply_branch_hint(parse_result)  # филиал по истории менеджера, если в бланке нет (6.7)
 
             draft_id = uuid.uuid4().hex
             draft = {
