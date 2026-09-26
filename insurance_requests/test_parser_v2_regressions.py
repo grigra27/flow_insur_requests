@@ -188,10 +188,15 @@ class BirthDateRegressionTests(SimpleTestCase):
         data = parse(build_casco_application(applicant_type='individual', birth_date_text='20.02.1961'))
         self.assertEqual(data.get('birth_date'), date(1961, 2, 20).isoformat())
 
-    @unittest.expectedFailure  # 6.4: «20.02.61» распознаётся как 2061 год
-    def test_two_digit_year_is_not_in_future(self):
+    def test_two_digit_year_is_not_in_future(self):  # исправлено в 6.4
         data = parse(build_casco_application(applicant_type='individual', birth_date_text='20.02.61'))
         self.assertEqual(data.get('birth_date'), date(1961, 2, 20).isoformat())
+
+    def test_two_digit_year_of_recent_birth_stays_in_2000s(self):
+        from .parsers.excel_v2.parser import parse_birth_date_value
+
+        self.assertEqual(parse_birth_date_value('05.03.01', today=date(2026, 9, 26)), date(2001, 3, 5))
+        self.assertEqual(parse_birth_date_value('29.02.64', today=date(2026, 9, 26)), date(1964, 2, 29))
 
 
 class DfaNumberRegressionTests(SimpleTestCase):

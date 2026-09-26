@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 #           6.1 срок страхования по отметке «Х» (раньше всегда «на весь срок лизинга»);
 #           6.2 автозапуск: значение «автозапуск» из списка = есть (раньше понималось только «да»);
 #           6.3 порядок уплаты: «Х» под «Единовременно» = единовременно (раньше читалось как «ежеквартально»);
+#           6.4 дата рождения с двузначным годом не бывает в будущем («61» → 1961, раньше 2061);
 PARSER_V2_VERSION = "2.1.0"
 MISSING_CLIENT = "Клиент не указан"
 MISSING_DFA = "Номер ДФА не указан"
@@ -472,6 +473,24 @@ def parse_date_value(value: Any) -> Optional[date]:
         return None
 
 
+def parse_birth_date_value(value: Any, today: Optional[date] = None) -> Optional[date]:
+    """Дата рождения: двузначный год не может дать дату в будущем («20.02.61» → 1961, не 2061).
+
+    strptime для %y считает 00–68 двухтысячными годами — для даты заявки это верно,
+    для даты рождения нет (задача 6.4 плана analytics_redesign_2026_09).
+    """
+    parsed = parse_date_value(value)
+    if parsed is None:
+        return None
+    today = today or date.today()
+    if parsed > today:
+        try:
+            return parsed.replace(year=parsed.year - 100)
+        except ValueError:  # 29 февраля
+            return parsed.replace(year=parsed.year - 100, day=28)
+    return parsed
+
+
 def normalize_insured_party(value: Any) -> Optional[str]:
     """Map a raw cell value to the lease.insured_party enum.
 
@@ -729,7 +748,7 @@ class ExcelRequestParserV2:
         birth_raw, birth_source = self._extract_labeled_value(
             cells, rows, label_groups=[("дата", "рождени")]
         )
-        birth_value = parse_date_value(birth_raw)
+        birth_value = parse_birth_date_value(birth_raw)
         if birth_value:
             data["birth_date"] = birth_value.isoformat()
             source_map["birth_date"] = birth_source
