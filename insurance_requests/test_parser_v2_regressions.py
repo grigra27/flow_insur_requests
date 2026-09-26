@@ -104,14 +104,18 @@ def build_casco_application(
     return wb
 
 
-def parse(workbook, filename='Заявка ТС 20842.xlsx'):
+def parse_result(workbook, filename='Заявка ТС 20842.xlsx'):
     handle = tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx')
     try:
         handle.close()
         workbook.save(handle.name)
-        return ExcelRequestParserV2().parse(handle.name, original_filename=filename).data
+        return ExcelRequestParserV2().parse(handle.name, original_filename=filename)
     finally:
         os.unlink(handle.name)
+
+
+def parse(workbook, filename='Заявка ТС 20842.xlsx'):
+    return parse_result(workbook, filename).data
 
 
 class InsurancePeriodRegressionTests(SimpleTestCase):
@@ -120,15 +124,20 @@ class InsurancePeriodRegressionTests(SimpleTestCase):
     def test_whole_term_marked(self):
         self.assertEqual(parse(build_casco_application())['insurance_period'], 'на весь срок лизинга')
 
-    @unittest.expectedFailure  # 6.1: отметку «Х» у «1 год» парсер игнорирует
-    def test_one_year_marked(self):
+    def test_one_year_marked(self):  # исправлено в 6.1
         data = parse(build_casco_application(period_one_year_mark=MARK, period_whole_term_value=None))
         self.assertEqual(data['insurance_period'], '1 год')
 
-    @unittest.expectedFailure  # 6.1: конкретный срок вместо отметки теряется
-    def test_explicit_term_instead_of_mark(self):
-        data = parse(build_casco_application(period_whole_term_value='4 года'))
-        self.assertEqual(data['insurance_period'], '4 года')
+    def test_explicit_term_instead_of_mark(self):  # исправлено в 6.1
+        # Поле допускает только «1 год» / «на весь срок лизинга»; явный срок — пояснение на превью.
+        result = parse_result(build_casco_application(period_whole_term_value='4 года'))
+        self.assertEqual(result.data['insurance_period'], 'на весь срок лизинга')
+        self.assertEqual(result.data['parser_v2_payload']['insurance_period_term'], '4 года')
+        self.assertIn('В бланке указан срок: 4 года', ' '.join(w['message'] for w in result.warnings))
+
+    def test_no_mark_leaves_period_empty(self):
+        data = parse(build_casco_application(period_whole_term_value=None))
+        self.assertEqual(data['insurance_period'], '')
 
 
 class AutostartRegressionTests(SimpleTestCase):
@@ -229,8 +238,9 @@ class ParserCorpusCheckCommandTests(TestCase):
         from django.core.management import call_command
 
         with self.settings(MEDIA_ROOT=self.media):
+            # В бланке отмечен весь срок, а сотрудник поставил 1 год (бизнес-решение) — расхождение.
             self._v2_request_with_file(
-                build_casco_application(period_one_year_mark=MARK, period_whole_term_value=None),
+                build_casco_application(),
                 final={'insurance_period': '1 год', 'dfa_number': 'ТС-20842', 'insurance_type': 'КАСКО'},
             )
             self._v2_request_with_file(

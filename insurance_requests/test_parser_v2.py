@@ -1317,7 +1317,8 @@ class ParserV2UploadTests(TestCase):
         self.assertEqual(created_request.manager_name, 'Иванов Иван')
         self.assertEqual(created_request.branch, 'Казань')
         self.assertEqual(created_request.additional_data['parser_version'], 'v2')
-        self.assertEqual(created_request.additional_data['parser_v2']['version'], '2.0.0')
+        from .parsers.excel_v2.parser import PARSER_V2_VERSION
+        self.assertEqual(created_request.additional_data['parser_v2']['version'], PARSER_V2_VERSION)
         self.assertTrue(RequestAttachment.objects.filter(request=created_request).exists())
 
     def test_parser_v2_tracks_scalar_edit_and_stores_original_snapshot(self):

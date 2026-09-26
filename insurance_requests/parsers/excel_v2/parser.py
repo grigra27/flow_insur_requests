@@ -25,7 +25,9 @@ logger = logging.getLogger(__name__)
 # правок после изменения парсера. ПРАВИЛО: любое изменение того, КАК парсер извлекает
 # значения, поднимает версию (исправление — 2.0.x → 2.1.0 и т. д.) с записью ниже.
 #   2.0.0 — все изменения до 2026-09 включительно (исторически версия не поднималась).
-PARSER_V2_VERSION = "2.0.0"
+#   2.1.0 — этап 6 плана analytics_redesign_2026_09 (исправления по ручным правкам):
+#           6.1 срок страхования по отметке «Х» (раньше всегда «на весь срок лизинга»);
+PARSER_V2_VERSION = "2.1.0"
 MISSING_CLIENT = "Клиент не указан"
 MISSING_DFA = "Номер ДФА не указан"
 MISSING_VEHICLE = "Предмет лизинга не указан"
@@ -616,9 +618,16 @@ class ExcelRequestParserV2:
         if insurance_type_source:
             source_map["insurance_type"] = insurance_type_source
 
-        data["insurance_period"], period_source = self._extract_insurance_period(cells)
+        data["insurance_period"], period_source, period_term = self._extract_insurance_period(cells, rows)
         if period_source:
             source_map["insurance_period"] = period_source
+        if period_term:
+            warnings.append({
+                "level": "info",
+                "field": "insurance_period",
+                "message": f"В бланке указан срок: {period_term} (записан как «на весь срок лизинга»).",
+                "source": period_source,
+            })
 
         insured_objects = self._extract_objects(cells, rows)
         insured_objects, object_grouping = group_identical_objects(insured_objects)
@@ -778,6 +787,7 @@ class ExcelRequestParserV2:
             "application_format": self._detect_application_format(data),
             "application_type": application_type,
             "franchise_details": franchise_details,
+            "insurance_period_term": period_term,
         }
         data["parser_v2_payload"] = parser_payload
 
@@ -1127,13 +1137,56 @@ class ExcelRequestParserV2:
             return "страхование имущества"
         return None
 
-    def _extract_insurance_period(self, cells: List[GridCell]) -> Tuple[str, str]:
+    def _extract_insurance_period(
+        self, cells: List[GridCell], rows: Dict[int, List[GridCell]],
+    ) -> Tuple[str, str, str]:
+        """Срок страхования по отметке в блоке «Необходимый период страхования».
+
+        Раскладка бланка (все 120 файлов корпуса): строка метки — «1» (год) в M и отметка
+        в N; строкой ниже — «на весь срок лизинга» в M и в N либо отметка «Х», либо явный
+        срок («4 года»). Явный срок = весь срок лизинга: пишем «на весь срок лизинга»,
+        а сам срок возвращаем третьим значением (показывается на превью).
+        До версии 2.1.0 парсер не смотрел на отметку и всегда возвращал «на весь срок
+        лизинга», потому что эти слова есть в бланке всегда.
+        """
+        label = next((cell for cell in cells if "период страхования" in cell.normalized), None)
+        if label is not None:
+            one_year = whole_term = None
+            for row_number in (label.row, label.row + 1, label.row + 2):
+                for cell in sorted(rows.get(row_number, []), key=lambda item: item.col):
+                    if cell.col <= label.col:
+                        continue
+                    if whole_term is None and "весь срок" in cell.normalized:
+                        whole_term = cell
+                    elif one_year is None and cell.normalized in {"1", "1 год", "один год", "12 месяцев"}:
+                        one_year = cell
+
+            def _value_right_of(option: Optional[GridCell]) -> Optional[GridCell]:
+                if option is None:
+                    return None
+                return next(
+                    (cell for cell in rows.get(option.row, []) if cell.col == option.col + 1 and cell.normalized),
+                    None,
+                )
+
+            one_year_value = _value_right_of(one_year)
+            whole_term_value = _value_right_of(whole_term)
+            if self._is_mark(one_year_value):
+                return "1 год", one_year_value.coordinate, ""
+            if self._is_mark(whole_term_value):
+                return "на весь срок лизинга", whole_term_value.coordinate, ""
+            if whole_term_value is not None:
+                return "на весь срок лизинга", whole_term_value.coordinate, clean_value(whole_term_value.value)
+            if one_year is not None or whole_term is not None:
+                # Блок есть, но отметки нет — не выдумываем, сотрудник выберет сам.
+                return "", "", ""
+
         full_text = " ".join(cell.normalized for cell in cells)
         if "весь срок лизинга" in full_text or "на весь срок" in full_text:
-            return "на весь срок лизинга", self._first_source_containing(cells, ["срок лизинга", "весь срок"])
+            return "на весь срок лизинга", self._first_source_containing(cells, ["срок лизинга", "весь срок"]), ""
         if "1 год" in full_text or "один год" in full_text or "12 мес" in full_text:
-            return "1 год", self._first_source_containing(cells, ["1 год", "12 мес", "один год"])
-        return "", ""
+            return "1 год", self._first_source_containing(cells, ["1 год", "12 мес", "один год"]), ""
+        return "", "", ""
 
     def _extract_objects(self, cells: List[GridCell], rows: Dict[int, List[GridCell]]) -> List[Dict[str, Any]]:
         # Property applications use a distinct, narrow object table
