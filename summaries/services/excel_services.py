@@ -9,7 +9,10 @@ from typing import Optional, Dict, Any, List
 from decimal import Decimal, InvalidOperation
 import unicodedata
 
+from copy import copy
+
 from openpyxl import load_workbook
+from openpyxl.styles import Alignment
 from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE
 from openpyxl.workbook import Workbook
 from django.conf import settings
@@ -120,6 +123,8 @@ class ExcelExportService:
     LEGACY_COVERAGE_TERRITORY = 'Нет данных: территория ранее не собиралась'
     MIN_INSURANCE_SUM = Decimal('1')  # Минимальная страховая сумма
     MAX_INSURANCE_SUM = Decimal('1000000000')  # Максимальная страховая сумма (1 млрд)
+    DECLINED_TEXT = 'Отказ от страхования'
+    DECLINED_FONT_COLOR = 'FF7F7F7F'
     ASSET_STATUS_ADDITIONAL_NOTE = 'Обязателен осмотр предмета лизинга.'
     FRANCHISE_APPROVAL_ADDITIONAL_NOTE = 'Требуется согласование франшизы с ГО.'
     
@@ -1018,8 +1023,15 @@ class ExcelExportService:
             # Валидируем и обрабатываем граничные случаи
             companies_data = self._validate_companies_data(raw_companies_data)
             
+            # Отказавшие СК — строками после предложений (analytics_redesign_2026_09, задача 2.6)
+            declined_companies = self._get_declined_companies(summary)
+
             # Проверяем, есть ли данные для заполнения после валидации
             if not companies_data:
+                if declined_companies:
+                    worksheet = self._get_target_worksheet(workbook)
+                    self._fill_declined_companies(worksheet, self.FIRST_DATA_ROW, declined_companies, columns)
+                    return
                 logger.warning(f"Нет валидных предложений от компаний для свода ID: {summary.id}, пропускаем заполнение")
                 return
             
@@ -1111,6 +1123,12 @@ class ExcelExportService:
                     self._copy_separator_row(worksheet, self.SEPARATOR_ROW, current_row)
                     current_row += 1
             
+            if declined_companies and current_row + len(declined_companies) < self.MAX_ROWS_LIMIT:
+                self._copy_separator_row(worksheet, self.SEPARATOR_ROW, current_row)
+                current_row = self._fill_declined_companies(
+                    worksheet, current_row + 1, declined_companies, columns
+                )
+
             logger.info(f"Заполнение данных компаний завершено. Обработано {total_companies} компаний, заполнено строк до {current_row - 1}")
             
         except Exception as e:
@@ -1118,6 +1136,50 @@ class ExcelExportService:
             logger.error(error_msg, exc_info=True)
             raise ExcelExportServiceError(error_msg) from e
     
+    def _get_declined_companies(self, summary: InsuranceSummary) -> List[str]:
+        """Отказавшие СК свода по алфавиту. У сводов до запуска статусов СК — пусто (отказы в примечании C5)."""
+        from .company_statuses import declined_company_names
+
+        try:
+            return declined_company_names(summary)
+        except Exception as e:  # отказы не должны ломать выгрузку предложений
+            logger.error(f"Не удалось получить отказы СК для свода ID {summary.id}: {e}", exc_info=True)
+            return []
+
+    def _fill_declined_companies(self, worksheet, start_row: int, company_names: List[str], columns: dict) -> int:
+        """Строки отказов: название СК в A, «Отказ от страхования» в объединённой ячейке от «срок» до
+        последнего «ИТОГО». Без формул и чисел — строки не участвуют в итогах и тарифах.
+        Возвращает номер следующей свободной строки."""
+        last_total = columns.get('premium_2_summary') or columns['premium_1_summary']
+        first_col = worksheet[f"{columns['year']}{self.FIRST_DATA_ROW}"].column
+        last_col = worksheet[f"{last_total}{self.FIRST_DATA_ROW}"].column
+        notes_col = worksheet[f"{columns['notes']}{self.FIRST_DATA_ROW}"].column
+
+        row = start_row
+        for name in company_names:
+            if row != self.FIRST_DATA_ROW:
+                self._copy_row_styles(worksheet, self.FIRST_DATA_ROW, row)
+            for col in range(1, notes_col + 1):
+                worksheet.cell(row=row, column=col).value = None  # в т. ч. формулы строки-образца 10
+
+            name_cell = worksheet.cell(row=row, column=1)
+            name_cell.value = self._sanitize_excel_text(name)
+            text_cell = worksheet.cell(row=row, column=first_col)
+            text_cell.value = self.DECLINED_TEXT
+            for cell in (name_cell, text_cell):  # приглушённо: отказ не должен спорить с предложениями
+                font = copy(cell.font)
+                font.bold = False
+                font.italic = True
+                font.color = self.DECLINED_FONT_COLOR
+                cell.font = font
+            text_cell.alignment = Alignment(horizontal='center', vertical='center')
+            text_cell.number_format = 'General'
+            worksheet.merge_cells(start_row=row, start_column=first_col, end_row=row, end_column=last_col)
+            row += 1
+
+        logger.info(f"Добавлены строки отказов СК ({len(company_names)}): строки {start_row}–{row - 1}")
+        return row
+
     def _validate_companies_data(self, companies_data: Dict[str, List]) -> Dict[str, List]:
         """
         Валидирует данные компаний и применяет ограничения для предотвращения проблем
