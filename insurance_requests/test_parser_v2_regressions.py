@@ -309,3 +309,32 @@ class ParserCorpusCheckCommandTests(TestCase):
         self.assertIn('исключено: «Изъятое»: 1', report)
         self.assertIn('insurance_period | 1 | 0 (расх. 1) | 0 (расх. 1) | 0', report)
         self.assertIn('на весь срок лизинга | на весь срок лизинга | 1 год', report)
+
+
+class ObjectRegressionTests(SimpleTestCase):
+    """Объект: модель, стоимость / мощность, КАСКО C/E (§4.5: ≈ 17 правок; задача 6.6)."""
+
+    def test_model_without_mileage_year_and_vin(self):
+        from .parsers.excel_v2.parser import clean_model_text
+
+        self.assertEqual(clean_model_text('500 (Пробег 13 800 км)'), '500')
+        self.assertEqual(clean_model_text('500 г.в.) пpобeг тыс.км.'), '500')  # «пробег» с латинскими буквами
+        self.assertEqual(clean_model_text('FAW J7 CA4180P77K25E5 vinLFWNHXSDXP1H08100'), 'FAW J7 CA4180P77K25E5')
+        for model in ('Largus KS045L', 'X5 xDrive30d', 'R260LC-9S'):
+            self.assertEqual(clean_model_text(model), model)
+
+    def test_swapped_capacity_and_cost_columns(self):
+        # Реальный случай (автокран): в L грузоподъёмность 32 670, в M стоимость 12 100 000.
+        wb = build_casco_application(object_description='1 автокран SANY STC250T5-5')
+        wb.active['L43'] = '32670'
+        wb.active['M43'] = 12100000
+        obj = parse(wb)['parser_v2_payload']['insured_objects'][0]
+        self.assertEqual(obj['acquisition_cost_value'], '12100000')
+        self.assertEqual(obj['power_or_capacity'], '32670')
+
+    def test_semitrailer_is_casco_ce(self):
+        wb = build_casco_application(object_description='1 полуприцеп-цистерна СЕСПЕЛЬ 2024 новое 7900000 руб')
+        self.assertTrue(parse(wb)['has_casco_ce'])
+
+    def test_passenger_car_is_not_casco_ce(self):
+        self.assertFalse(parse(build_casco_application())['has_casco_ce'])

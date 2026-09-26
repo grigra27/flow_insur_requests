@@ -32,6 +32,8 @@ logger = logging.getLogger(__name__)
 #           6.4 дата рождения с двузначным годом не бывает в будущем («61» → 1961, раньше 2061);
 #           6.5 номер ДФА: не год и не дата; «ПРЕДВАРИТЕЛЬНАЯ» как есть; суффикс из имени файла;
 #               филиал по коду в номере; сверка вида с типом; подсказка полного номера;
+#           6.6 объект: модель без пробега / «г.в.» / VIN; стоимость и мощность меняются местами,
+#               если перепутаны; прицеп / полуприцеп → КАСКО C/E;
 PARSER_V2_VERSION = "2.1.0"
 MISSING_CLIENT = "Клиент не указан"
 MISSING_DFA = "Номер ДФА не указан"
@@ -308,8 +310,27 @@ def split_brand_model(
     if not tokens:
         return None, None
     if len(tokens) == 1:
-        return None, tokens[0]
-    return tokens[0], " ".join(tokens[1:])
+        return None, clean_model_text(tokens[0])
+    return tokens[0], clean_model_text(" ".join(tokens[1:]))
+
+
+# Хвосты, которые попадают в модель из описания объекта: пробег, «г.в.», VIN (задача 6.6).
+# «п[рp][оo][бb][еe]г» — в бланках встречается «пробег», набранный вперемешку латиницей.
+_MODEL_TAIL_RE = re.compile(
+    r"\s*[(,]?\s*(?:п[рp][оo][бb][еe]г\b|г\.\s*в\.|vin\b|vin[A-HJ-NPR-Z0-9]).*$",
+    re.IGNORECASE,
+)
+
+
+def clean_model_text(model: Optional[str]) -> Optional[str]:
+    """Отрезает от модели пробег, «г.в.)» и VIN: «500 (Пробег 13 800 км)» → «500»."""
+    if not model:
+        return model
+    cleaned = _MODEL_TAIL_RE.sub("", model).strip(" ,;")
+    # Непарная закрывающая скобка после обрезки («… 680М" г.в.)» → «… 680М"»).
+    if cleaned.count(")") > cleaned.count("("):
+        cleaned = cleaned.rstrip(")").strip()
+    return cleaned or model
 
 
 def _looks_like_price_token(raw: str, next_raw: Optional[str] = None) -> bool:
@@ -1619,6 +1640,11 @@ class ExcelRequestParserV2:
         for obj in insured_objects:
             if obj.get("vehicle_category") == "C":
                 return True, obj.get("vehicle_category_source") or obj.get("source", "")
+        # Прицеп / полуприцеп — всегда C/E (в корпусе 6 из 6 таких заявок сотрудники отметили C/E; 6.6).
+        for obj in insured_objects:
+            text = " ".join(str(obj.get(key) or "") for key in ("description", "brand", "model")).lower()
+            if "прицеп" in text:
+                return True, obj.get("source", "")
         return False, ""
 
     def _build_object_payload(self, row_cells: List[GridCell], row_text: str) -> Dict[str, Any]:
@@ -1689,6 +1715,15 @@ class ExcelRequestParserV2:
             if kind and equipment_type is None:
                 equipment_type = kind
                 continue
+
+        # Грузоподъёмность ≥ 10 000 (кг) в столбце L принималась за стоимость, а стоимость из M
+        # уходила в «мощность». Если «стоимость» мала, а «мощность» похожа на деньги — меняем (6.6).
+        power_as_money = parse_cost_value(power_or_capacity) if power_or_capacity else None
+        if (
+            cost_value is not None and cost_value < Decimal("100000")
+            and power_as_money is not None and power_as_money >= Decimal("1000000")
+        ):
+            cost_value, power_or_capacity = power_as_money, format(cost_value.normalize(), "f")
 
         return {
             "description": row_text,
