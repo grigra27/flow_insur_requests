@@ -18,6 +18,7 @@ from django.utils import timezone
 from insurance_requests.models import InsuranceRequest, RequestFieldEdit
 
 from insurance_requests.plausibility import check_values as check_plausibility
+from insurance_requests.seized import is_seized_filename
 
 from . import parser_edit_reasons
 
@@ -181,7 +182,7 @@ def _reasons_and_forecast(request_values, edits_qs):
         'clean_now_percent': _share(edited),
         'clean_after_parser_percent': _share(after_parser_fix),
         'clean_after_all_percent': _share(after_all_fixes),
-        'seized_requests': sum(1 for name in file_names.values() if parser_edit_reasons.is_seized_file(name)),
+        'seized_requests': sum(1 for name in file_names.values() if is_seized_filename(name)),
     }
     return rows, forecast
 

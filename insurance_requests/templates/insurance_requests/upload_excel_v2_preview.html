@@ -58,6 +58,19 @@
             {% csrf_token %}
             {{ form.draft_id }}
 
+            {% if seized_applied %}
+            <div class="alert alert-info d-flex gap-2 align-items-start">
+                <i class="bi bi-box-seam fs-5"></i>
+                <div>Включён режим <strong>«Изъятое имущество»</strong>: клиент, страхователь, тип, срок и менеджер заполнены по сценарию, реквизиты бывшего лизингополучателя очищены. Укажите <strong>территорию страхования</strong> (адрес стоянки).</div>
+            </div>
+            {% elif seized_suggested %}
+            <div class="alert alert-warning d-flex flex-wrap gap-2 align-items-center js-seized-banner">
+                <i class="bi bi-box-seam fs-5"></i>
+                <div class="flex-grow-1">В имени файла есть «изъят» — похоже на <strong>изъятое имущество</strong> (страхует лизингодатель).</div>
+                <button type="button" class="btn btn-sm btn-warning js-seized-apply">Заполнить как «Изъятое»</button>
+            </div>
+            {% endif %}
+
             <div class="card mb-4">
                 <div class="card-header bg-primary text-white">
                     <i class="bi bi-pencil-square"></i> Данные заявки
@@ -525,8 +538,36 @@
 
 {% block extra_js %}
 {{ block.super }}
+{% if seized_suggested %}{{ seized_preset|json_script:"seized-preset" }}{% endif %}
 <script>
     document.addEventListener('DOMContentLoaded', function () {
+        {% if seized_suggested %}
+        const seizedButton = document.querySelector('.js-seized-apply');
+        if (seizedButton) {
+            seizedButton.addEventListener('click', function () {
+                const preset = JSON.parse(document.getElementById('seized-preset').textContent);
+                Object.keys(preset).forEach(function (name) {
+                    const input = document.getElementById('id_' + name);
+                    if (input) {
+                        input.value = preset[name];
+                    }
+                });
+                const dfa = document.getElementById('{{ form.dfa_number.id_for_label }}');
+                const suffix = '{{ seized_dfa_suffix|escapejs }}';
+                if (dfa && dfa.value.toLowerCase().indexOf('изъят') === -1) {
+                    dfa.value = (dfa.value.trim() + ' ' + suffix).trim();
+                }
+                const banner = seizedButton.closest('.js-seized-banner');
+                banner.classList.replace('alert-warning', 'alert-info');
+                banner.innerHTML = '<i class="bi bi-box-seam fs-5"></i><div>Заполнено как «Изъятое имущество». Проверьте поля и укажите <strong>территорию страхования</strong> (адрес стоянки).</div>';
+                const territory = document.getElementById('{{ form.insurance_territory.id_for_label }}');
+                if (territory) {
+                    territory.focus();
+                }
+            });
+        }
+        {% endif %}
+
         const transportationCheckbox = document.getElementById('{{ form.has_transportation.id_for_label }}');
         const transportationDetails = document.getElementById('transportation-details');
         if (transportationCheckbox && transportationDetails) {

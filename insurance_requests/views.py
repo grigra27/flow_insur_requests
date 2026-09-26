@@ -50,6 +50,9 @@ from .security import (
 from .parsers.excel_v2 import ExcelRequestParserV2
 from .plausibility import check_values as check_plausibility
 from .branch_hint import apply_branch_hint
+from .seized import DFA_SUFFIX as SEIZED_DFA_SUFFIX
+from .seized import apply_seized_preset, is_seized_filename
+from .seized import preset_for_form as seized_preset_for_form
 from core.excel_utils import ExcelReader
 from core.templates import EmailTemplateGenerator
 
@@ -476,6 +479,10 @@ def _render_parser_v2_preview(request, draft_id, draft, preview_form=None, objec
         'parse_result': parse_result,
         'insured_objects': insured_objects,
         'dfa_suggestion': payload.get('dfa_suggestion') or '',
+        'seized_applied': bool(draft.get('seized_applied')),
+        'seized_suggested': not draft.get('seized_applied') and is_seized_filename(draft.get('original_filename', '')),
+        'seized_preset': seized_preset_for_form(),
+        'seized_dfa_suffix': SEIZED_DFA_SUFFIX,
         'batch_size': batch_size,
         'is_batch': batch_size >= 2,
         'has_objects': batch_size >= 1,
@@ -1158,6 +1165,9 @@ def upload_excel_v2(request):
                     except Exception as cleanup_error:
                         logger.warning("Could not delete Parser V2 temp copy %s: %s", temp_copy_path, cleanup_error)
 
+            seized_applied = bool(upload_form.cleaned_data.get('seized_mode'))
+            if seized_applied:
+                apply_seized_preset(parse_result)  # сценарий «Изъятое имущество» (6.8)
             apply_branch_hint(parse_result)  # филиал по истории менеджера, если в бланке нет (6.7)
 
             draft_id = uuid.uuid4().hex
@@ -1165,6 +1175,7 @@ def upload_excel_v2(request):
                 'storage_path': storage_path,
                 'original_filename': uploaded_file.name,
                 'parse_result': parse_result.to_session_dict(),
+                'seized_applied': seized_applied,
                 'created_at': timezone.now().isoformat(),
                 'created_by_user': request.user.username,
             }

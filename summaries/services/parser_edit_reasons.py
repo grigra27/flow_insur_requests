@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Dict
 
-SEIZED_MARKER = 'изъят'
+from insurance_requests.seized import is_seized_filename
 
 KIND_LABELS = {
     'parser': 'Известная ошибка парсера',
@@ -55,13 +55,9 @@ FIELD_REASONS = {
 }
 
 
-def is_seized_file(file_name: str) -> bool:
-    return SEIZED_MARKER in (file_name or '').lower()
-
-
 def classify(field_name: str, file_name: str = '') -> str:
     """Ключ причины правки для поля и имени исходного файла заявки."""
-    if is_seized_file(file_name):
+    if is_seized_filename(file_name):
         return 'seized'
     return FIELD_REASONS.get(field_name, 'other')
 

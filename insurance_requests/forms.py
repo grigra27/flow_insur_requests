@@ -306,6 +306,11 @@ class ParserV2ExcelUploadForm(forms.Form):
             'accept': '.xls,.xlsx,.xltx',
         })
     )
+    seized_mode = forms.BooleanField(
+        required=False,
+        label='Изъятое имущество (страхует лизингодатель)',
+        help_text='Клиент — ЗАО «Альянс-Лизинг», тип — имущество, срок — 1 год, менеджер — Овдина Е.М.',
+    )
 
     def clean_excel_file(self):
         file = self.cleaned_data.get('excel_file')

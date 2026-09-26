@@ -27,11 +27,11 @@ from insurance_requests.edit_tracking import _post_canonical, get_object_field_m
 from insurance_requests.forms import parser_v2_object_initial_from_payload
 from insurance_requests.models import InsuranceRequest
 from insurance_requests.parsers.excel_v2 import ExcelRequestParserV2
+from insurance_requests.seized import is_seized_filename
 
 # Не сравниваем: служебное примечание (парсер пишет туда предупреждения), поля объекта
 # старого формата и срок ответа (выставляется по умолчанию, не распознаётся).
 EXCLUDED_FIELDS = {'notes', 'draft_id', 'skip', 'vehicle_info', 'asset_status', 'response_deadline'}
-SEIZED_MARKER = 'изъят'
 
 
 class Command(BaseCommand):
@@ -56,7 +56,7 @@ class Command(BaseCommand):
         for insurance_request in queryset.order_by('pk'):
             parser_v2 = (insurance_request.additional_data or {}).get('parser_v2') or {}
             file_name = parser_v2.get('source_file_name') or ''
-            if SEIZED_MARKER in file_name.lower() and not options['include_seized']:
+            if is_seized_filename(file_name) and not options['include_seized']:
                 requests_total['исключено: «Изъятое»'] += 1
                 continue
             attachment = next(

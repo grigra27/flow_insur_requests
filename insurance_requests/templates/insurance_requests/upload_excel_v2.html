@@ -344,6 +344,12 @@
                             </div>
                         {% endif %}
 
+                        <div class="form-check mt-3">
+                            {{ form.seized_mode }}
+                            <label class="form-check-label" for="{{ form.seized_mode.id_for_label }}">{{ form.seized_mode.label }}</label>
+                            <div class="form-text">{{ form.seized_mode.help_text }}</div>
+                        </div>
+
                         <div class="magic-upload-actions">
                             <button type="submit" class="btn btn-primary magic-upload-submit" id="parse-submit" disabled>
                                 <i class="bi bi-stars"></i> Разобрать файл
