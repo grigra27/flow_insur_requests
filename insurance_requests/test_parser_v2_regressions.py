@@ -149,9 +149,15 @@ class AutostartRegressionTests(SimpleTestCase):
     def test_explicit_net_means_no(self):
         self.assertFalse(parse(build_casco_application(autostart_value='нет'))['has_autostart'])
 
-    @unittest.expectedFailure  # 6.2: значение «автозапуск» из списка не считается «да»
-    def test_dropdown_value_autostart_means_yes(self):
+    def test_dropdown_value_autostart_means_yes(self):  # исправлено в 6.2
         self.assertTrue(parse(build_casco_application(autostart_value='автозапуск'))['has_autostart'])
+
+    def test_detailed_autostart_value_means_yes(self):
+        value = 'автозапуск с 1-м ключом (размещение 2-ого ключа в ТС)'
+        self.assertTrue(parse(build_casco_application(autostart_value=value))['has_autostart'])
+
+    def test_without_autostart_means_no(self):
+        self.assertFalse(parse(build_casco_application(autostart_value='без автозапуска'))['has_autostart'])
 
 
 class PremiumFrequencyRegressionTests(SimpleTestCase):

@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 #   2.0.0 — все изменения до 2026-09 включительно (исторически версия не поднималась).
 #   2.1.0 — этап 6 плана analytics_redesign_2026_09 (исправления по ручным правкам):
 #           6.1 срок страхования по отметке «Х» (раньше всегда «на весь срок лизинга»);
+#           6.2 автозапуск: значение «автозапуск» из списка = есть (раньше понималось только «да»);
 PARSER_V2_VERSION = "2.1.0"
 MISSING_CLIENT = "Клиент не указан"
 MISSING_DFA = "Номер ДФА не указан"
@@ -1612,6 +1613,8 @@ class ExcelRequestParserV2:
     def _extract_autostart(self, cells: List[GridCell], rows: Dict[int, List[GridCell]]) -> bool:
         # Default to False unless an explicit "да" value is found in the row.
         # An empty value cell next to the "Автозапуск" label means «нет».
+        # В бланке значение выбирается из списка: «автозапуск» (есть) / «нет» / пусто;
+        # встречается и развёрнутое «автозапуск с 1-м ключом …» (с 2.1.0, задача 6.2).
         for cell in cells:
             if "автозапуск" not in cell.normalized:
                 continue
@@ -1619,7 +1622,14 @@ class ExcelRequestParserV2:
             for sibling in rows.get(cell.row, []):
                 if sibling.col == cell.col:
                     continue
-                tokens.extend(t for t in re.split(r"[\s/]+", sibling.normalized) if t)
+                sibling_tokens = [t for t in re.split(r"[\s/]+", sibling.normalized) if t]
+                if (
+                    sibling.col > cell.col
+                    and any(t.startswith("автозапуск") for t in sibling_tokens)
+                    and not {"нет", "без"} & set(sibling_tokens)
+                ):
+                    return True
+                tokens.extend(sibling_tokens)
             # Inline value in the label cell itself, e.g. «Автозапуск: да».
             # Skip when the tail looks like a «(да/нет)» header (both tokens present).
             tail_text = cell.normalized.split("автозапуск", 1)[1]
