@@ -5,702 +5,931 @@
 {% block title %}Своды предложений - {{ block.super }}{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="sl-page">
+<div class="sl-head">
     <div>
-        <h1 class="h3 mb-1"><i class="bi bi-collection"></i> Своды предложений</h1>
-        <p class="text-muted mb-0">Своды предложений по заявкам на всех этапах: сбор, отправка и финальный результат.</p>
+        <h1 class="sl-title">Своды предложений</h1>
+        <p class="sl-sub">Своды предложений по заявкам на всех этапах: сбор, отправка и финальный результат.</p>
     </div>
-    <div>
-        <a href="{% url 'summaries:help' %}" class="btn btn-outline-primary">
-            <i class="bi bi-question-circle"></i> Справка
-        </a>
-    </div>
+    <a href="{% url 'summaries:help' %}" class="sl-help">
+        <i class="bi bi-question-circle"></i> Справка
+    </a>
 </div>
 
 <!-- Вкладки филиалов -->
 {% if available_branches %}
-<div class="branch-filter-tabs summary-list-page mb-4">
-    <ul class="nav nav-tabs">
-        <li class="nav-item">
-            <a class="nav-link{% if not current_branch %} active{% endif %}" 
-               href="#" 
-               onclick="filterByBranch('')">
-                <i class="bi bi-list-ul"></i> Все
-                {% if show_total_count %}
-                    <span class="badge app-branch-count-badge ms-1">{{ total_summaries_count }}</span>
-                {% endif %}
-            </a>
-        </li>
-        {% for branch in available_branches %}
-        <li class="nav-item">
-            <a class="nav-link{% if current_branch == branch %} active{% endif %}" 
-               href="#" 
-               onclick="filterByBranch('{{ branch|escapejs }}')">
-                <!--i class="bi bi-building"></i--> {{ branch|format_branch }}
-                {% if show_branch_counts and current_branch == branch %}
-                    <span class="badge app-branch-count-badge ms-1">{{ branch_counts|get_item:branch|default:0 }}</span>
-                {% endif %}
-            </a>
-        </li>
-        {% endfor %}
-    </ul>
-</div>
+<nav class="sl-branches" aria-label="Филиалы">
+    <a class="sl-branch{% if not current_branch %} is-active{% endif %}" href="#" data-branch="">
+        Все <span class="sl-branch__count">{{ total_summaries_count }}</span>
+    </a>
+    {% for branch in available_branches %}
+    <a class="sl-branch{% if current_branch == branch %} is-active{% endif %}" href="#" data-branch="{{ branch }}">
+        {{ branch|format_branch }} <span class="sl-branch__count">{{ branch_counts|get_item:branch|default:0 }}</span>
+    </a>
+    {% endfor %}
+</nav>
 {% endif %}
 
-<!-- Форма фильтрации -->
-<div class="card summary-filter-card mb-4">
-    <div class="card-header summary-filter-card__header">
-        <button class="btn summary-filter-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#filterForm" aria-expanded="false" aria-controls="filterForm">
-            <span class="summary-filter-toggle__title">
-                <i class="bi bi-funnel"></i>
-                <span>Фильтры сводов</span>
-            </span>
-            <span class="summary-filter-toggle__meta">
-                <span class="summary-filter-toggle__hint d-none d-md-inline">Поиск, даты, тип, менеджер</span>
-                <i class="bi bi-chevron-down summary-filter-toggle__icon"></i>
-            </span>
+<div class="sl-card">
+    <div class="sl-card__bar">
+        <div class="sl-card__total">
+            {% if summaries %}
+                Показано <b>{{ summaries.start_index }}–{{ summaries.end_index }}</b> из <b>{{ summaries.paginator.count }}</b> сводов
+            {% endif %}
+        </div>
+        <button class="sl-filter-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#filterForm" aria-expanded="false" aria-controls="filterForm">
+            <i class="bi bi-funnel"></i>
+            <span class="sl-filter-toggle__title">Фильтры сводов</span>
+            <span class="sl-filter-toggle__hint d-none d-md-inline">Поиск, даты, тип, менеджер</span>
+            <i class="bi bi-chevron-down sl-filter-toggle__icon"></i>
         </button>
     </div>
+
+    <!-- Форма фильтрации -->
     <div class="collapse" id="filterForm">
-        <div class="card-body">
-            <form method="get" id="summary-filter-form" class="summary-filter-form">
-                {{ filter_form.branch }}
-                <div class="row g-3">
-                    <div class="col-12 col-md-6 col-lg-4">
-                        <label for="{{ filter_form.search.id_for_label }}" class="form-label">{{ filter_form.search.label }}</label>
-                        {{ filter_form.search }}
-                    </div>
-                    <div class="col-12 col-md-6 col-lg-4">
-                        <label for="{{ filter_form.status.id_for_label }}" class="form-label">{{ filter_form.status.label }}</label>
-                        {{ filter_form.status }}
-                    </div>
-                    <div class="col-12 col-md-6 col-lg-4">
-                        <label for="{{ filter_form.insurance_type.id_for_label }}" class="form-label">{{ filter_form.insurance_type.label }}</label>
-                        {{ filter_form.insurance_type }}
-                    </div>
-                    <div class="col-12 col-md-3 col-lg-2">
-                        <label for="{{ filter_form.start_date.id_for_label }}" class="form-label">{{ filter_form.start_date.label }}</label>
-                        {{ filter_form.start_date }}
-                    </div>
-                    <div class="col-12 col-md-3 col-lg-2">
-                        <label for="{{ filter_form.end_date.id_for_label }}" class="form-label">{{ filter_form.end_date.label }}</label>
-                        {{ filter_form.end_date }}
-                    </div>
-                    <div class="col-12 col-md-6 col-lg-4">
-                        <label for="{{ filter_form.manager.id_for_label }}" class="form-label">{{ filter_form.manager.label }}</label>
-                        {{ filter_form.manager }}
-                    </div>
-                    <div class="col-12 col-md-6 col-lg-4 summary-filter-actions">
-                        <button type="submit" class="btn btn-primary">
-                            <i class="bi bi-search"></i> Применить
-                        </button>
-                        <a href="{% url 'summaries:summary_list' %}" class="btn btn-outline-secondary">
-                            <i class="bi bi-x-circle"></i> Сбросить
-                        </a>
-                    </div>
+        <form method="get" id="summary-filter-form" class="sl-filter-form">
+            {{ filter_form.branch }}
+            <div class="row g-3">
+                <div class="col-12 col-md-6 col-lg-4">
+                    <label for="{{ filter_form.search.id_for_label }}" class="form-label">{{ filter_form.search.label }}</label>
+                    {{ filter_form.search }}
                 </div>
-            </form>
-        </div>
+                <div class="col-12 col-md-6 col-lg-4">
+                    <label for="{{ filter_form.status.id_for_label }}" class="form-label">{{ filter_form.status.label }}</label>
+                    {{ filter_form.status }}
+                </div>
+                <div class="col-12 col-md-6 col-lg-4">
+                    <label for="{{ filter_form.insurance_type.id_for_label }}" class="form-label">{{ filter_form.insurance_type.label }}</label>
+                    {{ filter_form.insurance_type }}
+                </div>
+                <div class="col-12 col-md-3 col-lg-2">
+                    <label for="{{ filter_form.start_date.id_for_label }}" class="form-label">{{ filter_form.start_date.label }}</label>
+                    {{ filter_form.start_date }}
+                </div>
+                <div class="col-12 col-md-3 col-lg-2">
+                    <label for="{{ filter_form.end_date.id_for_label }}" class="form-label">{{ filter_form.end_date.label }}</label>
+                    {{ filter_form.end_date }}
+                </div>
+                <div class="col-12 col-md-6 col-lg-4">
+                    <label for="{{ filter_form.manager.id_for_label }}" class="form-label">{{ filter_form.manager.label }}</label>
+                    {{ filter_form.manager }}
+                </div>
+                <div class="col-12 col-md-6 col-lg-4 sl-filter-actions">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-search"></i> Применить
+                    </button>
+                    <a href="{% url 'summaries:summary_list' %}" class="btn btn-outline-secondary">
+                        <i class="bi bi-x-circle"></i> Сбросить
+                    </a>
+                </div>
+            </div>
+        </form>
     </div>
-</div>
 
 {% if summaries %}
-    <div class="table-responsive summary-list-table">
-        <table class="table table-striped table-hover summary-table">
-            <thead class="table-dark">
+    <div class="table-responsive">
+        <table class="sl-table">
+            <thead>
                 <tr>
                     <th>Номер заявки</th>
-                    <th>Клиент</th>
-                    <th>Филиал</th>
+                    <th>Клиент и объект</th>
                     <th>Статус</th>
-                    <th>Дата создания</th>
-                    <th>Компаний</th>
-                    <th>Действия</th>
+                    <th title="Минимальная итоговая премия за весь срок страхования">Лучшее за срок</th>
+                    <th class="sl-col-companies">Компаний</th>
+                    <th class="sl-col-date">Создан</th>
+                    <th class="sl-col-actions"><span class="visually-hidden">Действия</span></th>
                 </tr>
             </thead>
             <tbody>
                 {% for summary in summaries %}
+                {% with info=summary.list_info req=summary.request %}
                 <tr data-href="{% url 'summaries:summary_detail' summary.pk %}"
-                    {% if summary.request.source_batch_id %}data-batch-id="{{ summary.request.source_batch_id }}"{% endif %}
-                    style="cursor: pointer;"
-                    class="summary-row{% if summary.request.source_batch_id %} summary-row--batch{% endif %}">
-                    <td>
-                        <div class="summary-request-title-stack">
-                            <div class="summary-request-title-line">
-                                <strong>
-                                    {% if summary.request.item_count and summary.request.item_count > 1 %}
-                                        {% if summary.request.dfa_number and summary.request.dfa_number != 'Номер ДФА не указан' %}
-                                            {{ summary.request.dfa_number }}
-                                        {% else %}
-                                            #{{ summary.request.id }}
-                                        {% endif %}
-                                    {% else %}
-                                        {{ summary.request.get_display_name }}
-                                    {% endif %}
-                                </strong>
-                                {% if summary.request.item_count and summary.request.item_count > 1 %}
-                                    <span class="badge summary-list-badge summary-list-badge--batch"
-                                          title="Партия из {{ summary.request.item_count }} заявок. Этот свод относится к объекту {{ summary.request.item_no }} из {{ summary.request.item_count }}.">
-                                        <i class="bi bi-collection"></i>
-                                        <span class="d-none d-lg-inline">Партия</span>
-                                        <span class="summary-list-badge__count">{{ summary.request.item_no }}/{{ summary.request.item_count }}</span>
-                                    </span>
+                    {% if req.source_batch_id %}data-batch-id="{{ req.source_batch_id }}"{% endif %}
+                    class="summary-row{% if req.source_batch_id %} summary-row--batch{% endif %}{% if summary.status == 'sent' %} sl-row--waiting{% endif %}">
+                    <td class="sl-cell-number">
+                        <div class="sl-number-line">
+                            <a class="sl-number" href="{% url 'summaries:summary_detail' summary.pk %}">
+                                {% if req.item_count and req.item_count > 1 %}
+                                    {% if req.dfa_number and req.dfa_number != 'Номер ДФА не указан' %}{{ req.dfa_number }}{% else %}#{{ req.id }}{% endif %}
+                                {% else %}
+                                    {{ req.get_display_name }}
                                 {% endif %}
-                                {% if summary.request.source_object_count and summary.request.source_object_count > 1 %}
-                                    <span class="badge summary-list-badge summary-list-badge--duplicate"
-                                          title="Этот свод относится к заявке, представляющей {{ summary.request.source_object_count_label }} полностью одинаковых строк исходной Excel-заявки.">
-                                        <i class="bi bi-layers-fill"></i>
-                                        {{ summary.request.source_object_count_label }}
-                                    </span>
-                                {% endif %}
-                            </div>
-                        </div>
-                    </td>
-                    <td>
-                        <div class="text-truncate" style="max-width: 200px;" title="{{ summary.request.client_name }}">
-                            {{ summary.request.client_name }}
-                        </div>
-                    </td>
-                    <td>
-                        <i class="bi bi-building text-muted"></i>
-                        <span class="ms-1">{{ summary.branch|format_branch }}</span>
-                    </td>
-                    <td>
-                        <span class="badge {{ summary.status|status_badge_class }}">
-                            {{ summary.get_status_display }}
-                        </span>
-                        {% if summary.status == 'completed_accepted' and summary.selected_company %}
-                        <br><small class="text-muted">
-                            <i class="bi bi-building"></i> {{ summary.selected_company }}
-                            {% if summary.selected_franchise_variant %}
-                                ({{ summary.get_selected_franchise_variant_display }})
-                            {% endif %}
-                            // 
-                            <a href="{% url 'summaries:deal_summary' summary.id %}" class="text-primary" onclick="event.stopPropagation();">
-                                <i class="bi bi-file-text"></i> резюме
                             </a>
-                        </small>
+                            {% if req.item_count and req.item_count > 1 %}
+                                <span class="badge summary-list-badge summary-list-badge--batch"
+                                      title="Партия из {{ req.item_count }} заявок. Этот свод относится к объекту {{ req.item_no }} из {{ req.item_count }}.">
+                                    <i class="bi bi-collection"></i>
+                                    <span class="d-none d-lg-inline">Партия</span>
+                                    <span class="summary-list-badge__count">{{ req.item_no }}/{{ req.item_count }}</span>
+                                </span>
+                            {% endif %}
+                            {% if req.source_object_count and req.source_object_count > 1 %}
+                                <span class="badge summary-list-badge summary-list-badge--duplicate"
+                                      title="Этот свод относится к заявке, представляющей {{ req.source_object_count_label }} полностью одинаковых строк исходной Excel-заявки.">
+                                    <i class="bi bi-layers"></i>
+                                    {{ req.source_object_count_label }}
+                                </span>
+                            {% endif %}
+                            {% if summary.notes %}
+                                <i class="bi bi-sticky-fill sl-note" title="{{ summary.notes }}"></i>
+                            {% endif %}
+                        </div>
+                        <div class="sl-meta">
+                            {{ summary.branch|format_branch }}{% if info.type_label %} · {{ info.type_label }}{% endif %}{% if info.years_label %} · {{ info.years_label }}{% endif %}
+                        </div>
+                    </td>
+                    <td class="sl-cell-client">
+                        <div class="sl-client" title="{{ req.client_name }}">{{ req.client_name }}</div>
+                        {% with object_summary=req.object_summary %}
+                            {% if object_summary %}
+                                <div class="sl-object" title="{{ object_summary }}">{{ object_summary }}</div>
+                            {% endif %}
+                        {% endwith %}
+                    </td>
+                    <td class="sl-cell-status">
+                        <span class="sl-status sl-status--{{ summary.status }}">{{ summary.get_status_display }}</span>
+                        {% if summary.status == 'completed_accepted' and summary.selected_company %}
+                            <div class="sl-status-sub">
+                                <span{% if summary.selected_franchise_variant %} title="{{ summary.get_selected_franchise_variant_display }}"{% endif %}>
+                                    <b>{{ summary.selected_company }}</b>{% if info.selected_total %} · {{ info.selected_total|format_currency_with_spaces }}{% endif %}
+                                </span>
+                                {% if info.has_cheaper %}<span class="sl-flag">есть дешевле</span>{% endif %}
+                                <a href="{% url 'summaries:deal_summary' summary.id %}" class="sl-link">
+                                    <i class="bi bi-file-text"></i> резюме
+                                </a>
+                            </div>
+                        {% elif info.waiting_days is not None %}
+                            <div class="sl-status-sub">
+                                <span class="sl-waiting{% if info.waiting_days > 7 %} is-late{% endif %}">
+                                    <i class="bi bi-hourglass-split"></i> ждёт решения {{ info.waiting_days }} дн.
+                                </span>
+                            </div>
                         {% endif %}
                     </td>
-                    <td>
-                        <small>
-                            {% timezone "Europe/Moscow" %}{{ summary.created_at|date:"d.m.Y H:i" }}{% endtimezone %}
-                        </small>
+                    <td class="sl-cell-best">
+                        {% if info.best_total %}
+                            <div class="sl-best">{{ info.best_total|format_currency_with_spaces }}</div>
+                            <div class="sl-best-company">{{ info.best_company_name }}</div>
+                        {% else %}
+                            <span class="sl-empty">—</span>
+                        {% endif %}
                     </td>
-                    <td>
-                        <span class="badge {{ summary.get_unique_companies_count|companies_count_badge_class }} {{ summary.get_unique_companies_count|companies_count_size_class }}">
-                            {{ summary.get_unique_companies_count }}
+                    <td class="sl-col-companies">
+                        <span class="sl-companies">
+                            <b{% if not info.companies_count %} class="is-zero"{% endif %}>{{ info.companies_count }}</b>
+                            <span class="sl-scale{% if info.companies_count <= 2 %} is-low{% endif %}" aria-hidden="true">
+                                {% for step in info.companies_scale %}<i{% if step < info.companies_count %} class="is-filled"{% endif %}></i>{% endfor %}
+                            </span>
                         </span>
+                        {% if info.declined_count %}
+                            <div class="sl-declined">отказов: {{ info.declined_count }}</div>
+                        {% endif %}
                     </td>
-                    <td>
-                        <div class="btn-group btn-group-sm" role="group">
-                            <a href="{% url 'summaries:summary_detail' summary.pk %}" 
-                               class="btn btn-outline-primary" 
-                               title="Подробнее">
-                                <i class="bi bi-eye"></i>
-                            </a>
+                    <td class="sl-col-date">
+                        {% timezone "Europe/Moscow" %}
+                            <div class="sl-date">{{ summary.created_at|date:"d.m.Y" }}</div>
+                            <div class="sl-time">{{ summary.created_at|date:"H:i" }}</div>
+                        {% endtimezone %}
+                    </td>
+                    <td class="sl-col-actions">
+                        <div class="btn-group sl-actions" role="group">
                             {% if summary.status == 'collecting' %}
-                            <a href="{% url 'summaries:add_offer' summary.pk %}" 
-                               class="btn btn-outline-success" 
-                               title="Добавить предложение">
-                                <i class="bi bi-plus-circle"></i>
+                            <a href="{% url 'summaries:add_offer' summary.pk %}" class="sl-action sl-action--add" title="Добавить предложение">
+                                <i class="bi bi-plus-lg"></i>
                             </a>
                             {% endif %}
+                            <a href="{% url 'summaries:summary_detail' summary.pk %}" class="sl-action" title="Подробнее">
+                                <i class="bi bi-eye"></i>
+                            </a>
                         </div>
                     </td>
                 </tr>
+                {% endwith %}
                 {% endfor %}
             </tbody>
         </table>
     </div>
-    
-    <!-- Пагинация (требование 5.2, 5.3, 5.4) -->
-    {% if summaries.has_other_pages %}
-    <nav aria-label="Навигация по страницам" class="mt-4">
-        <ul class="pagination justify-content-center">
-            {% if summaries.has_previous %}
-                <li class="page-item">
-                    <a class="page-link pagination-link" data-page="{{ summaries.previous_page_number }}" href="?page={{ summaries.previous_page_number }}" aria-label="Предыдущая">
-                        <i class="bi bi-chevron-left"></i> Предыдущая
-                    </a>
-                </li>
-            {% else %}
-                <li class="page-item disabled">
-                    <span class="page-link" aria-label="Предыдущая">
-                        <i class="bi bi-chevron-left"></i> Предыдущая
-                    </span>
-                </li>
-            {% endif %}
-            
-            {% for num in summaries.paginator.page_range %}
-                {% if summaries.number == num %}
-                    <li class="page-item active" aria-current="page">
-                        <span class="page-link">{{ num }}</span>
-                    </li>
-                {% elif num > summaries.number|add:'-3' and num < summaries.number|add:'3' %}
-                    <li class="page-item">
-                        <a class="page-link pagination-link" data-page="{{ num }}" href="?page={{ num }}">{{ num }}</a>
-                    </li>
-                {% elif num == 1 %}
-                    <li class="page-item">
-                        <a class="page-link pagination-link" data-page="1" href="?page=1">1</a>
-                    </li>
-                    {% if summaries.number > 4 %}
-                        <li class="page-item disabled">
-                            <span class="page-link">...</span>
-                        </li>
-                    {% endif %}
-                {% elif num == summaries.paginator.num_pages %}
-                    {% if summaries.number < summaries.paginator.num_pages|add:'-3' %}
-                        <li class="page-item disabled">
-                            <span class="page-link">...</span>
-                        </li>
-                    {% endif %}
-                    <li class="page-item">
-                        <a class="page-link pagination-link" data-page="{{ summaries.paginator.num_pages }}" href="?page={{ summaries.paginator.num_pages }}">{{ summaries.paginator.num_pages }}</a>
-                    </li>
-                {% endif %}
-            {% endfor %}
-            
-            {% if summaries.has_next %}
-                <li class="page-item">
-                    <a class="page-link pagination-link" data-page="{{ summaries.next_page_number }}" href="?page={{ summaries.next_page_number }}" aria-label="Следующая">
-                        Следующая <i class="bi bi-chevron-right"></i>
-                    </a>
-                </li>
-            {% else %}
-                <li class="page-item disabled">
-                    <span class="page-link" aria-label="Следующая">
-                        Следующая <i class="bi bi-chevron-right"></i>
-                    </span>
-                </li>
-            {% endif %}
-        </ul>
-    </nav>
-    
-    <!-- Информация о пагинации -->
-    <div class="text-center text-muted mt-2">
-        <small>
-            Показано {{ summaries.start_index }}-{{ summaries.end_index }} из {{ summaries.paginator.count }} сводов
-        </small>
-    </div>
-    {% endif %}
 {% else %}
-    <div class="text-center py-5">
-        <i class="bi bi-collection display-1 text-muted"></i>
-        <h3 class="mt-3">Сводов пока нет</h3>
-        <p class="text-muted">Своды создаются автоматически после отправки заявок страховщикам</p>
+    <div class="sl-empty-state">
+        <i class="bi bi-collection"></i>
+        <h3>Сводов пока нет</h3>
+        <p>Своды создаются автоматически после отправки заявок страховщикам</p>
         <a href="{% url 'insurance_requests:request_list' %}" class="btn btn-primary">
             <i class="bi bi-arrow-left"></i> К заявкам
         </a>
     </div>
 {% endif %}
+</div>
+
+{% if summaries.has_other_pages %}
+<nav aria-label="Навигация по страницам" class="sl-pagination">
+    <span class="sl-pagination__info">Показано {{ summaries.start_index }}-{{ summaries.end_index }} из {{ summaries.paginator.count }} сводов</span>
+    <ul class="pagination">
+        {% if summaries.has_previous %}
+            <li class="page-item">
+                <a class="page-link pagination-link" data-page="{{ summaries.previous_page_number }}" href="?page={{ summaries.previous_page_number }}" aria-label="Предыдущая">
+                    <i class="bi bi-chevron-left"></i>
+                </a>
+            </li>
+        {% else %}
+            <li class="page-item disabled">
+                <span class="page-link" aria-label="Предыдущая"><i class="bi bi-chevron-left"></i></span>
+            </li>
+        {% endif %}
+
+        {% for num in summaries.paginator.page_range %}
+            {% if summaries.number == num %}
+                <li class="page-item active" aria-current="page">
+                    <span class="page-link">{{ num }}</span>
+                </li>
+            {% elif num > summaries.number|add:'-3' and num < summaries.number|add:'3' %}
+                <li class="page-item">
+                    <a class="page-link pagination-link" data-page="{{ num }}" href="?page={{ num }}">{{ num }}</a>
+                </li>
+            {% elif num == 1 %}
+                <li class="page-item">
+                    <a class="page-link pagination-link" data-page="1" href="?page=1">1</a>
+                </li>
+                {% if summaries.number > 4 %}
+                    <li class="page-item disabled"><span class="page-link">…</span></li>
+                {% endif %}
+            {% elif num == summaries.paginator.num_pages %}
+                {% if summaries.number < summaries.paginator.num_pages|add:'-3' %}
+                    <li class="page-item disabled"><span class="page-link">…</span></li>
+                {% endif %}
+                <li class="page-item">
+                    <a class="page-link pagination-link" data-page="{{ summaries.paginator.num_pages }}" href="?page={{ summaries.paginator.num_pages }}">{{ summaries.paginator.num_pages }}</a>
+                </li>
+            {% endif %}
+        {% endfor %}
+
+        {% if summaries.has_next %}
+            <li class="page-item">
+                <a class="page-link pagination-link" data-page="{{ summaries.next_page_number }}" href="?page={{ summaries.next_page_number }}" aria-label="Следующая">
+                    <i class="bi bi-chevron-right"></i>
+                </a>
+            </li>
+        {% else %}
+            <li class="page-item disabled">
+                <span class="page-link" aria-label="Следующая"><i class="bi bi-chevron-right"></i></span>
+            </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+</div>
 {% endblock %}
 
 {% block extra_css %}
 <style>
-    .summary-filter-card {
-        border: 0;
-        box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+    .sl-page {
+        --sl-ink: #0f1b2d;
+        --sl-ink-2: #334155;
+        --sl-muted: #6b7a90;
+        --sl-muted-2: #9aa6b6;
+        --sl-line: #edf1f5;
+        --sl-border: #e3eaf0;
+        --sl-teal: var(--app-primary);
+        --sl-teal-soft: #e6f3f1;
+        --sl-amber: #f0a93b;
+        font-feature-settings: "tnum" 1;
     }
 
-    .summary-filter-card__header {
-        padding: 0;
-        background: #fff;
-        border-bottom: 1px solid #e9ecef;
-    }
-
-    .summary-filter-toggle {
-        width: 100%;
-        border: 0;
-        border-radius: 0;
-        padding: 1rem 1.25rem;
+    /* Заголовок */
+    .sl-head {
         display: flex;
-        align-items: center;
         justify-content: space-between;
+        align-items: flex-end;
+        gap: 1rem;
+        margin: 0.5rem 0 1.4rem;
+    }
+
+    .sl-title {
+        font-size: 1.75rem;
+        font-weight: 700;
+        letter-spacing: -0.025em;
+        color: var(--sl-ink);
+        margin: 0 0 0.25rem;
+    }
+
+    .sl-sub {
+        color: var(--sl-muted);
+        font-size: 0.9rem;
+        margin: 0;
+    }
+
+    .sl-help {
+        flex-shrink: 0;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.45rem 0.9rem;
+        border: 1px solid #cfe3e0;
+        border-radius: 999px;
+        font-size: 0.8125rem;
         font-weight: 600;
-        color: #0f172a;
+        color: var(--sl-teal);
+        text-decoration: none;
+        transition: background-color 0.15s ease;
+    }
+
+    .sl-help:hover {
+        background: var(--sl-teal-soft);
+        color: var(--sl-teal);
+    }
+
+    /* Вкладки филиалов */
+    .sl-branches {
+        display: inline-flex;
+        max-width: 100%;
+        gap: 0.25rem;
+        padding: 0.25rem;
+        margin-bottom: 1rem;
+        overflow-x: auto;
+        scrollbar-width: none;
+        background: rgba(255, 255, 255, 0.65);
+        border: 1px solid var(--sl-border);
+        border-radius: 14px;
+    }
+
+    .sl-branches::-webkit-scrollbar {
+        display: none;
+    }
+
+    .sl-branch {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        padding: 0.45rem 0.75rem;
+        border-radius: 10px;
+        white-space: nowrap;
+        font-size: 0.85rem;
+        font-weight: 500;
+        color: #4a5a70;
+        text-decoration: none;
+        transition: background-color 0.15s ease, color 0.15s ease;
+    }
+
+    .sl-branch:hover {
+        background: #fff;
+        color: var(--sl-ink);
+    }
+
+    .sl-branch__count {
+        font-size: 0.72rem;
+        font-weight: 600;
+        color: var(--sl-muted-2);
+    }
+
+    .sl-branch.is-active {
+        background: var(--sl-ink);
+        color: #fff;
+        box-shadow: 0 1px 2px rgba(15, 27, 45, 0.2);
+    }
+
+    .sl-branch.is-active .sl-branch__count {
+        color: rgba(255, 255, 255, 0.6);
+    }
+
+    .sl-branch.is-loading {
+        opacity: 0.6;
+        pointer-events: none;
+    }
+
+    /* Карточка со списком */
+    .sl-card {
+        background: #fff;
+        border: 1px solid #e6ecf1;
+        border-radius: 18px;
+        overflow: hidden;
+        box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 12px 32px -12px rgba(16, 24, 40, 0.1);
+    }
+
+    .sl-card__bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+        padding: 0.6rem 0.9rem 0.6rem 1.35rem;
+        border-bottom: 1px solid var(--sl-line);
+    }
+
+    .sl-card__total {
+        font-size: 0.8125rem;
+        color: var(--sl-muted);
+    }
+
+    .sl-card__total b {
+        color: var(--sl-ink);
+        font-weight: 700;
+    }
+
+    .sl-filter-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.6rem;
+        height: 36px;
+        padding: 0 0.75rem;
+        background: #fafbfc;
+        border: 1px solid var(--sl-border);
+        border-radius: 10px;
+        font-size: 0.8125rem;
+        color: var(--sl-muted);
+        white-space: nowrap;
+        transition: border-color 0.15s ease, background-color 0.15s ease;
+    }
+
+    .sl-filter-toggle:hover {
+        border-color: #c9dcd9;
+        background: #fff;
+    }
+
+    .sl-filter-toggle__title {
+        font-weight: 600;
+        color: var(--sl-ink-2);
+    }
+
+    .sl-filter-toggle__hint {
+        color: var(--sl-muted-2);
+        margin-left: 0.4rem;
+    }
+
+    .sl-filter-toggle__icon {
+        transition: transform 0.2s ease;
+    }
+
+    .sl-filter-toggle[aria-expanded="true"] .sl-filter-toggle__icon {
+        transform: rotate(180deg);
+    }
+
+    .sl-card.filter-active .sl-filter-toggle {
+        border-color: var(--sl-teal);
+        background: var(--sl-teal-soft);
+    }
+
+    .sl-card.filter-active .sl-filter-toggle__title {
+        color: var(--sl-teal);
+    }
+
+    .sl-filter-form {
+        padding: 1.1rem 1.35rem 1.25rem;
+        background: #fafbfc;
+        border-bottom: 1px solid var(--sl-line);
+    }
+
+    .sl-filter-form .row.g-3 {
+        align-items: end;
+    }
+
+    .sl-filter-form .form-label {
+        font-size: 0.8125rem;
+        font-weight: 600;
+        color: var(--sl-ink-2);
+        margin-bottom: 0.4rem;
+    }
+
+    .sl-filter-actions {
+        display: flex;
+        gap: 0.5rem;
+        align-items: end;
+    }
+
+    /* Таблица */
+    .sl-table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+
+    .sl-table th {
+        padding: 0.7rem 1rem;
+        background: #fafbfc;
+        border-bottom: 1px solid var(--sl-line);
+        font-size: 0.6875rem;
+        font-weight: 700;
+        letter-spacing: 0.07em;
+        text-transform: uppercase;
+        color: var(--sl-muted-2);
+        white-space: nowrap;
         text-align: left;
     }
 
-    .summary-filter-toggle:hover {
-        color: var(--app-primary);
-        background-color: rgba(11, 122, 117, 0.06);
+    .sl-table td {
+        padding: 0.8rem 1rem;
+        border-bottom: 1px solid var(--sl-line);
+        vertical-align: middle;
+        font-size: 0.875rem;
+        color: var(--sl-ink-2);
+        transition: background-color 0.12s ease;
     }
 
-    .summary-filter-toggle:focus {
-        box-shadow: none;
-        color: var(--app-primary);
+    .sl-table tbody tr:last-child td {
+        border-bottom: 0;
     }
 
-    .summary-filter-toggle__title {
+    .sl-table th:first-child,
+    .sl-table td:first-child {
+        padding-left: 1.35rem;
+    }
+
+    .sl-table th:last-child,
+    .sl-table td:last-child {
+        padding-right: 1rem;
+        text-align: right;
+    }
+
+    .summary-row {
+        cursor: pointer;
+    }
+
+    .sl-table tbody tr:hover td {
+        background: #f7fbfa;
+    }
+
+    .sl-row--waiting td:first-child {
+        box-shadow: inset 3px 0 0 var(--sl-amber);
+    }
+
+    /* Номер заявки */
+    .sl-cell-number {
+        white-space: nowrap;
+    }
+
+    .sl-number-line {
         display: flex;
-        align-items: center;
-        gap: 0.5rem;
-    }
-
-    .summary-filter-toggle__meta {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-        color: #64748b;
-        font-size: 0.85rem;
-    }
-
-    .summary-filter-toggle__icon {
-        transition: transform 0.2s ease-in-out, color 0.2s ease-in-out;
-    }
-
-    .summary-filter-toggle[aria-expanded="true"] .summary-filter-toggle__icon {
-        transform: rotate(180deg);
-        color: var(--app-primary);
-    }
-
-    .summary-filter-card .card-body {
-        padding: 1.25rem;
-    }
-
-    .summary-filter-form .row.g-3 {
-        align-items: end;
-    }
-
-    .summary-filter-form .form-label {
-        font-weight: 500;
-        margin-bottom: 0.5rem;
-        color: #334155;
-    }
-
-    .summary-filter-form .form-control,
-    .summary-filter-form .form-select {
-        min-height: calc(2.25rem + 2px);
-    }
-
-    .summary-filter-actions {
-        display: flex;
-        gap: 0.5rem;
-        align-items: end;
-    }
-
-    .summary-filter-actions .btn {
-        font-weight: 500;
-    }
-
-    .summary-filter-card.filter-active {
-        border-left: 4px solid var(--app-primary);
-    }
-
-    /* Партии V2-заявок в списке сводов не соединяем линиями: своды могут
-       создаваться в произвольном порядке, поэтому каждая строка самодостаточна. */
-    .summary-row--batch {
-        --summary-batch-rgb: 22, 163, 74;
-        --summary-batch-text: #166534;
-    }
-
-    .summary-row--batch > * {
-        --bs-table-bg: rgba(var(--summary-batch-rgb), 0.026);
-        border-color: rgba(var(--summary-batch-rgb), 0.10);
-        transition: background-color 0.18s ease, border-color 0.18s ease;
-    }
-
-    .table-striped > tbody > tr.summary-row--batch:nth-of-type(odd) > * {
-        --bs-table-accent-bg: rgba(var(--summary-batch-rgb), 0.036);
-    }
-
-    .table-hover > tbody > tr.summary-row--batch:hover > * {
-        --bs-table-accent-bg: rgba(var(--summary-batch-rgb), 0.060);
-        border-color: rgba(var(--summary-batch-rgb), 0.16);
-    }
-
-    .summary-request-title-stack {
-        display: flex;
-        flex-direction: column;
-        gap: 0.2rem;
-    }
-
-    .summary-request-title-line {
-        display: flex;
-        flex-wrap: wrap;
         align-items: center;
         gap: 0.4rem;
     }
 
+    .sl-number {
+        font-family: 'Space Grotesk', 'Manrope', sans-serif;
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: var(--sl-ink);
+        text-decoration: none;
+    }
+
+    .sl-number:hover {
+        color: var(--sl-teal);
+    }
+
+    .sl-meta {
+        margin-top: 0.2rem;
+        font-size: 0.75rem;
+        color: var(--sl-muted-2);
+    }
+
+    .sl-note {
+        color: #e0b33a;
+        font-size: 0.75rem;
+        cursor: help;
+    }
+
     .summary-list-badge.badge {
         display: inline-flex;
-        position: relative;
         align-items: center;
-        gap: 0.35rem;
-        padding: 0.22rem 0.55rem;
-        overflow: hidden;
+        gap: 0.3rem;
+        padding: 0.18rem 0.5rem;
         border-radius: 999px;
+        font-size: 0.72rem;
         font-weight: 600;
-        letter-spacing: 0.01em;
-        line-height: 1;
-        vertical-align: middle;
-        box-shadow: none;
-        transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+        line-height: 1.2;
+        background: #f1f4f8;
+        color: #5b6b80;
+        border: 0;
     }
 
     .summary-list-badge i {
         font-size: 0.85em;
-        line-height: 1;
     }
 
     .summary-list-badge__count {
+        font-weight: 700;
+        color: var(--sl-ink-2);
+    }
+
+    /* Клиент и объект */
+    .sl-client,
+    .sl-object {
+        max-width: 320px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .sl-client {
+        color: var(--sl-ink-2);
+    }
+
+    .sl-object {
+        margin-top: 0.2rem;
+        font-size: 0.78rem;
+        color: var(--sl-muted);
+    }
+
+    /* Статус */
+    .sl-status {
         display: inline-flex;
         align-items: center;
-        justify-content: center;
-        min-width: 1.3rem;
-        padding: 0.1rem 0.36rem;
+        gap: 0.45rem;
+        padding: 0.25rem 0.65rem 0.25rem 0.55rem;
         border-radius: 999px;
+        font-size: 0.78rem;
+        font-weight: 600;
+        line-height: 1.35;
+        white-space: nowrap;
+        background: #f1f4f8;
+        color: #4a5a70;
+    }
+
+    .sl-status::before {
+        content: "";
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: currentColor;
+    }
+
+    .sl-status--collecting { background: #eaf2fe; color: #1d5fbf; }
+    .sl-status--ready { background: var(--sl-teal-soft); color: #0b6b66; }
+    .sl-status--sent { background: #fdf3e1; color: #98600a; }
+    .sl-status--completed_accepted { background: #e9f6ef; color: #1d7047; }
+    .sl-status--completed_rejected { background: #fbeeee; color: #b4342d; }
+
+    .sl-status-sub {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.2rem 0.5rem;
+        margin-top: 0.3rem;
+        font-size: 0.78rem;
+        color: var(--sl-muted);
+    }
+
+    .sl-status-sub b {
+        color: var(--sl-ink-2);
+        font-weight: 600;
+    }
+
+    .sl-flag {
+        padding: 0.05rem 0.4rem;
+        border-radius: 6px;
+        background: #fdf3e1;
+        color: #8a5a00;
+        font-size: 0.69rem;
         font-weight: 700;
     }
 
-    .summary-list-badge--batch {
-        background: rgba(var(--summary-batch-rgb), 0.08);
-        color: var(--summary-batch-text);
-        border: 1px solid rgba(var(--summary-batch-rgb), 0.22);
-    }
-
-    .summary-list-badge--batch .summary-list-badge__count {
-        background: rgba(var(--summary-batch-rgb), 0.12);
-        color: var(--summary-batch-text);
-    }
-
-    .summary-list-badge--duplicate {
-        background: #fef3c7;
-        color: #92400e;
-        border: 1px solid rgba(217, 119, 6, 0.32);
-    }
-
-    /* Простые улучшения для таблицы сводов */
-    .table-striped > tbody > tr:not(.summary-row--batch):nth-of-type(odd) > td {
-        background-color: rgba(0, 0, 0, 0.02);
-    }
-    
-
-    
-    .badge {
-        font-size: 0.8rem;
-        font-weight: 500;
-    }
-    
-    .btn-outline-primary, .btn-outline-success {
-        font-size: 0.85rem;
-        font-weight: 500;
-    }
-    
-    /* Стили для вкладок филиалов */
-    .branch-filter-tabs {
-        border-bottom: 1px solid #dee2e6;
-        margin-bottom: 1rem;
-    }
-
-    .branch-filter-tabs .nav-tabs {
-        border-bottom: none;
-    }
-
-    .branch-filter-tabs .nav-link {
-        border-bottom: 2px solid transparent;
-        color: #6c757d;
+    .sl-link {
+        display: inline-flex;
+        gap: 0.2rem;
+        color: var(--sl-teal);
+        font-weight: 600;
         text-decoration: none;
-        padding: 0.75rem 1rem;
-        border-radius: 0;
-        transition: all 0.2s ease-in-out;
     }
 
-    .branch-filter-tabs .nav-link:hover {
-        border-bottom-color: var(--app-primary);
-        color: var(--app-primary);
-        background-color: rgba(11, 122, 117, 0.08);
+    .sl-link:hover {
+        text-decoration: underline;
     }
 
-    .branch-filter-tabs .nav-link.active {
-        border-bottom-color: var(--app-primary);
-        color: var(--app-primary);
-        background-color: transparent;
-        font-weight: 500;
+    .sl-waiting {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
     }
 
-    .branch-filter-tabs .nav-link .badge {
+    .sl-waiting.is-late {
+        color: #b86e00;
+        font-weight: 600;
+    }
+
+    /* Лучшее предложение */
+    .sl-cell-best {
+        white-space: nowrap;
+    }
+
+    .sl-best {
+        font-weight: 700;
+        color: var(--sl-ink);
+    }
+
+    .sl-best-company {
+        max-width: 160px;
+        overflow: hidden;
+        text-overflow: ellipsis;
         font-size: 0.75rem;
-        padding: 0.25rem 0.5rem;
+        color: var(--sl-muted);
     }
 
-    .branch-filter-tabs .nav-link.active .badge {
-        background-color: var(--app-primary) !important;
+    .sl-empty {
+        color: var(--sl-muted-2);
     }
-    
-    /* Адаптивность для мобильных устройств */
-    @media (max-width: 768px) {
-        .branch-filter-tabs .nav-link {
-            padding: 0.5rem 0.75rem;
-            font-size: 0.875rem;
+
+    /* Компании */
+    .sl-companies {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.6rem;
+    }
+
+    .sl-companies b {
+        min-width: 0.9rem;
+        text-align: right;
+        font-weight: 700;
+        color: var(--sl-ink);
+    }
+
+    .sl-companies b.is-zero {
+        color: var(--sl-muted-2);
+    }
+
+    .sl-scale {
+        display: inline-flex;
+        gap: 2px;
+    }
+
+    .sl-scale i {
+        display: block;
+        width: 4px;
+        height: 12px;
+        border-radius: 2px;
+        background: #e6ebf0;
+    }
+
+    .sl-scale i.is-filled {
+        background: var(--sl-teal);
+    }
+
+    .sl-scale.is-low i.is-filled {
+        background: #9fb3c6;
+    }
+
+    .sl-declined {
+        margin-top: 0.2rem;
+        font-size: 0.72rem;
+        color: #b4342d;
+    }
+
+    /* Дата и действия */
+    .sl-col-date {
+        white-space: nowrap;
+    }
+
+    .sl-date {
+        font-size: 0.8125rem;
+        color: var(--sl-ink-2);
+    }
+
+    .sl-time {
+        font-size: 0.75rem;
+        color: var(--sl-muted-2);
+    }
+
+    .sl-actions {
+        gap: 0.2rem;
+    }
+
+    .sl-action {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        border-radius: 9px;
+        color: var(--sl-muted-2);
+        text-decoration: none;
+        transition: background-color 0.15s ease, color 0.15s ease;
+    }
+
+    .summary-row:hover .sl-action,
+    .sl-action:focus-visible {
+        background: var(--sl-teal-soft);
+        color: var(--sl-teal);
+    }
+
+    .sl-action--add {
+        color: #1d5fbf;
+        background: #eaf2fe;
+    }
+
+    /* Пустое состояние */
+    .sl-empty-state {
+        padding: 3.5rem 1rem;
+        text-align: center;
+        color: var(--sl-muted);
+    }
+
+    .sl-empty-state > i {
+        font-size: 3rem;
+        color: var(--sl-muted-2);
+    }
+
+    .sl-empty-state h3 {
+        margin-top: 0.75rem;
+        font-size: 1.25rem;
+        color: var(--sl-ink);
+    }
+
+    /* Пагинация */
+    .sl-pagination {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+        margin: 1.1rem 0.25rem 2rem;
+    }
+
+    .sl-pagination__info {
+        font-size: 0.8125rem;
+        color: var(--sl-muted);
+    }
+
+    .sl-pagination .pagination {
+        gap: 0.25rem;
+        margin: 0;
+    }
+
+    .sl-pagination .page-link {
+        min-width: 34px;
+        height: 34px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0 0.5rem;
+        border: 0;
+        border-radius: 10px !important;
+        background: transparent;
+        color: #4a5a70;
+        font-size: 0.85rem;
+        font-weight: 600;
+    }
+
+    .sl-pagination .page-link:hover {
+        background: #fff;
+        color: var(--sl-ink);
+    }
+
+    .sl-pagination .page-item.active .page-link {
+        background: var(--sl-ink);
+        color: #fff;
+    }
+
+    .sl-pagination .page-item.disabled .page-link {
+        background: transparent;
+        color: #c3ccd7;
+    }
+
+    /* Адаптивность */
+    @media (max-width: 1399.98px) {
+        .sl-client,
+        .sl-object {
+            max-width: 250px;
         }
-        
-        .branch-filter-tabs .nav-link .badge {
-            font-size: 0.7rem;
-            padding: 0.2rem 0.4rem;
-        }
-        
-        /* Скрываем иконки на очень маленьких экранах */
-        .branch-filter-tabs .nav-link i {
+    }
+
+    @media (max-width: 1199.98px) {
+        .sl-col-date {
             display: none;
         }
     }
-    
-    @media (max-width: 576px) {
-        .summary-filter-card .card-body {
-            padding: 1rem;
+
+    @media (max-width: 991.98px) {
+        .sl-scale {
+            display: none;
         }
 
-        .summary-filter-toggle {
-            padding: 0.85rem 1rem;
+        .sl-client,
+        .sl-object {
+            max-width: 220px;
+        }
+    }
+
+    @media (max-width: 767.98px) {
+        .sl-head {
+            align-items: flex-start;
         }
 
-        .summary-filter-actions {
+        .sl-title {
+            font-size: 1.4rem;
+        }
+
+        .sl-col-companies,
+        .sl-col-actions {
+            display: none;
+        }
+
+        .sl-table th,
+        .sl-table td {
+            padding: 0.65rem 0.6rem;
+        }
+
+        .sl-pagination {
+            flex-direction: column;
+        }
+
+        .sl-filter-actions {
             flex-direction: column;
             align-items: stretch;
-        }
-
-        .summary-filter-actions .btn {
-            width: 100%;
-        }
-
-        .branch-filter-tabs .nav-link {
-            padding: 0.4rem 0.5rem;
-            font-size: 0.8rem;
-        }
-        
-        /* Сокращаем длинные названия филиалов */
-        .branch-filter-tabs .nav-link {
-            max-width: 120px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-    }
-    
-    @media (max-width: 768px) {
-        .table-responsive table {
-            font-size: 0.875rem;
-        }
-        
-        .table-responsive th,
-        .table-responsive td {
-            padding: 0.5rem 0.25rem;
-        }
-        
-        .btn-group-sm .btn {
-            padding: 0.25rem 0.5rem;
-            font-size: 0.75rem;
-        }
-        
-        .text-truncate {
-            max-width: 120px !important;
-        }
-        
-        /* Hide branch column on mobile */
-        .table-responsive th:nth-child(3),
-        .table-responsive td:nth-child(3) {
-            display: none;
-        }
-    }
-    
-    @media (max-width: 576px) {
-        /* Hide date column on very small screens */
-        .table-responsive th:nth-child(5),
-        .table-responsive td:nth-child(5) {
-            display: none;
-        }
-        
-        .text-truncate {
-            max-width: 100px !important;
-        }
-    }
-    
-    /* Стили для пагинации (требование 5.6) */
-    .pagination {
-        margin-bottom: 0;
-    }
-    
-    .pagination .page-link {
-        color: var(--app-primary);
-        border: 1px solid #dee2e6;
-        padding: 0.5rem 0.75rem;
-        margin: 0 0.125rem;
-        border-radius: 0.375rem;
-        transition: all 0.2s ease-in-out;
-    }
-    
-    .pagination .page-link:hover {
-        color: var(--app-primary-dark);
-        background-color: #e9ecef;
-        border-color: #adb5bd;
-        text-decoration: none;
-    }
-    
-    .pagination .page-item.active .page-link {
-        background-color: var(--app-primary);
-        border-color: var(--app-primary);
-        color: white;
-        font-weight: 500;
-    }
-    
-    .pagination .page-item.disabled .page-link {
-        color: #6c757d;
-        background-color: #fff;
-        border-color: #dee2e6;
-        cursor: not-allowed;
-    }
-    
-    .pagination .page-item.disabled .page-link:hover {
-        color: #6c757d;
-        background-color: #fff;
-        border-color: #dee2e6;
-    }
-    
-    /* Адаптивные стили для пагинации */
-    @media (max-width: 768px) {
-        .pagination .page-link {
-            padding: 0.375rem 0.5rem;
-            font-size: 0.875rem;
-        }
-        
-        /* Скрываем номера страниц на мобильных, оставляем только навигацию */
-        .pagination .page-item:not(:first-child):not(:last-child) {
-            display: none;
-        }
-        
-        .pagination .page-item:first-child,
-        .pagination .page-item:last-child {
-            display: block;
-        }
-        
-        /* Показываем текущую страницу */
-        .pagination .page-item.active {
-            display: block !important;
-        }
-    }
-    
-    @media (max-width: 576px) {
-        .pagination .page-link {
-            padding: 0.25rem 0.5rem;
-            font-size: 0.8rem;
-        }
-        
-        /* Убираем текст, оставляем только иконки */
-        .pagination .page-link i {
-            margin: 0;
-        }
-        
-        .pagination .page-link:first-child,
-        .pagination .page-link:last-child {
-            font-size: 0;
-        }
-        
-        .pagination .page-link:first-child i,
-        .pagination .page-link:last-child i {
-            font-size: 0.8rem;
         }
     }
 </style>
@@ -708,38 +937,32 @@
 
 {% block extra_js %}
 <script>
-// Функция для фильтрации по филиалам с сохранением других параметров URL (требование 5.4)
+// Переключение филиала с сохранением остальных параметров URL (требование 5.4)
 function filterByBranch(branch) {
     const urlParams = new URLSearchParams(window.location.search);
-    
+
     if (branch) {
         urlParams.set('branch', branch);
     } else {
         urlParams.delete('branch');
     }
-    
+
     // Сбрасываем пагинацию при смене филиала
     urlParams.delete('page');
-    
-    const newUrl = window.location.pathname + '?' + urlParams.toString();
-    window.location.href = newUrl;
+
+    window.location.href = window.location.pathname + '?' + urlParams.toString();
 }
 
-// Функция для сохранения параметров фильтрации при навигации по страницам (требование 5.4)
+// Сохранение параметров фильтрации в ссылках пагинации (требование 5.4)
 function preserveFiltersInPagination() {
-    const paginationLinks = document.querySelectorAll('.pagination-link');
     const currentParams = new URLSearchParams(window.location.search);
-    
-    // Удаляем параметр page из текущих параметров для корректного добавления
     currentParams.delete('page');
-    
-    paginationLinks.forEach(link => {
+
+    document.querySelectorAll('.pagination-link').forEach(link => {
         const pageNumber = link.getAttribute('data-page');
         if (pageNumber) {
-            // Создаем новый URL с сохранением всех параметров фильтрации
             const newParams = new URLSearchParams(currentParams);
             newParams.set('page', pageNumber);
-            
             link.href = window.location.pathname + '?' + newParams.toString();
         }
     });
@@ -748,41 +971,25 @@ function preserveFiltersInPagination() {
 document.addEventListener('DOMContentLoaded', function() {
     const filterForm = document.getElementById('summary-filter-form');
     const filterCollapse = document.getElementById('filterForm');
-    
-    // Check if any filters are active and show the form
+
+    // Раскрываем фильтры, если хотя бы один из них активен
     function checkActiveFilters() {
         const formData = new FormData(filterForm);
-        let hasActiveFilters = false;
-        
-        for (let [key, value] of formData.entries()) {
+        for (const [, value] of formData.entries()) {
             if (value && value.trim() !== '') {
-                hasActiveFilters = true;
-                break;
+                filterCollapse.classList.add('show');
+                filterCollapse.closest('.sl-card').classList.add('filter-active');
+                document.querySelector('.sl-filter-toggle').setAttribute('aria-expanded', 'true');
+                return;
             }
-        }
-        
-        if (hasActiveFilters) {
-            filterCollapse.classList.add('show');
-            filterCollapse.parentElement.classList.add('filter-active');
         }
     }
-    
-    // Enhance branch tab switching with visual feedback
-    const branchTabs = document.querySelectorAll('.branch-filter-tabs .nav-link');
-    branchTabs.forEach(tab => {
+
+    document.querySelectorAll('.sl-branch').forEach(tab => {
         tab.addEventListener('click', function(e) {
             e.preventDefault();
-            
-            // Add loading state
-            const originalContent = this.innerHTML;
-            this.innerHTML = originalContent.replace(/(<i[^>]*><\/i>)/, '$1 <span class="spinner-border spinner-border-sm ms-1" role="status"></span>');
-            this.style.pointerEvents = 'none';
-            
-            // Execute the filter function
-            const onclickAttr = this.getAttribute('onclick');
-            if (onclickAttr) {
-                eval(onclickAttr);
-            }
+            this.classList.add('is-loading');
+            filterByBranch(this.dataset.branch);
         });
     });
 
@@ -791,8 +998,7 @@ document.addEventListener('DOMContentLoaded', function() {
         event.preventDefault();
 
         const params = new URLSearchParams();
-        const formData = new FormData(filterForm);
-        formData.forEach((value, key) => {
+        new FormData(filterForm).forEach((value, key) => {
             const normalizedValue = String(value || '').trim();
             if (normalizedValue !== '') {
                 params.set(key, normalizedValue);
@@ -801,27 +1007,22 @@ document.addEventListener('DOMContentLoaded', function() {
         params.delete('page');
 
         const queryString = params.toString();
-        const targetUrl = queryString
+        window.location.href = queryString
             ? `${window.location.pathname}?${queryString}`
             : window.location.pathname;
-        window.location.href = targetUrl;
     });
-    
-    // Check for active filters on page load
+
     checkActiveFilters();
-    
-    // Handle row clicks for navigation
-    const summaryRows = document.querySelectorAll('.summary-row[data-href]');
-    summaryRows.forEach(row => {
+
+    // Клик по строке открывает свод; ссылки и кнопки внутри строки работают как обычно
+    document.querySelectorAll('.summary-row[data-href]').forEach(row => {
         row.addEventListener('click', function(e) {
-            // Don't navigate if clicking on action buttons
-            if (!e.target.closest('.btn-group')) {
+            if (!e.target.closest('a, button')) {
                 window.location.href = this.getAttribute('data-href');
             }
         });
     });
-    
-    // Обеспечиваем сохранение параметров фильтрации в ссылках пагинации (требование 5.4)
+
     preserveFiltersInPagination();
 });
 </script>

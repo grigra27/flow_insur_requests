@@ -11,7 +11,7 @@ from django.http import FileResponse, Http404, JsonResponse, HttpResponse
 from django.conf import settings
 from django.views.decorators.http import require_http_methods
 from django.db import transaction, IntegrityError
-from django.db.models import Q
+from django.db.models import Count, Prefetch, Q, prefetch_related_objects
 from django.db.models.functions import Coalesce
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from decimal import Decimal, InvalidOperation
@@ -20,7 +20,7 @@ import logging
 import os
 from pathlib import Path
 
-from .models import InsuranceSummary, InsuranceOffer, SummaryTemplate
+from .models import InsuranceSummary, InsuranceOffer, SummaryCompanyStatus, SummaryTemplate
 from insurance_requests.models import InsuranceRequest
 from insurance_requests.decorators import admin_required, has_admin_access, user_required
 from .forms import OfferForm, SummaryForm, AddOfferToSummaryForm, DealListFilterForm
@@ -147,23 +147,12 @@ def summary_list(request):
 
     summaries = apply_summary_filters(summaries, include_branch=True)
     
-    # Подсчет количества сводов для каждого филиала (только если выбран конкретный филиал)
-    branch_counts = {}
-    if available_branches and current_branch:
-        branch_summaries = apply_summary_filters(
-            InsuranceSummary.objects.select_related('request', 'request__created_by'),
-            include_branch=True,
-        )
-        branch_counts[current_branch] = branch_summaries.count()
-    
-    # Подсчет общего количества сводов (только если не выбран конкретный филиал)
-    total_summaries_count = 0
-    if not current_branch:
-        total_summaries_queryset = apply_summary_filters(
-            InsuranceSummary.objects.select_related('request', 'request__created_by'),
-            include_branch=False,
-        )
-        total_summaries_count = total_summaries_queryset.count()
+    # Счётчики на вкладках филиалов: все фильтры, кроме самого филиала
+    counts_queryset = apply_summary_filters(InsuranceSummary.objects.all(), include_branch=False)
+    branch_counts = dict(
+        counts_queryset.order_by().values_list('request__branch').annotate(count=Count('id'))
+    )
+    total_summaries_count = sum(branch_counts.values())
     
     # Сортировка по умолчанию
     sort_by = request.GET.get('sort', '-created_at')
@@ -185,6 +174,8 @@ def summary_list(request):
     except EmptyPage:
         # Если номер страницы превышает максимальный, показываем последнюю страницу
         summaries = paginator.page(paginator.num_pages)
+
+    _attach_summary_list_info(summaries.object_list)
     
     # Обновляем контекст шаблона для передачи информации о филиале (требование 4.1, 4.2, 4.3)
     return render(request, 'summaries/summary_list.html', {
@@ -196,9 +187,69 @@ def summary_list(request):
         'current_branch': current_branch,
         'total_summaries_count': total_summaries_count,
         'current_sort': sort_by,
-        'show_branch_counts': bool(current_branch),  # Показывать счетчики только для активного филиала
-        'show_total_count': not current_branch,      # Показывать общий счетчик только для "Все своды"
     })
+
+
+SUMMARY_LIST_TYPE_LABELS = {
+    'КАСКО': 'КАСКО',
+    'страхование спецтехники': 'Спецтехника',
+    'страхование имущества': 'Имущество',
+    'другое': 'Другое',
+}
+
+
+def _format_years_count(count):
+    if count % 10 == 1 and count % 100 != 11:
+        return f'{count} год'
+    if count % 10 in (2, 3, 4) and count % 100 not in (12, 13, 14):
+        return f'{count} года'
+    return f'{count} лет'
+
+
+def _attach_summary_list_info(page_summaries):
+    """Добавляет к сводам страницы данные для строки списка: лучшее предложение за весь срок,
+    итог выбранной СК, отказы, срок и время ожидания решения.
+
+    Лучшее считается так же, как «Лучшее» в сводной информации карточки свода: минимальная
+    сумма премий за все годы по первому требуемому варианту франшизы.
+    """
+    summaries = list(page_summaries)
+    prefetch_related_objects(
+        summaries,
+        Prefetch(
+            'offers',
+            queryset=InsuranceOffer.objects.filter(is_valid=True),
+            to_attr='valid_offers_prefetched',
+        ),
+        'company_statuses',
+    )
+    now = timezone.now()
+    for summary in summaries:
+        offers = summary.valid_offers_prefetched
+        analytics = _build_summary_compact_analytics(summary, offers)
+        best = analytics['price_ranges'][0] if analytics['price_ranges'] else None
+        selected = analytics['selected']
+        declined_count = sum(
+            1 for company_status in summary.company_statuses.all()
+            if company_status.status == SummaryCompanyStatus.DECLINED
+        )
+        insurance_type = summary.request.insurance_type or ''
+        waiting_days = None
+        if summary.status == 'sent':
+            waiting_days = (now - (summary.sent_to_client_at or summary.created_at)).days
+
+        summary.list_info = {
+            'companies_count': analytics['companies_count'],
+            'companies_scale': range(9),
+            'years_label': _format_years_count(analytics['years_count']) if analytics['years_count'] else '',
+            'type_label': SUMMARY_LIST_TYPE_LABELS.get(insurance_type, insurance_type),
+            'best_total': best['min_total'] if best else None,
+            'best_company_name': best['best_company_name'] if best else '',
+            'selected_total': selected['total'] if selected else None,
+            'has_cheaper': bool(selected and selected['rank'] and not selected['is_min_selected']),
+            'declined_count': declined_count,
+            'waiting_days': waiting_days,
+        }
 
 
 def _resolve_manager_online_name(insurance_request):
