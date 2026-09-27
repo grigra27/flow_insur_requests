@@ -1,0 +1,25 @@
+<style>
+    .tf-card { border: 0; box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08); }
+    .tf-filter { background: linear-gradient(135deg, #f8fafc 0%, #e8f6f2 100%); }
+    .tf-kpi-label { font-size: .78rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: #64748b; }
+    .tf-kpi-value { font-size: 1.6rem; line-height: 1.15; font-weight: 700; color: #0f172a; }
+    .tf-hint { font-size: .82rem; color: #64748b; }
+    .tf-table th, .tf-table td { vertical-align: middle; }
+    .tf-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .tf-table tr.tf-low td { color: #94a3b8; }
+    .tf-table .tf-muted { color: #64748b; font-size: .82rem; }
+    .tf-range { position: relative; height: 14px; min-width: 140px; background: #f1f5f9; border-radius: 3px; }
+    .tf-range > .iqr { position: absolute; top: 3px; height: 8px; background: #9ec5f0; border-radius: 3px; }
+    .tf-range > .med { position: absolute; top: 0; width: 3px; height: 14px; margin-left: -1px; background: #1d4f91; border-radius: 1px; }
+    .tf-low .tf-range > .iqr { background: #e2e8f0; }
+    .tf-low .tf-range > .med { background: #94a3b8; }
+    .tf-badge-low { font-size: .7rem; font-weight: 500; background: #f1f5f9; color: #64748b; border-radius: 4px; padding: 1px 5px; margin-left: .3rem; }
+    .tf-heat td.cell { text-align: center; font-variant-numeric: tabular-nums; min-width: 3.4rem; font-size: .85rem; }
+    .tf-heat td.cell.empty { color: #cbd5e1; }
+    .tf-heat td.cell.cheap-2 { background: #b7e4cf; }
+    .tf-heat td.cell.cheap-1 { background: #dff3ea; }
+    .tf-heat td.cell.dear-1 { background: #fbe3d6; }
+    .tf-heat td.cell.dear-2 { background: #f5c0a3; }
+    .tf-heat th.col { text-align: center; font-size: .78rem; white-space: normal; min-width: 3.6rem; }
+    .tf-legend span { display: inline-block; width: 14px; height: 10px; border-radius: 2px; margin: 0 .25rem 0 .6rem; vertical-align: 0; }
+</style>

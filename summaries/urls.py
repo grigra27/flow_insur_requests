@@ -26,6 +26,9 @@ urlpatterns = [
     path('analytics/insurance-companies/export/', views.export_analytics_insurance_companies_widget, name='export_analytics_insurance_companies_widget'),
     path('analytics/insurance-companies/card/<str:company>/', views.analytics_insurance_company_card, name='analytics_insurance_company_card'),
     path('analytics/insurance-companies/card/<str:company>/export/', views.export_analytics_insurance_company_card, name='export_analytics_insurance_company_card'),
+    path('analytics/tariffs/', views.analytics_tariffs, name='analytics_tariffs'),
+    path('analytics/tariffs/export/', views.export_analytics_tariffs, name='export_analytics_tariffs'),
+    path('analytics/tariffs/<str:dimension>/<str:group>/', views.analytics_tariff_group, name='analytics_tariff_group'),
     path('analytics/managers/', views.analytics_managers, name='analytics_managers'),
     # Сравнение и леденборд удалены (analytics_redesign_2026_09, задача 1.1) — старые ссылки ведут на обзор.
     path('analytics/managers/compare/', RedirectView.as_view(pattern_name='summaries:analytics_managers', query_string=True)),

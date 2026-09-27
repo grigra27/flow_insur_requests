@@ -35,6 +35,7 @@ from .services import analytics_parser_edits as analytics_parser_edits_service
 from .services import analytics_post_creation as analytics_post_creation_service
 from .services import company_statuses
 from .services import analytics_insurance_company_card as company_card_service
+from .services import analytics_tariffs as tariffs_service
 
 logger = logging.getLogger(__name__)
 
@@ -2431,6 +2432,148 @@ def analytics_insurance_companies(request):
 
 def _decimal_to_float(value):
     return float(value) if value is not None else None
+
+
+TARIFF_PERIOD_CHOICES = [
+    ('90', '90 дней'), ('180', '180 дней'), ('365', '365 дней'), ('all', 'Всё время'),
+]
+
+
+def _parse_tariff_filters(request):
+    """Фильтры страницы «Тарифы»: период, филиал, тип + класс, новое / б/у, диапазон СС, режим франшизы."""
+    filters = _parse_company_analytics_filters(request)
+    class_keys = {key for key, _ in tariffs_service.OBJECT_CLASSES}
+    object_class = (request.GET.get('object_class') or '').strip()
+    condition = (request.GET.get('condition') or '').strip()
+    sum_range = (request.GET.get('sum_range') or '').strip()
+    mode = (request.GET.get('mode') or '').strip()
+    filters.update({
+        'object_class': object_class if object_class in class_keys else '',
+        'condition': condition if condition in dict(tariffs_service.CONDITIONS) else '',
+        'sum_range': sum_range if sum_range in {key for key, *_ in tariffs_service.SUM_RANGES} else '',
+        'mode': mode if mode in dict(tariffs_service.MODES) else tariffs_service.MODE_NO_FRANCHISE,
+    })
+    return filters
+
+
+def _tariff_filter_context(filters):
+    from insurance_requests.models import InsuranceRequest
+
+    branches = sorted(set(InsuranceRequest.objects.exclude(branch__isnull=True).exclude(branch='')
+                          .values_list('branch', flat=True)))
+    types = sorted(set(InsuranceRequest.objects.exclude(insurance_type__isnull=True).exclude(insurance_type='')
+                       .values_list('insurance_type', flat=True)))
+    return {
+        'filters': {
+            'period': filters['period'], 'start_date': filters['start_date_str'], 'end_date': filters['end_date_str'],
+            'branch': filters['branch'], 'insurance_type': filters['insurance_type'],
+            'object_class': filters['object_class'], 'condition': filters['condition'],
+            'sum_range': filters['sum_range'], 'mode': filters['mode'],
+        },
+        'available_filters': {'branches': branches, 'insurance_types': types},
+        'period_choices': TARIFF_PERIOD_CHOICES,
+        'class_choices': tariffs_service.OBJECT_CLASSES,
+        'condition_choices': tariffs_service.CONDITIONS,
+        'sum_range_choices': [(key, label) for key, label, *_ in tariffs_service.SUM_RANGES],
+        'mode_choices': tariffs_service.MODES,
+        'min_requests': tariffs_service.MIN_REQUESTS,
+    }
+
+
+@admin_required
+def analytics_tariffs(request):
+    """Аналитика → Тарифы (tariffs_analytics_2026_09, шаг 2)."""
+    filters = _parse_tariff_filters(request)
+    for error_message in filters['errors']:
+        messages.warning(request, error_message)
+    payload = tariffs_service.build_payload(filters)
+    payload.pop('points')
+    return render(request, 'summaries/analytics_tariffs.html', {**payload, **_tariff_filter_context(filters)})
+
+
+@admin_required
+def analytics_tariff_group(request, dimension, group):
+    """Страница марки (или вида машины для спецтехники): страховые, кварталы, модели, предложения."""
+    if dimension not in (tariffs_service.DIMENSION_BRAND, tariffs_service.DIMENSION_KIND):
+        raise Http404('Неизвестный разрез')
+    filters = _parse_tariff_filters(request)
+    payload = tariffs_service.build_group_payload(filters, dimension, group)
+    if not payload['points'] and not payload['kpi']['offers'] and not request.GET:
+        raise Http404('Нет данных по этой группе')
+    return render(request, 'summaries/analytics_tariff_group.html', {**payload, **_tariff_filter_context(filters)})
+
+
+@admin_required
+def export_analytics_tariffs(request):
+    """XLSX страницы «Тарифы»: классы, марки и виды машин, «группа × страховая», все предложения."""
+    from io import BytesIO
+    from openpyxl import Workbook
+    from openpyxl.styles import Font
+
+    filters = _parse_tariff_filters(request)
+    payload = tariffs_service.build_payload(filters)
+    mode_label = dict(tariffs_service.MODES)[filters['mode']]
+    period = (f"{filters['start_date_str'] or '…'} — {filters['end_date_str'] or '…'}"
+              if filters['start_date'] or filters['end_date'] else 'Всё время')
+    scope = [f'Тариф 1-го года, {mode_label.lower()}', f'Период (дата создания свода): {period}']
+    for key, label in (('branch', 'Филиал'), ('insurance_type', 'Тип'), ('object_class', 'Класс'),
+                       ('condition', 'Состояние'), ('sum_range', 'Страховая сумма')):
+        if filters[key]:
+            scope.append(f'{label}: {filters[key]}')
+    workbook = Workbook()
+
+    def add_sheet(title, headers, rows, first=False):
+        worksheet = workbook.active if first else workbook.create_sheet()
+        worksheet.title = title[:31]
+        worksheet.append([title])
+        worksheet['A1'].font = Font(bold=True, size=14)
+        worksheet.append(['; '.join(scope)])
+        worksheet.append([f"Сформировано: {timezone.localtime().strftime('%d.%m.%Y %H:%M')}"])
+        worksheet.append([])
+        worksheet.append(headers)
+        for cell in worksheet[5]:
+            cell.font = Font(bold=True)
+        for row in rows:
+            worksheet.append(row)
+        for column in worksheet.iter_cols(min_row=5):
+            width = max(len('' if cell.value is None else str(cell.value)) for cell in column)
+            worksheet.column_dimensions[column[0].column_letter].width = min(width + 2, 60)
+
+    def r2(value):
+        return round(value, 2) if value is not None else None
+
+    stat_headers = ['Заявок', 'Предложений', 'Медиана, %', 'P25, %', 'P75, %', 'Мало данных', 'Дешевле всех', 'Её медиана, %']
+
+    def stat_row(row):
+        cheapest = row.get('cheapest')
+        return [row['requests'], row['offers'], r2(row['median']), r2(row['p25']), r2(row['p75']),
+                'да' if row['low_data'] else '', cheapest['company'] if cheapest else '',
+                r2(cheapest['median']) if cheapest else None]
+
+    add_sheet('Классы', ['Класс', *stat_headers], [[row['label'], *stat_row(row)] for row in payload['class_rows']],
+              first=True)
+    add_sheet('Марки и виды машин', ['Марка / вид машины', 'Класс', *stat_headers],
+              [[row['group'], row['class_label'], *stat_row(row)] for row in payload['group_rows']])
+    heatmap = payload['heatmap']
+    add_sheet('Группа × страховая', ['Марка / вид машины', 'Медиана группы, %', *heatmap['columns']], [
+        [row['group'], r2(row['median']), *[r2(cell['median']) for cell in row['cells']]] for row in heatmap['rows']
+    ])
+    add_sheet('Предложения', ['Дата свода', 'Свод', 'ДФА', 'Клиент', 'Объект', 'Класс', 'Марка', 'Вид машины',
+                              'Состояние', 'Филиал', 'СК', 'Страховая сумма, ₽', 'Франшиза, ₽', 'Премия, ₽',
+                              'Тариф, %', 'Выбрана'], [
+        [timezone.localtime(point.created_at).strftime('%d.%m.%Y'), point.summary_id, point.dfa_number, point.client,
+         point.object_text, tariffs_service.OBJECT_CLASS_LABELS.get(point.object_class, ''), point.brand,
+         point.machine_kind, dict(tariffs_service.CONDITIONS).get(point.condition, ''), point.branch, point.company,
+         point.insured_sum, point.franchise, point.premium, r2(point.tariff), 'да' if point.won else '']
+        for point in sorted(payload['points'], key=lambda point: point.created_at, reverse=True)
+    ])
+    output = BytesIO()
+    workbook.save(output)
+    today = timezone.localtime().strftime('%d_%m_%Y')
+    response = HttpResponse(output.getvalue(),
+                            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = f'attachment; filename="tariffs_{today}.xlsx"'
+    return response
 
 
 def _company_card_context(request, company):

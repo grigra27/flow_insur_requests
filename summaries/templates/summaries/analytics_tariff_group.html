@@ -1,0 +1,136 @@
+{% extends 'base.html' %}
+{% load summary_extras tz l10n %}
+
+{% block title %}{{ group }} · тарифы - {{ block.super }}{% endblock %}
+
+{% block extra_css %}{% include "summaries/_tariff_styles.html" %}{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+    <div>
+        <div class="tf-hint"><a href="{% url 'summaries:analytics_tariffs' %}?{{ request.GET.urlencode }}">Тарифы</a> / {% if dimension == 'kind' %}вид спецтехники{% else %}марка{% endif %}</div>
+        <h1 class="h3 mb-1"><i class="bi bi-percent"></i> {{ group }}</h1>
+        <p class="text-muted mb-0">Какие страховые сколько берут{% if dimension == 'kind' %} за этот вид спецтехники{% else %} за эту марку{% endif %}.</p>
+    </div>
+</div>
+
+{% url 'summaries:analytics_tariff_group' dimension group as reset_url %}
+{% include "summaries/_tariff_filters.html" with show_class_filter=False reset_url=reset_url %}
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-lg"><div class="card tf-card h-100"><div class="card-body">
+        <div class="tf-kpi-label">Медиана тарифа</div>
+        <div class="tf-kpi-value">{% if kpi.median is not None %}{{ kpi.median|floatformat:2 }}%{% else %}—{% endif %}</div>
+        <small class="text-muted">{% if kpi.p25 is not None %}обычно {{ kpi.p25|floatformat:2 }}–{{ kpi.p75|floatformat:2 }}%{% endif %}</small>
+    </div></div></div>
+    <div class="col-6 col-lg"><div class="card tf-card h-100"><div class="card-body">
+        <div class="tf-kpi-label">Заявок</div>
+        <div class="tf-kpi-value">{{ kpi.requests }}</div>
+        <small class="text-muted">{{ kpi.offers }} предложений{% if kpi.low_data %} · мало данных{% endif %}</small>
+    </div></div></div>
+    <div class="col-12 col-lg"><div class="card tf-card h-100"><div class="card-body">
+        <div class="tf-kpi-label">Разброс</div>
+        <div class="tf-kpi-value">{% if kpi.min is not None %}{{ kpi.min|floatformat:2 }}–{{ kpi.max|floatformat:2 }}%{% else %}—{% endif %}</div>
+        <small class="text-muted">от самого дешёвого до самого дорогого предложения</small>
+    </div></div></div>
+</div>
+
+<div class="card tf-card mb-4">
+    <div class="card-header">
+        <h2 class="h5 mb-0"><i class="bi bi-building"></i> Страховые по цене</h2>
+        <div class="tf-hint">Дешёвые сверху. «Мало данных» — меньше 3 предложений или все из одной заявки. «Выбрана» — в скольких сводах клиент выбрал эту СК.</div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0 tf-table">
+                <thead><tr><th>Страховая</th><th class="num">Предл.</th><th class="num">Заявок</th><th class="num">Медиана</th><th>Обычный диапазон</th><th class="num">Выбрана</th></tr></thead>
+                <tbody>
+                {% for row in company_rows %}
+                    <tr class="{% if row.low_data %}tf-low{% endif %}">
+                        <td class="fw-semibold"><a href="{% url 'summaries:analytics_insurance_company_card' row.company %}">{{ row.company }}</a>{% if row.low_data %}<span class="tf-badge-low">мало данных</span>{% endif %}</td>
+                        <td class="num">{{ row.offers }}</td>
+                        <td class="num">{{ row.requests }}</td>
+                        <td class="num fw-semibold">{{ row.median|floatformat:2 }}%</td>
+                        <td>
+                            {% if row.bar %}<div class="tf-range" title="{{ row.p25|floatformat:2 }}–{{ row.p75|floatformat:2 }}%"><span class="iqr" style="left: {{ row.bar.left|unlocalize }}%; width: {{ row.bar.width|unlocalize }}%"></span><span class="med" style="left: {{ row.bar.median|unlocalize }}%"></span></div>{% endif %}
+                            <span class="tf-muted">{{ row.p25|floatformat:2 }}–{{ row.p75|floatformat:2 }}%</span>
+                        </td>
+                        <td class="num">{{ row.wins|default:"—" }}</td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="6" class="text-center text-muted py-4">Нет предложений по выбранным фильтрам.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-12 col-xl-4">
+        <div class="card tf-card h-100">
+            <div class="card-header"><h2 class="h6 mb-0"><i class="bi bi-calendar3"></i> По кварталам</h2></div>
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0 tf-table">
+                    <thead><tr><th>Квартал</th><th class="num">Предл.</th><th class="num">Медиана</th></tr></thead>
+                    <tbody>{% for row in quarter_rows %}<tr><td>{{ row.label }}</td><td class="num">{{ row.offers }}</td><td class="num">{{ row.median|floatformat:2 }}%</td></tr>{% empty %}<tr><td colspan="3" class="text-muted text-center py-3">Нет данных.</td></tr>{% endfor %}</tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-xl-4">
+        <div class="card tf-card h-100">
+            <div class="card-header">
+                <h2 class="h6 mb-0"><i class="bi bi-tags"></i> {% if dimension == 'kind' %}Марки{% else %}Модели{% endif %}</h2>
+                <div class="tf-hint">{% if dimension == 'kind' %}Марки внутри вида машины{% else %}Первое слово после марки в описании{% endif %}; от 2 заявок.</div>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0 tf-table">
+                    <thead><tr><th></th><th class="num">Заявок</th><th class="num">Медиана</th></tr></thead>
+                    <tbody>{% for row in model_rows %}<tr><td>{{ row.label }}</td><td class="num">{{ row.requests }}</td><td class="num">{{ row.median|floatformat:2 }}%</td></tr>{% empty %}<tr><td colspan="3" class="text-muted text-center py-3">Недостаточно данных.</td></tr>{% endfor %}</tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-xl-4">
+        <div class="card tf-card h-100">
+            <div class="card-header"><h2 class="h6 mb-0"><i class="bi bi-stars"></i> Новое и б/у</h2></div>
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0 tf-table">
+                    <thead><tr><th></th><th class="num">Заявок</th><th class="num">Медиана</th></tr></thead>
+                    <tbody>{% for row in condition_rows %}<tr><td>{{ row.label }}</td><td class="num">{{ row.requests }}</td><td class="num">{{ row.median|floatformat:2 }}%</td></tr>{% empty %}<tr><td colspan="3" class="text-muted text-center py-3">Нет данных.</td></tr>{% endfor %}</tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card tf-card mb-4">
+    <div class="card-header">
+        <h2 class="h5 mb-0"><i class="bi bi-list-ul"></i> Все предложения</h2>
+        <div class="tf-hint">{{ points|length }} предложений; зелёным — выбранные клиентом.</div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0 tf-table">
+                <thead><tr><th>Дата</th><th>Заявка</th><th>Объект</th><th>Страховая</th><th class="num">Страховая сумма</th><th class="num">Премия</th><th class="num">Тариф</th></tr></thead>
+                <tbody>
+                {% for point in points %}
+                    <tr>
+                        <td class="text-nowrap">{% timezone "Europe/Moscow" %}{{ point.created_at|date:"d.m.Y" }}{% endtimezone %}</td>
+                        <td class="text-nowrap"><a href="{% url 'summaries:summary_detail' point.summary_id %}">{{ point.dfa_number|default:point.summary_id }}</a></td>
+                        <td>{{ point.object_text|truncatechars:70 }}</td>
+                        <td class="text-nowrap {% if point.won %}text-success fw-semibold{% endif %}">{{ point.company }}{% if point.won %} ✓{% endif %}</td>
+                        <td class="num">{{ point.insured_sum|money_short }}</td>
+                        <td class="num">{{ point.premium|money_short }}</td>
+                        <td class="num fw-semibold">{{ point.tariff|floatformat:2 }}%</td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="7" class="text-center text-muted py-4">Нет предложений.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,139 @@
+{% extends 'base.html' %}
+{% load summary_extras l10n %}
+
+{% block title %}Тарифы - {{ block.super }}{% endblock %}
+
+{% block extra_css %}{% include "summaries/_tariff_styles.html" %}{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+    <div>
+        <h1 class="h3 mb-1"><i class="bi bi-percent"></i> Тарифы</h1>
+        <p class="text-muted mb-0">Сколько стоит страхование разной техники и какая страховая берёт за неё меньше.</p>
+    </div>
+    <a href="{% url 'summaries:export_analytics_tariffs' %}?{{ request.GET.urlencode }}" class="btn btn-outline-success">
+        <i class="bi bi-file-earmark-spreadsheet"></i> XLSX
+    </a>
+</div>
+
+{% url 'summaries:analytics_tariffs' as reset_url %}
+{% include "summaries/_tariff_filters.html" with show_class_filter=True reset_url=reset_url %}
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-lg"><div class="card tf-card h-100"><div class="card-body">
+        <div class="tf-kpi-label">Медиана тарифа</div>
+        <div class="tf-kpi-value">{% if kpi.median is not None %}{{ kpi.median|floatformat:2 }}%{% else %}—{% endif %}</div>
+        <small class="text-muted">{% if kpi.p25 is not None %}обычно {{ kpi.p25|floatformat:2 }}–{{ kpi.p75|floatformat:2 }}%{% endif %}</small>
+    </div></div></div>
+    <div class="col-6 col-lg"><div class="card tf-card h-100"><div class="card-body">
+        <div class="tf-kpi-label">Предложений</div>
+        <div class="tf-kpi-value">{{ kpi.offers }}</div>
+        <small class="text-muted">от {{ kpi.companies }} страховых</small>
+    </div></div></div>
+    <div class="col-12 col-lg"><div class="card tf-card h-100"><div class="card-body">
+        <div class="tf-kpi-label">Заявок</div>
+        <div class="tf-kpi-value">{{ kpi.requests }}</div>
+        <small class="text-muted">с хотя бы одним предложением</small>
+    </div></div></div>
+</div>
+
+<div class="card tf-card mb-4">
+    <div class="card-header">
+        <h2 class="h5 mb-0"><i class="bi bi-layers"></i> По классам техники</h2>
+        <div class="tf-hint">Полоска — обычный диапазон тарифа (25–75% предложений), черта — медиана. Нажмите на класс, чтобы оставить только его.</div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0 tf-table">
+                <thead><tr><th>Класс</th><th class="num">Заявок</th><th class="num">Предл.</th><th class="num">Медиана</th><th>Обычный диапазон</th><th>Дешевле всех</th></tr></thead>
+                <tbody>
+                {% for row in class_rows %}
+                    <tr class="{% if row.low_data %}tf-low{% endif %}">
+                        <td><a href="{% qs_replace object_class=row.key %}">{{ row.label }}</a>{% if row.low_data %}<span class="tf-badge-low">мало данных</span>{% endif %}</td>
+                        <td class="num">{{ row.requests }}</td>
+                        <td class="num">{{ row.offers }}</td>
+                        <td class="num fw-semibold">{{ row.median|floatformat:2 }}%</td>
+                        <td>
+                            {% if row.bar %}<div class="tf-range" title="{{ row.p25|floatformat:2 }}–{{ row.p75|floatformat:2 }}%, медиана {{ row.median|floatformat:2 }}%"><span class="iqr" style="left: {{ row.bar.left|unlocalize }}%; width: {{ row.bar.width|unlocalize }}%"></span><span class="med" style="left: {{ row.bar.median|unlocalize }}%"></span></div>{% endif %}
+                            <span class="tf-muted">{{ row.p25|floatformat:2 }}–{{ row.p75|floatformat:2 }}%</span>
+                        </td>
+                        <td>{% if row.cheapest %}{{ row.cheapest.company }} <span class="tf-muted">{{ row.cheapest.median|floatformat:2 }}%</span>{% else %}<span class="tf-muted">—</span>{% endif %}</td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="6" class="text-center text-muted py-4">Нет предложений по выбранным фильтрам.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="card tf-card mb-4">
+    <div class="card-header">
+        <h2 class="h5 mb-0"><i class="bi bi-truck"></i> Марки{% if not filters.object_class or filters.object_class == 'special' %} и виды спецтехники{% endif %}</h2>
+        <div class="tf-hint">Для спецтехники тариф почти не зависит от марки, поэтому она сгруппирована по виду машины. Нажмите на название — страховые, модели и все предложения.</div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0 tf-table">
+                <thead><tr><th>Марка / вид машины</th><th>Класс</th><th class="num">Заявок</th><th class="num">Предл.</th><th class="num">Медиана</th><th>Обычный диапазон</th><th>Дешевле всех</th></tr></thead>
+                <tbody>
+                {% for row in group_rows %}
+                    <tr class="{% if row.low_data %}tf-low{% endif %}">
+                        <td class="fw-semibold"><a href="{% url 'summaries:analytics_tariff_group' row.dimension row.group %}?{{ request.GET.urlencode }}">{{ row.group }}</a>{% if row.low_data %}<span class="tf-badge-low">мало данных</span>{% endif %}</td>
+                        <td class="tf-muted">{{ row.class_label }}</td>
+                        <td class="num">{{ row.requests }}</td>
+                        <td class="num">{{ row.offers }}</td>
+                        <td class="num fw-semibold">{{ row.median|floatformat:2 }}%</td>
+                        <td>
+                            {% if row.bar %}<div class="tf-range" title="{{ row.p25|floatformat:2 }}–{{ row.p75|floatformat:2 }}%, медиана {{ row.median|floatformat:2 }}%"><span class="iqr" style="left: {{ row.bar.left|unlocalize }}%; width: {{ row.bar.width|unlocalize }}%"></span><span class="med" style="left: {{ row.bar.median|unlocalize }}%"></span></div>{% endif %}
+                            <span class="tf-muted">{{ row.p25|floatformat:2 }}–{{ row.p75|floatformat:2 }}%</span>
+                        </td>
+                        <td>{% if row.cheapest %}{{ row.cheapest.company }} <span class="tf-muted">{{ row.cheapest.median|floatformat:2 }}%</span>{% else %}<span class="tf-muted">—</span>{% endif %}</td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="7" class="text-center text-muted py-4">Нет предложений по выбранным фильтрам.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="card tf-card mb-4">
+    <div class="card-header">
+        <h2 class="h5 mb-0"><i class="bi bi-grid-3x3"></i> Кто сколько берёт: марка × страховая</h2>
+        <div class="tf-hint tf-legend">
+            Медианный тариф страховой по марке (виду машины) — от 2 предложений; строки — группы, где хватает данных.
+            Цвет — относительно медианы строки:<span style="background:#b7e4cf"></span>дешевле на 15%+<span style="background:#dff3ea"></span>на 5–15%<span style="background:#fbe3d6"></span>дороже на 5–15%<span style="background:#f5c0a3"></span>на 15%+
+        </div>
+    </div>
+    <div class="card-body p-0">
+        {% if heatmap.rows %}
+        <div class="table-responsive">
+            <table class="table table-sm mb-0 tf-table tf-heat">
+                <thead><tr><th>Марка / вид</th><th class="num">Медиана</th>{% for company in heatmap.columns %}<th class="col">{{ company }}</th>{% endfor %}</tr></thead>
+                <tbody>
+                {% for row in heatmap.rows %}
+                    <tr>
+                        <td class="fw-semibold"><a href="{% url 'summaries:analytics_tariff_group' row.dimension row.group %}?{{ request.GET.urlencode }}">{{ row.group }}</a></td>
+                        <td class="num">{{ row.median|floatformat:2 }}%</td>
+                        {% for cell in row.cells %}
+                        {% if cell.median is not None %}
+                        <td class="cell {% if cell.ratio <= 0.85 %}cheap-2{% elif cell.ratio <= 0.95 %}cheap-1{% elif cell.ratio >= 1.15 %}dear-2{% elif cell.ratio >= 1.05 %}dear-1{% endif %}"
+                            title="{{ cell.company }} · {{ row.group }}: {{ cell.median|floatformat:2 }}% ({{ cell.offers }} предл.)">{{ cell.median|floatformat:2 }}</td>
+                        {% else %}
+                        <td class="cell empty" title="{{ cell.company }}: {% if cell.offers %}{{ cell.offers }} предл. — мало{% else %}нет предложений{% endif %}">·</td>
+                        {% endif %}
+                        {% endfor %}
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted text-center py-4 mb-0">Недостаточно данных для сравнения страховых.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
