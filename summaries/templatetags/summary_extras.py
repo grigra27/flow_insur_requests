@@ -1,6 +1,7 @@
 from django import template
 from django.http import QueryDict
-from decimal import Decimal
+import re
+from decimal import Decimal, InvalidOperation
 
 register = template.Library()
 
@@ -318,3 +319,19 @@ def has_variant2(offers):
         return False
     except (ValueError, TypeError, AttributeError):
         return False
+
+@register.filter
+def money_input(value):
+    """Значение денежного поля формы: «4 160 000» или «1 234,5» — без «.00» и с пробелами между тысячами."""
+    if value is None or value == '':
+        return ''
+    try:
+        number = Decimal(re.sub(r'[\s\u00a0\u202f]', '', str(value)).replace(',', '.'))
+    except (InvalidOperation, ValueError):
+        return value
+    integer_part = int(number)
+    fraction = abs(number - integer_part)
+    formatted = f'{integer_part:,}'.replace(',', ' ')
+    if fraction:
+        formatted += ',' + f'{fraction:.2f}'[2:].rstrip('0')
+    return formatted

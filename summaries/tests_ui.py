@@ -53,34 +53,34 @@ class TestUIElements(TestCase):
         self.assertEqual(response.status_code, 200)
         
         # Check form structure
-        self.assertContains(response, '<form method="post">')
+        self.assertContains(response, 'method="post"')
         self.assertContains(response, 'csrfmiddlewaretoken')
         
         # Check company name field
         self.assertContains(response, 'name="company_name"')
-        self.assertContains(response, 'class="form-control"')
+        self.assertContains(response, 'form-control')
         
         # Check insurance year field
-        self.assertContains(response, 'name="insurance_year"')
-        self.assertContains(response, 'Введите номер года')
+        self.assertContains(response, 'name="rows-0-insurance_year"')
+        self.assertContains(response, 'aria-label="Год страхования"')
         
         # Check insurance sum field
-        self.assertContains(response, 'name="insurance_sum"')
-        self.assertContains(response, 'step="0.01"')
+        self.assertContains(response, 'name="rows-0-insurance_sum"')
+        self.assertContains(response, 'inputmode="decimal"')
         
         # Check franchise fields
-        self.assertContains(response, 'name="franchise_1"')
-        self.assertContains(response, 'name="franchise_2"')
+        self.assertContains(response, 'name="rows-0-franchise_1"')
+        self.assertContains(response, 'name="rows-0-franchise_2"')
         
         # Check premium fields
-        self.assertContains(response, 'name="premium_with_franchise_1"')
-        self.assertContains(response, 'name="premium_with_franchise_2"')
+        self.assertContains(response, 'name="rows-0-premium_with_franchise_1"')
+        self.assertContains(response, 'name="rows-0-premium_with_franchise_2"')
         
         # Check installment fields
         self.assertContains(response, 'name="installment_variant_1"')
-        self.assertContains(response, 'class="form-check-input"')
+        self.assertContains(response, 'form-check-input js-installment')
         self.assertContains(response, 'name="payments_per_year_variant_1"')
-        self.assertContains(response, 'class="form-select"')
+        self.assertContains(response, 'form-select')
         
         # Check payment options
         self.assertContains(response, '1 (годовой платеж)')
@@ -118,11 +118,11 @@ class TestUIElements(TestCase):
         # Check pre-populated values
         self.assertContains(response, 'value="Согласие"')
         self.assertContains(response, 'value="3"')  # insurance_year
-        self.assertContains(response, 'value="1200000.00"')  # insurance_sum
-        self.assertContains(response, 'value="5000.00"')  # franchise_1
-        self.assertContains(response, 'value="48000.00"')  # premium_with_franchise_1
-        self.assertContains(response, 'value="15000.00"')  # franchise_2
-        self.assertContains(response, 'value="43000.00"')  # premium_with_franchise_2
+        self.assertContains(response, 'value="1 200 000"')  # insurance_sum
+        self.assertContains(response, 'value="5 000"')  # franchise_1
+        self.assertContains(response, 'value="48 000"')  # premium_with_franchise_1
+        self.assertContains(response, 'value="15 000"')  # franchise_2
+        self.assertContains(response, 'value="43 000"')  # premium_with_franchise_2
         self.assertContains(response, '4 (квартальные)')
         self.assertContains(response, 'UI test notes')  # notes
         
@@ -205,9 +205,9 @@ class TestUIElements(TestCase):
         
         self.assertEqual(response.status_code, 200)
         
-        # Check Bootstrap responsive classes
-        self.assertContains(response, 'col-md-6')
-        self.assertContains(response, 'col-lg-10')
+        # Адаптивная раскладка формы (редизайн 2026-09)
+        self.assertContains(response, '@media (max-width: 767.98px)')
+        self.assertContains(response, 'table-responsive')
         self.assertContains(response, 'row')
         self.assertContains(response, 'container')
         
@@ -239,9 +239,8 @@ class TestUIElements(TestCase):
         
         # Check help text
         self.assertContains(response, 'form-text')
-        self.assertContains(response, 'Введите номер года: 1, 2, 3 и т.д.')
-        self.assertContains(response, 'Обычно 0 ₽ (без франшизы)')
-        self.assertContains(response, 'Обязательное поле')
+        self.assertContains(response, 'Заполните хотя бы вариант 1')
+        self.assertContains(response, 'Общая для всех лет этой СК в своде')
         
         # Check ARIA attributes (if any)
         # Note: These would need to be added to templates for full accessibility
@@ -310,7 +309,7 @@ class TestJavaScriptFunctionality(TestCase):
         self.assertEqual(response.status_code, 200)
         
         # Check HTML5 validation attributes
-        self.assertContains(response, 'step="0.01"')
+        self.assertContains(response, 'inputmode="decimal"')
         # Note: min/max attributes are in widget definition but may not appear in HTML
         
         # Check input types
@@ -431,7 +430,7 @@ class TestFormValidationUI(TestCase):
         self.assertContains(response, 'text-danger')
         
         # Check that form is re-rendered with errors
-        self.assertContains(response, '<form method="post">')
+        self.assertContains(response, 'method="post"')
         
         # Check that invalid values are preserved in form
         self.assertContains(response, 'value="15"')  # Invalid year preserved

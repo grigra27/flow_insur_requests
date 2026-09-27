@@ -108,10 +108,11 @@ class SummariesUIIntegrationTest(TestCase):
         self.assertContains(response, 'Копировать предложение')
         self.assertContains(response, self.offer1.company_name)
         
-        # Проверяем, что форма заполнена данными оригинального предложения
-        self.assertContains(response, str(self.offer1.insurance_sum))
-        self.assertContains(response, str(self.offer1.franchise_1))
-        self.assertContains(response, str(self.offer1.premium_with_franchise_1))
+        # Проверяем, что форма заполнена данными оригинального предложения (суммы — с пробелами, без «.00»)
+        from summaries.templatetags.summary_extras import money_input
+        self.assertContains(response, f'value="{money_input(self.offer1.insurance_sum)}"')
+        self.assertContains(response, f'value="{money_input(self.offer1.franchise_1)}"')
+        self.assertContains(response, f'value="{money_input(self.offer1.premium_with_franchise_1)}"')
         
         # Тестируем успешное копирование предложения
         initial_offers_count = InsuranceOffer.objects.filter(summary=self.summary).count()
@@ -331,8 +332,8 @@ class SummariesUIIntegrationTest(TestCase):
         self.assertContains(detail_response, 'changeStatus')
         
         copy_response = self.client.get(reverse('summaries:copy_offer', args=[self.offer1.pk]))
-        self.assertContains(copy_response, 'togglePaymentsVariant1')
-        self.assertContains(copy_response, 'togglePaymentsVariant2')
+        self.assertContains(copy_response, 'js-installment')
+        self.assertContains(copy_response, 'updateCompanyHint')
         self.assertContains(copy_response, 'addEventListener')
 
     def test_url_routing_integration(self):

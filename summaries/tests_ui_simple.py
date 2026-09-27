@@ -64,10 +64,10 @@ class TestCoreUIFunctionality(TestCase):
         
         # Check for new field names
         self.assertContains(response, 'name="company_name"')
-        self.assertContains(response, 'name="insurance_year"')
-        self.assertContains(response, 'name="insurance_sum"')
-        self.assertContains(response, 'name="franchise_1"')
-        self.assertContains(response, 'name="premium_with_franchise_1"')
+        self.assertContains(response, 'name="rows-0-insurance_year"')
+        self.assertContains(response, 'name="rows-0-insurance_sum"')
+        self.assertContains(response, 'name="rows-0-franchise_1"')
+        self.assertContains(response, 'name="rows-0-premium_with_franchise_1"')
         self.assertContains(response, 'name="installment_variant_1"')
         self.assertContains(response, 'name="payments_per_year_variant_1"')
         

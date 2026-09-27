@@ -289,11 +289,11 @@ class TestOfferViews(TestCase):
         
         # Check that form fields are present
         self.assertContains(response, 'name="company_name"')
-        self.assertContains(response, 'name="insurance_year"')
-        self.assertContains(response, 'name="franchise_1"')
-        self.assertContains(response, 'name="premium_with_franchise_1"')
-        self.assertContains(response, 'name="franchise_2"')
-        self.assertContains(response, 'name="premium_with_franchise_2"')
+        self.assertContains(response, 'name="rows-0-insurance_year"')
+        self.assertContains(response, 'name="rows-0-franchise_1"')
+        self.assertContains(response, 'name="rows-0-premium_with_franchise_1"')
+        self.assertContains(response, 'name="rows-0-franchise_2"')
+        self.assertContains(response, 'name="rows-0-premium_with_franchise_2"')
         self.assertContains(response, 'name="payments_per_year_variant_1"')
         
         # Check that old fields are not present
@@ -359,8 +359,8 @@ class TestOfferViews(TestCase):
         # Check that form is pre-populated
         self.assertContains(response, 'value="Ингосстрах"')
         self.assertContains(response, 'value="1"')  # insurance_year
-        self.assertContains(response, 'value="5000.00"')  # franchise_1
-        self.assertContains(response, 'value="45000.00"')  # premium_with_franchise_1
+        self.assertContains(response, 'value="5 000"')  # franchise_1
+        self.assertContains(response, 'value="45 000"')  # premium_with_franchise_1
         self.assertContains(response, '4 (квартальные)')
     
     def test_edit_offer_post(self):

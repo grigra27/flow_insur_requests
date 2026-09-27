@@ -1201,78 +1201,173 @@ def create_summary(request, request_id):
         return redirect('insurance_requests:request_detail', pk=request_id)
 
 
+OFFER_ROW_FIELDS = (
+    'insurance_year', 'insurance_sum',
+    'franchise_1', 'premium_with_franchise_1',
+    'franchise_2', 'premium_with_franchise_2',
+)
+OFFER_COMMON_FIELDS = (
+    'company_name',
+    'installment_variant_1', 'payments_per_year_variant_1',
+    'installment_variant_2', 'payments_per_year_variant_2',
+    'coverage_territory', 'notes',
+)
+OFFER_MONEY_FIELDS = ('insurance_sum', 'franchise_1', 'premium_with_franchise_1', 'franchise_2', 'premium_with_franchise_2')
+MAX_OFFER_ROWS = 10
+
+
+def _normalize_money(value):
+    """«4 160 000,50» из поля ввода → «4160000.50» для DecimalField."""
+    if value is None:
+        return value
+    return re.sub(r'[\s\u00a0\u202f]', '', str(value)).replace(',', '.')
+
+
+def _offer_post_data(post):
+    """Плоский dict из POST с нормализованными денежными полями (в том числе в строках rows-N-…)."""
+    data = {}
+    for key in post:
+        value = post.get(key)
+        field = key.split('-')[-1]
+        data[key] = _normalize_money(value) if field in OFFER_MONEY_FIELDS else value
+    return data
+
+
+def _offer_rows_from_data(data):
+    """Строки годов из формы: rows-N-<поле> (добавление нескольких лет) или одиночные поля без префикса."""
+    if 'rows-TOTAL' not in data:
+        return [{field: data.get(field, '') for field in OFFER_ROW_FIELDS}]
+    rows = []
+    for index in range(MAX_OFFER_ROWS):
+        prefix = f'rows-{index}-'
+        if f'{prefix}insurance_year' in data:
+            rows.append({field: data.get(prefix + field, '') for field in OFFER_ROW_FIELDS})
+    return rows
+
+
+def _offer_form_data(data, row):
+    form_data = {field: data[field] for field in OFFER_COMMON_FIELDS if field in data}
+    form_data.update(row)
+    return form_data
+
+
+def _company_years(summary, exclude_offer_id=None):
+    """{компания: [годы]} по предложениям свода — для подсказки о повторах на форме."""
+    offers = summary.offers.all()
+    if exclude_offer_id:
+        offers = offers.exclude(pk=exclude_offer_id)
+    years = {}
+    for company_name, year in offers.values_list('company_name', 'insurance_year').order_by('insurance_year'):
+        years.setdefault(company_name, []).append(year)
+    return years
+
+
+def _reject_duplicate_offer(form, summary, exclude_offer_id=None):
+    """Понятная ошибка вместо нарушения unique_together (свод, СК, год). True — если повтор найден."""
+    company_name = form.cleaned_data.get('company_name')
+    year = form.cleaned_data.get('insurance_year')
+    if year in _company_years(summary, exclude_offer_id=exclude_offer_id).get(company_name, []):
+        form.add_error('insurance_year', DuplicateOfferError(company_name, year).get_user_message())
+        return True
+    return False
+
+
+def _first_free_year(taken_years):
+    return next((year for year in range(1, MAX_OFFER_ROWS + 1) if year not in taken_years), None)
+
+
+def _form_error_messages(form):
+    messages_list = []
+    for field, errors in form.errors.items():
+        if field == '__all__':
+            messages_list.extend(errors)
+        else:
+            field_label = form.fields[field].label if field in form.fields else field
+            messages_list.extend(f'{field_label}: {error}' for error in errors)
+    return messages_list
+
+
+def _offer_page(request, *, mode, summary, form, rows, row_errors=(), offer=None, original_offer=None):
+    """Единая страница формы предложения: добавление (несколько лет), редактирование, копирование."""
+    exclude_offer_id = offer.pk if offer else None
+    installment_choices = form.fields['payments_per_year_variant_1'].widget.choices
+    return render(request, 'summaries/offer_form.html', {
+        'mode': mode,
+        'summary': summary,
+        'offer': offer,
+        'original_offer': original_offer,
+        'form': form,
+        'rows': [
+            {'prefix': f'rows-{index}-' if mode == 'add' else '', 'values': row,
+             'errors': row_errors[index] if index < len(row_errors) else []}
+            for index, row in enumerate(rows)
+        ],
+        'company_choices': form.fields['company_name'].choices,
+        'installment_choices': installment_choices,
+        'company_years': _company_years(summary, exclude_offer_id=exclude_offer_id),
+        'max_rows': MAX_OFFER_ROWS,
+    })
+
+
+def _offer_values(offer_or_initial):
+    get = offer_or_initial.get if isinstance(offer_or_initial, dict) else lambda field: getattr(offer_or_initial, field)
+    return {field: get(field) for field in OFFER_ROW_FIELDS}
+
+
 @user_required
 def add_offer(request, summary_id):
-    """Добавление предложения к своду"""
+    """Добавление предложения к своду: один или несколько лет одной отправкой формы."""
     summary = get_object_or_404(InsuranceSummary, pk=summary_id)
-    
+
     if request.method == 'POST':
-        form = AddOfferToSummaryForm(request.POST)
-        
-        # Логируем данные формы для отладки
-        logger.info(f"Form data received for summary {summary_id}: {request.POST}")
-        
-        if form.is_valid():
+        data = _offer_post_data(request.POST)
+        rows = _offer_rows_from_data(data)[:MAX_OFFER_ROWS] or [{field: '' for field in OFFER_ROW_FIELDS}]
+        forms_by_row = [AddOfferToSummaryForm(_offer_form_data(data, row)) for row in rows]
+        row_errors = [_form_error_messages(form) if not form.is_valid() else [] for form in forms_by_row]
+
+        if not any(row_errors):
+            company_name = forms_by_row[0].cleaned_data['company_name']
+            years = [form.cleaned_data['insurance_year'] for form in forms_by_row]
+            taken = set(_company_years(summary).get(company_name, []))
+            for index, year in enumerate(years):
+                if years.count(year) > 1:
+                    row_errors[index].append(f'{year} год указан в форме несколько раз')
+                elif year in taken:
+                    row_errors[index].append(DuplicateOfferError(company_name, year).get_user_message())
+
+        if not any(row_errors):
             try:
                 with transaction.atomic():
-                    offer = form.save(commit=False)
-                    offer.summary = summary
-                    offer.save()
-                    
-                    # Обновляем счетчик предложений в своде
+                    saved = []
+                    for form in forms_by_row:
+                        offer = form.save(commit=False)
+                        offer.summary = summary
+                        offer.save()
+                        saved.append(offer)
                     summary.update_total_offers_count()
-                    
-                    logger.info(f"Offer saved successfully: {offer.company_name} ({offer.get_insurance_year_display()}) for summary {summary_id}")
-                    
-                    messages.success(request, f'Предложение от {offer.company_name} ({offer.get_insurance_year_display()}) успешно добавлено')
-                    return redirect('summaries:summary_detail', pk=summary_id)
-                    
             except IntegrityError as e:
-                # Специальная обработка ошибок дублирования предложений
-                error_str = str(e)
-                if ('UNIQUE constraint failed' in error_str or 
-                    'duplicate key value violates unique constraint' in error_str):
-                    # Извлекаем информацию о дублирующемся предложении из данных формы
-                    company_name = form.cleaned_data.get('company_name', 'неизвестная компания')
-                    insurance_year = form.cleaned_data.get('insurance_year', 'неизвестный год')
-                    
-                    # Создаем кастомное исключение для лучшей обработки
-                    duplicate_error = DuplicateOfferError(company_name, insurance_year)
-                    messages.error(request, duplicate_error.get_user_message())
-                    logger.warning(f"Duplicate offer attempt for summary {summary_id}: {company_name} year {insurance_year}")
-                else:
-                    # Обработка других ошибок целостности данных
-                    logger.error(f"IntegrityError adding offer to summary {summary_id}: {str(e)}", exc_info=True)
-                    messages.error(request, f'Ошибка целостности данных при сохранении предложения: {str(e)}')
+                logger.warning(f"IntegrityError adding offers to summary {summary_id}: {e}")
+                messages.error(request, 'Не удалось сохранить: такое предложение уже есть в своде.')
             except Exception as e:
-                # Обработка всех остальных ошибок
-                logger.error(f"Error adding offer to summary {summary_id}: {str(e)}", exc_info=True)
-                messages.error(request, f'Ошибка при сохранении предложения: {str(e)}')
-        else:
-            # Логируем ошибки валидации
-            logger.warning(f"Form validation failed for summary {summary_id}. Errors: {form.errors}")
-            
-            # Добавляем общее сообщение об ошибке валидации
-            error_messages = []
-            for field, errors in form.errors.items():
-                if field == '__all__':
-                    error_messages.extend(errors)
-                else:
-                    field_label = form.fields[field].label if field in form.fields else field
-                    for error in errors:
-                        error_messages.append(f"{field_label}: {error}")
-            
-            if error_messages:
-                messages.error(request, f'Ошибки в форме: {"; ".join(error_messages)}')
+                logger.error(f"Error adding offers to summary {summary_id}: {e}", exc_info=True)
+                messages.error(request, f'Ошибка при сохранении предложения: {e}')
             else:
-                messages.error(request, 'Проверьте правильность заполнения всех полей')
-    else:
-        form = AddOfferToSummaryForm()
-    
-    return render(request, 'summaries/add_offer.html', {
-        'form': form,
-        'summary': summary
-    })
+                years_label = ', '.join(offer.get_insurance_year_display() for offer in saved)
+                logger.info(f"Offers saved: {saved[0].company_name} ({years_label}) for summary {summary_id}")
+                messages.success(request, f'Предложение от {saved[0].company_name} ({years_label}) успешно добавлено')
+                return redirect('summaries:summary_detail', pk=summary_id)
+        else:
+            logger.warning(f"Offer form validation failed for summary {summary_id}: {row_errors}")
+            messages.error(request, f'Ошибки в форме: {"; ".join(error for errors in row_errors for error in errors)}')
+
+        return _offer_page(request, mode='add', summary=summary, form=forms_by_row[0], rows=rows, row_errors=row_errors)
+
+    form = AddOfferToSummaryForm()
+    return _offer_page(
+        request, mode='add', summary=summary, form=form,
+        rows=[{'insurance_year': 1, 'insurance_sum': '', 'franchise_1': 0,
+               'premium_with_franchise_1': '', 'franchise_2': '', 'premium_with_franchise_2': ''}],
+    )
 
 
 @user_required
@@ -1432,133 +1527,87 @@ def send_summary_to_client(request, summary_id):
 
 @user_required
 def copy_offer(request, offer_id):
-    """Копирование предложения"""
-    original_offer = get_object_or_404(InsuranceOffer, pk=offer_id)
-    
+    """Копирование предложения: копия должна отличаться годом или страховой компанией."""
+    original_offer = get_object_or_404(InsuranceOffer.objects.select_related('summary__request'), pk=offer_id)
+    summary = original_offer.summary
+
     if request.method == 'POST':
-        form = OfferForm(request.POST, request.FILES)
-        if form.is_valid():
+        data = _offer_post_data(request.POST)
+        form = OfferForm(data, request.FILES)
+        if form.is_valid() and not _reject_duplicate_offer(form, summary):
             try:
                 with transaction.atomic():
-                    # Создаем новое предложение на основе данных формы
                     new_offer = form.save(commit=False)
-                    new_offer.summary = original_offer.summary
+                    new_offer.summary = summary
                     new_offer.save()
-                    
-                    # Обновляем счетчик предложений в своде
-                    original_offer.summary.update_total_offers_count()
-                    
+                    summary.update_total_offers_count()
                     logger.info(f"Offer copied: {original_offer.id} -> {new_offer.id} by user {request.user.username}")
-                    
                     messages.success(request, f'Предложение от {new_offer.company_name} ({new_offer.get_insurance_year_display()}) успешно скопировано')
-                    return redirect('summaries:summary_detail', pk=new_offer.summary.pk)
-                    
+                    return redirect('summaries:summary_detail', pk=summary.pk)
             except IntegrityError as e:
-                # Специальная обработка ошибок дублирования предложений
                 error_str = str(e)
-                if ('UNIQUE constraint failed' in error_str or 
-                    'duplicate key value violates unique constraint' in error_str):
-                    # Извлекаем информацию о дублирующемся предложении из данных формы
-                    company_name = form.cleaned_data.get('company_name', 'неизвестная компания')
-                    insurance_year = form.cleaned_data.get('insurance_year', 'неизвестный год')
-                    
-                    # Создаем кастомное исключение для лучшей обработки
-                    duplicate_error = DuplicateOfferError(company_name, insurance_year)
+                if ('UNIQUE constraint failed' in error_str or
+                        'duplicate key value violates unique constraint' in error_str):
+                    duplicate_error = DuplicateOfferError(
+                        form.cleaned_data.get('company_name', 'неизвестная компания'),
+                        form.cleaned_data.get('insurance_year', 'неизвестный год'),
+                    )
                     messages.error(request, duplicate_error.get_user_message())
-                    logger.warning(f"Duplicate offer attempt during copy for summary {original_offer.summary.id}: {company_name} year {insurance_year}")
+                    logger.warning(f"Duplicate offer attempt during copy for summary {summary.id}")
                 else:
-                    # Обработка других ошибок целостности данных
-                    logger.error(f"IntegrityError copying offer {offer_id}: {str(e)}", exc_info=True)
-                    messages.error(request, f'Ошибка целостности данных при копировании предложения: {str(e)}')
+                    logger.error(f"IntegrityError copying offer {offer_id}: {e}", exc_info=True)
+                    messages.error(request, f'Ошибка целостности данных при копировании предложения: {e}')
             except Exception as e:
-                # Обработка всех остальных ошибок
-                logger.error(f"Error copying offer {offer_id}: {str(e)}", exc_info=True)
-                messages.error(request, f'Ошибка при копировании предложения: {str(e)}')
+                logger.error(f"Error copying offer {offer_id}: {e}", exc_info=True)
+                messages.error(request, f'Ошибка при копировании предложения: {e}')
         else:
-            # Логируем ошибки валидации
             logger.warning(f"Form validation failed for copying offer {offer_id}. Errors: {form.errors}")
-            
-            # Добавляем общее сообщение об ошибке валидации
-            error_messages = []
-            for field, errors in form.errors.items():
-                if field == '__all__':
-                    error_messages.extend(errors)
-                else:
-                    field_label = form.fields[field].label if field in form.fields else field
-                    for error in errors:
-                        error_messages.append(f"{field_label}: {error}")
-            
-            if error_messages:
-                messages.error(request, f'Ошибки в форме: {"; ".join(error_messages)}')
-            else:
-                messages.error(request, 'Проверьте правильность заполнения всех полей')
-    else:
-        # Создаем форму с данными из оригинального предложения
-        initial_data = {
-            'company_name': original_offer.company_name,
-            'insurance_year': original_offer.insurance_year,
-            'insurance_sum': original_offer.insurance_sum,
-            'franchise_1': original_offer.franchise_1,
-            'premium_with_franchise_1': original_offer.premium_with_franchise_1,
-            'franchise_2': original_offer.franchise_2,
-            'premium_with_franchise_2': original_offer.premium_with_franchise_2,
-            'installment_variant_1': original_offer.installment_variant_1,
-            'payments_per_year_variant_1': original_offer.payments_per_year_variant_1,
-            'installment_variant_2': original_offer.installment_variant_2,
-            'payments_per_year_variant_2': original_offer.payments_per_year_variant_2,
-            'coverage_territory': original_offer.coverage_territory,
-            'notes': original_offer.notes,
-        }
-        form = OfferForm(initial=initial_data)
-    
-    return render(request, 'summaries/copy_offer.html', {
-        'form': form,
-        'original_offer': original_offer
-    })
+            error_messages = _form_error_messages(form)
+            messages.error(request, f'Ошибки в форме: {"; ".join(error_messages)}' if error_messages
+                           else 'Проверьте правильность заполнения всех полей')
+        row = _offer_rows_from_data(data)[0]
+        row_errors = [_form_error_messages(form)] if form.errors else []
+        return _offer_page(request, mode='copy', summary=summary, form=form, rows=[row],
+                           row_errors=row_errors, original_offer=original_offer)
+
+    initial = {field: getattr(original_offer, field) for field in OFFER_ROW_FIELDS + OFFER_COMMON_FIELDS}
+    # Копия сразу получает первый свободный год этой компании — иначе сохранить её нельзя
+    taken = set(_company_years(summary).get(original_offer.company_name, []))
+    initial['insurance_year'] = _first_free_year(taken) or original_offer.insurance_year
+    form = OfferForm(initial=initial)
+    return _offer_page(request, mode='copy', summary=summary, form=form,
+                       rows=[_offer_values(initial)], original_offer=original_offer)
 
 
 @user_required
 def edit_offer(request, offer_id):
     """Редактирование предложения"""
-    offer = get_object_or_404(InsuranceOffer, pk=offer_id)
-    
+    offer = get_object_or_404(InsuranceOffer.objects.select_related('summary__request'), pk=offer_id)
+
     if request.method == 'POST':
-        form = OfferForm(request.POST, request.FILES, instance=offer)
-        if form.is_valid():
+        data = _offer_post_data(request.POST)
+        form = OfferForm(data, request.FILES, instance=offer)
+        if form.is_valid() and not _reject_duplicate_offer(form, offer.summary, exclude_offer_id=offer.pk):
             try:
                 with transaction.atomic():
                     updated_offer = form.save()
-                    
-
-                    
                     messages.success(request, f'Предложение от {updated_offer.company_name} ({updated_offer.get_insurance_year_display()}) обновлено')
                     return redirect('summaries:summary_detail', pk=updated_offer.summary.pk)
-                    
             except Exception as e:
                 logger.error(f"Error updating offer {offer_id}: {str(e)}")
                 messages.error(request, f'Ошибка при обновлении предложения: {str(e)}')
         else:
-            # Добавляем обработку ошибок валидации для лучшего UX
-            error_messages = []
-            for field, errors in form.errors.items():
-                if field == '__all__':
-                    error_messages.extend(errors)
-                else:
-                    field_label = form.fields[field].label if field in form.fields else field
-                    for error in errors:
-                        error_messages.append(f"{field_label}: {error}")
-            
-            if error_messages:
-                messages.error(request, f'Ошибки в форме: {"; ".join(error_messages)}')
-            else:
-                messages.error(request, 'Проверьте правильность заполнения всех полей')
-    else:
-        form = OfferForm(instance=offer)
-    
-    return render(request, 'summaries/edit_offer.html', {
-        'form': form,
-        'offer': offer
-    })
+            error_messages = _form_error_messages(form)
+            messages.error(request, f'Ошибки в форме: {"; ".join(error_messages)}' if error_messages
+                           else 'Проверьте правильность заполнения всех полей')
+        row = _offer_rows_from_data(data)[0]
+        row_errors = [_form_error_messages(form)] if form.errors else []
+        return _offer_page(request, mode='edit', summary=offer.summary, form=form, rows=[row],
+                           row_errors=row_errors, offer=offer)
+
+    form = OfferForm(instance=offer)
+    return _offer_page(request, mode='edit', summary=offer.summary, form=form,
+                       rows=[_offer_values(offer)], offer=offer)
 
 
 @require_http_methods(["POST"])

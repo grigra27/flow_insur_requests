@@ -157,7 +157,7 @@ class TestInstallmentIntegration(TestCase):
         self.assertEqual(response.status_code, 200)
         
         # Должны быть ошибки в контексте
-        self.assertContains(response, 'Обязательное поле')
+        self.assertContains(response, 'Пожалуйста, выберите страховую компанию')
         self.assertContains(response, 'Год страхования должен быть от 1 до 10')
         
         # Предложение не должно создаться

@@ -1,0 +1,474 @@
+{% extends 'base.html' %}
+{% load tz %}
+{% load summary_extras %}
+
+{% block title %}{% if mode == 'edit' %}Редактировать предложение{% elif mode == 'copy' %}Копировать предложение{% else %}Добавить предложение{% endif %} - {{ block.super }}{% endblock %}
+
+{% block content %}
+{% with req=summary.request %}
+<div class="of-page" data-mode="{{ mode }}">
+
+<a href="{% url 'summaries:summary_detail' summary.pk %}" class="of-back"><i class="bi bi-arrow-left"></i> {{ req.get_display_name }}</a>
+<h1 class="of-title">
+    {% if mode == 'edit' %}{{ offer.company_name }} · {{ offer.get_insurance_year_display }}
+    {% elif mode == 'copy' %}Копия: {{ original_offer.company_name }} · {{ original_offer.get_insurance_year_display }}
+    {% else %}Новое предложение{% endif %}
+    {% if mode == 'edit' %}<span class="of-mode">Редактирование</span>{% elif mode == 'copy' %}<span class="of-mode of-mode--copy">Копирование</span>{% endif %}
+</h1>
+<div class="of-sub">
+    <b>{{ req.client_name }}</b>{% if req.insurance_type %} · {{ req.insurance_type }}{% endif %}{% if req.insurance_period %} · {{ req.insurance_period }}{% endif %}{% with object_summary=req.object_summary %}{% if object_summary %} · {{ object_summary }}{% endif %}{% endwith %}
+    {% if mode == 'edit' %} · получено {% timezone "Europe/Moscow" %}{{ offer.received_at|date:"d.m.Y H:i" }}{% endtimezone %}{% endif %}
+</div>
+
+{% if mode == 'copy' %}
+<div class="of-copy-note">
+    <i class="bi bi-files"></i>
+    Копия должна отличаться годом или страховой компанией: в своде одно предложение на пару «СК + год».
+    Подставлен первый свободный год — поменяйте его или СК, если нужно.
+</div>
+{% endif %}
+
+<form method="post" id="offer-form" class="of-form" novalidate>
+    {% csrf_token %}
+
+    {# ── Страховщик ── #}
+    <div class="of-card">
+        <div class="of-card__head"><h2>Страховщик</h2></div>
+        <div class="of-card__body">
+            <label for="id_company_name" class="form-label of-label">Страховая компания <span class="text-danger">*</span></label>
+            <select name="company_name" id="id_company_name" class="form-select of-control{% if mode == 'copy' %} of-control--accent{% endif %}{% if form.company_name.errors %} is-invalid{% endif %}" required>
+                {% for value, label in company_choices %}
+                    <option value="{{ value }}"{% if value == form.company_name.value %} selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+            <div class="form-text of-hint" id="company-years-hint" aria-live="polite"></div>
+        </div>
+    </div>
+
+    {# ── Годы, суммы и премии ── #}
+    <div class="of-card">
+        <div class="of-card__head">
+            <h2>{% if mode == 'add' %}Годы, суммы и премии{% else %}Суммы и премии{% endif %}</h2>
+            <span>Заполните хотя бы вариант 1</span>
+        </div>
+        <div class="of-card__body">
+            {% if mode == 'add' %}<input type="hidden" name="rows-TOTAL" id="rows-total" value="{{ rows|length }}">{% endif %}
+            <div class="table-responsive of-years-wrap">
+                <table class="of-years">
+                    <thead>
+                        <tr class="of-years__groups">
+                            <th colspan="2"></th>
+                            <th colspan="2"><span>Вариант 1 <small>· обычно без франшизы</small></span></th>
+                            <th colspan="2"><span>Вариант 2 <small>· обычно с франшизой</small></span></th>
+                            <th></th>
+                        </tr>
+                        <tr>
+                            <th>Год</th>
+                            <th>Страховая сумма</th>
+                            <th>Франшиза</th>
+                            <th>Премия <span class="text-danger">*</span></th>
+                            <th>Франшиза</th>
+                            <th>Премия</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="offer-rows">
+                        {% for row in rows %}
+                        <tr class="of-row">
+                            <td class="of-row__year">
+                                <input type="number" min="1" max="10" name="{{ row.prefix }}insurance_year" value="{{ row.values.insurance_year|default_if_none:'' }}"
+                                       class="form-control of-control of-control--year{% if mode == 'copy' %} of-control--accent{% endif %}" aria-label="Год страхования">
+                            </td>
+                            <td><input type="text" inputmode="decimal" name="{{ row.prefix }}insurance_sum" value="{{ row.values.insurance_sum|money_input }}" class="form-control of-control of-money js-money" aria-label="Страховая сумма"></td>
+                            <td><input type="text" inputmode="decimal" name="{{ row.prefix }}franchise_1" value="{{ row.values.franchise_1|money_input }}" class="form-control of-control of-money js-money" aria-label="Франшиза, вариант 1"></td>
+                            <td><input type="text" inputmode="decimal" name="{{ row.prefix }}premium_with_franchise_1" value="{{ row.values.premium_with_franchise_1|money_input }}" class="form-control of-control of-money js-money js-premium-1" aria-label="Премия, вариант 1"></td>
+                            <td><input type="text" inputmode="decimal" name="{{ row.prefix }}franchise_2" value="{{ row.values.franchise_2|money_input }}" class="form-control of-control of-money js-money" aria-label="Франшиза, вариант 2" placeholder="—"></td>
+                            <td><input type="text" inputmode="decimal" name="{{ row.prefix }}premium_with_franchise_2" value="{{ row.values.premium_with_franchise_2|money_input }}" class="form-control of-control of-money js-money" aria-label="Премия, вариант 2" placeholder="—"></td>
+                            <td class="of-row__remove">
+                                {% if mode == 'add' %}
+                                <button type="button" class="of-icon-btn js-remove-row" title="Убрать год" aria-label="Убрать год"><i class="bi bi-x-lg"></i></button>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% if row.errors %}
+                        <tr class="of-row-errors">
+                            <td colspan="7">{% for error in row.errors %}<div class="text-danger">{{ error }}</div>{% endfor %}</td>
+                        </tr>
+                        {% endif %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% if mode == 'add' %}
+            <div class="of-years-actions">
+                <button type="button" class="of-add-year" id="add-year-btn">
+                    <i class="bi bi-plus-lg"></i> Добавить год <span>— сумма и франшиза подставятся из предыдущего</span>
+                </button>
+                <div class="of-total" id="offer-total" hidden></div>
+            </div>
+            {% endif %}
+
+            <div class="of-installments">
+                {% for variant in '12' %}
+                {% with checkbox_name='installment_variant_'|add:variant select_name='payments_per_year_variant_'|add:variant %}
+                <div class="of-installment">
+                    <div class="form-check form-switch m-0">
+                        <input class="form-check-input js-installment" type="checkbox" role="switch" name="{{ checkbox_name }}" id="id_{{ checkbox_name }}"
+                               data-target="id_{{ select_name }}"{% if variant == '1' and form.installment_variant_1.value %} checked{% elif variant == '2' and form.installment_variant_2.value %} checked{% endif %}>
+                        <label class="form-check-label" for="id_{{ checkbox_name }}">
+                            Рассрочка по варианту {{ variant }}{% if mode == 'add' %} <small>· для всех лет</small>{% endif %}
+                        </label>
+                    </div>
+                    <select name="{{ select_name }}" id="id_{{ select_name }}" class="form-select of-control of-control--sm" aria-label="Платежей в год, вариант {{ variant }}">
+                        {% for value, label in installment_choices %}
+                            <option value="{{ value }}"{% if variant == '1' and value == form.payments_per_year_variant_1.value|add:0 %} selected{% elif variant == '2' and value == form.payments_per_year_variant_2.value|add:0 %} selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endwith %}
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    {# ── Условия ── #}
+    <div class="of-card">
+        <div class="of-card__head"><h2>Условия</h2></div>
+        <div class="of-card__body of-conditions">
+            <div>
+                <label for="id_coverage_territory" class="form-label of-label">Территория страхования</label>
+                <textarea name="coverage_territory" id="id_coverage_territory" rows="3" class="form-control of-control"
+                          placeholder="Например: Российская Федерация, кроме новых территорий">{{ form.coverage_territory.value|default_if_none:'' }}</textarea>
+                <div class="form-text of-hint">Общая для всех лет этой СК в своде — обновится у всех её лет</div>
+            </div>
+            <div>
+                <label for="id_notes" class="form-label of-label">Комментарий</label>
+                <textarea name="notes" id="id_notes" rows="3" class="form-control of-control"
+                          placeholder="Например: оговорка о рисках РНПК">{{ form.notes.value|default_if_none:'' }}</textarea>
+                <div class="form-text of-hint">Для многолетних предложений достаточно ввести один раз</div>
+            </div>
+        </div>
+    </div>
+
+    {# ── Панель действий ── #}
+    <div class="of-actions">
+        <div class="of-actions__inner">
+            {% if mode == 'edit' %}
+            <button type="button" class="of-delete" data-bs-toggle="modal" data-bs-target="#deleteConfirmModal">
+                <i class="bi bi-trash"></i> Удалить предложение
+            </button>
+            {% endif %}
+            {% if mode == 'add' %}<span class="of-actions__summary" id="offer-rows-summary"></span>{% endif %}
+            <a href="{% url 'summaries:summary_detail' summary.pk %}" class="of-cancel">Отмена</a>
+            <button type="submit" class="of-submit">
+                {% if mode == 'edit' %}Сохранить изменения{% elif mode == 'copy' %}Создать копию{% else %}Добавить предложение{% endif %}
+            </button>
+        </div>
+    </div>
+</form>
+
+{% if mode == 'edit' %}
+<div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-labelledby="deleteConfirmModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content of-modal">
+            <div class="modal-body">
+                <h5 id="deleteConfirmModalLabel">Удалить предложение?</h5>
+                <p>{{ offer.company_name }}, {{ offer.get_insurance_year_display }}. Это действие нельзя отменить.</p>
+                <div class="of-modal__actions">
+                    <button type="button" class="of-cancel" data-bs-dismiss="modal">Отмена</button>
+                    <button type="button" class="of-submit of-submit--danger" id="confirm-delete-btn"
+                            data-url="{% url 'summaries:delete_offer' offer.pk %}">Удалить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+</div>
+{% endwith %}
+
+{{ company_years|json_script:"company-years-data" }}
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .of-page {
+        --of-ink: #0f1b2d;
+        --of-ink-2: #334155;
+        --of-muted: #6b7a90;
+        --of-muted-2: #9aa6b6;
+        --of-line: #edf1f5;
+        --of-border: #e3eaf0;
+        max-width: 1080px;
+        margin: 0 auto;
+        padding-bottom: 6rem;
+        font-feature-settings: "tnum" 1;
+    }
+
+    .of-back { display: inline-flex; align-items: center; gap: 0.35rem; margin: 0.25rem 0 0.45rem; font-size: 0.8125rem; font-weight: 600; color: var(--of-muted); text-decoration: none; }
+    .of-back:hover { color: var(--app-primary); }
+    .of-title { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; margin: 0; font-size: 1.75rem; font-weight: 700; letter-spacing: -0.025em; color: var(--of-ink); }
+    .of-mode { padding: 0.25rem 0.7rem; border-radius: 999px; background: #e6f3f1; color: #0b6b66; font-size: 0.75rem; font-weight: 700; letter-spacing: 0; }
+    .of-mode--copy { background: #eaf2fe; color: #1d5fbf; }
+    .of-sub { margin: 0.35rem 0 1.25rem; font-size: 0.875rem; color: var(--of-muted); }
+    .of-sub b { font-weight: 600; color: var(--of-ink-2); }
+    .of-copy-note { display: flex; gap: 0.6rem; align-items: flex-start; margin-bottom: 1.1rem; padding: 0.7rem 1rem; border-radius: 14px; background: #eef4fe; color: #1d4f9a; font-size: 0.85rem; }
+
+    .of-card { margin-bottom: 1.1rem; background: #fff; border: 1px solid #e6ecf1; border-radius: 18px; box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 12px 32px -12px rgba(16, 24, 40, 0.1); }
+    .of-card__head { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 0.85rem 1.35rem; border-bottom: 1px solid var(--of-line); }
+    .of-card__head h2 { margin: 0; font-size: 0.94rem; font-weight: 700; color: var(--of-ink); }
+    .of-card__head span { font-size: 0.78rem; color: var(--of-muted); }
+    .of-card__body { padding: 1.1rem 1.35rem 1.25rem; }
+
+    .of-label { margin-bottom: 0.4rem; font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--of-muted-2); }
+    .of-control { border: 1px solid var(--of-border); border-radius: 10px; font-size: 0.9rem; color: var(--of-ink); }
+    .of-control:focus { border-color: #8cc5bf; box-shadow: 0 0 0 3px rgba(11, 122, 117, 0.12); }
+    .of-control--accent { border-color: #7aa7e8; box-shadow: 0 0 0 3px rgba(29, 95, 191, 0.12); }
+    .of-control--sm:disabled { background-color: #fafbfc; color: var(--of-muted-2); }
+    .of-control--sm { width: auto; min-width: 11rem; height: 34px; padding-top: 0; padding-bottom: 0; font-size: 0.8125rem; }
+    .of-hint { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; margin-top: 0.45rem; font-size: 0.78rem; color: var(--of-muted); }
+    .of-hint:empty { display: none; }
+    .of-hint--ok { color: #1d7047; }
+    .of-hint--warn { color: #98600a; }
+    .of-year-chip { padding: 0.02rem 0.45rem; border-radius: 6px; background: #f1f4f8; color: #4a5a70; font-size: 0.72rem; font-weight: 700; }
+    .of-hint--warn .of-year-chip { background: #fdf3e1; color: #8a5a00; }
+
+    /* Таблица лет */
+    .of-years-wrap { box-shadow: none; border-radius: 0; }
+    .of-years { width: 100%; border-collapse: separate; border-spacing: 0; }
+    .of-years th { padding: 0 0.4rem 0.45rem; font-size: 0.66rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--of-muted-2); white-space: nowrap; }
+    .of-years__groups th { padding-bottom: 0.3rem; text-align: center; font-size: 0.7rem; color: var(--of-ink-2); }
+    .of-years__groups th span { display: block; padding-bottom: 0.35rem; border-bottom: 1px solid #d5dde6; }
+    .of-years__groups small { font-weight: 600; text-transform: none; letter-spacing: 0; color: var(--of-muted-2); }
+    .of-years td { padding: 0.3rem 0.4rem; vertical-align: middle; }
+    .of-row__year { width: 5.5rem; }
+    .of-control--year { text-align: center; font-weight: 700; }
+    .of-money { text-align: right; font-weight: 600; }
+    .of-money::placeholder { color: #c3ccd7; font-weight: 400; }
+    .of-row__remove { width: 2.25rem; text-align: center; }
+    .of-icon-btn { width: 30px; height: 30px; border: 0; border-radius: 8px; background: transparent; color: var(--of-muted-2); }
+    .of-icon-btn:hover { background: #fbeeee; color: #b4342d; }
+    .of-row-errors td { padding-top: 0; font-size: 0.8rem; }
+    .of-row--taken .of-control--year { border-color: #f0a93b; box-shadow: 0 0 0 3px rgba(240, 169, 59, 0.15); }
+
+    .of-years-actions { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.75rem; margin-top: 0.6rem; }
+    .of-add-year { display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.45rem 0.9rem; border: 1px dashed #b9d9d5; border-radius: 10px; background: transparent; font-size: 0.85rem; font-weight: 600; color: var(--app-primary); }
+    .of-add-year span { font-weight: 500; color: var(--of-muted); }
+    .of-add-year:hover { background: #f4faf9; }
+    .of-add-year:disabled { opacity: 0.5; }
+    .of-total { font-size: 0.82rem; color: var(--of-muted); }
+    .of-total b { margin-left: 0.4rem; font-size: 0.95rem; color: var(--of-ink); }
+
+    .of-installments { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.85rem; margin-top: 1rem; }
+    .of-installment { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; padding: 0.65rem 0.9rem; border: 1px solid var(--of-line); border-radius: 12px; font-size: 0.85rem; color: var(--of-ink-2); }
+    .of-installment small { color: var(--of-muted-2); }
+    .of-installment .form-check-input:checked { background-color: var(--app-primary); border-color: var(--app-primary); }
+
+    .of-conditions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem 1.25rem; }
+
+    /* Панель действий */
+    .of-actions { position: fixed; left: 0; right: 0; bottom: 0; z-index: 1020; background: rgba(255, 255, 255, 0.94); backdrop-filter: blur(6px); border-top: 1px solid var(--of-line); }
+    .of-actions__inner { display: flex; align-items: center; gap: 1.1rem; max-width: 1080px; margin: 0 auto; padding: 0.75rem 1rem; }
+    .of-actions__summary { font-size: 0.82rem; color: var(--of-muted); }
+    .of-actions__summary b { color: var(--of-ink); }
+    .of-delete { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0; border: 0; background: none; font-size: 0.85rem; font-weight: 600; color: #b4342d; }
+    .of-delete:hover { text-decoration: underline; }
+    .of-cancel { margin-left: auto; padding: 0; border: 0; background: none; font-size: 0.875rem; font-weight: 600; color: var(--of-muted); text-decoration: none; }
+    .of-cancel:hover { color: var(--of-ink); }
+    .of-submit { padding: 0.65rem 1.35rem; border: 0; border-radius: 11px; background: var(--app-primary); color: #fff; font-size: 0.875rem; font-weight: 700; box-shadow: 0 6px 16px -6px rgba(11, 122, 117, 0.6); }
+    .of-submit:hover { background: var(--app-primary-dark); }
+    .of-submit:disabled { opacity: 0.7; }
+    .of-submit--danger { background: #b4342d; box-shadow: none; }
+    .of-submit--danger:hover { background: #962a24; }
+    .of-modal { border: 0; border-radius: 18px; }
+    .of-modal .modal-body { padding: 1.4rem; }
+    .of-modal h5 { font-weight: 700; color: var(--of-ink); }
+    .of-modal p { color: var(--of-muted); }
+    .of-modal__actions { display: flex; justify-content: flex-end; align-items: center; gap: 1rem; }
+    .of-modal__actions .of-cancel { margin-left: 0; }
+
+    @media (max-width: 767.98px) {
+        .of-title { font-size: 1.4rem; }
+        .of-installments,
+        .of-conditions { grid-template-columns: minmax(0, 1fr); }
+        .of-installment { flex-wrap: wrap; }
+        .of-add-year span { display: none; }
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const page = document.querySelector('.of-page');
+    const mode = page.dataset.mode;
+    const form = document.getElementById('offer-form');
+    const rowsBody = document.getElementById('offer-rows');
+    const companySelect = document.getElementById('id_company_name');
+    const hint = document.getElementById('company-years-hint');
+    const companyYears = JSON.parse(document.getElementById('company-years-data').textContent);
+    const maxRows = {{ max_rows }};
+
+    // ── Суммы с пробелами между тысячами ──
+    const parseMoney = value => {
+        const normalized = String(value || '').replace(/[\s  ]/g, '').replace(',', '.');
+        return normalized === '' ? null : Number(normalized);
+    };
+    const formatMoney = value => {
+        const number = parseMoney(value);
+        if (number === null || Number.isNaN(number)) return value;
+        const [integer, fraction] = number.toFixed(2).split('.');
+        const grouped = integer.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+        return fraction === '00' ? grouped : `${grouped},${fraction.replace(/0$/, '')}`;
+    };
+    const bindMoney = input => input.addEventListener('blur', () => { input.value = formatMoney(input.value); updateTotal(); });
+
+    // ── Строки годов (режим добавления) ──
+    const yearWord = count => (count % 10 === 1 && count % 100 !== 11) ? 'год'
+        : ([2, 3, 4].includes(count % 10) && ![12, 13, 14].includes(count % 100)) ? 'года' : 'лет';
+    const dataRows = () => Array.from(rowsBody.querySelectorAll('tr.of-row'));
+
+    function renumberRows() {
+        if (mode !== 'add') return;
+        dataRows().forEach((row, index) => {
+            row.querySelectorAll('input').forEach(input => {
+                input.name = input.name.replace(/^rows-\d+-/, `rows-${index}-`);
+            });
+        });
+        const total = dataRows().length;
+        document.getElementById('rows-total').value = total;
+        document.getElementById('add-year-btn').disabled = total >= maxRows;
+        rowsBody.querySelectorAll('.js-remove-row').forEach(btn => { btn.hidden = total === 1; });
+        const summary = document.getElementById('offer-rows-summary');
+        if (summary) summary.innerHTML = `Будет добавлено: <b>${total} ${yearWord(total)}</b>`;
+    }
+
+    function updateTotal() {
+        const totalBox = document.getElementById('offer-total');
+        if (!totalBox) return;
+        const premiums = dataRows().map(row => parseMoney(row.querySelector('.js-premium-1').value));
+        const filled = premiums.filter(value => value !== null && !Number.isNaN(value));
+        totalBox.hidden = dataRows().length < 2 || filled.length < 2;
+        const sum = filled.reduce((acc, value) => acc + value, 0);
+        totalBox.innerHTML = `Итого за ${filled.length} ${yearWord(filled.length)} · вариант 1<b>${formatMoney(sum)} ₽</b>`;
+    }
+
+    function addRow() {
+        const rows = dataRows();
+        const last = rows[rows.length - 1];
+        const clone = last.cloneNode(true);
+        const field = (row, name) => row.querySelector(`input[name$="-${name}"]`);
+        field(clone, 'insurance_year').value = (parseInt(field(last, 'insurance_year').value, 10) || rows.length) + 1;
+        ['premium_with_franchise_1', 'premium_with_franchise_2'].forEach(name => { field(clone, name).value = ''; });
+        clone.querySelectorAll('.js-money').forEach(bindMoney);
+        rowsBody.appendChild(clone);
+        renumberRows();
+        updateCompanyHint();
+        field(clone, 'insurance_sum').focus();
+    }
+
+    if (mode === 'add') {
+        document.getElementById('add-year-btn').addEventListener('click', addRow);
+        rowsBody.addEventListener('click', event => {
+            const button = event.target.closest('.js-remove-row');
+            if (!button || dataRows().length === 1) return;
+            const row = button.closest('tr.of-row');
+            const errors = row.nextElementSibling;
+            if (errors && errors.classList.contains('of-row-errors')) errors.remove();
+            row.remove();
+            renumberRows();
+            updateTotal();
+            updateCompanyHint();
+        });
+        rowsBody.addEventListener('input', event => {
+            if (event.target.name && event.target.name.endsWith('insurance_year')) updateCompanyHint();
+        });
+    }
+
+    // ── Подсказка о повторах «СК + год» ──
+    function updateCompanyHint() {
+        const company = companySelect.value;
+        dataRows().forEach(row => row.classList.remove('of-row--taken'));
+        if (!company) { hint.className = 'form-text of-hint'; hint.innerHTML = ''; return; }
+        const taken = companyYears[company] || [];
+        const chips = taken.map(year => `<span class="of-year-chip">${year} год</span>`).join(' ');
+        const clash = dataRows().filter(row => taken.includes(parseInt(row.querySelector('input[name$="insurance_year"]').value, 10)));
+        clash.forEach(row => row.classList.add('of-row--taken'));
+        const yearValue = row => parseInt(row.querySelector('input[name$="insurance_year"]').value, 10);
+        if (!taken.length) {
+            hint.className = 'form-text of-hint of-hint--ok';
+            hint.innerHTML = `<i class="bi bi-check-circle"></i> Предложений «${company}» в этом своде ещё нет`;
+        } else if (clash.length) {
+            hint.className = 'form-text of-hint of-hint--warn';
+            hint.innerHTML = `<i class="bi bi-exclamation-triangle"></i> У «${company}» в этом своде уже есть ${chips} — укажите другой год или другую СК`;
+        } else if (mode === 'edit') {
+            hint.className = 'form-text of-hint';
+            hint.innerHTML = `<i class="bi bi-info-circle"></i> Также в своде: ${chips}`;
+        } else if (mode === 'copy') {
+            hint.className = 'form-text of-hint of-hint--warn';
+            hint.innerHTML = `<i class="bi bi-exclamation-triangle"></i> У «${company}» в этом своде уже есть ${chips} — копия пойдёт ${yearValue(dataRows()[0])}-м годом`;
+        } else {
+            hint.className = 'form-text of-hint';
+            hint.innerHTML = `<i class="bi bi-info-circle"></i> У «${company}» в этом своде уже есть ${chips}`;
+        }
+    }
+    companySelect.addEventListener('change', updateCompanyHint);
+    if (mode !== 'add') {
+        rowsBody.addEventListener('input', event => {
+            if (event.target.name === 'insurance_year') updateCompanyHint();
+        });
+    }
+
+    // ── Рассрочка: число платежей доступно только при включённой рассрочке ──
+    document.querySelectorAll('.js-installment').forEach(toggle => {
+        const select = document.getElementById(toggle.dataset.target);
+        const sync = () => { select.disabled = !toggle.checked; };
+        toggle.addEventListener('change', sync);
+        sync();
+    });
+
+    // ── Отправка ──
+    form.addEventListener('submit', () => {
+        const submit = form.querySelector('.of-submit');
+        submit.disabled = true;
+        submit.textContent = 'Сохранение…';
+    });
+    window.addEventListener('pageshow', () => {
+        const submit = form.querySelector('.of-submit');
+        submit.disabled = false;
+    });
+
+    // ── Удаление (режим редактирования) ──
+    const deleteButton = document.getElementById('confirm-delete-btn');
+    if (deleteButton) {
+        deleteButton.addEventListener('click', () => {
+            deleteButton.disabled = true;
+            fetch(deleteButton.dataset.url, {
+                method: 'POST',
+                headers: {'X-CSRFToken': form.querySelector('[name=csrfmiddlewaretoken]').value},
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.href = '{% url "summaries:summary_detail" summary.pk %}';
+                } else {
+                    deleteButton.disabled = false;
+                    alert('Ошибка при удалении: ' + data.error);
+                }
+            })
+            .catch(() => {
+                deleteButton.disabled = false;
+                alert('Не удалось удалить предложение. Проверьте соединение и попробуйте ещё раз.');
+            });
+        });
+    }
+
+    document.querySelectorAll('.js-money').forEach(bindMoney);
+    renumberRows();
+    updateTotal();
+    updateCompanyHint();
+});
+</script>
+{% endblock %}
