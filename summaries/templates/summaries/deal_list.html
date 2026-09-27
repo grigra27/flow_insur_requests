@@ -1,565 +1,483 @@
 {% extends 'base.html' %}
-{% load summary_extras %}
 {% load tz %}
 {% load l10n %}
+{% load summary_extras %}
 
 {% block title %}Сделки - {{ block.super }}{% endblock %}
 
 {% block extra_css %}
+{% include 'summaries/_list_page_styles.html' %}
 <style>
-    .deal-list-kpi-card {
-        border: 0;
-        box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
-        height: 100%;
-    }
-
-    .deal-list-kpi-value {
-        font-size: 1.7rem;
-        line-height: 1.1;
-        font-weight: 700;
-    }
-
-    .deal-list-table-card {
-        border: 0;
-        box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
-    }
-
-    .summary-filter-card {
-        border: 0;
-        box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
-    }
-
-    .summary-filter-card__header {
-        padding: 0;
-        background: #fff;
-        border-bottom: 1px solid #e9ecef;
-    }
-
-    .summary-filter-toggle {
-        width: 100%;
-        border: 0;
-        border-radius: 0;
-        padding: 1rem 1.25rem;
+    /* Сделки: сортировка рядом с фильтрами */
+    .dl-bar-actions {
         display: flex;
         align-items: center;
-        justify-content: space-between;
+        gap: 0.5rem;
+    }
+
+    .dl-sort.form-select {
+        height: 36px;
+        width: auto;
+        padding: 0 2.1rem 0 0.75rem;
+        background-color: #fafbfc;
+        border: 1px solid var(--sl-border);
+        border-radius: 10px;
+        font-size: 0.8125rem;
         font-weight: 600;
-        color: #0f172a;
-        text-align: left;
+        color: var(--sl-ink-2);
     }
 
-    .summary-filter-toggle:hover {
-        color: var(--app-primary);
-        background-color: rgba(11, 122, 117, 0.06);
+    /* Клиент, выбор, премия */
+    .dl-client {
+        font-weight: 600;
+        color: var(--sl-ink);
     }
 
-    .summary-filter-toggle:focus {
-        box-shadow: none;
-        color: var(--app-primary);
+    .dl-number {
+        font-family: 'Space Grotesk', 'Manrope', sans-serif;
+        font-weight: 600;
+        color: var(--sl-muted);
     }
 
-    .summary-filter-toggle__title {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-    }
-
-    .summary-filter-toggle__meta {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-        color: #64748b;
-        font-size: 0.85rem;
-    }
-
-    .summary-filter-toggle__icon {
-        transition: transform 0.2s ease-in-out, color 0.2s ease-in-out;
-    }
-
-    .summary-filter-toggle[aria-expanded="true"] .summary-filter-toggle__icon {
-        transform: rotate(180deg);
-        color: var(--app-primary);
-    }
-
-    .summary-filter-card .card-body {
-        padding: 1.25rem;
-    }
-
-    .summary-filter-form .row.g-3 {
-        align-items: end;
-    }
-
-    .summary-filter-form .form-label {
-        font-weight: 500;
-        margin-bottom: 0.5rem;
-        color: #334155;
-    }
-
-    .summary-filter-form .form-control,
-    .summary-filter-form .form-select {
-        min-height: calc(2.25rem + 2px);
-    }
-
-    .summary-filter-actions {
-        display: flex;
-        gap: 0.5rem;
-        align-items: end;
-    }
-
-    .summary-filter-actions .btn {
-        font-weight: 500;
-    }
-
-    .deal-list-table tbody tr {
-        cursor: pointer;
-    }
-
-    .deal-list-table tbody tr:hover {
-        background-color: rgba(11, 122, 117, 0.05);
-    }
-
-    .deal-list-client-name {
-        max-width: 260px;
-        overflow: hidden;
-        text-overflow: ellipsis;
+    .dl-company {
+        font-weight: 600;
+        color: var(--sl-ink);
         white-space: nowrap;
     }
 
-    .deal-list-client-primary {
+    .dl-premium {
+        font-size: 0.94rem;
         font-weight: 700;
-        color: #0f172a;
+        color: var(--sl-ink);
+        white-space: nowrap;
     }
 
-    .deal-choice-company-chip {
-        --marker-main-start: #0b6a57;
-        --marker-main-end: #14856d;
-        --marker-shadow-start: #08473c;
-        --marker-shadow-end: #0b5b4b;
+    .dl-warning {
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: #b86e00;
+        white-space: nowrap;
+    }
+
+    .sl-table th.dl-num,
+    .sl-table td.dl-num {
+        text-align: right;
+    }
+
+    /* Линейка предложений */
+    .dl-range {
+        width: 250px;
+        min-width: 220px;
+    }
+
+    .dl-track {
         position: relative;
-        display: inline-block;
-        margin-bottom: 0.38rem;
-        padding: 0.24rem 0.68rem 0.32rem;
-        color: #fff;
-        font-size: 0.86rem;
-        font-weight: 700;
-        letter-spacing: 0.01em;
-        line-height: 1;
-        text-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
-        transform: rotate(-0.8deg);
-        isolation: isolate;
+        height: 14px;
     }
 
-    .deal-choice-company-chip::before {
-        content: '';
+    .dl-track::before {
+        content: "";
         position: absolute;
-        inset: -0.08rem -0.20rem -0.10rem -0.14rem;
-        border-radius: 0.45rem 0.95rem 0.55rem 0.38rem;
-        background: linear-gradient(95deg, var(--marker-main-start) 0%, var(--marker-main-end) 58%, #0d735f 100%);
-        box-shadow: 0 1px 0 rgba(255, 255, 255, 0.18) inset;
-        z-index: -1;
-    }
-
-    .deal-choice-company-chip::after {
-        content: '';
-        position: absolute;
-        left: 8%;
-        right: -4%;
-        bottom: -0.34rem;
-        height: 0.28rem;
-        border-radius: 999px;
-        background: linear-gradient(90deg, var(--marker-shadow-start) 0%, var(--marker-shadow-end) 100%);
-        opacity: 0.92;
-        transform: rotate(-1.2deg);
-        z-index: -2;
-    }
-
-    .deal-min-selected-badge {
-        background-color: #6f42c1;
-        color: #fff;
-    }
-
-    .deal-companies-cell {
-        text-align: center;
-    }
-
-    .deal-companies-badge {
-        min-width: 2.25rem;
-        padding: 0.34rem 0.62rem;
-        font-size: 0.92rem;
-        font-weight: 700;
-        line-height: 1;
-    }
-
-    .price-range-track {
-        position: relative;
-        height: 12px;
-        border-radius: 999px;
-        background: linear-gradient(90deg, #d8e4ea 0%, #eef4f7 100%);
-        border: 1px solid #dbe7ee;
-        overflow: visible;
-    }
-
-    .price-range-line {
-        position: absolute;
-        left: 8px;
-        right: 8px;
-        top: 50%;
+        left: 0;
+        right: 0;
+        top: 6px;
         height: 2px;
-        background: #8aa5b4;
-        transform: translateY(-50%);
-        opacity: 0.55;
+        border-radius: 2px;
+        background: #e6ebf0;
     }
 
-    .price-point {
+    .dl-point {
         position: absolute;
-        top: 50%;
-        width: 11px;
-        height: 11px;
+        top: 3px;
+        width: 8px;
+        height: 8px;
+        margin-left: -4px;
         border-radius: 50%;
-        border: 2px solid #0f172a;
         background: #fff;
-        transform: translate(-50%, -50%);
-        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.16);
+        box-shadow: inset 0 0 0 1.5px #b3bfcc;
     }
 
-    .price-point.selected {
-        width: 16px;
-        height: 16px;
-        border-color: #fff;
-        background: var(--app-primary);
-        box-shadow: 0 0 0 3px rgba(11, 122, 117, 0.25);
-        z-index: 2;
+    .dl-point.is-selected {
+        top: 1px;
+        width: 12px;
+        height: 12px;
+        margin-left: -6px;
+        background: var(--sl-teal);
+        box-shadow: 0 0 0 3px rgba(11, 122, 117, 0.16);
+        z-index: 1;
     }
 
-    .price-range-labels {
+    .dl-range-ends {
         display: flex;
         justify-content: space-between;
-        font-size: 0.75rem;
-        color: #64748b;
-        margin-top: 0.35rem;
+        margin-top: 1px;
+        font-size: 0.69rem;
+        color: var(--sl-muted-2);
     }
 
-    @media (max-width: 992px) {
-        .deal-list-table th:nth-child(4),
-        .deal-list-table td:nth-child(4) {
+    .dl-rank {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-top: 0.25rem;
+        font-size: 0.78rem;
+        color: var(--sl-muted);
+        white-space: nowrap;
+    }
+
+    .dl-rank b {
+        font-weight: 700;
+        color: var(--sl-ink-2);
+    }
+
+    .dl-tag {
+        padding: 0.05rem 0.45rem;
+        border-radius: 6px;
+        font-size: 0.69rem;
+        font-weight: 700;
+    }
+
+    .dl-tag--min {
+        background: #e9f6ef;
+        color: #1d7047;
+    }
+
+    .dl-no-range {
+        font-size: 0.78rem;
+        color: var(--sl-muted-2);
+    }
+
+    /* Статус сделки */
+    .dl-deal-status {
+        display: inline-block;
+        margin-top: 0.25rem;
+        padding: 0.05rem 0.5rem;
+        border-radius: 999px;
+        background: #f1f4f8;
+        color: #4a5a70;
+        font-size: 0.69rem;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+
+    .dl-deal-status--prolongation {
+        background: #eaf2fe;
+        color: #1d5fbf;
+    }
+
+    @media (max-width: 991.98px) {
+        .dl-range {
             display: none;
         }
     }
 
-    @media (max-width: 768px) {
-        .deal-list-table th:nth-child(5),
-        .deal-list-table td:nth-child(5),
-        .deal-list-table th:nth-child(6),
-        .deal-list-table td:nth-child(6) {
-            display: none;
-        }
-
-        .deal-choice-company-chip {
-            font-size: 0.80rem;
-            padding: 0.22rem 0.60rem 0.28rem;
-        }
-    }
-
-    @media (max-width: 576px) {
-        .summary-filter-card .card-body {
-            padding: 1rem;
-        }
-
-        .summary-filter-toggle {
-            padding: 0.85rem 1rem;
-        }
-
-        .summary-filter-actions {
-            flex-direction: column;
-            align-items: stretch;
-        }
-
-        .summary-filter-actions .btn {
-            width: 100%;
+    @media (max-width: 767.98px) {
+        .dl-bar-actions {
+            flex-wrap: wrap;
+            justify-content: flex-end;
         }
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="sl-page">
+<div class="sl-head">
     <div>
-        <h1 class="h3 mb-1"><i class="bi bi-briefcase"></i> Сделки</h1>
-        <p class="text-muted mb-0">Реально заключенные сделки по закрытым сводам (акцепт/распоряжение).</p>
+        <h1 class="sl-title">Сделки</h1>
+        <p class="sl-sub">Реально заключенные сделки по закрытым сводам (акцепт/распоряжение).</p>
     </div>
-    <a href="{% url 'summaries:summary_list' %}" class="btn btn-outline-primary">
-        <i class="bi bi-collection"></i> К сводам
+</div>
+
+<!-- Вкладки филиалов -->
+{% if available_branches %}
+<nav class="sl-branches" aria-label="Филиалы">
+    <a class="sl-branch{% if not current_branch %} is-active{% endif %}" href="#" data-branch="">
+        Все <span class="sl-branch__count">{{ total_deals_count }}</span>
     </a>
-</div>
+    {% for branch in available_branches %}
+    <a class="sl-branch{% if current_branch == branch %} is-active{% endif %}" href="#" data-branch="{{ branch }}">
+        {{ branch|format_branch }} <span class="sl-branch__count">{{ branch_counts|get_item:branch|default:0 }}</span>
+    </a>
+    {% endfor %}
+</nav>
+{% endif %}
 
-<div class="row g-3 mb-4">
-    <div class="col-12 col-md-6 col-xl-3">
-        <div class="card deal-list-kpi-card">
-            <div class="card-body">
-                <div class="text-muted mb-2">Сделок в выборке</div>
-                <div class="deal-list-kpi-value text-primary">{{ kpi.total_deals }}</div>
-            </div>
+<div class="sl-card{% if has_active_filters %} filter-active{% endif %}">
+    <div class="sl-card__bar">
+        <div class="sl-card__total">
+            {% if deals %}
+                Показано <b>{{ deals.start_index }}–{{ deals.end_index }}</b> из <b>{{ deals.paginator.count }}</b> сделок
+            {% endif %}
         </div>
-    </div>
-    <div class="col-12 col-md-6 col-xl-3">
-        <div class="card deal-list-kpi-card">
-            <div class="card-body">
-                <div class="text-muted mb-2">Сумма выбранных премий</div>
-                <div class="deal-list-kpi-value text-success">
-                    {% if kpi.total_premium_sum is not None %}
-                        {{ kpi.total_premium_sum|format_currency_with_spaces }}
-                    {% else %}
-                        —
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-12 col-md-6 col-xl-3">
-        <div class="card deal-list-kpi-card">
-            <div class="card-body">
-                <div class="text-muted mb-2">Средняя премия</div>
-                <div class="deal-list-kpi-value text-info">
-                    {% if kpi.avg_premium is not None %}
-                        {{ kpi.avg_premium|format_currency_with_spaces }}
-                    {% else %}
-                        —
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-12 col-md-6 col-xl-3">
-        <div class="card deal-list-kpi-card">
-            <div class="card-body">
-                <div class="text-muted mb-2">Среднее число лет</div>
-                <div class="deal-list-kpi-value text-dark">{{ kpi.avg_years|floatformat:1 }}</div>
-                {% if kpi.rows_with_warning %}
-                    <small class="text-warning">С неполными данными: {{ kpi.rows_with_warning }}</small>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="card summary-filter-card mb-4">
-    <div class="card-header summary-filter-card__header">
-        <button class="btn summary-filter-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#dealFilterForm" aria-expanded="false" aria-controls="dealFilterForm">
-            <span class="summary-filter-toggle__title">
+        <div class="dl-bar-actions">
+            {{ filter_form.sort }}
+            <button class="sl-filter-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#dealFilterForm"
+                    aria-expanded="{% if has_active_filters %}true{% else %}false{% endif %}" aria-controls="dealFilterForm">
                 <i class="bi bi-funnel"></i>
-                <span>Фильтры сделок</span>
-            </span>
-            <span class="summary-filter-toggle__meta">
-                <span class="summary-filter-toggle__hint d-none d-md-inline">Поиск, даты, тип, менеджер</span>
-                <i class="bi bi-chevron-down summary-filter-toggle__icon"></i>
-            </span>
-        </button>
+                <span class="sl-filter-toggle__title">Фильтры сделок</span>
+                <span class="sl-filter-toggle__hint d-none d-md-inline">Поиск, даты, тип, менеджер</span>
+                <i class="bi bi-chevron-down sl-filter-toggle__icon"></i>
+            </button>
+        </div>
     </div>
-    <div class="collapse" id="dealFilterForm">
-        <div class="card-body">
-        <form method="get" id="deal-filter-form" class="summary-filter-form">
+
+    <!-- Форма фильтрации -->
+    <div class="collapse{% if has_active_filters %} show{% endif %}" id="dealFilterForm">
+        <form method="get" id="deal-filter-form" class="sl-filter-form">
+            {% if current_branch %}<input type="hidden" name="branch" value="{{ current_branch }}">{% endif %}
             <div class="row g-3">
-            <div class="col-12 col-md-3 col-lg-2">
-                <label for="{{ filter_form.period.id_for_label }}" class="form-label">{{ filter_form.period.label }}</label>
-                {{ filter_form.period }}
-            </div>
-            <div class="col-12 col-md-3 col-lg-2">
-                <label for="{{ filter_form.start_date.id_for_label }}" class="form-label">{{ filter_form.start_date.label }}</label>
-                {{ filter_form.start_date }}
-            </div>
-            <div class="col-12 col-md-3 col-lg-2">
-                <label for="{{ filter_form.end_date.id_for_label }}" class="form-label">{{ filter_form.end_date.label }}</label>
-                {{ filter_form.end_date }}
-            </div>
-            <div class="col-12 col-md-3 col-lg-2">
-                <label for="{{ filter_form.branch.id_for_label }}" class="form-label">{{ filter_form.branch.label }}</label>
-                {{ filter_form.branch }}
-            </div>
-            <div class="col-12 col-md-4 col-lg-2">
-                <label for="{{ filter_form.insurance_type.id_for_label }}" class="form-label">{{ filter_form.insurance_type.label }}</label>
-                {{ filter_form.insurance_type }}
-            </div>
-            <div class="col-12 col-md-4 col-lg-2">
-                <label for="{{ filter_form.manager.id_for_label }}" class="form-label">{{ filter_form.manager.label }}</label>
-                {{ filter_form.manager }}
-            </div>
-            <div class="col-12 col-md-4 col-lg-2">
-                <label for="{{ filter_form.selected_company.id_for_label }}" class="form-label">{{ filter_form.selected_company.label }}</label>
-                {{ filter_form.selected_company }}
-            </div>
-            <div class="col-12 col-md-4 col-lg-3">
-                <label for="{{ filter_form.sort.id_for_label }}" class="form-label">{{ filter_form.sort.label }}</label>
-                {{ filter_form.sort }}
-            </div>
-            <div class="col-12 col-md-8 col-lg-3">
-                <label for="{{ filter_form.search.id_for_label }}" class="form-label">{{ filter_form.search.label }}</label>
-                {{ filter_form.search }}
-            </div>
-            <div class="col-12 col-lg-4 summary-filter-actions">
-                <button type="submit" class="btn btn-primary">
-                    <i class="bi bi-search"></i> Применить
-                </button>
-                <a href="{% url 'summaries:deal_list' %}" class="btn btn-outline-secondary">
-                    <i class="bi bi-arrow-counterclockwise"></i> Сбросить
-                </a>
-            </div>
+                <div class="col-12 col-md-4 col-lg-2">
+                    <label for="{{ filter_form.period.id_for_label }}" class="form-label">{{ filter_form.period.label }}</label>
+                    {{ filter_form.period }}
+                </div>
+                <div class="col-12 col-md-4 col-lg-2">
+                    <label for="{{ filter_form.start_date.id_for_label }}" class="form-label">{{ filter_form.start_date.label }}</label>
+                    {{ filter_form.start_date }}
+                </div>
+                <div class="col-12 col-md-4 col-lg-2">
+                    <label for="{{ filter_form.end_date.id_for_label }}" class="form-label">{{ filter_form.end_date.label }}</label>
+                    {{ filter_form.end_date }}
+                </div>
+                <div class="col-12 col-md-4 col-lg-2">
+                    <label for="{{ filter_form.insurance_type.id_for_label }}" class="form-label">{{ filter_form.insurance_type.label }}</label>
+                    {{ filter_form.insurance_type }}
+                </div>
+                <div class="col-12 col-md-4 col-lg-2">
+                    <label for="{{ filter_form.manager.id_for_label }}" class="form-label">{{ filter_form.manager.label }}</label>
+                    {{ filter_form.manager }}
+                </div>
+                <div class="col-12 col-md-4 col-lg-2">
+                    <label for="{{ filter_form.selected_company.id_for_label }}" class="form-label">{{ filter_form.selected_company.label }}</label>
+                    {{ filter_form.selected_company }}
+                </div>
+                <div class="col-12 col-md-8 col-lg-4">
+                    <label for="{{ filter_form.search.id_for_label }}" class="form-label">{{ filter_form.search.label }}</label>
+                    {{ filter_form.search }}
+                </div>
+                <div class="col-12 col-md-4 col-lg-4 sl-filter-actions">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-search"></i> Применить
+                    </button>
+                    <a href="{% url 'summaries:deal_list' %}" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-counterclockwise"></i> Сбросить
+                    </a>
+                </div>
             </div>
         </form>
-        </div>
     </div>
+
+{% if deals %}
+    <div class="table-responsive">
+        <table class="sl-table deal-list-table">
+            <thead>
+                <tr>
+                    <th>Клиент и объект</th>
+                    <th>Выбор</th>
+                    <th class="dl-num">Премия</th>
+                    <th class="dl-range">Линейка предложений</th>
+                    <th class="sl-col-companies">СК в своде</th>
+                    <th class="sl-col-date">Закрыта</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for deal in deals %}
+                {% with req=deal.request %}
+                <tr class="summary-row" data-href="{% url 'summaries:deal_summary' deal.summary.pk %}">
+                    <td class="sl-cell-client">
+                        <div class="sl-client dl-client" title="{{ req.client_name }}">{{ req.client_name|default:req.get_display_name }}</div>
+                        <div class="sl-meta" title="ИНН {{ req.inn|default:'—' }}">
+                            <span class="dl-number">{{ req.get_display_name }}</span>{% if req.branch %} · {{ req.branch|format_branch }}{% endif %}{% if deal.type_label %} · {{ deal.type_label }}{% endif %}
+                        </div>
+                        {% with object_summary=req.object_summary %}
+                            {% if object_summary %}
+                                <div class="sl-object" title="{{ object_summary }}">{{ object_summary }}</div>
+                            {% endif %}
+                        {% endwith %}
+                    </td>
+                    <td>
+                        <div class="dl-company">{{ deal.selected_company }}</div>
+                        <div class="sl-meta">{{ deal.selected_variant_display }}</div>
+                    </td>
+                    <td class="dl-num">
+                        {% if deal.selected_total is not None %}
+                            <span class="dl-premium">{{ deal.selected_total|format_currency_with_spaces }}</span>
+                        {% else %}
+                            <span class="dl-warning"><i class="bi bi-exclamation-triangle"></i> Неполные данные</span>
+                        {% endif %}
+                    </td>
+                    <td class="dl-range">
+                        {% if deal.price_range %}
+                            <div class="dl-track">
+                                {% for point in deal.price_range.points %}
+                                    <span class="dl-point{% if point.is_selected %} is-selected{% endif %}"
+                                          style="left: {{ point.position_pct|unlocalize }}%;"
+                                          title="{{ point.company_name }}: {{ point.total|format_currency_with_spaces }}"></span>
+                                {% endfor %}
+                            </div>
+                            <div class="dl-range-ends">
+                                <span>{{ deal.price_range.min_total|format_currency_with_spaces }}</span>
+                                <span>{{ deal.price_range.max_total|format_currency_with_spaces }}</span>
+                            </div>
+                            <div class="dl-rank">
+                                <b>{{ deal.price_range.selected_rank }} / {{ deal.price_range.comparable_companies_count }}</b>
+                                {% if deal.price_range.is_min_selected %}
+                                    <span class="dl-tag dl-tag--min">минимум</span>
+                                {% else %}
+                                    <span>
+                                        +{{ deal.price_range.delta_to_min_abs|format_currency_with_spaces }}{% if deal.price_range.delta_to_min_pct %} ({{ deal.price_range.delta_to_min_pct|floatformat:1 }}%){% endif %}
+                                    </span>
+                                    <span class="sl-flag">есть дешевле</span>
+                                {% endif %}
+                            </div>
+                        {% else %}
+                            <span class="dl-no-range">Недостаточно сопоставимых предложений</span>
+                        {% endif %}
+                    </td>
+                    <td class="sl-col-companies">
+                        <span class="sl-companies">
+                            <b{% if not deal.companies_count %} class="is-zero"{% endif %}>{{ deal.companies_count }}</b>
+                            <span class="sl-scale{% if deal.companies_count <= 2 %} is-low{% endif %}" aria-hidden="true">
+                                {% for step in deal.companies_scale %}<i{% if step < deal.companies_count %} class="is-filled"{% endif %}></i>{% endfor %}
+                            </span>
+                        </span>
+                    </td>
+                    <td class="sl-col-date">
+                        {% timezone "Europe/Moscow" %}
+                            <div class="sl-date">{{ deal.closed_at|date:"d.m.Y" }}</div>
+                            <div class="sl-time">{{ deal.closed_at|date:"H:i" }}</div>
+                        {% endtimezone %}
+                        {% if req.deal_status %}
+                            <span class="dl-deal-status dl-deal-status--{{ req.deal_status }}">{{ req.get_deal_status_display }}</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endwith %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% else %}
+    <div class="sl-empty-state">
+        <i class="bi bi-briefcase"></i>
+        <h3>Сделок нет</h3>
+        <p>По выбранным фильтрам нет заключенных сделок.</p>
+    </div>
+{% endif %}
 </div>
 
-<div class="card deal-list-table-card">
-    <div class="card-header">
-        <h2 class="h5 mb-0"><i class="bi bi-table"></i> Список сделок</h2>
-    </div>
-    <div class="card-body">
-        {% if deals %}
-        <div class="table-responsive">
-            <table class="table table-hover align-middle deal-list-table">
-                <thead>
-                    <tr>
-                        <th>Дата закрытия</th>
-                        <th>Сделка</th>
-                        <th>Выбор</th>
-                        <th>Премия</th>
-                        <th style="min-width: 360px;">Линейка предложений</th>
-                        <th>СК в своде</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for deal in deals %}
-                    <tr data-href="{% url 'summaries:deal_summary' deal.summary.pk %}">
-                        <td>
-                            <div class="small text-muted">
-                                {% timezone "Europe/Moscow" %}{{ deal.closed_at|date:"d.m.Y H:i" }}{% endtimezone %}
-                            </div>
-                        </td>
-                        <td>
-                            <div class="deal-list-client-name deal-list-client-primary" title="{{ deal.request.client_name }}">
-                                <strong>{{ deal.request.client_name|default:deal.request.get_display_name }}</strong>
-                            </div>
-                            <div class="deal-list-client-name small text-muted" title="{{ deal.request.get_display_name }}">
-                                {{ deal.request.get_display_name }}
-                            </div>
-                            <div class="small text-muted">
-                                ИНН {{ deal.request.inn|default:'—' }}
-                                {% if deal.request.branch %} • {{ deal.request.branch|format_branch }}{% endif %}
-                            </div>
-                        </td>
-                        <td>
-                            <div>
-                                <span class="deal-choice-company-chip">{{ deal.selected_company }}</span>
-                            </div>
-                            <div class="small text-muted">{{ deal.selected_variant_display }}</div>
-                            <div class="small text-muted">{{ deal.request.insurance_type }}</div>
-                        </td>
-                        <td>
-                            {% if deal.selected_total is not None %}
-                                <strong>{{ deal.selected_total|format_currency_with_spaces }}</strong>
-                            {% else %}
-                                <span class="text-warning">
-                                    <i class="bi bi-exclamation-triangle"></i> Неполные данные
-                                </span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if deal.price_range %}
-                                <div class="price-range-track">
-                                    <div class="price-range-line"></div>
-                                    {% for point in deal.price_range.points %}
-                                        <span class="price-point {% if point.is_selected %}selected{% endif %}"
-                                              style="left: {{ point.position_pct|unlocalize }}%;"
-                                              title="{{ point.company_name }}: {{ point.total|format_currency_with_spaces }}"></span>
-                                    {% endfor %}
-                                </div>
-                                <div class="price-range-labels">
-                                    <span>min {{ deal.price_range.min_total|format_currency_with_spaces }}</span>
-                                    <span>max {{ deal.price_range.max_total|format_currency_with_spaces }}</span>
-                                </div>
-                                <div class="small mt-1">
-                                    <strong>{{ deal.price_range.selected_rank }} / {{ deal.price_range.comparable_companies_count }}</strong>
-                                    {% if deal.price_range.selected_position_pct is not None %}
-                                        <span class="text-muted ms-1">позиция {{ deal.price_range.selected_position_pct|floatformat:0 }}%</span>
-                                    {% endif %}
-                                </div>
-                                <div class="small">
-                                    {% if deal.price_range.is_min_selected %}
-                                        <span class="badge deal-min-selected-badge">Выбран минимум</span>
-                                    {% else %}
-                                        <span class="text-muted">
-                                            +{{ deal.price_range.delta_to_min_abs|format_currency_with_spaces }}
-                                            {% if deal.price_range.delta_to_min_pct %}
-                                                ({{ deal.price_range.delta_to_min_pct|floatformat:1 }}%)
-                                            {% endif %}
-                                        </span>
-                                    {% endif %}
-                                </div>
-                            {% else %}
-                                <span class="text-muted small">Недостаточно сопоставимых предложений</span>
-                                {% if deal.request.get_deal_status_display %}
-                                    <div class="small text-muted mt-1">{{ deal.request.get_deal_status_display }}</div>
-                                {% endif %}
-                            {% endif %}
-                        </td>
-                        <td class="deal-companies-cell">
-                            <span class="badge deal-companies-badge {{ deal.companies_count|companies_count_badge_class }}">
-                                {{ deal.companies_count }}
-                            </span>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-
-        {% if deals.has_other_pages %}
-        <nav aria-label="Навигация по сделкам" class="mt-3 d-flex justify-content-between align-items-center">
-            <div class="small text-muted">
-                Страница {{ deals.number }} из {{ deals.paginator.num_pages }}
-            </div>
-            <div class="btn-group">
-                {% if deals.has_previous %}
-                    <a class="btn btn-outline-secondary btn-sm" href="?{% if querystring_without_page %}{{ querystring_without_page }}&{% endif %}page={{ deals.previous_page_number }}">
-                        <i class="bi bi-chevron-left"></i> Назад
-                    </a>
-                                {% else %}
-                    <button class="btn btn-outline-secondary btn-sm" disabled>
-                        <i class="bi bi-chevron-left"></i> Назад
-                    </button>
-                                {% endif %}
-
-                {% if deals.has_next %}
-                    <a class="btn btn-outline-secondary btn-sm" href="?{% if querystring_without_page %}{{ querystring_without_page }}&{% endif %}page={{ deals.next_page_number }}">
-                        Вперед <i class="bi bi-chevron-right"></i>
-                    </a>
-                                {% else %}
-                    <button class="btn btn-outline-secondary btn-sm" disabled>
-                        Вперед <i class="bi bi-chevron-right"></i>
-                    </button>
-                                {% endif %}
-            </div>
-        </nav>
-        {% endif %}
+{% if deals.has_other_pages %}
+<nav aria-label="Навигация по сделкам" class="sl-pagination">
+    <span class="sl-pagination__info">Показано {{ deals.start_index }}-{{ deals.end_index }} из {{ deals.paginator.count }} сделок</span>
+    <ul class="pagination">
+        {% if deals.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?{% if querystring_without_page %}{{ querystring_without_page }}&{% endif %}page={{ deals.previous_page_number }}" aria-label="Предыдущая">
+                    <i class="bi bi-chevron-left"></i>
+                </a>
+            </li>
         {% else %}
-        <div class="alert alert-light border mb-0">
-            По выбранным фильтрам нет заключенных сделок.
-        </div>
+            <li class="page-item disabled">
+                <span class="page-link" aria-label="Предыдущая"><i class="bi bi-chevron-left"></i></span>
+            </li>
         {% endif %}
-    </div>
+
+        {% for num in deals.paginator.page_range %}
+            {% if deals.number == num %}
+                <li class="page-item active" aria-current="page"><span class="page-link">{{ num }}</span></li>
+            {% elif num > deals.number|add:'-3' and num < deals.number|add:'3' %}
+                <li class="page-item">
+                    <a class="page-link" href="?{% if querystring_without_page %}{{ querystring_without_page }}&{% endif %}page={{ num }}">{{ num }}</a>
+                </li>
+            {% elif num == 1 %}
+                <li class="page-item">
+                    <a class="page-link" href="?{% if querystring_without_page %}{{ querystring_without_page }}&{% endif %}page=1">1</a>
+                </li>
+                {% if deals.number > 4 %}
+                    <li class="page-item disabled"><span class="page-link">…</span></li>
+                {% endif %}
+            {% elif num == deals.paginator.num_pages %}
+                {% if deals.number < deals.paginator.num_pages|add:'-3' %}
+                    <li class="page-item disabled"><span class="page-link">…</span></li>
+                {% endif %}
+                <li class="page-item">
+                    <a class="page-link" href="?{% if querystring_without_page %}{{ querystring_without_page }}&{% endif %}page={{ num }}">{{ num }}</a>
+                </li>
+            {% endif %}
+        {% endfor %}
+
+        {% if deals.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?{% if querystring_without_page %}{{ querystring_without_page }}&{% endif %}page={{ deals.next_page_number }}" aria-label="Следующая">
+                    <i class="bi bi-chevron-right"></i>
+                </a>
+            </li>
+        {% else %}
+            <li class="page-item disabled">
+                <span class="page-link" aria-label="Следующая"><i class="bi bi-chevron-right"></i></span>
+            </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
 </div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const rows = document.querySelectorAll('.deal-list-table tbody tr[data-href]');
-    rows.forEach((row) => {
-        row.addEventListener('click', function(event) {
-            if (event.target.closest('.btn-group')) {
-                return;
+    // Вкладки филиалов и сортировка меняют параметры URL, остальные фильтры сохраняются
+    function reloadWith(name, value) {
+        const params = new URLSearchParams(window.location.search);
+        if (value) {
+            params.set(name, value);
+        } else {
+            params.delete(name);
+        }
+        params.delete('page');
+        const query = params.toString();
+        window.location.href = query ? `${window.location.pathname}?${query}` : window.location.pathname;
+    }
+
+    document.querySelectorAll('.sl-branch').forEach(tab => {
+        tab.addEventListener('click', function(event) {
+            event.preventDefault();
+            this.classList.add('is-loading');
+            reloadWith('branch', this.dataset.branch);
+        });
+    });
+
+    const sortSelect = document.getElementById('id_sort');
+    if (sortSelect) {
+        sortSelect.addEventListener('change', function() {
+            reloadWith('sort', this.value === '-closed_at' ? '' : this.value);
+        });
+    }
+
+    // Сортировка живёт вне формы, поэтому при отправке фильтров добавляем её отдельно
+    const filterForm = document.getElementById('deal-filter-form');
+    filterForm.addEventListener('submit', function(event) {
+        event.preventDefault();
+        const params = new URLSearchParams();
+        new FormData(filterForm).forEach((value, key) => {
+            const normalizedValue = String(value || '').trim();
+            if (normalizedValue !== '') {
+                params.set(key, normalizedValue);
             }
-            window.location.href = this.getAttribute('data-href');
+        });
+        if (sortSelect && sortSelect.value && sortSelect.value !== '-closed_at') {
+            params.set('sort', sortSelect.value);
+        }
+        const query = params.toString();
+        window.location.href = query ? `${window.location.pathname}?${query}` : window.location.pathname;
+    });
+
+    // Клик по строке открывает резюме сделки
+    document.querySelectorAll('.deal-list-table tbody tr[data-href]').forEach(row => {
+        row.addEventListener('click', function(event) {
+            if (!event.target.closest('a, button')) {
+                window.location.href = this.getAttribute('data-href');
+            }
         });
     });
 });

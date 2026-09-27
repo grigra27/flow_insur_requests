@@ -1,0 +1,653 @@
+{# Общие стили списков «Своды» и «Сделки» (редизайн 2026-09): шапка, вкладки филиалов, карточка с таблицей, пагинация. #}
+<style>
+    .sl-page {
+        --sl-ink: #0f1b2d;
+        --sl-ink-2: #334155;
+        --sl-muted: #6b7a90;
+        --sl-muted-2: #9aa6b6;
+        --sl-line: #edf1f5;
+        --sl-border: #e3eaf0;
+        --sl-teal: var(--app-primary);
+        --sl-teal-soft: #e6f3f1;
+        --sl-amber: #f0a93b;
+        font-feature-settings: "tnum" 1;
+    }
+
+    /* Заголовок */
+    .sl-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        gap: 1rem;
+        margin: 0.5rem 0 1.4rem;
+    }
+
+    .sl-title {
+        font-size: 1.75rem;
+        font-weight: 700;
+        letter-spacing: -0.025em;
+        color: var(--sl-ink);
+        margin: 0 0 0.25rem;
+    }
+
+    .sl-sub {
+        color: var(--sl-muted);
+        font-size: 0.9rem;
+        margin: 0;
+    }
+
+    .sl-help {
+        flex-shrink: 0;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.45rem 0.9rem;
+        border: 1px solid #cfe3e0;
+        border-radius: 999px;
+        font-size: 0.8125rem;
+        font-weight: 600;
+        color: var(--sl-teal);
+        text-decoration: none;
+        transition: background-color 0.15s ease;
+    }
+
+    .sl-help:hover {
+        background: var(--sl-teal-soft);
+        color: var(--sl-teal);
+    }
+
+    /* Вкладки филиалов */
+    .sl-branches {
+        display: inline-flex;
+        max-width: 100%;
+        gap: 0.25rem;
+        padding: 0.25rem;
+        margin-bottom: 1rem;
+        overflow-x: auto;
+        scrollbar-width: none;
+        background: rgba(255, 255, 255, 0.65);
+        border: 1px solid var(--sl-border);
+        border-radius: 14px;
+    }
+
+    .sl-branches::-webkit-scrollbar {
+        display: none;
+    }
+
+    .sl-branch {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        padding: 0.45rem 0.75rem;
+        border-radius: 10px;
+        white-space: nowrap;
+        font-size: 0.85rem;
+        font-weight: 500;
+        color: #4a5a70;
+        text-decoration: none;
+        transition: background-color 0.15s ease, color 0.15s ease;
+    }
+
+    .sl-branch:hover {
+        background: #fff;
+        color: var(--sl-ink);
+    }
+
+    .sl-branch__count {
+        font-size: 0.72rem;
+        font-weight: 600;
+        color: var(--sl-muted-2);
+    }
+
+    .sl-branch.is-active {
+        background: var(--sl-ink);
+        color: #fff;
+        box-shadow: 0 1px 2px rgba(15, 27, 45, 0.2);
+    }
+
+    .sl-branch.is-active .sl-branch__count {
+        color: rgba(255, 255, 255, 0.6);
+    }
+
+    .sl-branch.is-loading {
+        opacity: 0.6;
+        pointer-events: none;
+    }
+
+    /* Карточка со списком */
+    .sl-card {
+        background: #fff;
+        border: 1px solid #e6ecf1;
+        border-radius: 18px;
+        overflow: hidden;
+        box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 12px 32px -12px rgba(16, 24, 40, 0.1);
+    }
+
+    .sl-card__bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+        padding: 0.6rem 0.9rem 0.6rem 1.35rem;
+        border-bottom: 1px solid var(--sl-line);
+    }
+
+    .sl-card__total {
+        font-size: 0.8125rem;
+        color: var(--sl-muted);
+    }
+
+    .sl-card__total b {
+        color: var(--sl-ink);
+        font-weight: 700;
+    }
+
+    .sl-filter-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.6rem;
+        height: 36px;
+        padding: 0 0.75rem;
+        background: #fafbfc;
+        border: 1px solid var(--sl-border);
+        border-radius: 10px;
+        font-size: 0.8125rem;
+        color: var(--sl-muted);
+        white-space: nowrap;
+        transition: border-color 0.15s ease, background-color 0.15s ease;
+    }
+
+    .sl-filter-toggle:hover {
+        border-color: #c9dcd9;
+        background: #fff;
+    }
+
+    .sl-filter-toggle__title {
+        font-weight: 600;
+        color: var(--sl-ink-2);
+    }
+
+    .sl-filter-toggle__hint {
+        color: var(--sl-muted-2);
+        margin-left: 0.4rem;
+    }
+
+    .sl-filter-toggle__icon {
+        transition: transform 0.2s ease;
+    }
+
+    .sl-filter-toggle[aria-expanded="true"] .sl-filter-toggle__icon {
+        transform: rotate(180deg);
+    }
+
+    .sl-card.filter-active .sl-filter-toggle {
+        border-color: var(--sl-teal);
+        background: var(--sl-teal-soft);
+    }
+
+    .sl-card.filter-active .sl-filter-toggle__title {
+        color: var(--sl-teal);
+    }
+
+    .sl-filter-form {
+        padding: 1.1rem 1.35rem 1.25rem;
+        background: #fafbfc;
+        border-bottom: 1px solid var(--sl-line);
+    }
+
+    .sl-filter-form .row.g-3 {
+        align-items: end;
+    }
+
+    .sl-filter-form .form-label {
+        font-size: 0.8125rem;
+        font-weight: 600;
+        color: var(--sl-ink-2);
+        margin-bottom: 0.4rem;
+    }
+
+    .sl-filter-actions {
+        display: flex;
+        gap: 0.5rem;
+        align-items: end;
+    }
+
+    /* Таблица */
+    .sl-table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+
+    .sl-table th {
+        padding: 0.7rem 1rem;
+        background: #fafbfc;
+        border-bottom: 1px solid var(--sl-line);
+        font-size: 0.6875rem;
+        font-weight: 700;
+        letter-spacing: 0.07em;
+        text-transform: uppercase;
+        color: var(--sl-muted-2);
+        white-space: nowrap;
+        text-align: left;
+    }
+
+    .sl-table td {
+        padding: 0.8rem 1rem;
+        border-bottom: 1px solid var(--sl-line);
+        vertical-align: middle;
+        font-size: 0.875rem;
+        color: var(--sl-ink-2);
+        transition: background-color 0.12s ease;
+    }
+
+    .sl-table tbody tr:last-child td {
+        border-bottom: 0;
+    }
+
+    .sl-table th:first-child,
+    .sl-table td:first-child {
+        padding-left: 1.35rem;
+    }
+
+    .sl-table th:last-child,
+    .sl-table td:last-child {
+        padding-right: 1rem;
+        text-align: right;
+    }
+
+    .summary-row {
+        cursor: pointer;
+    }
+
+    .sl-table tbody tr:hover td {
+        background: #f7fbfa;
+    }
+
+    .sl-row--waiting td:first-child {
+        box-shadow: inset 3px 0 0 var(--sl-amber);
+    }
+
+    /* Номер заявки */
+    .sl-cell-number {
+        white-space: nowrap;
+    }
+
+    .sl-number-line {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+
+    .sl-number {
+        font-family: 'Space Grotesk', 'Manrope', sans-serif;
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: var(--sl-ink);
+        text-decoration: none;
+    }
+
+    .sl-number:hover {
+        color: var(--sl-teal);
+    }
+
+    .sl-meta {
+        margin-top: 0.2rem;
+        font-size: 0.75rem;
+        color: var(--sl-muted-2);
+    }
+
+    .sl-note {
+        color: #e0b33a;
+        font-size: 0.75rem;
+        cursor: help;
+    }
+
+    .summary-list-badge.badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 0.18rem 0.5rem;
+        border-radius: 999px;
+        font-size: 0.72rem;
+        font-weight: 600;
+        line-height: 1.2;
+        background: #f1f4f8;
+        color: #5b6b80;
+        border: 0;
+    }
+
+    .summary-list-badge i {
+        font-size: 0.85em;
+    }
+
+    .summary-list-badge__count {
+        font-weight: 700;
+        color: var(--sl-ink-2);
+    }
+
+    /* Клиент и объект */
+    .sl-client,
+    .sl-object {
+        max-width: 320px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .sl-client {
+        color: var(--sl-ink-2);
+    }
+
+    .sl-object {
+        margin-top: 0.2rem;
+        font-size: 0.78rem;
+        color: var(--sl-muted);
+    }
+
+    /* Статус */
+    .sl-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        padding: 0.25rem 0.65rem 0.25rem 0.55rem;
+        border-radius: 999px;
+        font-size: 0.78rem;
+        font-weight: 600;
+        line-height: 1.35;
+        white-space: nowrap;
+        background: #f1f4f8;
+        color: #4a5a70;
+    }
+
+    .sl-status::before {
+        content: "";
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: currentColor;
+    }
+
+    .sl-status--collecting { background: #eaf2fe; color: #1d5fbf; }
+    .sl-status--ready { background: var(--sl-teal-soft); color: #0b6b66; }
+    .sl-status--sent { background: #fdf3e1; color: #98600a; }
+    .sl-status--completed_accepted { background: #e9f6ef; color: #1d7047; }
+    .sl-status--completed_rejected { background: #fbeeee; color: #b4342d; }
+
+    .sl-status-sub {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.2rem 0.5rem;
+        margin-top: 0.3rem;
+        font-size: 0.78rem;
+        color: var(--sl-muted);
+    }
+
+    .sl-status-sub b {
+        color: var(--sl-ink-2);
+        font-weight: 600;
+    }
+
+    .sl-flag {
+        padding: 0.05rem 0.4rem;
+        border-radius: 6px;
+        background: #fdf3e1;
+        color: #8a5a00;
+        font-size: 0.69rem;
+        font-weight: 700;
+    }
+
+    .sl-link {
+        display: inline-flex;
+        gap: 0.2rem;
+        color: var(--sl-teal);
+        font-weight: 600;
+        text-decoration: none;
+    }
+
+    .sl-link:hover {
+        text-decoration: underline;
+    }
+
+    .sl-waiting {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+    }
+
+    .sl-waiting.is-late {
+        color: #b86e00;
+        font-weight: 600;
+    }
+
+    /* Лучшее предложение */
+    .sl-cell-best {
+        white-space: nowrap;
+    }
+
+    .sl-best {
+        font-weight: 700;
+        color: var(--sl-ink);
+    }
+
+    .sl-best-company {
+        max-width: 160px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-size: 0.75rem;
+        color: var(--sl-muted);
+    }
+
+    .sl-empty {
+        color: var(--sl-muted-2);
+    }
+
+    /* Компании */
+    .sl-companies {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.6rem;
+    }
+
+    .sl-companies b {
+        min-width: 0.9rem;
+        text-align: right;
+        font-weight: 700;
+        color: var(--sl-ink);
+    }
+
+    .sl-companies b.is-zero {
+        color: var(--sl-muted-2);
+    }
+
+    .sl-scale {
+        display: inline-flex;
+        gap: 2px;
+    }
+
+    .sl-scale i {
+        display: block;
+        width: 4px;
+        height: 12px;
+        border-radius: 2px;
+        background: #e6ebf0;
+    }
+
+    .sl-scale i.is-filled {
+        background: var(--sl-teal);
+    }
+
+    .sl-scale.is-low i.is-filled {
+        background: #9fb3c6;
+    }
+
+    .sl-declined {
+        margin-top: 0.2rem;
+        font-size: 0.72rem;
+        color: #b4342d;
+    }
+
+    /* Дата и действия */
+    .sl-col-date {
+        white-space: nowrap;
+    }
+
+    .sl-date {
+        font-size: 0.8125rem;
+        color: var(--sl-ink-2);
+    }
+
+    .sl-time {
+        font-size: 0.75rem;
+        color: var(--sl-muted-2);
+    }
+
+    .sl-actions {
+        gap: 0.2rem;
+    }
+
+    .sl-action {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        border-radius: 9px;
+        color: var(--sl-muted-2);
+        text-decoration: none;
+        transition: background-color 0.15s ease, color 0.15s ease;
+    }
+
+    .summary-row:hover .sl-action,
+    .sl-action:focus-visible {
+        background: var(--sl-teal-soft);
+        color: var(--sl-teal);
+    }
+
+    .sl-action--add {
+        color: #1d5fbf;
+        background: #eaf2fe;
+    }
+
+    /* Пустое состояние */
+    .sl-empty-state {
+        padding: 3.5rem 1rem;
+        text-align: center;
+        color: var(--sl-muted);
+    }
+
+    .sl-empty-state > i {
+        font-size: 3rem;
+        color: var(--sl-muted-2);
+    }
+
+    .sl-empty-state h3 {
+        margin-top: 0.75rem;
+        font-size: 1.25rem;
+        color: var(--sl-ink);
+    }
+
+    /* Пагинация */
+    .sl-pagination {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+        margin: 1.1rem 0.25rem 2rem;
+    }
+
+    .sl-pagination__info {
+        font-size: 0.8125rem;
+        color: var(--sl-muted);
+    }
+
+    .sl-pagination .pagination {
+        gap: 0.25rem;
+        margin: 0;
+    }
+
+    .sl-pagination .page-link {
+        min-width: 34px;
+        height: 34px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0 0.5rem;
+        border: 0;
+        border-radius: 10px !important;
+        background: transparent;
+        color: #4a5a70;
+        font-size: 0.85rem;
+        font-weight: 600;
+    }
+
+    .sl-pagination .page-link:hover {
+        background: #fff;
+        color: var(--sl-ink);
+    }
+
+    .sl-pagination .page-item.active .page-link {
+        background: var(--sl-ink);
+        color: #fff;
+    }
+
+    .sl-pagination .page-item.disabled .page-link {
+        background: transparent;
+        color: #c3ccd7;
+    }
+
+    /* Адаптивность */
+    @media (max-width: 1399.98px) {
+        .sl-client,
+        .sl-object {
+            max-width: 250px;
+        }
+    }
+
+    @media (max-width: 1199.98px) {
+        .sl-col-date {
+            display: none;
+        }
+    }
+
+    @media (max-width: 991.98px) {
+        .sl-scale {
+            display: none;
+        }
+
+        .sl-client,
+        .sl-object {
+            max-width: 220px;
+        }
+    }
+
+    @media (max-width: 767.98px) {
+        .sl-head {
+            align-items: flex-start;
+        }
+
+        .sl-title {
+            font-size: 1.4rem;
+        }
+
+        .sl-col-companies,
+        .sl-col-actions {
+            display: none;
+        }
+
+        .sl-table th,
+        .sl-table td {
+            padding: 0.65rem 0.6rem;
+        }
+
+        .sl-pagination {
+            flex-direction: column;
+        }
+
+        .sl-filter-actions {
+            flex-direction: column;
+            align-items: stretch;
+        }
+    }
+</style>

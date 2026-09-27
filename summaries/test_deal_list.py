@@ -312,8 +312,8 @@ class DealListViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Линейка предложений')
         self.assertContains(response, '2 / 3')
-        self.assertContains(response, 'позиция 50%')
         self.assertContains(response, 'left: 50.0%;')
+        self.assertContains(response, 'есть дешевле')
 
     def test_deal_list_manager_filter_has_unique_users(self):
         second_manager = User.objects.create_user(
@@ -385,3 +385,42 @@ class DealListViewTests(TestCase):
 
         summary.refresh_from_db()
         self.assertIsNone(summary.completed_at)
+
+    def test_deal_list_branch_tabs_count_deals_and_filter_rows(self):
+        for index in range(2):
+            summary = self._create_summary(dfa_number=f'DFA-MSK-{index}', branch='Москва', client_name=f'Москва {index}')
+            self._add_offer(summary)
+        summary = self._create_summary(dfa_number='DFA-KZN-0', branch='Казань', client_name='Казань 0')
+        self._add_offer(summary)
+
+        response = self.client.get(reverse('summaries:deal_list'), {'branch': 'Казань'})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['branch_counts'], {'Москва': 2, 'Казань': 1})
+        self.assertEqual(response.context['total_deals_count'], 3)
+        rows = response.context['deals'].object_list
+        self.assertEqual([row['request'].client_name for row in rows], ['Казань 0'])
+        self.assertContains(response, 'sl-branch is-active')
+
+    def test_deal_list_row_shows_object_type_and_deal_status_without_kpi(self):
+        summary = self._create_summary(
+            dfa_number='DFA-OBJ-01',
+            branch='Москва',
+            client_name='Клиент с объектом',
+            insurance_type='страхование спецтехники',
+            deal_status='prolongation',
+        )
+        request_obj = summary.request
+        request_obj.brand = 'SANY'
+        request_obj.model = 'SY330H'
+        request_obj.save(update_fields=['brand', 'model'])
+        self._add_offer(summary)
+
+        response = self.client.get(reverse('summaries:deal_list'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'SANY SY330H')
+        self.assertContains(response, 'Спецтехника')
+        self.assertContains(response, 'dl-deal-status--prolongation')
+        self.assertNotIn('kpi', response.context)
+        self.assertNotContains(response, 'Сумма выбранных премий')

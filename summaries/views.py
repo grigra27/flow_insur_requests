@@ -551,6 +551,8 @@ def _build_deal_list_row(summary):
         'selected_total': selected_total,
         'total_years': len(selected_offers),
         'companies_count': companies_count,
+        'companies_scale': range(9),
+        'type_label': SUMMARY_LIST_TYPE_LABELS.get(request_obj.insurance_type or '', request_obj.insurance_type or ''),
         'has_data_warning': not has_complete_selected_totals,
         'price_range': price_range,
     }
@@ -593,29 +595,6 @@ def _sort_deal_rows(rows, sort_value):
         )
 
     return sorted(rows, key=lambda row: row['closed_at'] or timezone.now(), reverse=True)
-
-
-def _build_deal_list_kpi(rows):
-    """Собирает KPI для страницы списка сделок."""
-    total_deals = len(rows)
-    rows_with_totals = [row for row in rows if row['selected_total'] is not None]
-    total_premium_sum = sum((row['selected_total'] for row in rows_with_totals), Decimal('0'))
-    avg_premium = (
-        total_premium_sum / Decimal(len(rows_with_totals))
-        if rows_with_totals else None
-    )
-    avg_years = (
-        sum(row['total_years'] for row in rows) / total_deals
-        if total_deals > 0 else 0
-    )
-
-    return {
-        'total_deals': total_deals,
-        'total_premium_sum': total_premium_sum if rows_with_totals else None,
-        'avg_premium': avg_premium,
-        'avg_years': avg_years,
-        'rows_with_warning': sum(1 for row in rows if row['has_data_warning']),
-    }
 
 
 @user_required
@@ -690,10 +669,6 @@ def deal_list(request):
                 | Q(selected_company__icontains=search)
             )
 
-        branch = filter_form.cleaned_data.get('branch')
-        if branch:
-            deals_queryset = deals_queryset.filter(request__branch=branch)
-
         insurance_type = filter_form.cleaned_data.get('insurance_type')
         if insurance_type:
             deals_queryset = deals_queryset.filter(request__insurance_type=insurance_type)
@@ -722,8 +697,17 @@ def deal_list(request):
         if row is not None:
             rows.append(row)
 
+    # Счётчики на вкладках филиалов: все фильтры, кроме самого филиала
+    branch_counts = {}
+    for row in rows:
+        branch_counts[row['request'].branch] = branch_counts.get(row['request'].branch, 0) + 1
+    total_deals_count = len(rows)
+
+    current_branch = filter_form.cleaned_data.get('branch') if filter_form.is_valid() else ''
+    if current_branch:
+        rows = [row for row in rows if row['request'].branch == current_branch]
+
     rows = _sort_deal_rows(rows, current_sort)
-    kpi = _build_deal_list_kpi(rows)
 
     paginator = Paginator(rows, 25)
     page = request.GET.get('page')
@@ -742,7 +726,13 @@ def deal_list(request):
         'deals': rows_page,
         'paginator': paginator,
         'filter_form': filter_form,
-        'kpi': kpi,
+        'available_branches': available_branches,
+        'branch_counts': branch_counts,
+        'total_deals_count': total_deals_count,
+        'current_branch': current_branch,
+        'has_active_filters': any(
+            value for key, value in request.GET.items() if key not in ('branch', 'sort', 'page')
+        ),
         'current_sort': current_sort,
         'querystring_without_page': querystring_without_page,
     })

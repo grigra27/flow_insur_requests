@@ -774,7 +774,7 @@ class DealListFilterForm(forms.Form):
         required=False,
         choices=SORT_CHOICES,
         label='Сортировка',
-        widget=forms.Select(attrs={'class': 'form-select'})
+        widget=forms.Select(attrs={'class': 'form-select dl-sort', 'aria-label': 'Сортировка'})
     )
 
     def __init__(
