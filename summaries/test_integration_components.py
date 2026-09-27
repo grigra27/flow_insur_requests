@@ -193,12 +193,11 @@ class SummariesUIIntegrationTest(TestCase):
         # Проверяем наличие CSS классов для цветового кодирования
         self.assertContains(response, 'franchise-variant-1')
         self.assertContains(response, 'franchise-variant-2')
-        self.assertContains(response, 'company-total-row')
+        self.assertContains(response, 'og-company-meta')  # итог — в заголовке компании (редизайн 2026-09)
         
         # Проверяем CSS стили в шаблоне
         self.assertContains(response, 'color: #0f5132')  # Темно-зеленый для варианта 1
         self.assertContains(response, 'color: #052c65')  # Темно-синий для варианта 2
-        self.assertContains(response, 'background-color: #fff3cd')  # Бледно-желтый для итого
         
         # Проверяем применение классов к соответствующим элементам
         self.assertContains(response, 'class="franchise-variant-1"')
@@ -217,7 +216,7 @@ class SummariesUIIntegrationTest(TestCase):
         self.assertEqual(response.status_code, 200)
         
         # Проверяем, что примечания отображаются под названием компании
-        self.assertContains(response, 'company-notes')
+        self.assertContains(response, 'og-notes')
         
         # Проверяем группировку примечаний по компаниям
         company_notes = self.summary.get_company_notes()
@@ -235,8 +234,8 @@ class SummariesUIIntegrationTest(TestCase):
         self.assertGreater(notes_pos, company_pos)
         
         # Проверяем стилизацию примечаний
-        self.assertContains(response, 'alert alert-info')
-        self.assertContains(response, 'bi-info-circle')
+        self.assertContains(response, 'og-note')
+        self.assertContains(response, 'bi-chat-left-text')
         
         # Проверяем, что для компании без примечаний раздел не отображается
         self.assertNotContains(response, 'Примечания:</strong>\n                                                    <div class="mt-1"></div>')
@@ -249,9 +248,8 @@ class SummariesUIIntegrationTest(TestCase):
         response = self.client.get(reverse('summaries:summary_detail', args=[self.summary.pk]))
         self.assertEqual(response.status_code, 200)
         
-        # Проверяем наличие строки "Итого" для многолетних предложений
-        self.assertContains(response, 'Итого')
-        self.assertContains(response, 'company-total-row')
+        # Итог многолетнего предложения — в заголовке компании (редизайн 2026-09)
+        self.assertContains(response, 'итого <strong class="franchise-variant-1">102')
         
         # Проверяем расчет итоговых сумм
         company_totals = self.summary.get_company_totals()
@@ -279,8 +277,8 @@ class SummariesUIIntegrationTest(TestCase):
         self.assertContains(response, '@media (max-width: 768px)')
         self.assertContains(response, '@media (max-width: 576px)')
         
-        # Проверяем адаптивные стили для примечаний
-        self.assertContains(response, 'company-notes .alert')
+        # Проверяем адаптивные стили таблицы предложений
+        self.assertContains(response, '.og-wrap { overflow-x: auto; }')
         
         # Проверяем сохранение цветового кодирования на мобильных устройствах
         mobile_css = response.content.decode()

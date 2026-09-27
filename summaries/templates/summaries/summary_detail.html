@@ -127,166 +127,105 @@
             </div>
             <div class="card-body">
                 {% if offers %}
-                    <!-- Company-based grouping -->
-                    {% for company_name in sorted_companies %}
-                        {% with company_offers=companies_with_offers|lookup:company_name %}
-                            <div class="company-block mb-4">
-                                <div class="d-flex justify-content-between align-items-center mb-3">
-                                    <h5 class="mb-0">
-                                        <i class="bi bi-building"></i> {{ company_name }}
-                                    </h5>
-                                </div>
-                                
-                                <!-- Отображение примечаний компании -->
-                                {% with notes=company_notes|lookup:company_name %}
-                                    {% if notes %}
-                                        <div class="company-notes mb-3">
-                                            <div class="alert alert-info py-2 px-3 mb-0">
-                                                <i class="bi bi-info-circle me-2"></i>
-                                                <strong>Комментарии:</strong>
-                                                {% for note in notes %}
-                                                    <div class="mt-1">{{ note }}</div>
-                                                {% endfor %}
-                                            </div>
-                                        </div>
+                    <!-- Предложения: одна таблица на все компании, шапка один раз (редизайн 2026-09) -->
+                    <div class="og-wrap">
+                    <table class="og-table{% if offers_have_variant_2 %} og-has-v2{% endif %}">
+                        <thead>
+                            {% if offers_have_variant_2 %}
+                            <tr class="og-head-groups">
+                                <th colspan="2"></th>
+                                <th colspan="2" class="og-v1">Вариант 1</th>
+                                <th colspan="2" class="og-v2">Вариант 2</th>
+                                <th></th>
+                            </tr>
+                            {% endif %}
+                            <tr>
+                                <th class="og-year">Год</th>
+                                <th class="og-num">Страх. сумма</th>
+                                <th class="og-num">Франшиза</th>
+                                <th class="og-num">Премия</th>
+                                {% if offers_have_variant_2 %}
+                                <th class="og-num">Франшиза</th>
+                                <th class="og-num">Премия</th>
+                                {% endif %}
+                                <th class="og-act"><span class="visually-hidden">Действия</span></th>
+                            </tr>
+                        </thead>
+                        {% for group in offer_groups %}
+                        <tbody class="og-company" data-company="{{ group.name }}">
+                            <tr class="og-company-row">
+                                <td colspan="{% if offers_have_variant_2 %}7{% else %}5{% endif %}">
+                                    <div class="og-company-head">
+                                        <span class="og-company-name">{{ group.name }}</span>
+                                        <span class="og-company-meta">
+                                            {{ group.years_label }}{% if group.is_multiyear %} · итого <strong class="franchise-variant-1">{{ group.total_premium_1|format_currency_with_spaces }}</strong>{% if group.total_premium_2 > 0 %} · вариант 2: <strong class="franchise-variant-2">{{ group.total_premium_2|format_currency_with_spaces }}</strong>{% endif %}{% endif %}
+                                        </span>
+                                    </div>
+                                    {% if group.notes %}
+                                    <div class="og-notes">
+                                        <i class="bi bi-chat-left-text"></i> Комментарии:
+                                        {% for note in group.notes %}<span class="og-note">{{ note }}</span>{% endfor %}
+                                    </div>
                                     {% endif %}
-                                {% endwith %}
-                                
-                                <div class="table-responsive">
-                                    <table class="table table-hover table-sm offers-table">
-                                        <thead>
-                                            <tr>
-                                                <th rowspan="2" class="offers-th-base align-middle" style="width: 7%;">Год</th>
-                                                <th rowspan="2" class="offers-th-base align-middle" style="width: 14%;">Страх. сумма</th>
-                                                <th colspan="2" class="offers-variant-header offers-variant-1-header text-center">Вариант&nbsp;1</th>
-                                                <th colspan="2" class="offers-variant-header offers-variant-2-header text-center">Вариант&nbsp;2</th>
-                                                <th rowspan="2" class="offers-th-base align-middle" style="width: 18%;">Территория</th>
-                                                <th rowspan="2" class="offers-th-base align-middle" style="width: 10%;">Действия</th>
-                                            </tr>
-                                            <tr>
-                                                <th class="offers-th-base offers-v1-bg" style="width: 10%;">Франшиза</th>
-                                                <th class="offers-th-base offers-v1-bg" style="width: 12%;">Премия</th>
-                                                <th class="offers-th-base offers-v2-bg" style="width: 10%;">Франшиза</th>
-                                                <th class="offers-th-base offers-v2-bg" style="width: 12%;">Премия</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {% for offer in company_offers %}
-                                                <tr>
-                                                    <td data-label="Год">
-                                                        <strong>{{ offer.get_insurance_year_display }}</strong>
-                                                    </td>
-                                                    <td data-label="Страховая сумма">
-                                                        <strong>{{ offer.insurance_sum|format_currency_with_spaces }}</strong>
-                                                    </td>
-                                                    <td data-label="Франшиза-1">
-                                                        <span class="franchise-variant-1">{{ offer.franchise_1|format_currency_with_spaces }}</span>
-                                                    </td>
-                                                    <td data-label="Премия-1">
-                                                        <strong class="franchise-variant-1">{{ offer.premium_with_franchise_1|format_currency_with_spaces }}</strong>
-                                                        {% if offer.installment_variant_1 and offer.payments_per_year_variant_1 > 1 %}
-                                                            <br><span class="badge bg-success" style="font-size: 0.65em;">
-                                                                <i class="bi bi-credit-card"></i> {{ offer.payments_per_year_variant_1 }} платеж{{ offer.payments_per_year_variant_1|pluralize:"ей,а,ей" }}/год
-                                                            </span>
-                                                        {% endif %}
-                                                    </td>
-                                                    <td data-label="Франшиза-2">
-                                                        {% if offer.franchise_2 %}
-                                                            <span class="franchise-variant-2">{{ offer.franchise_2|format_currency_with_spaces }}</span>
-                                                        {% else %}
-                                                            <span class="text-muted">—</span>
-                                                        {% endif %}
-                                                    </td>
-                                                    <td data-label="Премия-2">
-                                                        {% if offer.premium_with_franchise_2 %}
-                                                            <strong class="franchise-variant-2">{{ offer.premium_with_franchise_2|format_currency_with_spaces }}</strong>
-                                                            {% if offer.installment_variant_2 and offer.payments_per_year_variant_2 > 1 %}
-                                                                <br><span class="badge bg-dark" style="font-size: 0.65em;">
-                                                                    <i class="bi bi-credit-card"></i> {{ offer.payments_per_year_variant_2 }} платеж{{ offer.payments_per_year_variant_2|pluralize:"ей,а,ей" }}/год
-                                                                </span>
-                                                            {% endif %}
-                                                        {% else %}
-                                                            <span class="text-muted">—</span>
-                                                        {% endif %}
-                                                    </td>
-                                                    <td data-label="Территория">
-                                                        {% if offer.coverage_territory is None %}
-                                                            <span class="badge bg-secondary text-wrap">
-                                                                <i class="bi bi-clock-history me-1"></i>
-                                                                Нет данных: предложение создано до сбора территории
-                                                            </span>
-                                                        {% elif offer.coverage_territory %}
-                                                            {{ offer.coverage_territory|linebreaksbr }}
-                                                        {% else %}
-                                                            <span class="badge bg-warning text-dark text-wrap">
-                                                                <i class="bi bi-exclamation-triangle me-1"></i>
-                                                                Не указано страховщиком
-                                                            </span>
-                                                        {% endif %}
-                                                    </td>
-                                                    <td data-label="Действия">
-                                                        <div class="btn-group btn-group-sm">
-                                                            <a href="{% url 'summaries:edit_offer' offer.pk %}" 
-                                                               class="btn btn-outline-primary btn-sm" 
-                                                               title="Редактировать">
-                                                                <i class="bi bi-pencil"></i>
-                                                            </a>
-                                                            <a href="{% url 'summaries:copy_offer' offer.pk %}" 
-                                                               class="btn btn-outline-success btn-sm" 
-                                                               title="Копировать">
-                                                                <i class="bi bi-arrow-repeat"></i>
-                                                            </a>
-                                                            <button class="btn btn-outline-danger btn-sm" 
-                                                                    onclick="deleteOffer({{ offer.id }})"
-                                                                    title="Удалить">
-                                                                <i class="bi bi-trash"></i>
-                                                            </button>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            {% endfor %}
-                                            
-                                            <!-- Добавляем строку "Итого" для многолетних предложений -->
-                                            {% with company_data=company_totals|lookup:company_name %}
-                                                {% if company_data.is_multiyear %}
-                                                    <tr class="company-total-row">
-                                                        <td data-label="Год">
-                                                            <strong><!--i class="bi bi-calculator"></i--> Итого</strong>
-                                                        </td>
-                                                        <td data-label="Страховая сумма">
-                                                            <span class="text-muted">—</span>
-                                                        </td>
-                                                        <td data-label="Франшиза-1">
-                                                            <span class="text-muted">—</span>
-                                                        </td>
-                                                        <td data-label="Премия-1">
-                                                            <strong class="franchise-variant-1 fs-6">{{ company_data.total_premium_1|format_currency_with_spaces }}</strong>
-                                                        </td>
-                                                        <td data-label="Франшиза-2">
-                                                            <span class="text-muted">—</span>
-                                                        </td>
-                                                        <td data-label="Премия-2">
-                                                            {% if company_data.total_premium_2 > 0 %}
-                                                                <strong class="franchise-variant-2 fs-6">{{ company_data.total_premium_2|format_currency_with_spaces }}</strong>
-                                                            {% else %}
-                                                                <span class="text-muted">—</span>
-                                                            {% endif %}
-                                                        </td>
-                                                        <td data-label="Территория">
-                                                            <span class="text-muted">—</span>
-                                                        </td>
-                                                        <td data-label="Действия">
-                                                            <span class="text-muted">—</span>
-                                                        </td>
-                                                    </tr>
-                                                {% endif %}
-                                            {% endwith %}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        {% endwith %}
-                    {% endfor %}
+                                    {% for line in group.territory_lines %}
+                                    <div class="og-territory og-territory--{{ line.kind }}">
+                                        <span class="og-territory-label">{{ line.label }}</span>
+                                        {% if line.kind == 'text' %}
+                                            <span class="og-territory-text">{{ line.text|linebreaksbr }}</span>
+                                            <button type="button" class="og-more d-none">ещё</button>
+                                        {% elif line.kind == 'legacy' %}
+                                            <span class="og-territory-text"><i class="bi bi-clock-history"></i> Нет данных: предложение создано до сбора территории</span>
+                                        {% else %}
+                                            <span class="og-territory-text"><i class="bi bi-exclamation-triangle"></i> Не указано страховщиком</span>
+                                        {% endif %}
+                                    </div>
+                                    {% endfor %}
+                                </td>
+                            </tr>
+                            {% for offer in group.offers %}
+                            <tr class="og-year-row">
+                                <td class="og-year" data-label="Год">{{ offer.get_insurance_year_display }}</td>
+                                <td class="og-num" data-label="Страховая сумма">{{ offer.insurance_sum|format_currency_with_spaces }}</td>
+                                <td class="og-num og-muted" data-label="Франшиза-1">{{ offer.franchise_1|format_currency_with_spaces }}</td>
+                                <td class="og-num" data-label="Премия-1">
+                                    <strong class="franchise-variant-1">{{ offer.premium_with_franchise_1|format_currency_with_spaces }}</strong>
+                                    {% if offer.installment_variant_1 and offer.payments_per_year_variant_1 > 1 %}
+                                    <div class="og-installment"><i class="bi bi-credit-card"></i> {{ offer.payments_per_year_variant_1 }} платеж{{ offer.payments_per_year_variant_1|pluralize:"ей,а,ей" }}/год</div>
+                                    {% endif %}
+                                </td>
+                                {% if offers_have_variant_2 %}
+                                <td class="og-num og-muted" data-label="Франшиза-2">{% if offer.franchise_2 %}{{ offer.franchise_2|format_currency_with_spaces }}{% else %}—{% endif %}</td>
+                                <td class="og-num" data-label="Премия-2">
+                                    {% if offer.premium_with_franchise_2 %}
+                                    <strong class="franchise-variant-2">{{ offer.premium_with_franchise_2|format_currency_with_spaces }}</strong>
+                                    {% if offer.installment_variant_2 and offer.payments_per_year_variant_2 > 1 %}
+                                    <div class="og-installment"><i class="bi bi-credit-card"></i> {{ offer.payments_per_year_variant_2 }} платеж{{ offer.payments_per_year_variant_2|pluralize:"ей,а,ей" }}/год</div>
+                                    {% endif %}
+                                    {% else %}<span class="og-muted">—</span>{% endif %}
+                                </td>
+                                {% endif %}
+                                <td class="og-act">
+                                    <div class="dropdown">
+                                        <button type="button" class="og-menu-btn" data-bs-toggle="dropdown" aria-expanded="false"
+                                                title="Действия с предложением" aria-label="Действия: {{ group.name }}, {{ offer.get_insurance_year_display }}">
+                                            <i class="bi bi-three-dots"></i>
+                                        </button>
+                                        <ul class="dropdown-menu dropdown-menu-end og-menu">
+                                            <li><a class="dropdown-item" href="{% url 'summaries:edit_offer' offer.pk %}"><i class="bi bi-pencil"></i> Редактировать</a></li>
+                                            <li><a class="dropdown-item" href="{% url 'summaries:copy_offer' offer.pk %}"><i class="bi bi-arrow-repeat"></i> Копировать</a></li>
+                                            <li><hr class="dropdown-divider"></li>
+                                            <li><button type="button" class="dropdown-item text-danger"
+                                                        data-company="{{ group.name }}" data-year="{{ offer.get_insurance_year_display }}"
+                                                        onclick="deleteOffer({{ offer.id }}, this)"><i class="bi bi-trash"></i> Удалить</button></li>
+                                        </ul>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        {% endfor %}
+                    </table>
+                    </div>
                 {% else %}
                     <div class="text-center py-4">
                         <i class="bi bi-inbox display-4 text-muted"></i>
@@ -980,85 +919,6 @@
     border-left: none;
 }
 
-/* Company notes styles */
-.company-notes {
-    margin-bottom: 1rem;
-}
-
-.company-notes .alert {
-    border-left: 4px solid #e91e63;
-    background-color: #fce4ec;
-    border-color: #f8bbd9;
-    font-size: 0.95rem;
-    line-height: 1.4;
-}
-
-.company-notes .alert strong {
-    color: #880e4f;
-    font-weight: 600;
-}
-
-.company-notes .alert div {
-    color: #880e4f;
-    margin-top: 0.25rem;
-    padding-left: 0.5rem;
-    border-left: 2px solid #f8bbd9;
-    margin-left: 0.5rem;
-}
-
-.company-notes .alert div:first-of-type {
-    margin-top: 0.5rem;
-}
-
-.company-notes .alert .bi-info-circle {
-    color: #e91e63;
-    font-size: 1rem;
-}
-
-/* Responsive design for mobile */
-@media (max-width: 768px) {
-    .company-block .table-responsive {
-        font-size: 0.9rem;
-    }
-    
-    .company-block .table th,
-    .company-block .table td {
-        padding: 0.5rem 0.25rem;
-        font-size: 0.85rem;
-    }
-    
-    .company-block .btn-group-sm .btn {
-        padding: 0.25rem 0.4rem;
-        font-size: 0.7rem;
-    }
-    
-    .company-block .badge {
-        font-size: 0.6em;
-    }
-    
-    /* Company notes responsive styles for tablets */
-    .company-notes .alert {
-        font-size: 0.9rem;
-        padding: 0.5rem 0.75rem;
-    }
-    
-    .company-notes .alert div {
-        margin-left: 0.25rem;
-        padding-left: 0.25rem;
-    }
-    
-    /* Maintain color coding visibility on tablets */
-    .franchise-variant-1 {
-        color: #0f5132 !important;
-        font-weight: 600;
-    }
-    
-    .franchise-variant-2 {
-        color: #052c65 !important;
-        font-weight: 600;
-    }
-}
-
 @media (max-width: 576px) {
     .summary-mini-kpis {
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1069,82 +929,6 @@
         font-size: 0.82rem;
     }
 
-    .company-block {
-        padding: 0.5rem;
-    }
-    
-    .company-block h5 {
-        font-size: 1rem;
-    }
-    
-    /* Company notes responsive styles for mobile */
-    .company-notes .alert {
-        font-size: 0.85rem;
-        padding: 0.5rem;
-        margin-bottom: 0.75rem;
-    }
-    
-    .company-notes .alert strong {
-        display: block;
-        margin-bottom: 0.25rem;
-    }
-    
-    .company-notes .alert div {
-        margin-left: 0;
-        padding-left: 0;
-        border-left: none;
-        margin-top: 0.25rem;
-        padding: 0.25rem;
-        background-color: rgba(233, 30, 99, 0.1);
-        border-radius: 3px;
-    }
-    
-    /* Stack table content vertically on very small screens */
-    .company-block .table-responsive {
-        border: none;
-    }
-    
-    .company-block .table,
-    .company-block .table thead,
-    .company-block .table tbody,
-    .company-block .table th,
-    .company-block .table td,
-    .company-block .table tr {
-        display: block;
-    }
-    
-    .company-block .table thead tr {
-        position: absolute;
-        top: -9999px;
-        left: -9999px;
-    }
-    
-    .company-block .table tr {
-        border: 1px solid #ccc;
-        margin-bottom: 10px;
-        padding: 10px;
-        border-radius: 5px;
-        background-color: white;
-    }
-    
-    .company-block .table td {
-        border: none;
-        position: relative;
-        padding-left: 50% !important;
-        text-align: left;
-        white-space: nowrap;
-    }
-    
-    .company-block .table td:before {
-        content: attr(data-label) ": ";
-        position: absolute;
-        left: 6px;
-        width: 45%;
-        padding-right: 10px;
-        white-space: nowrap;
-        font-weight: bold;
-        color: #495057;
-    }
 }
 
 /* Color coding for franchise variants */
@@ -1158,59 +942,104 @@
     font-weight: 600;
 }
 
-/* Styles for company total rows */
-.company-total-row {
-    background-color: #fff3cd !important;
-    border-top: 2px solid #ffc107 !important;
+/* Таблица предложений: одна на все компании, шапка один раз (редизайн 2026-09) */
+.og-wrap { position: relative; }  /* скрытая подпись «Действия» (position: absolute) не расширяет страницу */
+.og-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-variant-numeric: tabular-nums;
+}
+.og-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #fff;
+    font-size: 0.72rem;
     font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #64748b;
+    padding: 0.45rem 0.6rem;
+    border-bottom: 1px solid #d9e2ec;
+    white-space: nowrap;
 }
-
-.company-total-row td {
-    padding: 0.75rem 0.5rem !important;
-    vertical-align: middle;
-    border-top: 2px solid #ffc107 !important;
+.og-table .og-head-groups th {
+    position: static;
+    border-bottom: 0;
+    padding-bottom: 0.2rem;
+    text-align: center;
 }
-
-.company-total-row strong {
-    font-size: 0.95rem;
-    letter-spacing: 0.3px;
+.og-table .og-head-groups .og-v1 { color: #0f5132; box-shadow: inset 0 -2px 0 rgba(15, 81, 50, 0.35); }
+.og-table .og-head-groups .og-v2 { color: #052c65; box-shadow: inset 0 -2px 0 rgba(5, 44, 101, 0.35); }
+.og-table .og-num { text-align: right; white-space: nowrap; }
+.og-table .og-year { text-align: left; white-space: nowrap; width: 5.5rem; }
+.og-table .og-act { width: 2.5rem; text-align: right; }
+.og-company-row td {
+    padding: 1rem 0.6rem 0.35rem;
+    border-top: 1px solid #e5eaf0;
 }
-
-.company-total-row .bi-calculator {
-    color: #1976d2;
-    margin-right: 0.25rem;
+.og-company:first-of-type .og-company-row td { border-top: 0; padding-top: 0.6rem; }
+.og-company-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 0.75rem; }
+.og-company-name { font-size: 1.02rem; font-weight: 700; color: #0f172a; }
+.og-company-meta { font-size: 0.85rem; color: #475569; }
+.og-notes { margin-top: 0.3rem; font-size: 0.82rem; color: #8a5a00; }
+.og-notes .bi { margin-right: 0.2rem; }
+.og-note {
+    display: inline-block;
+    margin: 0.1rem 0 0.1rem 0.35rem;
+    padding: 0.05rem 0.45rem;
+    background: #fff6e5;
+    border-radius: 4px;
 }
-
-/* Hover effect for total rows */
-.company-total-row:hover {
-    background-color: #ffeaa7 !important;
-    transition: background-color 0.2s ease;
+.og-territory { margin-top: 0.25rem; font-size: 0.82rem; color: #334155; display: flex; gap: 0.4rem; align-items: baseline; }
+.og-territory-label { color: #64748b; white-space: nowrap; flex-shrink: 0; }
+.og-territory-text {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    min-width: 0;
 }
+.og-territory--expanded .og-territory-text { -webkit-line-clamp: unset; display: block; }
+.og-territory--missing .og-territory-text { color: #b45309; }
+.og-territory--legacy .og-territory-text { color: #94a3b8; }
+.og-more {
+    border: 0;
+    background: none;
+    padding: 0;
+    color: var(--app-primary, #0f6b5c);
+    font-size: 0.8rem;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.og-year-row td { padding: 0.3rem 0.6rem; font-size: 0.9rem; color: #334155; }
+.og-year-row:hover td { background: #f8fafc; }
+.og-year-row .og-muted, .og-table .og-muted { color: #94a3b8; }
+.og-installment { font-size: 0.72rem; color: #64748b; font-weight: 400; white-space: nowrap; }
+.og-menu-btn {
+    border: 0;
+    background: transparent;
+    color: #94a3b8;
+    border-radius: 6px;
+    padding: 0.1rem 0.4rem;
+    line-height: 1;
+}
+.og-menu-btn:hover, .og-menu-btn[aria-expanded="true"] { background: #eef2f6; color: #334155; }
+.og-menu .dropdown-item { font-size: 0.88rem; }
+.og-menu .dropdown-item .bi { width: 1.1rem; margin-right: 0.35rem; }
 
-/* Mobile responsive styles for total rows */
-@media (max-width: 576px) {
-    .company-total-row td:before {
-        font-weight: bold;
-        color: #856404;
+@media (max-width: 767.98px) {
+    .og-wrap { overflow-x: auto; }
+    /* Заголовок компании не уезжает при горизонтальной прокрутке таблицы и не шире экрана */
+    .og-company-row td > * {
+        position: sticky;
+        left: 0.6rem;
+        max-width: calc(100vw - 4rem);
     }
-    
-    .company-total-row {
-        background-color: #fff3cd !important;
-        border: 2px solid #ffc107 !important;
-        border-radius: 5px;
-        margin-top: 10px;
-    }
-    
-    /* Ensure franchise variant colors remain visible on mobile */
-    .franchise-variant-1 {
-        color: #0f5132 !important;
-        font-weight: 600;
-    }
-    
-    .franchise-variant-2 {
-        color: #052c65 !important;
-        font-weight: 600;
-    }
+    .og-table thead th { position: static; }
+    .og-year-row td { font-size: 0.85rem; padding: 0.3rem 0.4rem; }
+    .og-territory { flex-direction: column; gap: 0; }
 }
 
 /* Loading button styles */
@@ -2633,22 +2462,19 @@ function sendToClient(summaryId) {
     }
 }
 
-function deleteOffer(offerId) {
-    // Получаем информацию о предложении из DOM
-    const offerRow = event.target.closest('tr');
-    const yearCell = offerRow.querySelector('td[data-label="Год"] strong');
-    const companyBlock = offerRow.closest('.company-block');
-    const companyTitle = companyBlock.querySelector('h5').textContent.trim().replace('🏢', '').trim(); // Извлекаем название компании, убираем иконку
-    
-    // Извлекаем год из текста (например, "1 год" -> "1")
-    const yearText = yearCell ? yearCell.textContent.trim() : 'неизвестный год';
+function deleteOffer(offerId, trigger) {
+    // Компания и год — из атрибутов кнопки в меню «⋯» (таблица предложений, редизайн 2026-09)
+    const button = trigger || event.target.closest('button');
+    const offerRow = button.closest('tr');
+    const companyTitle = button.dataset.company || 'страховой компании';
+    const yearText = button.dataset.year || 'неизвестный год';
     
     // Создаем более информативное подтверждение
     const confirmMessage = `Вы действительно хотите удалить предложение от "${companyTitle}" (${yearText})?\n\nЭто действие нельзя отменить.`;
     
     if (confirm(confirmMessage)) {
         // Показываем индикатор загрузки
-        const deleteButton = event.target.closest('button');
+        const deleteButton = button;
         const originalContent = deleteButton.innerHTML;
         deleteButton.innerHTML = '<i class="bi bi-hourglass-split"></i>';
         deleteButton.disabled = true;
@@ -3705,6 +3531,28 @@ function showCompanyStatusesIfMissing(data) {
                 .finally(() => { remaining.disabled = false; });
         }
     });
+})();
+// Таблица предложений (редизайн 2026-09): длинная территория — две строки и «ещё»; меню «⋯» поверх таблицы
+(function () {
+    document.querySelectorAll('.og-territory--text').forEach(function (line) {
+        const text = line.querySelector('.og-territory-text');
+        const more = line.querySelector('.og-more');
+        if (!text || !more) {
+            return;
+        }
+        if (text.scrollHeight > text.clientHeight + 2) {
+            more.classList.remove('d-none');
+        }
+        more.addEventListener('click', function () {
+            const expanded = line.classList.toggle('og-territory--expanded');
+            more.textContent = expanded ? 'свернуть' : 'ещё';
+        });
+    });
+    if (window.bootstrap && bootstrap.Dropdown) {
+        document.querySelectorAll('.og-menu-btn').forEach(function (button) {
+            bootstrap.Dropdown.getOrCreateInstance(button, { popperConfig: { strategy: 'fixed' } });
+        });
+    }
 })();
 </script>
 {% endblock %}

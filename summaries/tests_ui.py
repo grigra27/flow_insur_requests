@@ -191,8 +191,9 @@ class TestUIElements(TestCase):
         self.assertContains(response, '2 год')
         
         # Check action buttons
-        self.assertContains(response, 'btn-outline-primary')  # Edit button
-        self.assertContains(response, 'btn-outline-danger')   # Delete button
+        self.assertContains(response, 'og-menu-btn')          # Меню действий «⋯» (редизайн 2026-09)
+        self.assertContains(response, 'Редактировать')        # Edit
+        self.assertContains(response, 'dropdown-item text-danger')  # Delete
         self.assertContains(response, 'bi-pencil')            # Edit icon
         self.assertContains(response, 'bi-trash')             # Delete icon
     
@@ -336,8 +337,9 @@ class TestJavaScriptFunctionality(TestCase):
         
         self.assertEqual(response.status_code, 200)
         
-        # Check delete button structure
-        self.assertContains(response, 'btn-outline-danger')
+        # Check delete button structure (пункт меню «⋯»)
+        self.assertContains(response, 'dropdown-item text-danger')
+        self.assertContains(response, 'data-company=')
         self.assertContains(response, 'bi-trash')
         
         # Check that delete buttons have proper data attributes for JS

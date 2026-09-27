@@ -184,7 +184,7 @@ class BasicIntegrationTest(TestCase):
         # Проверяем наличие CSS классов
         self.assertContains(response, 'franchise-variant-1')
         self.assertContains(response, 'franchise-variant-2')
-        self.assertContains(response, 'company-total-row')
+        self.assertContains(response, 'og-company-meta')  # итог компании — в её заголовке (редизайн 2026-09)
 
     def test_company_notes_display(self):
         """Тест отображения примечаний компании"""
@@ -192,7 +192,7 @@ class BasicIntegrationTest(TestCase):
         self.assertEqual(response.status_code, 200)
         
         # Проверяем отображение примечаний
-        self.assertContains(response, 'company-notes')
+        self.assertContains(response, 'og-notes')
         self.assertContains(response, 'Тестовое примечание')
 
     def test_summary_detail_displays_compact_analytics(self):

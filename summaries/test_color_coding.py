@@ -95,7 +95,7 @@ class ColorCodingTest(TestCase):
         self.assertContains(response, 'color: #052c65 !important')
 
     def test_total_row_color_coding(self):
-        """Test that total rows use pale yellow background"""
+        """Итог многолетнего предложения — в заголовке компании, цветом варианта (редизайн 2026-09)"""
         self.client.login(username='testuser', password='testpass123')
         
         url = reverse('summaries:summary_detail', kwargs={'pk': self.summary.pk})
@@ -103,12 +103,8 @@ class ColorCodingTest(TestCase):
         
         self.assertEqual(response.status_code, 200)
         
-        # Check that company-total-row class is present
-        self.assertContains(response, 'company-total-row')
-        
-        # Check that the CSS class definition uses pale yellow background
-        self.assertContains(response, 'background-color: #fff3cd !important')
-        self.assertContains(response, 'border-top: 2px solid #ffc107 !important')
+        self.assertContains(response, 'og-company-meta')
+        self.assertContains(response, 'итого <strong class="franchise-variant-1">')
 
     def test_mobile_responsive_color_coding(self):
         """Test that color coding is maintained on mobile devices"""
@@ -154,13 +150,9 @@ class ColorCodingTest(TestCase):
         self.assertIn('.franchise-variant-2 {', content)
         self.assertIn('color: #052c65 !important;', content)
         
-        # Check total row CSS
-        self.assertIn('.company-total-row {', content)
-        self.assertIn('background-color: #fff3cd !important;', content)
-        
-        # Check hover effect
-        self.assertIn('.company-total-row:hover {', content)
-        self.assertIn('background-color: #ffeaa7 !important;', content)
+        # Заголовок компании с итогом и строки годов (редизайн 2026-09)
+        self.assertIn('.og-company-meta {', content)
+        self.assertIn('.og-year-row:hover td {', content)
 
     def test_no_bootstrap_table_info_class(self):
         """Test that Bootstrap table-info class is not used in total rows"""
@@ -176,8 +168,5 @@ class ColorCodingTest(TestCase):
         # Check that table-info class is not present in the template
         self.assertNotIn('table-info', content)
         
-        # Check that only company-total-row class is used for total rows
-        self.assertIn('class="company-total-row"', content)
-        
-        # Ensure the pale yellow background is applied
-        self.assertIn('background-color: #fff3cd !important', content)
+        # Итог — в строке-заголовке компании, отдельной строки «Итого» нет
+        self.assertIn('class="og-company-row"', content)

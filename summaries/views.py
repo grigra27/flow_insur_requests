@@ -768,8 +768,75 @@ def summary_detail(request, pk):
         ],
         'declined_companies': company_statuses.declined_company_names(summary),
         'tariff_hint': _tariff_hint(summary),
+        'offer_groups': _offer_groups(sorted_companies, companies_with_offers, company_totals, company_notes),
+        'offers_have_variant_2': any(offer.premium_with_franchise_2 or offer.franchise_2 for offer in offers),
         'can_open_analytics': has_admin_access(request.user),
     })
+
+
+def _years_label(count):
+    if count % 10 == 1 and count % 100 != 11:
+        return f'{count} год'
+    if count % 10 in (2, 3, 4) and count % 100 not in (12, 13, 14):
+        return f'{count} года'
+    return f'{count} лет'
+
+
+def _year_ranges(years):
+    """[1, 2, 3, 5] → «1–3, 5»."""
+    ranges, start, previous = [], None, None
+    for year in sorted(years):
+        if start is None:
+            start = previous = year
+        elif year == previous + 1:
+            previous = year
+        else:
+            ranges.append((start, previous))
+            start = previous = year
+    if start is not None:
+        ranges.append((start, previous))
+    return ', '.join(str(a) if a == b else f'{a}–{b}' for a, b in ranges)
+
+
+def _territory_lines(offers):
+    """Территория компании один раз: одинаковые значения по годам сворачиваются в одну строку.
+
+    kind: text — указана; missing — «Не указано страховщиком»; legacy — предложение создано до сбора территории.
+    """
+    groups = {}
+    for offer in offers:
+        value = offer.coverage_territory
+        if value is None:
+            key = ('legacy', '')
+        elif value.strip():
+            key = ('text', value.strip())
+        else:
+            key = ('missing', '')
+        groups.setdefault(key, []).append(offer.insurance_year)
+    lines = []
+    for (kind, text), years in groups.items():
+        label = 'Территория' if len(groups) == 1 else f'Территория ({_year_ranges(years)} год)'
+        lines.append({'label': label, 'kind': kind, 'text': text})
+    return lines
+
+
+def _offer_groups(sorted_companies, companies_with_offers, company_totals, company_notes):
+    """Предложения, сгруппированные по компаниям, для единой таблицы на карточке свода."""
+    groups = []
+    for company_name in sorted_companies:
+        company_offers = companies_with_offers.get(company_name, [])
+        totals = company_totals.get(company_name, {})
+        groups.append({
+            'name': company_name,
+            'offers': company_offers,
+            'years_label': _years_label(len(company_offers)),
+            'is_multiyear': totals.get('is_multiyear', False),
+            'total_premium_1': totals.get('total_premium_1'),
+            'total_premium_2': totals.get('total_premium_2'),
+            'notes': company_notes.get(company_name, []),
+            'territory_lines': _territory_lines(company_offers),
+        })
+    return groups
 
 
 def _tariff_hint(summary):
