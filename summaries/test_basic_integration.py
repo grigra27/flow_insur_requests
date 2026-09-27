@@ -131,8 +131,8 @@ class BasicIntegrationTest(TestCase):
 
         response = self.client.get(reverse('summaries:summary_detail', args=[self.summary.pk]))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'req-object-block--multiple')
-        self.assertContains(response, 'req-object-block__quantity-badge')
+        self.assertContains(response, 'sd-object__line')
+        self.assertContains(response, 'bi-layers')
         self.assertContains(response, '3 штуки')
         self.assertContains(response, 'LADA Largus KS045L, 2024 г., Б/у, 1 490 000 RUB')
         self.assertNotContains(response, '×3')

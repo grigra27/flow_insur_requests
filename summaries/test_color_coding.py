@@ -62,96 +62,50 @@ class ColorCodingTest(TestCase):
             premium_with_franchise_2=50000.00
         )
 
-    def test_franchise_variant_1_color_coding(self):
-        """Test that franchise variant 1 fields use dark green color"""
+    def _detail(self):
         self.client.login(username='testuser', password='testpass123')
-        
-        url = reverse('summaries:summary_detail', kwargs={'pk': self.summary.pk})
-        response = self.client.get(url)
-        
+        response = self.client.get(reverse('summaries:summary_detail', kwargs={'pk': self.summary.pk}))
         self.assertEqual(response.status_code, 200)
-        
-        # Check that franchise-variant-1 class is present in the template
-        self.assertContains(response, 'franchise-variant-1')
-        
-        # Check that the CSS class definition is present
-        self.assertContains(response, '.franchise-variant-1')
-        self.assertContains(response, 'color: #0f5132 !important')
+        return response
+
+    def test_franchise_variant_1_color_coding(self):
+        """Премии варианта 1 размечены классом и показаны основным цветом текста (редизайн карточки 2026-09)"""
+        response = self._detail()
+        self.assertContains(response, 'class="franchise-variant-1"')
+        self.assertContains(response, 'color: var(--sd-ink) !important')
 
     def test_franchise_variant_2_color_coding(self):
-        """Test that franchise variant 2 fields use dark blue color"""
-        self.client.login(username='testuser', password='testpass123')
-        
-        url = reverse('summaries:summary_detail', kwargs={'pk': self.summary.pk})
-        response = self.client.get(url)
-        
-        self.assertEqual(response.status_code, 200)
-        
-        # Check that franchise-variant-2 class is present in the template
-        self.assertContains(response, 'franchise-variant-2')
-        
-        # Check that the CSS class definition is present
-        self.assertContains(response, '.franchise-variant-2')
-        self.assertContains(response, 'color: #052c65 !important')
+        """Премии варианта 2 размечены классом и показаны основным цветом текста (редизайн карточки 2026-09)"""
+        response = self._detail()
+        self.assertContains(response, 'class="franchise-variant-2"')
+        self.assertContains(response, 'color: var(--sd-ink) !important')
 
     def test_total_row_color_coding(self):
-        """Итог многолетнего предложения — в заголовке компании, цветом варианта (редизайн 2026-09)"""
-        self.client.login(username='testuser', password='testpass123')
-        
-        url = reverse('summaries:summary_detail', kwargs={'pk': self.summary.pk})
-        response = self.client.get(url)
-        
-        self.assertEqual(response.status_code, 200)
-        
-        self.assertContains(response, 'og-company-meta')
-        self.assertContains(response, 'итого <strong class="franchise-variant-1">')
+        """Итог многолетнего предложения — справа в заголовке компании (редизайн карточки 2026-09)"""
+        response = self._detail()
+        self.assertContains(response, 'og-company-total')
+        self.assertContains(response, '<small>итого за срок</small>')
 
     def test_mobile_responsive_color_coding(self):
-        """Test that color coding is maintained on mobile devices"""
-        self.client.login(username='testuser', password='testpass123')
-        
-        url = reverse('summaries:summary_detail', kwargs={'pk': self.summary.pk})
-        response = self.client.get(url)
-        
-        self.assertEqual(response.status_code, 200)
-        
-        # Check that mobile responsive styles are present
+        """Адаптивные стили карточки на месте, итог на узком экране не прижимается вправо"""
+        response = self._detail()
         self.assertContains(response, '@media (max-width: 576px)')
         self.assertContains(response, '@media (max-width: 768px)')
-        
-        # Check that franchise variant colors are maintained in mobile styles
         content = response.content.decode('utf-8')
-        mobile_section_start = content.find('@media (max-width: 576px)')
-        mobile_section_end = content.find('}', content.find('.franchise-variant-2', mobile_section_start))
-        mobile_section = content[mobile_section_start:mobile_section_end]
-        
-        self.assertIn('.franchise-variant-1', mobile_section)
-        self.assertIn('.franchise-variant-2', mobile_section)
-        self.assertIn('#0f5132', mobile_section)
-        self.assertIn('#052c65', mobile_section)
+        mobile_start = content.find('@media (max-width: 767.98px) {\n    .sd-head')
+        self.assertNotEqual(mobile_start, -1)
+        self.assertIn('.og-company-total { margin-left: 0; }', content[mobile_start:])
 
     def test_color_coding_css_classes_defined(self):
-        """Test that all required CSS classes are properly defined"""
-        self.client.login(username='testuser', password='testpass123')
-        
-        url = reverse('summaries:summary_detail', kwargs={'pk': self.summary.pk})
-        response = self.client.get(url)
-        
-        self.assertEqual(response.status_code, 200)
-        
-        content = response.content.decode('utf-8')
-        
-        # Check franchise variant 1 CSS
-        self.assertIn('.franchise-variant-1 {', content)
-        self.assertIn('color: #0f5132 !important;', content)
+        """Классы вариантов и заголовка компании определены в стилях страницы"""
+        content = self._detail().content.decode('utf-8')
+
+        self.assertIn('.franchise-variant-1,\n.franchise-variant-2 {', content)
         self.assertIn('font-weight: 600;', content)
-        
-        # Check franchise variant 2 CSS
-        self.assertIn('.franchise-variant-2 {', content)
-        self.assertIn('color: #052c65 !important;', content)
-        
+
         # Заголовок компании с итогом и строки годов (редизайн 2026-09)
         self.assertIn('.og-company-meta {', content)
+        self.assertIn('.og-company-total {', content)
         self.assertIn('.og-year-row:hover td {', content)
 
     def test_no_bootstrap_table_info_class(self):

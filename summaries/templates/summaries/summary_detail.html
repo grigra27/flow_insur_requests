@@ -6,117 +6,85 @@
 
 {% block content %}
 {% csrf_token %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h1><i class="bi bi-collection"></i> Свод к {{ summary.request.get_display_name }}</h1>
-    <div>
-        {% if summary.status == 'collecting' %}
-            <a href="{% url 'summaries:add_offer' summary.pk %}" class="btn btn-success me-2">
-                <i class="bi bi-plus-circle"></i> Добавить предложение вручную
-            </a>
-        {% endif %}
-
-        <a href="{% url 'summaries:summary_list' %}" class="btn btn-secondary">
-            <i class="bi bi-arrow-left"></i> К списку
-        </a>
+<div class="sd-page">
+<div class="sd-head">
+    <div class="sd-head__main">
+        <a href="{% url 'summaries:summary_list' %}" class="sd-back"><i class="bi bi-arrow-left"></i> Своды</a>
+        <div class="sd-head__title-row">
+            <h1 class="sd-title">{{ summary.request.get_display_name }}</h1>
+            <span class="sd-status sd-status--{{ summary.status }}">{{ summary.get_status_display }}</span>
+        </div>
+        <div class="sd-head__sub">
+            <b>{{ summary.request.client_name }}</b>{% with object_summary=summary.request.object_summary_without_source_count %}{% if object_summary %} · {{ object_summary }}{% endif %}{% endwith %}
+        </div>
     </div>
+    {% if summary.status == 'collecting' %}
+        <a href="{% url 'summaries:add_offer' summary.pk %}" class="btn btn-success sd-head__action">
+            <i class="bi bi-plus-circle"></i> Добавить предложение вручную
+        </a>
+    {% endif %}
+</div>
+
+<!-- Прогресс-бар статусов -->
+<div class="sd-progress">
+    {% status_progress summary.request summary %}
 </div>
 
 <div class="row">
     <div class="col-lg-8">
-        <!-- Прогресс-бар статусов -->
-        {% status_progress summary.request summary %}
-
         <!-- Информация о заявке -->
-        <div class="card mb-4 status-card status-card--{{ summary.status|status_color }}">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">Информация о заявке</h5>
-                <span class="badge {{ summary.status|status_badge_class }}">
-                    {{ summary.get_status_display }}
-                </span>
+        <div class="card mb-4">
+            <div class="card-header">
+                <h6 class="mb-0">Информация о заявке</h6>
             </div>
             <div class="card-body">
-                <div class="req-hero mb-4">
-                    <div class="req-hero__name">{{ summary.request.client_name }}</div>
-                    <div class="req-hero__meta">
-                        {% if summary.request.inn %}
-                        <div class="req-hero__meta-item">
-                            <span class="req-hero__meta-label">ИНН</span>
-                            <span class="req-hero__meta-value">{{ summary.request.inn }}</span>
-                        </div>
-                        {% endif %}
-                        {% if summary.request.dfa_number %}
-                        <div class="req-hero__meta-item">
-                            <span class="req-hero__meta-label">ДФА</span>
-                            <span class="req-hero__meta-value">{{ summary.request.dfa_number }}</span>
-                        </div>
-                        {% endif %}
-                    </div>
-                </div>
-
-                <dl class="row mb-3">
-                    <dt class="col-sm-4">Филиал:</dt>
-                    <dd class="col-sm-8">{{ summary.branch|format_branch }}</dd>
-
-                    <dt class="col-sm-4">Тип страхования:</dt>
-                    <dd class="col-sm-8">{{ summary.request.insurance_type }}</dd>
-                </dl>
-
-                <div class="req-object-block{% if summary.request.source_object_count and summary.request.source_object_count > 1 %} req-object-block--multiple{% endif %}">
-                    <div class="req-object-block__header">
-                        <i class="bi bi-truck-front-fill req-object-block__icon"></i>
-                        <span class="req-object-block__title">Объект страхования</span>
-                    </div>
-                    <div class="req-object-block__vehicle-line">
-                        <div class="req-object-block__vehicle">{{ summary.request.object_summary_without_source_count|default:"Не указано" }}</div>
+                <div class="sd-object">
+                    <div class="sd-label">Объект страхования</div>
+                    <div class="sd-object__line">
+                        <span>{{ summary.request.object_summary_without_source_count|default:"Не указано" }}</span>
                         {% if summary.request.source_object_count and summary.request.source_object_count > 1 %}
-                            <span class="req-object-block__quantity-badge"
+                            <span class="sd-chip"
                                   title="Эта позиция объединяет {{ summary.request.source_object_count_label }} одинаковых объектов из заявки">
-                                <i class="bi bi-layers-fill"></i>
+                                <i class="bi bi-layers"></i>
                                 {{ summary.request.source_object_count_label }}
                             </span>
                         {% endif %}
                     </div>
-                    <dl class="row mb-0 mt-2">
-                        <dt class="col-sm-4">Год выпуска:</dt>
-                        <dd class="col-sm-8">{{ summary.request.manufacturing_year|default:"Не указано" }}</dd>
-
-                        <dt class="col-sm-4">Состояние:</dt>
-                        <dd class="col-sm-8">{{ summary.request.condition_label|default:"Не указано" }}</dd>
-                    </dl>
                 </div>
-            </div>
-            <div class="card-footer req-dates-footer">
-                <span class="req-date-item">
-                    <span class="req-date-label">Заявка:</span>
-                    <a href="{% url 'insurance_requests:request_detail' summary.request.pk %}">{{ summary.request.get_display_name }}</a>
-                </span>
-                <span class="req-date-item">
-                    <span class="req-date-label">Создан:</span>
-                    {% timezone "Europe/Moscow" %}{{ summary.created_at|date:"d.m.Y в H:i" }}{% endtimezone %}
-                </span>
-                {% if summary.sent_to_client_at %}
-                <span class="req-date-item">
-                    <span class="req-date-label">Отправлен:</span>
-                    {% timezone "Europe/Moscow" %}{{ summary.sent_to_client_at|date:"d.m.Y в H:i" }}{% endtimezone %}
-                </span>
-                {% endif %}
+                <dl class="sd-kv">
+                    <div><dt>Филиал</dt><dd>{{ summary.branch|format_branch }}</dd></div>
+                    <div><dt>Тип страхования</dt><dd>{{ summary.request.insurance_type }}</dd></div>
+                    {% if summary.request.inn %}
+                    <div><dt>ИНН</dt><dd>{{ summary.request.inn }}</dd></div>
+                    {% endif %}
+                    {% if summary.request.dfa_number %}
+                    <div><dt>ДФА</dt><dd>{{ summary.request.dfa_number }}</dd></div>
+                    {% endif %}
+                    <div><dt>Год выпуска</dt><dd>{{ summary.request.manufacturing_year|default:"Не указано" }}</dd></div>
+                    <div><dt>Состояние</dt><dd>{{ summary.request.condition_label|default:"Не указано" }}</dd></div>
+                    <div>
+                        <dt>Заявка</dt>
+                        <dd><a href="{% url 'insurance_requests:request_detail' summary.request.pk %}">{{ summary.request.get_display_name }}</a></dd>
+                    </div>
+                    <div><dt>Создан</dt><dd>{% timezone "Europe/Moscow" %}{{ summary.created_at|date:"d.m.Y в H:i" }}{% endtimezone %}</dd></div>
+                    {% if summary.sent_to_client_at %}
+                    <div><dt>Отправлен</dt><dd>{% timezone "Europe/Moscow" %}{{ summary.sent_to_client_at|date:"d.m.Y в H:i" }}{% endtimezone %}</dd></div>
+                    {% endif %}
+                </dl>
             </div>
         </div>
 
         <!-- Предложения страховщиков -->
         <div class="card mb-4">
-            <div class="summary-offers-hero">
-                <div class="summary-offers-hero__left">
-                    <i class="bi bi-shield-check summary-offers-hero__icon"></i>
-                    <div>
-                        <div class="summary-offers-hero__title">Предложения страховщиков</div>
-                        <div class="summary-offers-hero__sub">
-                            {% if sorted_companies %}
-                                {{ sorted_companies|length }} компани{% if sorted_companies|length == 1 %}я{% elif sorted_companies|length < 5 %}и{% else %}й{% endif %}
-                            {% else %}
-                                Предложений пока нет
-                            {% endif %}
-                        </div>
+            <div class="card-header sd-card-header">
+                <div>
+                    <h6 class="mb-0">Предложения страховщиков</h6>
+                    <div class="sd-card-sub">
+                        {% if sorted_companies %}
+                            {{ sorted_companies|length }} компани{% if sorted_companies|length == 1 %}я{% elif sorted_companies|length < 5 %}и{% else %}й{% endif %}
+                        {% else %}
+                            Предложений пока нет
+                        {% endif %}
                     </div>
                 </div>
                 {% if summary.status == 'collecting' %}
@@ -152,14 +120,22 @@
                             </tr>
                         </thead>
                         {% for group in offer_groups %}
-                        <tbody class="og-company" data-company="{{ group.name }}">
+                        <tbody class="og-company{% if group.is_selected %} og-company--selected{% elif group.is_best %} og-company--best{% endif %}" data-company="{{ group.name }}">
                             <tr class="og-company-row">
                                 <td colspan="{% if offers_have_variant_2 %}7{% else %}5{% endif %}">
                                     <div class="og-company-head">
                                         <span class="og-company-name">{{ group.name }}</span>
                                         <span class="og-company-meta">
-                                            {{ group.years_label }}{% if group.is_multiyear %} · итого <strong class="franchise-variant-1">{{ group.total_premium_1|format_currency_with_spaces }}</strong>{% if group.total_premium_2 > 0 %} · вариант 2: <strong class="franchise-variant-2">{{ group.total_premium_2|format_currency_with_spaces }}</strong>{% endif %}{% endif %}
+                                            {{ group.years_label }}{% if group.is_multiyear and group.total_premium_2 > 0 %} · вариант 2: <strong class="franchise-variant-2">{{ group.total_premium_2|format_currency_with_spaces }}</strong>{% endif %}
                                         </span>
+                                        {% if group.total_premium_1 %}
+                                        <span class="og-company-total">
+                                            {% if group.is_selected %}<span class="sd-tag sd-tag--selected">выбрана</span>{% endif %}
+                                            {% if group.is_best %}<span class="sd-tag sd-tag--best">лучшее</span>{% endif %}
+                                            <small>{% if group.is_multiyear %}итого за срок{% else %}премия{% endif %}</small>
+                                            <b>{{ group.total_premium_1|format_currency_with_spaces }}</b>
+                                        </span>
+                                        {% endif %}
                                     </div>
                                     {% if group.notes %}
                                     <div class="og-notes">
@@ -296,7 +272,7 @@
                             </td>
                             <td class="text-end">
                                 {% if item.locked %}
-                                    <span class="badge bg-success"><i class="bi bi-check2-circle me-1"></i>Предложение</span>
+                                    <span class="sd-chip sd-chip--offered"><i class="bi bi-check2-circle"></i>Предложение</span>
                                 {% else %}
                                     <div class="btn-group btn-group-sm" role="group" aria-label="Статус {{ item.company }}">
                                         {% for value, label in company_status_manual %}
@@ -315,402 +291,400 @@
     </div>
 
     <div class="col-lg-4">
-        {% if tariff_hint %}
-        <!-- Ориентир по тарифу (tariffs_analytics_2026_09, шаг 3) -->
-        <div class="card mb-4 tariff-hint">
-            <div class="card-header">
-                <h6 class="mb-0"><i class="bi bi-percent"></i> Ориентир по тарифу</h6>
-                <div class="small text-muted">
-                    {% if tariff_hint.level == 'group' %}{{ tariff_hint.label }} · {{ tariff_hint.requests }} заявок в истории
-                    {% else %}{{ tariff_hint.class_label }} · {{ tariff_hint.requests }} заявок{% if tariff_hint.group %} (по «{{ tariff_hint.group }}» пока мало данных: {{ tariff_hint.group_requests }}){% endif %}{% endif %}
+        <div class="sd-aside">
+            <!-- Сводная информация -->
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0"><i class="bi bi-graph-up"></i> Сводная информация</h6>
+                    <button
+                        type="button"
+                        class="btn btn-link btn-sm summary-faq-link js-summary-analytics-faq"
+                        data-faq-target="summary-analytics-faq"
+                        data-bs-placement="left"
+                        aria-label="FAQ по сводной информации"
+                    >
+                        <i class="bi bi-question-circle"></i> FAQ
+                    </button>
                 </div>
-            </div>
-            <div class="card-body">
-                <div class="d-flex align-items-baseline gap-2 mb-1">
-                    <span class="fs-4 fw-bold">{{ tariff_hint.median|floatformat:2 }}%</span>
-                    <span class="text-muted small">медиана · обычно {{ tariff_hint.p25|floatformat:2 }}–{{ tariff_hint.p75|floatformat:2 }}%</span>
-                </div>
-                {% if tariff_hint.cheapest %}
-                <div class="small text-muted mt-2 mb-1">Дешевле других бывали:</div>
-                <ul class="list-unstyled mb-0 small tariff-hint-list">
-                    {% for row in tariff_hint.cheapest %}
-                    <li class="d-flex justify-content-between"><span>{{ row.company }}</span><span class="text-nowrap">{{ row.median|floatformat:2 }}% <span class="text-muted">· {{ row.offers }} предл.</span></span></li>
-                    {% endfor %}
-                </ul>
-                {% else %}
-                <div class="small text-muted">Недостаточно данных, чтобы сравнить страховые.</div>
-                {% endif %}
-                <div class="small text-muted mt-2">Тариф 1-го года без франшизы по прошлым предложениям — ориентир, а не прогноз.
-                    {% if can_open_analytics and tariff_hint.level == 'group' %}<a href="{% url 'summaries:analytics_tariff_group' tariff_hint.dimension tariff_hint.group %}">Подробнее</a>{% elif can_open_analytics %}<a href="{% url 'summaries:analytics_tariffs' %}">Подробнее</a>{% endif %}
-                </div>
-            </div>
-        </div>
-        {% endif %}
+                <div class="card-body">
+                    {% if summary_analytics.has_offers %}
+                        <div class="summary-mini-kpis mb-3">
+                            <div class="summary-mini-kpi">
+                                <span class="summary-mini-kpi__label">СК</span>
+                                <strong>{{ summary_analytics.companies_count }}</strong>
+                            </div>
+                            <div class="summary-mini-kpi">
+                                <span class="summary-mini-kpi__label">Лет</span>
+                                <strong>{{ summary_analytics.years_count }}</strong>
+                                <small>{{ summary_analytics.years_label }}</small>
+                            </div>
+                            <div class="summary-mini-kpi">
+                                <span class="summary-mini-kpi__label">Полных</span>
+                                <strong>{{ summary_analytics.complete_companies_count }}/{{ summary_analytics.companies_count }}</strong>
+                            </div>
+                        </div>
 
-        <!-- Примечание к своду -->
-        <div class="card mb-4">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h6 class="mb-0"><i class="bi bi-sticky-fill text-warning me-1"></i> Общее примечание</h6>
-                <button type="button" class="btn btn-outline-primary btn-sm" onclick="toggleNotesEdit()">
-                    <i class="bi bi-pencil"></i>
-                </button>
-            </div>
-            <div class="card-body">
-                <!-- Отображение примечания -->
-                <div id="notes-display">
-                    {% if summary.notes %}
-                        <div class="alert alert-info mb-0">
-                            <i class="bi bi-info-circle me-2"></i>
-                            {{ summary.notes|linebreaks }}
+                        <div class="summary-insights">
+                            <div class="summary-insight-row">
+                                <span class="summary-insight-row__label">Покрытие</span>
+                                <span class="summary-insight-row__value">
+                                    {{ summary_analytics.complete_companies_count }}/{{ summary_analytics.companies_count }}
+                                    <span class="text-muted">· {{ summary_analytics.required_variants_label }}</span>
+                                </span>
+                            </div>
+                            {% if summary_analytics.incomplete_companies_count %}
+                                <div class="summary-insight-row summary-insight-row--warning">
+                                    <span class="summary-insight-row__label">Проверить</span>
+                                    <span class="summary-insight-row__value" title="{{ summary_analytics.incomplete_companies|join:', ' }}">
+                                        {{ summary_analytics.incomplete_companies_count }} неполн.
+                                    </span>
+                                </div>
+                            {% endif %}
+
+                            {% for price_range in summary_analytics.price_ranges %}
+                                <div class="summary-insight-row">
+                                    <span class="summary-insight-row__label">{{ price_range.label }}</span>
+                                    <span class="summary-insight-row__value">
+                                        {{ price_range.min_total|format_currency_with_spaces }} - {{ price_range.max_total|format_currency_with_spaces }}
+                                    </span>
+                                </div>
+                                <div class="summary-insight-row summary-insight-row--muted">
+                                    <span class="summary-insight-row__label">Лучшее</span>
+                                    <span class="summary-insight-row__value">
+                                        {{ price_range.best_company_name }}
+                                        {% if price_range.spread_abs > 0 %}
+                                            <span class="text-muted">
+                                                · Разброс: +{{ price_range.spread_abs|format_currency_with_spaces }}
+                                                {% if price_range.spread_pct %}/ {{ price_range.spread_pct|floatformat:1 }}%{% endif %}
+                                            </span>
+                                        {% endif %}
+                                    </span>
+                                </div>
+                            {% endfor %}
+
+                            {% if summary_analytics.installment.show %}
+                                <div class="summary-insight-row">
+                                    <span class="summary-insight-row__label">Рассрочка</span>
+                                    <span class="summary-insight-row__value">
+                                        {{ summary_analytics.installment.companies_count }}/{{ summary_analytics.companies_count }} СК
+                                        {% if summary_analytics.installment.max_payments_per_year > 1 %}
+                                            <span class="text-muted">· до {{ summary_analytics.installment.max_payments_per_year }} пл./год</span>
+                                        {% endif %}
+                                    </span>
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        {% if summary_analytics.selected %}
+                            <div class="summary-selected-mini mt-3">
+                                <div class="summary-selected-mini__top">
+                                    <span>Выбрана</span>
+                                    {% if summary_analytics.selected.is_min_selected %}
+                                        <span class="sd-tag sd-tag--best">минимум</span>
+                                    {% elif summary_analytics.selected.rank %}
+                                        <span class="sd-tag sd-tag--warn">есть дешевле</span>
+                                    {% endif %}
+                                </div>
+                                <div class="summary-selected-mini__company">{{ summary_analytics.selected.company_name }}</div>
+                                <div class="summary-selected-mini__meta">
+                                    {% if summary_analytics.selected.total %}
+                                        {{ summary_analytics.selected.total|format_currency_with_spaces }}
+                                    {% endif %}
+                                    {% if summary_analytics.selected.rank %}
+                                        · {{ summary_analytics.selected.rank }}/{{ summary_analytics.selected.comparable_count }}
+                                    {% endif %}
+                                    {% if summary_analytics.selected.delta_to_min_abs and not summary_analytics.selected.is_min_selected %}
+                                        · +{{ summary_analytics.selected.delta_to_min_abs|format_currency_with_spaces }}
+                                        {% if summary_analytics.selected.delta_to_min_pct %}
+                                            / {{ summary_analytics.selected.delta_to_min_pct|floatformat:1 }}%
+                                        {% endif %}
+                                    {% endif %}
+                                </div>
+                            </div>
+                        {% endif %}
+
+                        <div class="summary-company-preview mt-3" title="{{ summary_analytics.companies_title }}">
+                            <span class="summary-company-preview__label">СК:</span>
+                            {% for company_name in summary_analytics.company_preview %}
+                                <span class="sd-chip">{{ company_name }}</span>
+                            {% endfor %}
+                            {% if summary_analytics.company_preview_more_count %}
+                                <span class="sd-chip sd-chip--more">+{{ summary_analytics.company_preview_more_count }}</span>
+                            {% endif %}
                         </div>
                     {% else %}
                         <p class="text-muted mb-0">
-                            <i class="bi bi-plus-circle me-2"></i>
-                            Примечание не добавлено. Нажмите "Редактировать" для добавления.
+                            <i class="bi bi-inbox me-2"></i>Предложений пока нет
                         </p>
                     {% endif %}
-                </div>
                 
-                <!-- Форма редактирования примечания -->
-                <div id="notes-edit" style="display: none;">
-                    <form id="notes-form">
-                        {% csrf_token %}
-                        <div class="mb-3">
-                            <textarea class="form-control" id="notes-textarea" name="notes" rows="4" 
-                                      placeholder="Введите примечание к своду...">{{ summary.notes }}</textarea>
-                            <div class="form-text">
-                                {% if summary.company_statuses_required %}
-                                Это общее примечание ко всему своду, например данные об ОСАГО. Отказы СК отмечайте статусом
-                                в блоке «Статусы страховых компаний» — в Excel-свод они выводятся автоматически.
-                                {% else %}
-                                Это общее примечание ко всему своду. Сюда можно внести данные об ОСАГО и отказах СК от страхования
-                                {% endif %}
-                            </div>
-                        </div>
-                        <div class="d-flex gap-2">
-                            <button type="submit" class="btn btn-success btn-sm">
-                                <i class="bi bi-check-lg"></i> Сохранить
+                    {% if summary.status == 'ready' %}
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-success" onclick="generateSummaryFile({{ summary.id }})">
+                                <i class="bi bi-file-earmark-excel"></i> Сгенерировать полный Excel
                             </button>
-                            <button type="button" class="btn btn-secondary btn-sm" onclick="cancelNotesEdit()">
-                                <i class="bi bi-x-lg"></i> Отмена
+                            <button class="btn btn-outline-success" onclick="generateClientSummaryFile({{ summary.id }})">
+                                <i class="bi bi-file-earmark-excel-fill"></i> Сгенерировать клиентский Excel
                             </button>
                         </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-
-        <!-- Сводная информация -->
-        <div class="card mb-4">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h6 class="mb-0"><i class="bi bi-graph-up"></i> Сводная информация</h6>
-                <button
-                    type="button"
-                    class="btn btn-link btn-sm summary-faq-link js-summary-analytics-faq"
-                    data-faq-target="summary-analytics-faq"
-                    data-bs-placement="left"
-                    aria-label="FAQ по сводной информации"
-                >
-                    <i class="bi bi-question-circle"></i> FAQ
-                </button>
-            </div>
-            <div class="card-body">
-                {% if summary_analytics.has_offers %}
-                    <div class="summary-mini-kpis mb-3">
-                        <div class="summary-mini-kpi">
-                            <span class="summary-mini-kpi__label">СК</span>
-                            <strong>{{ summary_analytics.companies_count }}</strong>
-                        </div>
-                        <div class="summary-mini-kpi">
-                            <span class="summary-mini-kpi__label">Лет</span>
-                            <strong>{{ summary_analytics.years_count }}</strong>
-                            <small>{{ summary_analytics.years_label }}</small>
-                        </div>
-                        <div class="summary-mini-kpi">
-                            <span class="summary-mini-kpi__label">Полных</span>
-                            <strong>{{ summary_analytics.complete_companies_count }}/{{ summary_analytics.companies_count }}</strong>
-                        </div>
-                    </div>
-
-                    <div class="summary-insights">
-                        <div class="summary-insight-row">
-                            <span class="summary-insight-row__label">Покрытие</span>
-                            <span class="summary-insight-row__value">
-                                {{ summary_analytics.complete_companies_count }}/{{ summary_analytics.companies_count }}
-                                <span class="text-muted">· {{ summary_analytics.required_variants_label }}</span>
-                            </span>
-                        </div>
-                        {% if summary_analytics.incomplete_companies_count %}
-                            <div class="summary-insight-row summary-insight-row--warning">
-                                <span class="summary-insight-row__label">Проверить</span>
-                                <span class="summary-insight-row__value" title="{{ summary_analytics.incomplete_companies|join:', ' }}">
-                                    {{ summary_analytics.incomplete_companies_count }} неполн.
-                                </span>
-                            </div>
-                        {% endif %}
-
-                        {% for price_range in summary_analytics.price_ranges %}
-                            <div class="summary-insight-row">
-                                <span class="summary-insight-row__label">{{ price_range.label }}</span>
-                                <span class="summary-insight-row__value">
-                                    {{ price_range.min_total|format_currency_with_spaces }} - {{ price_range.max_total|format_currency_with_spaces }}
-                                </span>
-                            </div>
-                            <div class="summary-insight-row summary-insight-row--muted">
-                                <span class="summary-insight-row__label">Лучшее</span>
-                                <span class="summary-insight-row__value">
-                                    {{ price_range.best_company_name }}
-                                    {% if price_range.spread_abs > 0 %}
-                                        <span class="text-muted">
-                                            · Разброс: +{{ price_range.spread_abs|format_currency_with_spaces }}
-                                            {% if price_range.spread_pct %}/ {{ price_range.spread_pct|floatformat:1 }}%{% endif %}
-                                        </span>
-                                    {% endif %}
-                                </span>
-                            </div>
-                        {% endfor %}
-
-                        {% if summary_analytics.installment.show %}
-                            <div class="summary-insight-row">
-                                <span class="summary-insight-row__label">Рассрочка</span>
-                                <span class="summary-insight-row__value">
-                                    {{ summary_analytics.installment.companies_count }}/{{ summary_analytics.companies_count }} СК
-                                    {% if summary_analytics.installment.max_payments_per_year > 1 %}
-                                        <span class="text-muted">· до {{ summary_analytics.installment.max_payments_per_year }} пл./год</span>
-                                    {% endif %}
-                                </span>
-                            </div>
-                        {% endif %}
-                    </div>
-
-                    {% if summary_analytics.selected %}
-                        <div class="summary-selected-mini mt-3">
-                            <div class="summary-selected-mini__top">
-                                <span>Выбрана</span>
-                                {% if summary_analytics.selected.is_min_selected %}
-                                    <span class="badge bg-success">минимум</span>
-                                {% elif summary_analytics.selected.rank %}
-                                    <span class="badge bg-warning text-dark">есть дешевле</span>
-                                {% endif %}
-                            </div>
-                            <div class="summary-selected-mini__company">{{ summary_analytics.selected.company_name }}</div>
-                            <div class="summary-selected-mini__meta">
-                                {% if summary_analytics.selected.total %}
-                                    {{ summary_analytics.selected.total|format_currency_with_spaces }}
-                                {% endif %}
-                                {% if summary_analytics.selected.rank %}
-                                    · {{ summary_analytics.selected.rank }}/{{ summary_analytics.selected.comparable_count }}
-                                {% endif %}
-                                {% if summary_analytics.selected.delta_to_min_abs and not summary_analytics.selected.is_min_selected %}
-                                    · +{{ summary_analytics.selected.delta_to_min_abs|format_currency_with_spaces }}
-                                    {% if summary_analytics.selected.delta_to_min_pct %}
-                                        / {{ summary_analytics.selected.delta_to_min_pct|floatformat:1 }}%
-                                    {% endif %}
-                                {% endif %}
-                            </div>
+                        <div class="form-text mt-2">
+                            <small><i class="bi bi-info-circle"></i> Клиентская версия содержит только данные предложений без технического листа</small>
                         </div>
                     {% endif %}
+                </div>
+            </div>
 
-                    <div class="summary-company-preview mt-3" title="{{ summary_analytics.companies_title }}">
-                        <span class="summary-company-preview__label">СК:</span>
-                        {% for company_name in summary_analytics.company_preview %}
-                            <span class="badge bg-secondary me-1">{{ company_name }}</span>
-                        {% endfor %}
-                        {% if summary_analytics.company_preview_more_count %}
-                            <span class="badge bg-light text-dark border">+{{ summary_analytics.company_preview_more_count }}</span>
+            <!-- Статус и действия -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="bi bi-gear"></i> Управление статусом</h6>
+                </div>
+                <div class="card-body">
+                    <div id="status-blocked-alert" class="alert alert-warning py-2 small{% if not company_status_missing %} d-none{% endif %}">
+                        <i class="bi bi-lock me-1"></i>Статус свода можно изменить после того, как у каждой страховой
+                        компании будет статус. <a href="#company-statuses">Без статуса: <span id="status-blocked-count">{{ company_status_missing|length }}</span></a>
+                    </div>
+                    <div class="sd-state">
+                        <span id="current-status-badge" class="sd-status sd-status--{{ summary.status }}" data-status="{{ summary.status }}">{{ summary.get_status_display }}</span>
+                        {% if summary.status == 'completed_accepted' or summary.status == 'completed_rejected' %}
+                        <button type="button" class="sd-link-btn" data-bs-toggle="collapse" data-bs-target="#status-change-form"
+                                aria-expanded="false" aria-controls="status-change-form">
+                            <i class="bi bi-arrow-repeat"></i> Изменить
+                        </button>
                         {% endif %}
                     </div>
-                {% else %}
-                    <p class="text-muted mb-0">
-                        <i class="bi bi-inbox me-2"></i>Предложений пока нет
-                    </p>
-                {% endif %}
-                
-                {% if summary.status == 'ready' %}
-                    <div class="d-grid gap-2">
-                        <button class="btn btn-success" onclick="generateSummaryFile({{ summary.id }})">
-                            <i class="bi bi-file-earmark-excel"></i> Сгенерировать полный Excel
-                        </button>
-                        <button class="btn btn-outline-success" onclick="generateClientSummaryFile({{ summary.id }})">
-                            <i class="bi bi-file-earmark-excel-fill"></i> Сгенерировать клиентский Excel
-                        </button>
+                    {% if summary.status == 'sent' and summary.sent_to_client_at %}
+                    <div class="sd-state-note">
+                        Отправлен в Альянс <b>{% timezone "Europe/Moscow" %}{{ summary.sent_to_client_at|date:"d.m.Y в H:i" }}{% endtimezone %}</b> (МСК)
                     </div>
-                    <div class="form-text mt-2">
-                        <small><i class="bi bi-info-circle"></i> Клиентская версия содержит только данные предложений без технического листа</small>
-                    </div>
-                {% endif %}
-            </div>
-        </div>
+                    {% endif %}
 
-        <!-- Статус и действия -->
-        <div class="card">
-            <div class="card-header">
-                <h6 class="mb-0"><i class="bi bi-gear"></i> Управление статусом</h6>
-            </div>
-            <div class="card-body">
-                <div id="status-blocked-alert" class="alert alert-warning py-2 small{% if not company_status_missing %} d-none{% endif %}">
-                    <i class="bi bi-lock me-1"></i>Статус свода можно изменить после того, как у каждой страховой
-                    компании будет статус. <a href="#company-statuses">Без статуса: <span id="status-blocked-count">{{ company_status_missing|length }}</span></a>
+                    {% if summary.selected_company %}
+                    <div class="deal-result-block mb-3">
+                        <div class="deal-result-block__body">
+                            <div class="deal-result-block__icon">
+                                <i class="bi bi-check-circle-fill"></i>
+                            </div>
+                            <div class="deal-result-block__info">
+                                <div class="deal-result-block__label">Выбранная страховая компания</div>
+                                <div class="deal-result-block__company">{{ summary.selected_company }}</div>
+                                {% if summary.selected_franchise_variant %}
+                                <div class="deal-result-block__variant">{{ summary.get_selected_franchise_variant_display }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% if summary.status == 'completed_accepted' %}
+                        <a href="{% url 'summaries:deal_summary' summary.id %}" class="deal-result-block__btn">
+                            <i class="bi bi-file-earmark-check me-1"></i>Открыть резюме по сделке
+                            <i class="bi bi-chevron-right ms-1"></i>
+                        </a>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+
+                    <div class="collapse{% if summary.status != 'completed_accepted' and summary.status != 'completed_rejected' %} show{% endif %}" id="status-change-form">
+                        <!-- Форма изменения статуса -->
+                        <div class="mb-3">
+                            <label for="status-select" class="form-label">Изменить статус:</label>
+                            <div class="input-group">
+                                <select id="status-select" class="form-select">
+                                    <option value="collecting" {% if summary.status == 'collecting' %}selected{% endif %}>Сбор предложений</option>
+                                    <option value="ready" {% if summary.status == 'ready' %}selected{% endif %}>Готов к отправке</option>
+                                    <option value="sent" {% if summary.status == 'sent' %}selected{% endif %}>Отправлен в Альянс</option>
+                                    <option value="completed_accepted" {% if summary.status == 'completed_accepted' %}selected{% endif %}>Завершен: акцепт/распоряжение</option>
+                                    <option value="completed_rejected" {% if summary.status == 'completed_rejected' %}selected{% endif %}>Завершен: не будет</option>
+                                </select>
+                                <button type="button" class="btn btn-primary" onclick="changeStatus({{ summary.id }})">
+                                    <i class="bi bi-check-lg"></i> Применить
+                                </button>
+                            </div>
+                            <div class="form-text">Выберите новый статус и нажмите "Применить"</div>
+                        </div>
+                
+                        <!-- Поле выбора страховой компании (для статуса "Завершен: акцепт/распоряжение") -->
+                        <div class="mb-3" id="selected-company-container" style="display: none;">
+                            <label for="selected-company-select" class="form-label">
+                                Выбранная страховая компания: <span class="text-danger">*</span>
+                            </label>
+                            <select id="selected-company-select" class="form-select">
+                                <option value="">Выберите страховую компанию</option>
+                                {% for company in summary.get_unique_companies_list %}
+                                    <option value="{{ company }}" {% if summary.selected_company == company %}selected{% endif %}>{{ company }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text text-danger">
+                                <i class="bi bi-exclamation-triangle"></i> 
+                                Обязательно для статуса "Завершен: акцепт/распоряжение"
+                            </div>
+                        </div>
+
+                        <!-- Поле выбора варианта франшизы (только если для выбранной СК доступны оба варианта) -->
+                        <div class="mb-3" id="selected-franchise-variant-container" style="display: none;">
+                            <label for="selected-franchise-variant-select" class="form-label">
+                                Выбранный вариант франшизы: <span class="text-danger">*</span>
+                            </label>
+                            <select id="selected-franchise-variant-select" class="form-select" data-selected="{{ summary.selected_franchise_variant|default_if_none:'' }}">
+                                <option value="">Выберите вариант франшизы</option>
+                            </select>
+                            <div class="form-text text-danger" id="selected-franchise-variant-help" style="display: none;">
+                                <i class="bi bi-exclamation-triangle"></i>
+                                Обязательно только если по выбранной СК доступны оба варианта
+                            </div>
+                        </div>
+
+                        <div class="mb-3" id="deal-summary-note-container" style="display: none;">
+                            <label for="deal-summary-note-textarea" class="form-label">
+                                Примечание к резюме <span class="text-muted">(необязательно)</span>
+                            </label>
+                            <textarea id="deal-summary-note-textarea" class="form-control" rows="4"
+                                      placeholder="Важная деталь для резюме сделки">{{ summary.deal_summary_note }}</textarea>
+                        </div>
+                    </div>
                 </div>
-                <div class="mb-3">
-                    <label class="form-label">Текущий статус:</label>
-                    <div>
-                        <span id="current-status-badge" class="badge {{ summary.status|status_badge_class }} fs-6">
-                            {{ summary.get_status_display }}
+            </div>
+
+            <!-- Ответы компаний -->
+            {% if summary.status == 'collecting' %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="bi bi-upload"></i> Ответы компаний</h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+                        <a href="{% url 'summaries:download_company_response_template' %}"
+                           class="btn btn-outline-secondary btn-sm">
+                            <i class="bi bi-file-earmark-arrow-down"></i>
+                            Скачать актуальный шаблон ответа
+                        </a>
+                        <span class="text-muted small">
+                            Передайте его страховщику: общая территория и ограничения заполняются в ячейке B3.
                         </span>
                     </div>
-                </div>
-                
-                <!-- Форма изменения статуса -->
-                <div class="mb-3">
-                    <label for="status-select" class="form-label">Изменить статус:</label>
-                    <div class="input-group">
-                        <select id="status-select" class="form-select">
-                            <option value="collecting" {% if summary.status == 'collecting' %}selected{% endif %}>Сбор предложений</option>
-                            <option value="ready" {% if summary.status == 'ready' %}selected{% endif %}>Готов к отправке</option>
-                            <option value="sent" {% if summary.status == 'sent' %}selected{% endif %}>Отправлен в Альянс</option>
-                            <option value="completed_accepted" {% if summary.status == 'completed_accepted' %}selected{% endif %}>Завершен: акцепт/распоряжение</option>
-                            <option value="completed_rejected" {% if summary.status == 'completed_rejected' %}selected{% endif %}>Завершен: не будет</option>
-                        </select>
-                        <button type="button" class="btn btn-primary" onclick="changeStatus({{ summary.id }})">
-                            <i class="bi bi-check-lg"></i> Применить
+                    <form id="company-response-form" method="POST" action="{% url 'summaries:upload_multiple_company_responses' summary.pk %}" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label for="company-response-files" class="form-label">Файлы с предложениями</label>
+                            <input type="file" class="form-control" id="company-response-files" 
+                                   name="excel_files" accept=".xlsx" multiple required>
+                            <div class="form-text">
+                                <i class="bi bi-info-circle"></i> 
+                                Выберите один или несколько Excel файлов (.xlsx) с предложениями от страховых компаний.
+                                Максимум 10 файлов, размер каждого до 1MB, общий размер до 10MB.
+                            </div>
+                        </div>
+                    
+                        <!-- Список выбранных файлов -->
+                        <div id="selected-files-list" class="mb-3" style="display: none;">
+                            <h6 class="text-muted">Выбранные файлы:</h6>
+                            <div id="files-container" class="border rounded p-2 bg-light">
+                                <!-- Файлы будут добавлены через JavaScript -->
+                            </div>
+                        </div>
+                    
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-upload"></i> Загрузить предложения
                         </button>
-                    </div>
-                    <div class="form-text">Выберите новый статус и нажмите "Применить"</div>
-                </div>
+                    </form>
                 
-                <!-- Поле выбора страховой компании (для статуса "Завершен: акцепт/распоряжение") -->
-                <div class="mb-3" id="selected-company-container" style="display: none;">
-                    <label for="selected-company-select" class="form-label">
-                        Выбранная страховая компания: <span class="text-danger">*</span>
-                    </label>
-                    <select id="selected-company-select" class="form-select">
-                        <option value="">Выберите страховую компанию</option>
-                        {% for company in summary.get_unique_companies_list %}
-                            <option value="{{ company }}" {% if summary.selected_company == company %}selected{% endif %}>{{ company }}</option>
+                    <!-- Индикатор загрузки -->
+                    <div id="upload-progress" class="mt-3" style="display: none;">
+                        <div class="progress mb-2">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                 role="progressbar" style="width: 100%"></div>
+                        </div>
+                        <small class="text-muted">Обработка файлов...</small>
+                    </div>
+
+                    <!-- Результаты загрузки -->
+                    <div id="upload-results" class="mt-3" style="display: none;">
+                        <!-- Сообщения будут добавлены через JavaScript -->
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if tariff_hint %}
+            <!-- Ориентир по тарифу (tariffs_analytics_2026_09, шаг 3) -->
+            <div class="card mb-4 tariff-hint">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="bi bi-percent"></i> Ориентир по тарифу</h6>
+                    <div class="small text-muted">
+                        {% if tariff_hint.level == 'group' %}{{ tariff_hint.label }} · {{ tariff_hint.requests }} заявок в истории
+                        {% else %}{{ tariff_hint.class_label }} · {{ tariff_hint.requests }} заявок{% if tariff_hint.group %} (по «{{ tariff_hint.group }}» пока мало данных: {{ tariff_hint.group_requests }}){% endif %}{% endif %}
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex align-items-baseline gap-2 mb-1">
+                        <span class="fs-4 fw-bold">{{ tariff_hint.median|floatformat:2 }}%</span>
+                        <span class="text-muted small">медиана · обычно {{ tariff_hint.p25|floatformat:2 }}–{{ tariff_hint.p75|floatformat:2 }}%</span>
+                    </div>
+                    {% if tariff_hint.cheapest %}
+                    <div class="small text-muted mt-2 mb-1">Дешевле других бывали:</div>
+                    <ul class="list-unstyled mb-0 small tariff-hint-list">
+                        {% for row in tariff_hint.cheapest %}
+                        <li class="d-flex justify-content-between"><span>{{ row.company }}</span><span class="text-nowrap">{{ row.median|floatformat:2 }}% <span class="text-muted">· {{ row.offers }} предл.</span></span></li>
                         {% endfor %}
-                    </select>
-                    <div class="form-text text-danger">
-                        <i class="bi bi-exclamation-triangle"></i> 
-                        Обязательно для статуса "Завершен: акцепт/распоряжение"
-                    </div>
-                </div>
-
-                <!-- Поле выбора варианта франшизы (только если для выбранной СК доступны оба варианта) -->
-                <div class="mb-3" id="selected-franchise-variant-container" style="display: none;">
-                    <label for="selected-franchise-variant-select" class="form-label">
-                        Выбранный вариант франшизы: <span class="text-danger">*</span>
-                    </label>
-                    <select id="selected-franchise-variant-select" class="form-select" data-selected="{{ summary.selected_franchise_variant|default_if_none:'' }}">
-                        <option value="">Выберите вариант франшизы</option>
-                    </select>
-                    <div class="form-text text-danger" id="selected-franchise-variant-help" style="display: none;">
-                        <i class="bi bi-exclamation-triangle"></i>
-                        Обязательно только если по выбранной СК доступны оба варианта
-                    </div>
-                </div>
-
-                <div class="mb-3" id="deal-summary-note-container" style="display: none;">
-                    <label for="deal-summary-note-textarea" class="form-label">
-                        Примечание к резюме <span class="text-muted">(необязательно)</span>
-                    </label>
-                    <textarea id="deal-summary-note-textarea" class="form-control" rows="4"
-                              placeholder="Важная деталь для резюме сделки">{{ summary.deal_summary_note }}</textarea>
-                </div>
-                
-                {% if summary.selected_company %}
-                <div class="deal-result-block mb-3">
-                    <div class="deal-result-block__body">
-                        <div class="deal-result-block__icon">
-                            <i class="bi bi-check-circle-fill"></i>
-                        </div>
-                        <div class="deal-result-block__info">
-                            <div class="deal-result-block__label">Выбранная страховая компания</div>
-                            <div class="deal-result-block__company">{{ summary.selected_company }}</div>
-                            {% if summary.selected_franchise_variant %}
-                            <div class="deal-result-block__variant">{{ summary.get_selected_franchise_variant_display }}</div>
-                            {% endif %}
-                        </div>
-                    </div>
-                    {% if summary.status == 'completed_accepted' %}
-                    <a href="{% url 'summaries:deal_summary' summary.id %}" class="deal-result-block__btn">
-                        <i class="bi bi-file-earmark-check me-1"></i>Открыть резюме по сделке
-                        <i class="bi bi-chevron-right ms-1"></i>
-                    </a>
+                    </ul>
+                    {% else %}
+                    <div class="small text-muted">Недостаточно данных, чтобы сравнить страховые.</div>
                     {% endif %}
+                    <div class="small text-muted mt-2">Тариф 1-го года без франшизы по прошлым предложениям — ориентир, а не прогноз.
+                        {% if can_open_analytics and tariff_hint.level == 'group' %}<a href="{% url 'summaries:analytics_tariff_group' tariff_hint.dimension tariff_hint.group %}">Подробнее</a>{% elif can_open_analytics %}<a href="{% url 'summaries:analytics_tariffs' %}">Подробнее</a>{% endif %}
+                    </div>
                 </div>
-                {% endif %}
-                
-
-                
-                {% if summary.status == 'sent' %}
-                    <div class="alert alert-info">
-                        <i class="bi bi-info-circle"></i>
-                        Свод отправлен в Альянс {% timezone "Europe/Moscow" %}{{ summary.sent_to_client_at|date:"d.m.Y в H:i" }}{% endtimezone %} (МСК)
-                    </div>
-                {% endif %}
             </div>
-        </div>
+            {% endif %}
 
-        <!-- Ответы компаний -->
-        {% if summary.status == 'collecting' %}
-        <div class="card mt-4">
-            <div class="card-header">
-                <h6 class="mb-0"><i class="bi bi-upload"></i> Ответы компаний</h6>
-            </div>
-            <div class="card-body">
-                <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
-                    <a href="{% url 'summaries:download_company_response_template' %}"
-                       class="btn btn-outline-secondary btn-sm">
-                        <i class="bi bi-file-earmark-arrow-down"></i>
-                        Скачать актуальный шаблон ответа
-                    </a>
-                    <span class="text-muted small">
-                        Передайте его страховщику: общая территория и ограничения заполняются в ячейке B3.
-                    </span>
-                </div>
-                <form id="company-response-form" method="POST" action="{% url 'summaries:upload_multiple_company_responses' summary.pk %}" enctype="multipart/form-data">
-                    {% csrf_token %}
-                    <div class="mb-3">
-                        <label for="company-response-files" class="form-label">Файлы с предложениями</label>
-                        <input type="file" class="form-control" id="company-response-files" 
-                               name="excel_files" accept=".xlsx" multiple required>
-                        <div class="form-text">
-                            <i class="bi bi-info-circle"></i> 
-                            Выберите один или несколько Excel файлов (.xlsx) с предложениями от страховых компаний.
-                            Максимум 10 файлов, размер каждого до 1MB, общий размер до 10MB.
-                        </div>
-                    </div>
-                    
-                    <!-- Список выбранных файлов -->
-                    <div id="selected-files-list" class="mb-3" style="display: none;">
-                        <h6 class="text-muted">Выбранные файлы:</h6>
-                        <div id="files-container" class="border rounded p-2 bg-light">
-                            <!-- Файлы будут добавлены через JavaScript -->
-                        </div>
-                    </div>
-                    
-                    <button type="submit" class="btn btn-primary">
-                        <i class="bi bi-upload"></i> Загрузить предложения
+            <!-- Примечание к своду -->
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0"><i class="bi bi-sticky-fill text-warning me-1"></i> Общее примечание</h6>
+                    <button type="button" class="btn btn-outline-primary btn-sm" onclick="toggleNotesEdit()">
+                        <i class="bi bi-pencil"></i>
                     </button>
-                </form>
-                
-                <!-- Индикатор загрузки -->
-                <div id="upload-progress" class="mt-3" style="display: none;">
-                    <div class="progress mb-2">
-                        <div class="progress-bar progress-bar-striped progress-bar-animated" 
-                             role="progressbar" style="width: 100%"></div>
-                    </div>
-                    <small class="text-muted">Обработка файлов...</small>
                 </div>
-
-                <!-- Результаты загрузки -->
-                <div id="upload-results" class="mt-3" style="display: none;">
-                    <!-- Сообщения будут добавлены через JavaScript -->
+                <div class="card-body">
+                    <!-- Отображение примечания -->
+                    <div id="notes-display">
+                        {% if summary.notes %}
+                            <div class="sd-note">{{ summary.notes|linebreaks }}</div>
+                        {% else %}
+                            <p class="text-muted mb-0">
+                                <i class="bi bi-plus-circle me-2"></i>
+                                Примечание не добавлено. Нажмите "Редактировать" для добавления.
+                            </p>
+                        {% endif %}
+                    </div>
+                
+                    <!-- Форма редактирования примечания -->
+                    <div id="notes-edit" style="display: none;">
+                        <form id="notes-form">
+                            {% csrf_token %}
+                            <div class="mb-3">
+                                <textarea class="form-control" id="notes-textarea" name="notes" rows="4" 
+                                          placeholder="Введите примечание к своду...">{{ summary.notes }}</textarea>
+                                <div class="form-text">
+                                    {% if summary.company_statuses_required %}
+                                    Это общее примечание ко всему своду, например данные об ОСАГО. Отказы СК отмечайте статусом
+                                    в блоке «Статусы страховых компаний» — в Excel-свод они выводятся автоматически.
+                                    {% else %}
+                                    Это общее примечание ко всему своду. Сюда можно внести данные об ОСАГО и отказах СК от страхования
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button type="submit" class="btn btn-success btn-sm">
+                                    <i class="bi bi-check-lg"></i> Сохранить
+                                </button>
+                                <button type="button" class="btn btn-secondary btn-sm" onclick="cancelNotesEdit()">
+                                    <i class="bi bi-x-lg"></i> Отмена
+                                </button>
+                            </div>
+                        </form>
+                    </div>
                 </div>
             </div>
         </div>
-        {% endif %}
     </div>
 </div>
 <div class="d-none" id="summary-analytics-faq">
@@ -730,49 +704,12 @@
         <li><strong>СК: ... +N</strong> - сокращенный список компаний; `+N` показывает сколько СК не поместилось в превью.</li>
     </ul>
 </div>
+</div>
 {{ company_variant_requirements|json_script:"company-variant-requirements-data" }}
 {% endblock %}
 
 {% block extra_css %}
 <style>
-/* Offers hero header */
-.summary-offers-hero {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    padding: 1rem 1.25rem;
-    background: linear-gradient(135deg, #f0f4ff 0%, #f8faff 100%);
-    border-bottom: 1px solid var(--app-border);
-    border-left: 4px solid #4f6ef7;
-    border-radius: calc(var(--app-radius-md) - 1px) calc(var(--app-radius-md) - 1px) 0 0;
-}
-
-.summary-offers-hero__left {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-}
-
-.summary-offers-hero__icon {
-    font-size: 1.8rem;
-    color: #4f6ef7;
-    flex-shrink: 0;
-}
-
-.summary-offers-hero__title {
-    font-size: 1.05rem;
-    font-weight: 800;
-    color: var(--app-text);
-    line-height: 1.2;
-}
-
-.summary-offers-hero__sub {
-    font-size: 0.8rem;
-    color: var(--app-muted);
-    margin-top: 0.1rem;
-}
-
 .summary-faq-link {
     padding: 0;
     color: var(--app-muted);
@@ -812,10 +749,9 @@
 
 .summary-mini-kpi {
     min-width: 0;
-    padding: 0.55rem 0.45rem;
-    border: 1px solid var(--app-border);
-    border-radius: 6px;
-    background: #f8f9fb;
+    padding: 0.6rem 0.45rem;
+    border-radius: 12px;
+    background: var(--sd-soft);
     text-align: center;
 }
 
@@ -853,7 +789,7 @@
     gap: 0.75rem;
     align-items: baseline;
     padding-bottom: 0.35rem;
-    border-bottom: 1px dashed #dfe3ea;
+    border-bottom: 1px solid var(--sd-line);
     font-size: 0.86rem;
 }
 
@@ -884,11 +820,9 @@
 }
 
 .summary-selected-mini {
-    border: 1px solid #c7e7cf;
-    border-left: 4px solid #198754;
-    border-radius: 6px;
-    background: #f4fbf6;
-    padding: 0.65rem 0.75rem;
+    border-radius: 12px;
+    background: #f4faf7;
+    padding: 0.7rem 0.8rem;
 }
 
 .summary-selected-mini__top,
@@ -915,20 +849,16 @@
 }
 
 .summary-company-preview {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.3rem;
     font-size: 0.82rem;
-    line-height: 1.8;
 }
 
 .summary-company-preview__label {
     color: var(--app-muted);
     margin-right: 0.25rem;
-}
-
-/* req-hero inside status-card: override gradient to respect status border */
-.status-card .req-hero {
-    margin: -1.25rem -1.25rem 1.25rem;
-    border-radius: 0;
-    border-left: none;
 }
 
 @media (max-width: 576px) {
@@ -944,13 +874,9 @@
 }
 
 /* Color coding for franchise variants */
-.franchise-variant-1 {
-    color: #0f5132 !important;
-    font-weight: 600;
-}
-
+.franchise-variant-1,
 .franchise-variant-2 {
-    color: #052c65 !important;
+    color: var(--sd-ink) !important;
     font-weight: 600;
 }
 
@@ -982,20 +908,26 @@
     padding-bottom: 0.2rem;
     text-align: center;
 }
-.og-table .og-head-groups .og-v1 { color: #0f5132; box-shadow: inset 0 -2px 0 rgba(15, 81, 50, 0.35); }
-.og-table .og-head-groups .og-v2 { color: #052c65; box-shadow: inset 0 -2px 0 rgba(5, 44, 101, 0.35); }
+.og-table .og-head-groups .og-v1,
+.og-table .og-head-groups .og-v2 { color: var(--sd-muted); box-shadow: inset 0 -1px 0 #d5dde6; }
 .og-table .og-num { text-align: right; white-space: nowrap; }
 .og-table .og-year { text-align: left; white-space: nowrap; width: 5.5rem; }
 .og-table .og-act { width: 2.5rem; text-align: right; }
 .og-company-row td {
-    padding: 1rem 0.6rem 0.35rem;
-    border-top: 1px solid #e5eaf0;
+    padding: 1.1rem 0.6rem 0.35rem;
+    border-top: 1px solid var(--sd-line);
 }
+.og-company--best .og-company-row td { box-shadow: inset 3px 0 0 #3fae78; }
+.og-company--selected .og-company-row td { box-shadow: inset 3px 0 0 var(--app-primary); }
 .og-company:first-of-type .og-company-row td { border-top: 0; padding-top: 0.6rem; }
 .og-company-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 0.75rem; }
-.og-company-name { font-size: 1.02rem; font-weight: 700; color: #0f172a; }
-.og-company-meta { font-size: 0.85rem; color: #475569; }
-.og-notes { margin-top: 0.3rem; font-size: 0.82rem; color: #8a5a00; }
+.og-company-name { font-size: 1.02rem; font-weight: 700; color: var(--sd-ink); }
+.og-company-meta { font-size: 0.8rem; color: var(--sd-muted); }
+.og-company-meta strong { color: var(--sd-ink-2) !important; }
+.og-company-total { margin-left: auto; display: inline-flex; align-items: baseline; gap: 0.6rem; white-space: nowrap; }
+.og-company-total small { font-size: 0.72rem; font-weight: 600; color: var(--sd-muted-2); }
+.og-company-total b { font-size: 1.06rem; font-weight: 800; color: var(--sd-ink); letter-spacing: -0.01em; }
+.og-notes { margin-top: 0.3rem; font-size: 0.8rem; color: var(--sd-muted); }
 .og-notes .bi { margin-right: 0.2rem; }
 .og-note {
     display: inline-block;
@@ -1141,19 +1073,6 @@
 }
 
 /* Notes section styles */
-#notes-display .alert {
-    border-left: 4px solid #0dcaf0;
-    background-color: #e7f3ff;
-    border-color: #b8daff;
-    font-size: 0.95rem;
-    line-height: 1.5;
-}
-
-#notes-display .alert .bi-info-circle {
-    color: #0dcaf0;
-    font-size: 1rem;
-}
-
 #notes-display .text-muted {
     font-style: italic;
 }
@@ -1182,11 +1101,6 @@
 
 /* Responsive styles for notes section */
 @media (max-width: 768px) {
-    #notes-display .alert {
-        font-size: 0.9rem;
-        padding: 0.75rem;
-    }
-    
     #notes-edit textarea {
         font-size: 0.9rem;
     }
@@ -1352,21 +1266,135 @@
     }
 }
 
-/* Статусы страховых компаний (этап 2) */
-.company-status-table td { padding-top: .3rem; padding-bottom: .3rem; }
-.company-status-table .cs-name { font-weight: 500; }
-.company-status-table .cs-undefined-mark { display: none; margin-left: .4rem; font-size: .75rem; color: #b42318; font-weight: 400; }
-.company-status-table tr.cs-undefined { background: #fff8e6; }
+/* Статусы страховых компаний (этап 2): две колонки, компактный переключатель */
+.company-status-table tbody { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 1.75rem; }
+.company-status-table tr { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; border-bottom: 1px solid var(--sd-line); }
+.company-status-table td { padding: 0.45rem 0 !important; border: 0; background: transparent !important; box-shadow: none !important; }
+.company-status-table .cs-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.85rem; font-weight: 500; color: var(--sd-ink-2); }
+.company-status-table .cs-undefined-mark { display: none; margin-left: 0.35rem; font-size: 0.7rem; color: var(--sd-muted-2); font-weight: 400; }
 .company-status-table tr.cs-undefined .cs-undefined-mark { display: inline; }
-.company-status-table .btn { border: 1px solid #ced4da; color: #495057; background: #fff; }
-.company-status-table .btn:hover { background: #f1f3f5; }
-.company-status-table .cs-btn-not_requested.active { background: #6c757d; border-color: #6c757d; color: #fff; }
-.company-status-table .cs-btn-requested.active { background: #0d6efd; border-color: #0d6efd; color: #fff; }
-.company-status-table .cs-btn-declined.active { background: #dc3545; border-color: #dc3545; color: #fff; }
-.declined-block { margin-top: .75rem; padding: .5rem .75rem; border-left: 4px solid #dc3545; background: #fdf1f1; border-radius: 4px; }
-@media (max-width: 575.98px) {
-    .company-status-table .btn-group { display: flex; flex-wrap: wrap; justify-content: flex-end; }
-    .company-status-table .btn { font-size: .72rem; padding: .15rem .35rem; }
+.company-status-table td.text-end { flex-shrink: 0; }
+.company-status-table .btn-group { gap: 2px; padding: 2px; border-radius: 8px; background: #f1f4f8; }
+.company-status-table .btn { border: 0 !important; border-radius: 6px !important; padding: 0.2rem 0.45rem; font-size: 0.7rem; font-weight: 600; white-space: nowrap; color: var(--sd-muted); background: transparent; box-shadow: none !important; }
+.company-status-table .btn:hover { color: var(--sd-ink); background: rgba(255, 255, 255, 0.7); }
+.company-status-table .btn.active { background: #fff; box-shadow: 0 1px 2px rgba(15, 27, 45, 0.12) !important; }
+.company-status-table .cs-btn-not_requested.active { color: var(--sd-ink-2); }
+.company-status-table .cs-btn-requested.active { color: var(--app-primary); }
+.company-status-table .cs-btn-declined.active { color: #b4342d; }
+.declined-block { margin-top: 0.9rem; padding: 0.55rem 0.8rem; background: #fbf4f4; border-radius: 12px; color: #8f2c26; font-size: 0.85rem; }
+@media (max-width: 991.98px) {
+    .company-status-table tbody { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ─── Карточка свода: единый стиль (редизайн 2026-09) ─── */
+.sd-page {
+    --sd-ink: #0f1b2d;
+    --sd-ink-2: #334155;
+    --sd-muted: #6b7a90;
+    --sd-muted-2: #9aa6b6;
+    --sd-line: #edf1f5;
+    --sd-border: #e6ecf1;
+    --sd-soft: #f7f9fb;
+    font-feature-settings: "tnum" 1;
+}
+
+/* Шапка */
+.sd-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; margin: 0.25rem 0 1.1rem; }
+.sd-head__main { min-width: 0; }
+.sd-back { display: inline-flex; align-items: center; gap: 0.35rem; margin-bottom: 0.45rem; font-size: 0.8125rem; font-weight: 600; color: var(--sd-muted); text-decoration: none; }
+.sd-back:hover { color: var(--app-primary); }
+.sd-head__title-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.9rem; }
+.sd-title { margin: 0; font-family: 'Space Grotesk', 'Manrope', sans-serif; font-size: 1.85rem; font-weight: 700; letter-spacing: -0.02em; color: var(--sd-ink); }
+.sd-head__sub { margin-top: 0.35rem; font-size: 0.93rem; color: var(--sd-muted); }
+.sd-head__sub b { font-weight: 600; color: var(--sd-ink-2); }
+.sd-head__action { flex-shrink: 0; }
+
+/* Статус свода: мягкий бейдж с точкой, как в списке сводов */
+.sd-status { display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.3rem 0.75rem 0.3rem 0.62rem; border-radius: 999px; font-size: 0.8rem; font-weight: 600; line-height: 1.3; white-space: nowrap; background: #f1f4f8; color: #4a5a70; }
+.sd-status::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.sd-status--collecting { background: #eaf2fe; color: #1d5fbf; }
+.sd-status--ready { background: #e6f3f1; color: #0b6b66; }
+.sd-status--sent { background: #fdf3e1; color: #98600a; }
+.sd-status--completed_accepted { background: #e9f6ef; color: #1d7047; }
+.sd-status--completed_rejected { background: #fbeeee; color: #b4342d; }
+
+/* Карточки */
+.sd-page .card { border: 1px solid var(--sd-border); border-radius: 18px; overflow: hidden; background: #fff; box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 12px 32px -12px rgba(16, 24, 40, 0.1); }
+.sd-page .card:hover { transform: none; }
+.sd-page .card-header { padding: 0.85rem 1.25rem; background: #fff; border-bottom: 1px solid var(--sd-line); }
+.sd-page .card-header h5,
+.sd-page .card-header h6 { font-size: 0.94rem; font-weight: 700; letter-spacing: -0.005em; color: var(--sd-ink); }
+.sd-page .card-header h6 .bi { margin-right: 0.2rem; color: var(--sd-muted-2); }
+.sd-page .card-body { padding: 1rem 1.25rem; }
+.sd-card-header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+.sd-card-sub { margin-top: 0.1rem; font-size: 0.78rem; color: var(--sd-muted); }
+
+/* Информация о заявке */
+.sd-label,
+.sd-kv dt { margin-bottom: 0.25rem; font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--sd-muted-2); }
+.sd-object { margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 1px solid var(--sd-line); }
+.sd-object__line { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; font-size: 1.06rem; font-weight: 700; letter-spacing: -0.01em; color: var(--sd-ink); }
+.sd-kv { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem 1.25rem; margin: 0; }
+.sd-kv dd { margin: 0; font-size: 0.9rem; color: var(--sd-ink); overflow-wrap: anywhere; }
+.sd-kv dd a { font-weight: 600; color: var(--app-primary); text-decoration: none; }
+.sd-kv dd a:hover { text-decoration: underline; }
+
+/* Чипы и метки */
+.sd-chip { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.15rem 0.55rem; border-radius: 999px; background: #f1f4f8; color: #4a5a70; font-size: 0.72rem; font-weight: 600; letter-spacing: normal; text-transform: none; white-space: nowrap; }
+.sd-chip--more { background: transparent; box-shadow: inset 0 0 0 1px var(--sd-border); }
+.sd-chip--offered { background: #e9f6ef; color: #1d7047; }
+.sd-tag { padding: 0.1rem 0.55rem; border-radius: 999px; font-size: 0.69rem; font-weight: 700; }
+.sd-tag--best { background: #e9f6ef; color: #1d7047; }
+.sd-tag--selected { background: var(--app-primary); color: #fff; }
+.sd-tag--warn { background: #fdf3e1; color: #8a5a00; }
+
+/* Правая колонка: закреплена при прокрутке */
+@media (min-width: 992px) {
+    .sd-aside { position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow-y: auto; scrollbar-width: thin; padding-bottom: 0.25rem; }
+}
+
+/* Управление статусом */
+.sd-state { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; }
+.sd-state-note { margin: -0.25rem 0 0.9rem; font-size: 0.82rem; color: var(--sd-muted); }
+.sd-state-note b { font-weight: 600; color: var(--sd-ink-2); }
+.sd-link-btn { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0; border: 0; background: none; font-size: 0.82rem; font-weight: 600; color: var(--app-primary); }
+.sd-link-btn:hover { text-decoration: underline; }
+.sd-page .deal-result-block { border: 0; border-radius: 14px; background: #f4faf7; }
+.sd-page .alert-warning { border: 0; border-radius: 12px; background: #fdf6e7; color: #7a5410; }
+.sd-page .alert-light { border: 0 !important; border-radius: 10px; background: var(--sd-soft); color: var(--sd-muted); }
+
+/* Примечание — «стикер» */
+.sd-note { padding: 0.75rem 0.9rem; border-radius: 12px; background: #fdf8e8; color: #5c4a12; font-size: 0.9rem; line-height: 1.5; }
+.sd-note p:last-child { margin-bottom: 0; }
+
+/* Шкала этапов: тоньше, подписи без переноса посреди слова; фазы «Заявка» и «Свод» различаются фоном */
+.sd-progress .status-progress { margin-bottom: 1.1rem !important; }
+.sd-progress .status-progress .card-body { padding: 0.75rem 1.25rem 0.6rem !important; }
+.sd-progress .sp-phases { margin-bottom: 0.35rem; }
+.sd-progress .sp-phase-label { padding: 0.2rem 0; border-radius: 8px; }
+.sd-progress .sp-phase-label--request { border-right: 0; margin-right: 6px; background: var(--sd-soft); color: var(--sd-muted-2); }
+.sd-progress .sp-phase-label--summary { background: #eef6f5; color: var(--app-primary); }
+.sd-progress .sp-dot { width: 24px; height: 24px; font-size: 0.7rem; margin-bottom: 0.3rem; }
+.sd-progress .sp-track-bg,
+.sd-progress .sp-track-fill { top: 11px; height: 2px; }
+.sd-progress .sp-track-fill { background: #b9d9d5; }
+.sd-progress .sp-phase-marker { top: 3px; height: 18px; }
+.sd-progress .sp-step--done .sp-dot { background: #d5ebe8; border-color: #d5ebe8; color: #0b6b66; }
+.sd-progress .sp-step--done.sp-step--rejected .sp-dot { background: #f6dada; border-color: #f6dada; color: #b4342d; }
+.sd-progress .sp-step--active .sp-dot { transform: none; }
+.sd-progress .sp-step--pending .sp-dot { background: #fff; border-color: #dfe5ec; color: #b8c2ce; }
+.sd-progress .sp-label { max-width: none; white-space: nowrap; font-size: 0.7rem; color: var(--sd-muted-2); }
+.sd-progress .sp-step--active .sp-label { color: var(--sd-ink); }
+
+@media (max-width: 991.98px) {
+    .sd-kv { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 767.98px) {
+    .sd-head { flex-direction: column; align-items: stretch; }
+    .sd-title { font-size: 1.45rem; }
+    .og-company-total { margin-left: 0; }
+    .sd-progress .sp-label { white-space: normal; font-size: 0.6rem; }
 }
 </style>
 {% endblock %}
@@ -2399,30 +2427,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (statusSelect) {
         const currentBadge = document.getElementById('current-status-badge');
         if (currentBadge) {
-            // Извлекаем текущий статус из класса бейджа
-            const badgeClasses = currentBadge.className;
-            let currentStatus = 'collecting'; // по умолчанию
-            
-            if (badgeClasses.includes('bg-success')) {
-                // Only 'completed_accepted' uses success color now
-                currentStatus = 'completed_accepted';
-            } else if (badgeClasses.includes('bg-danger')) {
-                currentStatus = 'completed_rejected';
-            } else if (badgeClasses.includes('bg-secondary')) {
-                // Could be 'sent' or 'completed' - check text content
-                const statusText = currentBadge.textContent.trim();
-                if (statusText.includes('Отправлен') || statusText.includes('Альянс')) {
-                    currentStatus = 'sent';
-                } else {
-                    currentStatus = 'completed'; // fallback for old completed status
-                }
-            } else if (badgeClasses.includes('bg-info')) {
-                currentStatus = 'ready';
-            } else if (badgeClasses.includes('bg-warning')) {
-                currentStatus = 'collecting';
-            }
-            
-            statusSelect.dataset.currentStatus = currentStatus;
+            statusSelect.dataset.currentStatus = currentBadge.dataset.status || 'collecting';
         }
     }
     
@@ -3118,29 +3123,8 @@ function quickStatusChange(summaryId, newStatus) {
 function updateStatusBadge(status, statusDisplay) {
     const badge = document.getElementById('current-status-badge');
     if (badge) {
-        // Удаляем все классы цветов и текста
-        badge.classList.remove('bg-success', 'bg-info', 'bg-warning', 'bg-secondary', 'bg-danger', 'text-dark');
-        
-        // Добавляем соответствующий класс цвета и текста
-        switch(status) {
-            case 'completed_accepted':
-                badge.classList.add('bg-success');
-                break;
-            case 'completed_rejected':
-                badge.classList.add('bg-danger');
-                break;
-            case 'sent':
-                badge.classList.add('bg-secondary');
-                break;
-            case 'ready':
-                badge.classList.add('bg-info', 'text-dark');
-                break;
-            case 'collecting':
-                badge.classList.add('bg-warning', 'text-dark');
-                break;
-            default:
-                badge.classList.add('bg-secondary');
-        }
+        badge.className = `sd-status sd-status--${status}`;
+        badge.dataset.status = status;
         
         // Обновляем текст
         badge.textContent = statusDisplay;
@@ -3304,10 +3288,7 @@ function updateNotesDisplay(notes) {
         // Заменяем переносы строк на <br> для отображения
         const formattedNotes = notes.replace(/\n/g, '<br>');
         displayDiv.innerHTML = `
-            <div class="alert alert-info mb-0">
-                <i class="bi bi-info-circle me-2"></i>
-                ${formattedNotes}
-            </div>
+            <div class="sd-note">${formattedNotes}</div>
         `;
     } else {
         displayDiv.innerHTML = `
@@ -3391,30 +3372,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (statusSelect) {
         const currentBadge = document.getElementById('current-status-badge');
         if (currentBadge) {
-            // Извлекаем текущий статус из класса бейджа
-            const badgeClasses = currentBadge.className;
-            let currentStatus = 'collecting'; // по умолчанию
-            
-            if (badgeClasses.includes('bg-success')) {
-                // Only 'completed_accepted' uses success color now
-                currentStatus = 'completed_accepted';
-            } else if (badgeClasses.includes('bg-danger')) {
-                currentStatus = 'completed_rejected';
-            } else if (badgeClasses.includes('bg-secondary')) {
-                // Could be 'sent' or 'completed' - check text content
-                const statusText = currentBadge.textContent.trim();
-                if (statusText.includes('Отправлен') || statusText.includes('Альянс')) {
-                    currentStatus = 'sent';
-                } else {
-                    currentStatus = 'completed'; // fallback for old completed status
-                }
-            } else if (badgeClasses.includes('bg-info')) {
-                currentStatus = 'ready';
-            } else if (badgeClasses.includes('bg-warning')) {
-                currentStatus = 'collecting';
-            }
-            
-            statusSelect.dataset.currentStatus = currentStatus;
+            statusSelect.dataset.currentStatus = currentBadge.dataset.status || 'collecting';
         }
         
         // Добавляем обработчик изменения статуса для показа/скрытия поля выбора компании

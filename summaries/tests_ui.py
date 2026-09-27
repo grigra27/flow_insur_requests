@@ -163,14 +163,14 @@ class TestUIElements(TestCase):
         self.assertEqual(response.status_code, 200)
         
         # Check page structure
-        self.assertContains(response, '<h1>')
+        self.assertContains(response, '<h1 class="sd-title">')
         self.assertContains(response, 'Свод к')
         
         # Check request information card
         self.assertContains(response, 'Информация о заявке')
         self.assertContains(response, 'UI Test Client')
         self.assertContains(response, 'КАСКО')
-        self.assertContains(response, 'Год выпуска:')
+        self.assertContains(response, '<dt>Год выпуска</dt>')
         
         # Check offers section
         self.assertContains(response, 'Предложения страховщиков')

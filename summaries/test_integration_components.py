@@ -195,9 +195,8 @@ class SummariesUIIntegrationTest(TestCase):
         self.assertContains(response, 'franchise-variant-2')
         self.assertContains(response, 'og-company-meta')  # итог — в заголовке компании (редизайн 2026-09)
         
-        # Проверяем CSS стили в шаблоне
-        self.assertContains(response, 'color: #0f5132')  # Темно-зеленый для варианта 1
-        self.assertContains(response, 'color: #052c65')  # Темно-синий для варианта 2
+        # Цифры обоих вариантов — основным цветом текста, без раскраски (редизайн карточки 2026-09)
+        self.assertContains(response, 'color: var(--sd-ink) !important')
         
         # Проверяем применение классов к соответствующим элементам
         self.assertContains(response, 'class="franchise-variant-1"')
@@ -249,7 +248,8 @@ class SummariesUIIntegrationTest(TestCase):
         self.assertEqual(response.status_code, 200)
         
         # Итог многолетнего предложения — в заголовке компании (редизайн 2026-09)
-        self.assertContains(response, 'итого <strong class="franchise-variant-1">102')
+        self.assertContains(response, '<small>итого за срок</small>')
+        self.assertContains(response, '<b>102 000 ₽</b>')
         
         # Проверяем расчет итоговых сумм
         company_totals = self.summary.get_company_totals()
@@ -284,8 +284,7 @@ class SummariesUIIntegrationTest(TestCase):
         mobile_css = response.content.decode()
         self.assertIn('franchise-variant-1', mobile_css)
         self.assertIn('franchise-variant-2', mobile_css)
-        self.assertIn('color: #0f5132 !important', mobile_css)
-        self.assertIn('color: #052c65 !important', mobile_css)
+        self.assertIn('color: var(--sd-ink) !important', mobile_css)
 
     def test_form_validation_integration(self):
         """

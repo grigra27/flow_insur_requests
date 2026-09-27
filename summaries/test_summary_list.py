@@ -124,3 +124,66 @@ class SummaryListRowInfoTests(TestCase):
             self.client.get(reverse('summaries:summary_list'))
 
         self.assertEqual(len(three_rows.captured_queries), len(six_rows.captured_queries))
+
+
+class SummaryDetailRedesignTests(TestCase):
+    """Карточка свода: «лучшее» и «выбрана» в таблице предложений, статус для JS, шкала этапов."""
+
+    def setUp(self):
+        admin_group, _ = Group.objects.get_or_create(name='Администраторы')
+        self.user = User.objects.create_user(username='summary_detail_admin', password='testpass123')
+        self.user.groups.add(admin_group)
+        self.client.login(username='summary_detail_admin', password='testpass123')
+        request_obj = InsuranceRequest.objects.create(
+            created_by=self.user,
+            client_name='ООО "Клиент"',
+            inn='1234567890',
+            dfa_number='ТС-1',
+            branch='Москва',
+            status='emails_sent',
+        )
+        self.summary = InsuranceSummary.objects.create(
+            request=request_obj,
+            status='completed_accepted',
+            selected_company='ВСК',
+            selected_franchise_variant=1,
+        )
+        for company, premiums in {'Альфа': ('100000.00', '100000.00'), 'Абсолют': ('120000.00', '60000.00'),
+                                  'ВСК': ('110000.00', '85000.00')}.items():
+            for year, premium in enumerate(premiums, start=1):
+                InsuranceOffer.objects.create(
+                    summary=self.summary,
+                    company_name=company,
+                    insurance_year=year,
+                    insurance_sum=Decimal('1000000.00'),
+                    franchise_1=Decimal('0'),
+                    premium_with_franchise_1=Decimal(premium),
+                )
+
+    def test_offer_groups_mark_best_total_and_selected_company(self):
+        response = self.client.get(reverse('summaries:summary_detail', args=[self.summary.pk]))
+
+        groups = {group['name']: group for group in response.context['offer_groups']}
+        self.assertTrue(groups['Абсолют']['is_best'])
+        self.assertFalse(groups['Альфа']['is_best'])
+        self.assertTrue(groups['ВСК']['is_selected'])
+        self.assertFalse(groups['Абсолют']['is_selected'])
+        self.assertContains(response, 'og-company--best')
+        self.assertContains(response, 'og-company--selected')
+        self.assertContains(response, 'итого за срок')
+
+    def test_current_status_is_exposed_for_status_form(self):
+        response = self.client.get(reverse('summaries:summary_detail', args=[self.summary.pk]))
+
+        self.assertContains(response, 'id="current-status-badge" class="sd-status sd-status--completed_accepted" data-status="completed_accepted"')
+        # у завершённого свода форма смены статуса свёрнута
+        self.assertContains(response, '<div class="collapse" id="status-change-form">')
+
+    def test_progress_fill_width_is_not_localized(self):
+        self.summary.status = 'sent'
+        self.summary.save(update_fields=['status'])
+
+        response = self.client.get(reverse('summaries:summary_detail', args=[self.summary.pk]))
+
+        self.assertContains(response, 'style="width: 71.429%"')
+        self.assertContains(response, '<div class="collapse show" id="status-change-form">')

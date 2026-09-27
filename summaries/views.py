@@ -198,14 +198,6 @@ SUMMARY_LIST_TYPE_LABELS = {
 }
 
 
-def _format_years_count(count):
-    if count % 10 == 1 and count % 100 != 11:
-        return f'{count} год'
-    if count % 10 in (2, 3, 4) and count % 100 not in (12, 13, 14):
-        return f'{count} года'
-    return f'{count} лет'
-
-
 def _attach_summary_list_info(page_summaries):
     """Добавляет к сводам страницы данные для строки списка: лучшее предложение за весь срок,
     итог выбранной СК, отказы, срок и время ожидания решения.
@@ -241,7 +233,7 @@ def _attach_summary_list_info(page_summaries):
         summary.list_info = {
             'companies_count': analytics['companies_count'],
             'companies_scale': range(9),
-            'years_label': _format_years_count(analytics['years_count']) if analytics['years_count'] else '',
+            'years_label': _years_label(analytics['years_count']) if analytics['years_count'] else '',
             'type_label': SUMMARY_LIST_TYPE_LABELS.get(insurance_type, insurance_type),
             'best_total': best['min_total'] if best else None,
             'best_company_name': best['best_company_name'] if best else '',
@@ -367,6 +359,7 @@ def _build_summary_variant_price_range(offers_by_company, variant, years):
         'spread_abs': spread_abs,
         'spread_pct': spread_pct,
         'best_company_name': ', '.join(best_company_names),
+        'best_company_names': best_company_names,
         'comparable_count': len(company_totals),
     }
 
@@ -819,7 +812,17 @@ def summary_detail(request, pk):
         ],
         'declined_companies': company_statuses.declined_company_names(summary),
         'tariff_hint': _tariff_hint(summary),
-        'offer_groups': _offer_groups(sorted_companies, companies_with_offers, company_totals, company_notes),
+        'offer_groups': _offer_groups(
+            sorted_companies,
+            companies_with_offers,
+            company_totals,
+            company_notes,
+            best_company_names=(
+                summary_analytics['price_ranges'][0]['best_company_names']
+                if summary_analytics['price_ranges'] else []
+            ),
+            selected_company=(summary.selected_company or '').strip(),
+        ),
         'offers_have_variant_2': any(offer.premium_with_franchise_2 or offer.franchise_2 for offer in offers),
         'can_open_analytics': has_admin_access(request.user),
     })
@@ -871,8 +874,13 @@ def _territory_lines(offers):
     return lines
 
 
-def _offer_groups(sorted_companies, companies_with_offers, company_totals, company_notes):
-    """Предложения, сгруппированные по компаниям, для единой таблицы на карточке свода."""
+def _offer_groups(sorted_companies, companies_with_offers, company_totals, company_notes,
+                  best_company_names=(), selected_company=''):
+    """Предложения, сгруппированные по компаниям, для единой таблицы на карточке свода.
+
+    is_best — компания с минимальной итоговой премией за срок (как «Лучшее» в сводной информации),
+    is_selected — выбранная в своде компания.
+    """
     groups = []
     for company_name in sorted_companies:
         company_offers = companies_with_offers.get(company_name, [])
@@ -884,6 +892,8 @@ def _offer_groups(sorted_companies, companies_with_offers, company_totals, compa
             'is_multiyear': totals.get('is_multiyear', False),
             'total_premium_1': totals.get('total_premium_1'),
             'total_premium_2': totals.get('total_premium_2'),
+            'is_best': company_name in best_company_names,
+            'is_selected': bool(selected_company) and company_name == selected_company,
             'notes': company_notes.get(company_name, []),
             'territory_lines': _territory_lines(company_offers),
             'territory_value': next((line['text'] for line in _territory_lines(company_offers) if line['kind'] == 'text'), ''),

@@ -1,3 +1,4 @@
+{% load l10n %}
 <div class="card mb-4 status-progress">
     <div class="card-body py-3 px-4">
 
@@ -22,7 +23,7 @@
         {# Трек шагов #}
         <div class="sp-track">
             <div class="sp-track-bg"></div>
-            <div class="sp-track-fill" style="width: {{ progress_pct }}%"></div>
+            <div class="sp-track-fill" style="width: {{ progress_pct|unlocalize }}%"></div>
             <div class="sp-phase-marker"></div>
             {% for step in steps %}
             <div class="sp-step sp-step--{{ step.state }}{% if step.is_rejected %} sp-step--rejected{% endif %}">
