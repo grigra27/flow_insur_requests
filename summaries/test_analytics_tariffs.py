@@ -117,3 +117,29 @@ class TariffViewTests(TestCase):
         user.groups.add(Group.objects.get_or_create(name='Пользователи')[0])
         self.client.login(username='tariff_user', password='pwd')
         self.assertNotEqual(self.client.get(reverse('summaries:analytics_tariffs')).status_code, 200)
+
+
+class TariffHintOnSummaryTests(TestCase):
+    def test_regular_user_sees_hint_without_analytics_link(self):
+        for _ in range(3):
+            make('Haval M6', {'Зетта': 20000, 'Ингосстрах': 40000, 'Альфа': 30000})
+        current = make('Haval Jolion', {})
+        user = User.objects.create_user(username='hint_user', password='pwd')
+        user.groups.add(Group.objects.get_or_create(name='Пользователи')[0])
+        self.client.login(username='hint_user', password='pwd')
+
+        response = self.client.get(reverse('summaries:summary_detail', args=[current.pk]))
+
+        self.assertContains(response, 'Ориентир по тарифу')
+        self.assertEqual(response.context['tariff_hint']['label'], 'Haval')
+        self.assertEqual(response.context['tariff_hint']['cheapest'][0]['company'], 'Зетта')
+        self.assertNotContains(response, reverse('summaries:analytics_tariff_group', args=['brand', 'Haval']))
+
+    def test_no_hint_without_history(self):
+        current = make('Haval Jolion', {})
+        admin = User.objects.create_user(username='hint_admin', password='pwd')
+        admin.groups.add(Group.objects.get_or_create(name='Администраторы')[0])
+        self.client.login(username='hint_admin', password='pwd')
+        response = self.client.get(reverse('summaries:summary_detail', args=[current.pk]))
+        self.assertIsNone(response.context['tariff_hint'])
+        self.assertNotContains(response, 'Ориентир по тарифу')

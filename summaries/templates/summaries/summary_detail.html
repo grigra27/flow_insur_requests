@@ -364,6 +364,38 @@
     </div>
 
     <div class="col-lg-4">
+        {% if tariff_hint %}
+        <!-- Ориентир по тарифу (tariffs_analytics_2026_09, шаг 3) -->
+        <div class="card mb-4 tariff-hint">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-percent"></i> Ориентир по тарифу</h6>
+                <div class="small text-muted">
+                    {% if tariff_hint.level == 'group' %}{{ tariff_hint.label }} · {{ tariff_hint.requests }} заявок в истории
+                    {% else %}{{ tariff_hint.class_label }} · {{ tariff_hint.requests }} заявок{% if tariff_hint.group %} (по «{{ tariff_hint.group }}» пока мало данных: {{ tariff_hint.group_requests }}){% endif %}{% endif %}
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="d-flex align-items-baseline gap-2 mb-1">
+                    <span class="fs-4 fw-bold">{{ tariff_hint.median|floatformat:2 }}%</span>
+                    <span class="text-muted small">медиана · обычно {{ tariff_hint.p25|floatformat:2 }}–{{ tariff_hint.p75|floatformat:2 }}%</span>
+                </div>
+                {% if tariff_hint.cheapest %}
+                <div class="small text-muted mt-2 mb-1">Дешевле других бывали:</div>
+                <ul class="list-unstyled mb-0 small tariff-hint-list">
+                    {% for row in tariff_hint.cheapest %}
+                    <li class="d-flex justify-content-between"><span>{{ row.company }}</span><span class="text-nowrap">{{ row.median|floatformat:2 }}% <span class="text-muted">· {{ row.offers }} предл.</span></span></li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <div class="small text-muted">Недостаточно данных, чтобы сравнить страховые.</div>
+                {% endif %}
+                <div class="small text-muted mt-2">Тариф 1-го года без франшизы по прошлым предложениям — ориентир, а не прогноз.
+                    {% if can_open_analytics and tariff_hint.level == 'group' %}<a href="{% url 'summaries:analytics_tariff_group' tariff_hint.dimension tariff_hint.group %}">Подробнее</a>{% elif can_open_analytics %}<a href="{% url 'summaries:analytics_tariffs' %}">Подробнее</a>{% endif %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
         <!-- Примечание к своду -->
         <div class="card mb-4">
             <div class="card-header d-flex justify-content-between align-items-center">

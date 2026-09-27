@@ -22,7 +22,7 @@ from pathlib import Path
 
 from .models import InsuranceSummary, InsuranceOffer, SummaryTemplate
 from insurance_requests.models import InsuranceRequest
-from insurance_requests.decorators import user_required, admin_required
+from insurance_requests.decorators import admin_required, has_admin_access, user_required
 from .forms import OfferForm, SummaryForm, AddOfferToSummaryForm, DealListFilterForm
 from .exceptions import DuplicateOfferError
 from .services.analytics_insurance_companies import (
@@ -767,7 +767,18 @@ def summary_detail(request, pk):
             (value, company_statuses.STATUS_LABELS[value]) for value in company_statuses.MANUAL_STATUSES
         ],
         'declined_companies': company_statuses.declined_company_names(summary),
+        'tariff_hint': _tariff_hint(summary),
+        'can_open_analytics': has_admin_access(request.user),
     })
+
+
+def _tariff_hint(summary):
+    """Ориентир по тарифу для карточки свода (tariffs_analytics_2026_09, шаг 3). Сбой не ломает карточку."""
+    try:
+        return tariffs_service.hint_for_request(summary.request, exclude_summary_id=summary.pk)
+    except Exception:  # noqa: BLE001
+        logger.exception('Tariff hint failed for summary #%s', summary.pk)
+        return None
 
 
 def _company_status_payload(summary):
