@@ -8,7 +8,7 @@
 Блоки:
 - 3.1 объём: сделки, СС, премия, тариф по типам (и рынок для сравнения), доля СК, месяцы;
 - 3.2 что пришло: филиалы, типы, вид лизинга по коду ДФА (§4.6), новое / б/у, возраст объекта,
-  страховая сумма по диапазонам, марки (только заявки V2), крупнейшие лизингополучатели;
+  страховая сумма по диапазонам, марки (справочник техники), крупнейшие лизингополучатели;
 - 3.3 цена: участие → выигрыш, выигрыши ценой и не ценой, средний ранг и отрыв от минимума,
   «была самой дешёвой, но проиграла» и кому, разрез по филиалам. Цены сравниваются
   `_build_deal_price_row` (те же годы, вариант франшизы выбранной сделки);
@@ -233,9 +233,9 @@ def build_card_payload(company: str, filters: Dict, price_row_builder: Callable)
                 'age': _age(insurance_request, summary.created_at.year),
                 'sum_bucket': _sum_bucket(insured_sum),
             }
-            if (insurance_request.brand or '').strip():
+            if insurance_request.object_brand:  # справочник техники (tariffs_analytics_2026_09, шаг 1)
                 v2_deals += 1
-                values['brand'] = insurance_request.brand.strip().upper()
+                values['brand'] = insurance_request.object_brand
             for name, value in values.items():
                 dims[name][value] += 1
                 if insured_sum is not None:

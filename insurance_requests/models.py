@@ -8,6 +8,8 @@ from typing import Dict, Any
 import json
 import pytz
 
+from .object_catalog import OBJECT_CLASSES, classify_request
+
 
 class InsuranceRequest(models.Model):
     """Модель страховой заявки"""
@@ -266,6 +268,21 @@ class InsuranceRequest(models.Model):
         blank=True,
         null=True,
         verbose_name='Стоимость на момент приобретения',
+    )
+    # Справочник техники (docs/improvement_plans/tariffs_analytics_2026_09.md, шаг 1): считается из
+    # описания объекта при сохранении (insurance_requests.object_catalog), вручную не редактируется.
+    object_brand = models.CharField(
+        max_length=64, blank=True, default='', db_index=True, verbose_name='Марка (справочник)',
+        help_text='Марка по справочнику техники из описания объекта; пусто — марка не узнана',
+    )
+    object_class = models.CharField(
+        max_length=16, blank=True, default='', db_index=True, verbose_name='Класс объекта',
+        choices=OBJECT_CLASSES,
+        help_text='Класс техники по справочнику: легковые, LCV, грузовые, прицепы, автобусы, спецтехника, имущество',
+    )
+    machine_kind = models.CharField(
+        max_length=64, blank=True, default='', verbose_name='Вид машины',
+        help_text='Для спецтехники: экскаватор, кран, каток и т. п. (справочник техники)',
     )
     acquisition_cost_currency = models.CharField(
         max_length=3,
@@ -748,8 +765,22 @@ class InsuranceRequest(models.Model):
     def __str__(self):
         return f"{self.get_display_name()} - {self.client_name} ({self.get_status_display()})"
     
+    OBJECT_CATALOG_SOURCE_FIELDS = ('object_description', 'vehicle_info', 'brand', 'model', 'insurance_type', 'dfa_number')
+    OBJECT_CATALOG_FIELDS = ('object_brand', 'object_class', 'machine_kind')
+
+    def refresh_object_catalog(self):
+        """Пересчитать марку, класс и вид машины по справочнику техники."""
+        info = classify_request(self)
+        self.object_brand, self.object_class, self.machine_kind = info.brand, info.object_class, info.machine_kind
+
     def save(self, *args, **kwargs):
         """Override save method to set automatic response deadline in Moscow timezone."""
+        update_fields = kwargs.get('update_fields')
+        if update_fields is None:
+            self.refresh_object_catalog()
+        elif set(update_fields) & set(self.OBJECT_CATALOG_SOURCE_FIELDS):
+            self.refresh_object_catalog()
+            kwargs['update_fields'] = set(update_fields) | set(self.OBJECT_CATALOG_FIELDS)
         if not self.response_deadline:
             # Получаем текущее время в московском часовом поясе
             moscow_tz = pytz.timezone('Europe/Moscow')
