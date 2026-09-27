@@ -1779,3 +1779,56 @@ a:hover {
         gap: 0.25rem;
     }
 }
+
+/* ─── Логотипы страховых компаний (summary_extras: |insurer, {% insurer_logo %}) ─── */
+.ins {
+    white-space: nowrap;
+}
+
+.ins-logo {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    margin-right: 0.45em;
+    border-radius: 6px;
+    background: #fff;
+    box-shadow: 0 0 0 1px rgba(15, 27, 45, 0.09);
+    object-fit: cover;
+    vertical-align: -5px;
+    flex-shrink: 0;
+}
+
+.ins-logo--sm {
+    width: 16px;
+    height: 16px;
+    border-radius: 5px;
+    vertical-align: -3px;
+    margin-right: 0.35em;
+}
+
+.ins-logo--lg {
+    width: 24px;
+    height: 24px;
+    border-radius: 7px;
+    vertical-align: -6px;
+    margin-right: 0.5em;
+}
+
+.ins-logo--mono {
+    background: #e2e8f0;
+    color: #475569;
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 1;
+    font-style: normal;
+}
+
+.ins-logo--mono.ins-logo--sm {
+    font-size: 9px;
+}
+
+.ins-logo--mono.ins-logo--lg {
+    font-size: 13px;
+}

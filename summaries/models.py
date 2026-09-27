@@ -36,6 +36,13 @@ class InsuranceCompany(models.Model):
         verbose_name='Порядок сортировки',
         help_text='Порядок отображения в списках (меньшее значение = выше в списке)'
     )
+    logo_code = models.CharField(
+        max_length=40,
+        blank=True,
+        verbose_name='Код логотипа',
+        help_text='Имя файла логотипа в static/img/insurers/ без «.png» (например, alfa). '
+                  'Пусто — вместо логотипа показывается первая буква названия.',
+    )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Дата создания')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='Дата обновления')
     

@@ -32,7 +32,7 @@
 <div class="ds-card ds-result">
     <div class="ds-result__item">
         <span class="ds-label">Страховая компания</span>
-        <b class="ds-result__company">{{ selected_company }}</b>
+        <b class="ds-result__company">{{ selected_company|insurer:'lg' }}</b>
         {% if selected_franchise_variant_display %}<small>{{ selected_franchise_variant_display }}</small>{% endif %}
     </div>
     {% if selected_offers %}

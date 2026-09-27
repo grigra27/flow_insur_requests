@@ -335,3 +335,55 @@ def money_input(value):
     if fraction:
         formatted += ',' + f'{fraction:.2f}'[2:].rstrip('0')
     return formatted
+
+
+INSURER_LOGO_SIZES = ('sm', 'md', 'lg')
+
+
+def _insurer_logo_html(name, size):
+    from django.utils.html import format_html
+    from ..services.insurer_logos import logo_urls, monogram
+
+    size_class = f' ins-logo--{size}' if size in INSURER_LOGO_SIZES and size != 'md' else ''
+    url = logo_urls().get(name)
+    if url:
+        return format_html('<img class="ins-logo{}" src="{}" alt="" aria-hidden="true">', size_class, url)
+    return format_html('<span class="ins-logo ins-logo--mono{}" aria-hidden="true">{}</span>', size_class, monogram(name))
+
+
+@register.simple_tag
+def insurer_logo(company, size='md'):
+    """Только логотип страховой (или буква, если логотипа нет): {% insurer_logo 'Альфа' 'sm' %}."""
+    name = getattr(company, 'name', company)
+    if not name:
+        return ''
+    return _insurer_logo_html(str(name).strip(), size)
+
+
+@register.filter
+def insurer(company, size='md'):
+    """Логотип + название страховой: {{ offer.company_name|insurer }} или {{ name|insurer:'sm' }}.
+
+    Принимает строку или InsuranceCompany; несколько компаний через «, » получают по логотипу.
+    """
+    from django.utils.html import format_html, format_html_join
+
+    if company is None or company == '':
+        return ''
+    name = getattr(company, 'name', None)
+    label = str(company)
+    if name is None:
+        parts = [part.strip() for part in label.split(', ') if part.strip()]
+        if len(parts) > 1:
+            return format_html_join(', ', '{}', ((insurer(part, size),) for part in parts))
+        name = label.strip()
+    return format_html('<span class="ins">{}{}</span>', _insurer_logo_html(name, size), label)
+
+
+@register.simple_tag
+def insurer_logo_urls_json(element_id='insurer-logo-urls'):
+    """Словарь «название → URL логотипа» для JS (json_script)."""
+    from django.utils.html import json_script
+    from ..services.insurer_logos import logo_urls
+
+    return json_script(logo_urls(), element_id)

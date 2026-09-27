@@ -151,7 +151,7 @@
                         {% if summary.status == 'completed_accepted' and summary.selected_company %}
                             <div class="sl-status-sub">
                                 <span{% if summary.selected_franchise_variant %} title="{{ summary.get_selected_franchise_variant_display }}"{% endif %}>
-                                    <b>{{ summary.selected_company }}</b>{% if info.selected_total %} · {{ info.selected_total|format_currency_with_spaces }}{% endif %}
+                                    <b>{{ summary.selected_company|insurer }}</b>{% if info.selected_total %} · {{ info.selected_total|format_currency_with_spaces }}{% endif %}
                                 </span>
                                 {% if info.has_cheaper %}<span class="sl-flag">есть дешевле</span>{% endif %}
                                 <a href="{% url 'summaries:deal_summary' summary.id %}" class="sl-link">
@@ -169,7 +169,7 @@
                     <td class="sl-cell-best">
                         {% if info.best_total %}
                             <div class="sl-best">{{ info.best_total|format_currency_with_spaces }}</div>
-                            <div class="sl-best-company">{{ info.best_company_name }}</div>
+                            <div class="sl-best-company">{{ info.best_company_name|insurer:'sm' }}</div>
                         {% else %}
                             <span class="sl-empty">—</span>
                         {% endif %}

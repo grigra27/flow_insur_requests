@@ -120,7 +120,7 @@
                         <td class="text-nowrap">{% timezone "Europe/Moscow" %}{{ point.created_at|date:"d.m.Y" }}{% endtimezone %}</td>
                         <td class="text-nowrap"><a href="{% url 'summaries:summary_detail' point.summary_id %}">{{ point.dfa_number|default:point.summary_id }}</a></td>
                         <td>{{ point.object_text|truncatechars:70 }}</td>
-                        <td class="text-nowrap {% if point.won %}text-success fw-semibold{% endif %}">{{ point.company }}{% if point.won %} ✓{% endif %}</td>
+                        <td class="text-nowrap {% if point.won %}text-success fw-semibold{% endif %}">{{ point.company|insurer:'sm' }}{% if point.won %} ✓{% endif %}</td>
                         <td class="num">{{ point.insured_sum|money_short }}</td>
                         <td class="num">{{ point.premium|money_short }}</td>
                         <td class="num fw-semibold">{{ point.tariff|floatformat:2 }}%</td>

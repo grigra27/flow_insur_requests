@@ -36,7 +36,7 @@
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
         <div>
             <div class="cc-hint"><a href="{% url 'summaries:analytics_insurance_companies' %}?{{ request.GET.urlencode }}">Страховые компании</a> / карточка</div>
-            <h1 class="h3 mb-1"><span class="cc-swatch"></span>{{ company }}</h1>
+            <h1 class="h3 mb-1">{{ company|insurer:'lg' }}<span class="cc-swatch ms-2"></span></h1>
             <p class="text-muted mb-0">Сколько бизнеса ушло в компанию, что именно, почему выигрывает и где отказывает.</p>
         </div>
         <div class="d-flex flex-wrap gap-2 align-items-center">
@@ -326,7 +326,7 @@
                 <div class="card-body p-0">
                     <table class="table table-sm mb-0 cc-table"><tbody>
                     {% for name, count in cheapest_lost_to %}
-                        <tr><td>{{ name }}</td><td class="num">{{ count }}</td></tr>
+                        <tr><td>{{ name|insurer:'sm' }}</td><td class="num">{{ count }}</td></tr>
                     {% empty %}<tr><td class="text-center text-muted py-3">Таких сделок нет.</td></tr>{% endfor %}
                     </tbody></table>
                 </div>

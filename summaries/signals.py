@@ -14,7 +14,7 @@ from django.dispatch import receiver
 from insurance_requests.models import InsuranceRequest
 
 from ._current_user import get_current_user
-from .models import InsuranceOffer, InsuranceSummary, StatusEvent, SummaryCompanyStatus
+from .models import InsuranceCompany, InsuranceOffer, InsuranceSummary, StatusEvent, SummaryCompanyStatus
 
 logger = logging.getLogger(__name__)
 
@@ -165,3 +165,12 @@ def offer_post_save(sender, instance, **kwargs):
 @receiver(post_delete, sender=InsuranceOffer)
 def offer_post_delete(sender, instance, **kwargs):
     _sync_offered(instance.summary_id, instance.company_name)
+
+
+@receiver(post_save, sender=InsuranceCompany)
+@receiver(post_delete, sender=InsuranceCompany)
+def insurance_company_changed(sender, **kwargs):
+    """Логотипы СК кэшируются в процессе — после правки компании словарь перечитается."""
+    from .services.insurer_logos import clear_cache
+
+    clear_cache()

@@ -5,6 +5,7 @@ Django settings for onlineservice project.
 from pathlib import Path
 from decouple import config
 import os
+import sys
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -115,6 +116,21 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = [
     BASE_DIR / 'static',
 ]
+
+# Хеш содержимого в именах статических файлов (custom.css → custom.3f2a….css): nginx кэширует
+# /static/ на год, и без хеша браузеры не видят обновлённые CSS/JS и логотипы до жёсткого обновления.
+# В тестах манифест не собирается (collectstatic не запускается), поэтому там обычное хранилище.
+RUNNING_TESTS = len(sys.argv) > 1 and sys.argv[1] == 'test'
+STORAGES = {
+    'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
+    'staticfiles': {
+        'BACKEND': (
+            'django.contrib.staticfiles.storage.StaticFilesStorage'
+            if RUNNING_TESTS
+            else 'django.contrib.staticfiles.storage.ManifestStaticFilesStorage'
+        ),
+    },
+}
 
 # Media files
 MEDIA_URL = '/media/'

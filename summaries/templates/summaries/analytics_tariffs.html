@@ -57,7 +57,7 @@
                             {% if row.bar %}<div class="tf-range" title="{{ row.p25|floatformat:2 }}–{{ row.p75|floatformat:2 }}%, медиана {{ row.median|floatformat:2 }}%"><span class="iqr" style="left: {{ row.bar.left|unlocalize }}%; width: {{ row.bar.width|unlocalize }}%"></span><span class="med" style="left: {{ row.bar.median|unlocalize }}%"></span></div>{% endif %}
                             <span class="tf-muted">{{ row.p25|floatformat:2 }}–{{ row.p75|floatformat:2 }}%</span>
                         </td>
-                        <td>{% if row.cheapest %}{{ row.cheapest.company }} <span class="tf-muted">{{ row.cheapest.median|floatformat:2 }}%</span>{% else %}<span class="tf-muted">—</span>{% endif %}</td>
+                        <td>{% if row.cheapest %}{{ row.cheapest.company|insurer:'sm' }} <span class="tf-muted">{{ row.cheapest.median|floatformat:2 }}%</span>{% else %}<span class="tf-muted">—</span>{% endif %}</td>
                     </tr>
                 {% empty %}
                     <tr><td colspan="6" class="text-center text-muted py-4">Нет предложений по выбранным фильтрам.</td></tr>
@@ -89,7 +89,7 @@
                             {% if row.bar %}<div class="tf-range" title="{{ row.p25|floatformat:2 }}–{{ row.p75|floatformat:2 }}%, медиана {{ row.median|floatformat:2 }}%"><span class="iqr" style="left: {{ row.bar.left|unlocalize }}%; width: {{ row.bar.width|unlocalize }}%"></span><span class="med" style="left: {{ row.bar.median|unlocalize }}%"></span></div>{% endif %}
                             <span class="tf-muted">{{ row.p25|floatformat:2 }}–{{ row.p75|floatformat:2 }}%</span>
                         </td>
-                        <td>{% if row.cheapest %}{{ row.cheapest.company }} <span class="tf-muted">{{ row.cheapest.median|floatformat:2 }}%</span>{% else %}<span class="tf-muted">—</span>{% endif %}</td>
+                        <td>{% if row.cheapest %}{{ row.cheapest.company|insurer:'sm' }} <span class="tf-muted">{{ row.cheapest.median|floatformat:2 }}%</span>{% else %}<span class="tf-muted">—</span>{% endif %}</td>
                     </tr>
                 {% empty %}
                     <tr><td colspan="7" class="text-center text-muted py-4">Нет предложений по выбранным фильтрам.</td></tr>

@@ -10,8 +10,8 @@
 
 <a href="{% url 'summaries:summary_detail' summary.pk %}" class="of-back"><i class="bi bi-arrow-left"></i> {{ req.get_display_name }}</a>
 <h1 class="of-title">
-    {% if mode == 'edit' %}{{ offer.company_name }} · {{ offer.get_insurance_year_display }}
-    {% elif mode == 'copy' %}Копия: {{ original_offer.company_name }} · {{ original_offer.get_insurance_year_display }}
+    {% if mode == 'edit' %}{{ offer.company_name|insurer:'lg' }} · {{ offer.get_insurance_year_display }}
+    {% elif mode == 'copy' %}Копия: {{ original_offer.company_name|insurer:'lg' }} · {{ original_offer.get_insurance_year_display }}
     {% else %}Новое предложение{% endif %}
     {% if mode == 'edit' %}<span class="of-mode">Редактирование</span>{% elif mode == 'copy' %}<span class="of-mode of-mode--copy">Копирование</span>{% endif %}
 </h1>
@@ -36,11 +36,14 @@
         <div class="of-card__head"><h2>Страховщик</h2></div>
         <div class="of-card__body">
             <label for="id_company_name" class="form-label of-label">Страховая компания <span class="text-danger">*</span></label>
+            <div class="of-company-select">
+            <span class="of-company-logo" id="company-logo" aria-hidden="true"></span>
             <select name="company_name" id="id_company_name" class="form-select of-control{% if mode == 'copy' %} of-control--accent{% endif %}{% if form.company_name.errors %} is-invalid{% endif %}" required>
                 {% for value, label in company_choices %}
                     <option value="{{ value }}"{% if value == form.company_name.value %} selected{% endif %}>{{ label }}</option>
                 {% endfor %}
             </select>
+            </div>
             <div class="form-text of-hint" id="company-years-hint" aria-live="polite"></div>
         </div>
     </div>
@@ -190,6 +193,7 @@
 {% endwith %}
 
 {{ company_years|json_script:"company-years-data" }}
+{% insurer_logo_urls_json %}
 {% endblock %}
 
 {% block extra_css %}
@@ -228,6 +232,10 @@
     .of-control--accent { border-color: #7aa7e8; box-shadow: 0 0 0 3px rgba(29, 95, 191, 0.12); }
     .of-control--sm:disabled { background-color: #fafbfc; color: var(--of-muted-2); }
     .of-control--sm { width: auto; min-width: 11rem; height: 34px; padding-top: 0; padding-bottom: 0; font-size: 0.8125rem; }
+    .of-company-select { position: relative; }
+    .of-company-select .form-select { padding-left: 2.6rem; }
+    .of-company-logo { position: absolute; left: 0.7rem; top: 50%; transform: translateY(-50%); pointer-events: none; }
+    .of-company-logo .ins-logo { margin: 0; vertical-align: middle; }
     .of-hint { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; margin-top: 0.45rem; font-size: 0.78rem; color: var(--of-muted); }
     .of-hint:empty { display: none; }
     .of-hint--ok { color: #1d7047; }
@@ -414,6 +422,28 @@ document.addEventListener('DOMContentLoaded', function() {
             hint.innerHTML = `<i class="bi bi-info-circle"></i> У «${company}» в этом своде уже есть ${chips}`;
         }
     }
+    // ── Логотип выбранной СК слева в списке ──
+    const logoUrls = JSON.parse(document.getElementById('insurer-logo-urls').textContent);
+    const logoBox = document.getElementById('company-logo');
+    function updateCompanyLogo() {
+        const company = companySelect.value;
+        logoBox.innerHTML = '';
+        if (!company) return;
+        if (logoUrls[company]) {
+            const img = document.createElement('img');
+            img.className = 'ins-logo';
+            img.src = logoUrls[company];
+            img.alt = '';
+            logoBox.appendChild(img);
+        } else {
+            const mono = document.createElement('span');
+            mono.className = 'ins-logo ins-logo--mono';
+            mono.textContent = (company.match(/[\p{L}\p{N}]/u) || ['?'])[0].toUpperCase();
+            logoBox.appendChild(mono);
+        }
+    }
+    companySelect.addEventListener('change', updateCompanyLogo);
+    updateCompanyLogo();
     companySelect.addEventListener('change', updateCompanyHint);
     if (mode !== 'add') {
         rowsBody.addEventListener('input', event => {

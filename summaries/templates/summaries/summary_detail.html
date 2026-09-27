@@ -124,7 +124,7 @@
                             <tr class="og-company-row">
                                 <td colspan="{% if offers_have_variant_2 %}7{% else %}5{% endif %}">
                                     <div class="og-company-head">
-                                        <span class="og-company-name">{{ group.name }}</span>
+                                        <span class="og-company-name">{{ group.name|insurer:'lg' }}</span>
                                         <span class="og-company-meta">
                                             {{ group.years_label }}{% if group.is_multiyear and group.total_premium_2 > 0 %} · вариант 2: <strong class="franchise-variant-2">{{ group.total_premium_2|format_currency_with_spaces }}</strong>{% endif %}
                                         </span>
@@ -267,7 +267,7 @@
                         <tr data-company-id="{{ item.company.pk }}" data-status="{{ item.status }}"
                             class="{% if item.status == 'undefined' %}cs-undefined{% endif %}">
                             <td class="cs-name">
-                                {{ item.company }}
+                                {{ item.company|insurer:'sm' }}
                                 <span class="cs-undefined-mark">не определён</span>
                             </td>
                             <td class="text-end">
@@ -351,7 +351,7 @@
                                 <div class="summary-insight-row summary-insight-row--muted">
                                     <span class="summary-insight-row__label">Лучшее</span>
                                     <span class="summary-insight-row__value">
-                                        {{ price_range.best_company_name }}
+                                        {{ price_range.best_company_name|insurer:'sm' }}
                                         {% if price_range.spread_abs > 0 %}
                                             <span class="text-muted">
                                                 · Разброс: +{{ price_range.spread_abs|format_currency_with_spaces }}
@@ -385,7 +385,7 @@
                                         <span class="sd-tag sd-tag--warn">есть дешевле</span>
                                     {% endif %}
                                 </div>
-                                <div class="summary-selected-mini__company">{{ summary_analytics.selected.company_name }}</div>
+                                <div class="summary-selected-mini__company">{{ summary_analytics.selected.company_name|insurer }}</div>
                                 <div class="summary-selected-mini__meta">
                                     {% if summary_analytics.selected.total %}
                                         {{ summary_analytics.selected.total|format_currency_with_spaces }}
@@ -406,7 +406,7 @@
                         <div class="summary-company-preview mt-3" title="{{ summary_analytics.companies_title }}">
                             <span class="summary-company-preview__label">СК:</span>
                             {% for company_name in summary_analytics.company_preview %}
-                                <span class="sd-chip">{{ company_name }}</span>
+                                <span class="sd-chip">{{ company_name|insurer:'sm' }}</span>
                             {% endfor %}
                             {% if summary_analytics.company_preview_more_count %}
                                 <span class="sd-chip sd-chip--more">+{{ summary_analytics.company_preview_more_count }}</span>
@@ -467,7 +467,7 @@
                             </div>
                             <div class="deal-result-block__info">
                                 <div class="deal-result-block__label">Выбранная страховая компания</div>
-                                <div class="deal-result-block__company">{{ summary.selected_company }}</div>
+                                <div class="deal-result-block__company">{{ summary.selected_company|insurer }}</div>
                                 {% if summary.selected_franchise_variant %}
                                 <div class="deal-result-block__variant">{{ summary.get_selected_franchise_variant_display }}</div>
                                 {% endif %}
@@ -622,7 +622,7 @@
                     <div class="small text-muted mt-2 mb-1">Дешевле других бывали:</div>
                     <ul class="list-unstyled mb-0 small tariff-hint-list">
                         {% for row in tariff_hint.cheapest %}
-                        <li class="d-flex justify-content-between"><span>{{ row.company }}</span><span class="text-nowrap">{{ row.median|floatformat:2 }}% <span class="text-muted">· {{ row.offers }} предл.</span></span></li>
+                        <li class="d-flex justify-content-between"><span>{{ row.company|insurer:'sm' }}</span><span class="text-nowrap">{{ row.median|floatformat:2 }}% <span class="text-muted">· {{ row.offers }} предл.</span></span></li>
                         {% endfor %}
                     </ul>
                     {% else %}

@@ -13,15 +13,20 @@ from .models import (
 class InsuranceCompanyAdmin(admin.ModelAdmin):
     """Административный интерфейс для управления страховыми компаниями"""
     
-    list_display = ['name', 'display_name', 'is_active', 'is_other', 'sort_order', 'get_offers_count', 'created_at']
+    list_display = ['logo_preview', 'name', 'display_name', 'is_active', 'is_other', 'sort_order', 'get_offers_count', 'created_at']
+    list_display_links = ['logo_preview', 'name']
     list_filter = ['is_active', 'is_other', 'created_at']
     search_fields = ['name', 'display_name']
-    readonly_fields = ['created_at', 'updated_at', 'get_offers_count']
+    readonly_fields = ['created_at', 'updated_at', 'get_offers_count', 'logo_preview']
     ordering = ['sort_order', 'name']
     
     fieldsets = (
         ('Основная информация', {
             'fields': ('name', 'display_name', 'is_active')
+        }),
+        ('Логотип', {
+            'fields': ('logo_code', 'logo_preview'),
+            'description': 'Файл логотипа кладётся в static/img/insurers/ (квадрат 64×64 PNG) и выезжает деплоем',
         }),
         ('Специальные настройки', {
             'fields': ('is_other', 'sort_order'),
@@ -119,6 +124,19 @@ class InsuranceCompanyAdmin(admin.ModelAdmin):
                 )
         
         return form
+
+    @admin.display(description='Логотип')
+    def logo_preview(self, obj):
+        from django.utils.html import format_html
+        from .services.insurer_logos import logo_urls, monogram
+
+        url = logo_urls().get(obj.name) if obj and obj.pk else None
+        style = 'width:24px;height:24px;border-radius:6px;box-shadow:0 0 0 1px rgba(15,27,45,.12);vertical-align:middle'
+        if url:
+            return format_html('<img src="{}" style="{}" alt="">', url, style)
+        return format_html('<span style="{};display:inline-flex;align-items:center;justify-content:center;'
+                           'background:#e2e8f0;color:#475569;font-weight:700;font-size:12px">{}</span>',
+                           style, monogram(obj.name if obj else '?'))
 
 
 class SummaryCompanyStatusInline(admin.TabularInline):
