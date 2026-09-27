@@ -159,9 +159,11 @@ class PresenceBlockTests(EmployeesTestBase):
     def test_presence_rows(self):
         # Найти ближайшую субботу в пределах периода для проверки выходных.
         saturday_ago = (timezone.localdate().weekday() - 5) % 7 or 7
-        self._day(self.anna, 1, (9, 0), (17, 0), 200, logins_count=1, page_views=40, has_request_data=True,
+        # Два последних рабочих дня (в понедельник или воскресенье «вчера» — выходной).
+        weekdays_ago = [n for n in range(1, 8) if (timezone.localdate() - timedelta(days=n)).weekday() < 5][:2]
+        self._day(self.anna, weekdays_ago[0], (9, 0), (17, 0), 200, logins_count=1, page_views=40, has_request_data=True,
                   hourly={'9': 10, '10': 5})
-        self._day(self.anna, 2, (10, 0), (21, 30), 100, logins_count=1, crud_actions=5)
+        self._day(self.anna, weekdays_ago[1], (10, 0), (21, 30), 100, logins_count=1, crud_actions=5)
         self._day(self.anna, saturday_ago + 7, (11, 0), (12, 0), 30, page_views=3, has_request_data=True)
         self._day(self.reader, 3, (12, 0), (12, 0), 0, logins_count=1)  # вошла, ничего не делала
 
@@ -182,7 +184,7 @@ class PresenceBlockTests(EmployeesTestBase):
         self.assertEqual((reader['login_days'], reader['active_days']), (1, 0))
         self.assertIsNone(reader['typical_start'])
 
-        day_index = (timezone.localdate() - timedelta(days=1)).weekday()
+        day_index = (timezone.localdate() - timedelta(days=weekdays_ago[0])).weekday()
         self.assertEqual(presence['heatmap']['team'][day_index][9], 10)
         self.assertEqual(presence['heatmap']['employees'][str(self.anna.pk)][day_index][10], 5)
 
