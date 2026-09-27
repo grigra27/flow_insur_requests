@@ -1014,6 +1014,17 @@ def deal_summary(request, summary_id):
     is_casco_type = insurance_request.insurance_type in ['КАСКО', 'страхование спецтехники']
     is_property_type = insurance_request.insurance_type == 'страхование имущества'
 
+    # Территория по выбранной СК: одинаковые по годам значения сворачиваются в одну строку
+    selected_territory_lines = [
+        line for line in _territory_lines(selected_offers) if line['kind'] == 'text'
+    ]
+    transportation_route = ' → '.join(
+        part for part in (
+            (insurance_request.transportation_departure or '').strip(),
+            (insurance_request.transportation_destination or '').strip(),
+        ) if part
+    )
+
     context = {
         'summary': summary,
         'request': insurance_request,
@@ -1023,7 +1034,10 @@ def deal_summary(request, summary_id):
         'deal_summary_note': summary.deal_summary_note,
         'selected_offers': selected_offers,
         'selected_offer_notes_summary': selected_offer_notes_summary,
+        'selected_territory_lines': selected_territory_lines,
         'total_years': len(selected_offers),
+        'total_years_label': _years_label(len(selected_offers)) if selected_offers else '',
+        'deal_closed_at': summary.deal_closed_at,
 
         # Основные данные заявки
         'request_number': insurance_request.dfa_number,
@@ -1044,6 +1058,24 @@ def deal_summary(request, summary_id):
         'has_installment': insurance_request.has_installment,
         'has_casco_ce': insurance_request.has_casco_ce if is_casco_type else None,
         'deal_status_display': insurance_request.get_deal_status_display() if hasattr(insurance_request, 'get_deal_status_display') else '',
+        'insured_party_display': insurance_request.get_insured_party_display() if insurance_request.insured_party else '',
+        'insured_sum_type_display': insurance_request.get_insured_sum_type_display() if insurance_request.insured_sum_type else '',
+        'premium_frequency_display': insurance_request.get_premium_frequency_display() if insurance_request.premium_frequency else '',
+        'transportation_route': transportation_route if is_property_type else '',
+        'transportation_days': insurance_request.transportation_days if is_property_type else None,
+
+        # Объект и клиент (V2-поля заявки)
+        'equipment_type': insurance_request.equipment_type,
+        'machine_kind': insurance_request.machine_kind,
+        'power_or_capacity': insurance_request.power_or_capacity,
+        'guard_conditions': insurance_request.guard_conditions,
+        'property_location_right_holder_display': (
+            insurance_request.get_property_location_right_holder_display()
+            if is_property_type and insurance_request.property_location_right_holder else ''
+        ),
+        'legal_address': insurance_request.legal_address,
+        'business_activity': insurance_request.business_activity,
+        'submission_date': insurance_request.submission_date,
 
         # Менеджеры
         'manager_name': insurance_request.manager_name,

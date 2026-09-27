@@ -5,319 +5,236 @@
 {% block title %}Резюме по сделке — {{ client_name }} — {{ block.super }}{% endblock %}
 
 {% block content %}
+<div class="ds-page">
 
-{# Навигация #}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h1 class="mb-0"><i class="bi bi-file-earmark-check me-2"></i>Резюме по сделке</h1>
-    <div class="d-flex gap-2">
-        <a href="{% url 'insurance_requests:request_detail' request.pk %}" class="btn btn-outline-secondary">
-            <i class="bi bi-file-text me-1"></i> К заявке
-        </a>
-        <a href="{% url 'summaries:summary_detail' summary.pk %}" class="btn btn-outline-primary">
-            <i class="bi bi-collection me-1"></i> К своду
-        </a>
-        <a href="{% url 'summaries:deal_list' %}" class="btn btn-secondary">
-            <i class="bi bi-arrow-left me-1"></i> К сделкам
-        </a>
-    </div>
-</div>
-
-{# ── HERO-БАННЕР ── #}
-<div class="card mb-4 deal-hero-card">
-    <div class="card-body">
-        <div class="row align-items-center g-4">
-            <div class="col-md-6">
-                <div class="mb-2">
-                    <span class="badge bg-success deal-hero-status-badge">
-                        <i class="bi bi-check-circle-fill me-1"></i>Сделка завершена
-                    </span>
-                </div>
-                <h2 class="deal-hero-client mb-1">{{ client_name }}</h2>
-                <div class="deal-hero-meta">
-                    {% if client_inn %}<span>ИНН {{ client_inn }}</span>{% endif %}
-                    {% if request_number %}<span class="deal-hero-sep">·</span><span>ДФА <strong>{{ request_number }}</strong></span>{% endif %}
-                    {% if branch %}<span class="deal-hero-sep">·</span><span>{{ branch }}</span>{% endif %}
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="deal-hero-company-block">
-                    <div class="deal-hero-company-label">Выбранная страховая компания</div>
-                    <div class="deal-hero-company-name">{{ selected_company }}</div>
-                    {% if selected_franchise_variant_display %}
-                    <div class="mt-1">
-                        <span class="badge bg-primary">{{ selected_franchise_variant_display }}</span>
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
-            {% if selected_offers %}
-            <div class="col-md-3">
-                <div class="deal-hero-metrics">
-                    <div class="deal-metric">
-                        <div class="deal-metric-label">Лет страхования</div>
-                        <div class="deal-metric-value">{{ total_years }}</div>
-                    </div>
-                    <div class="deal-metric deal-metric--primary">
-                        <div class="deal-metric-label">Итоговая премия</div>
-                        <div class="deal-metric-value">
-                            {% if selected_franchise_variant == 2 %}
-                                {{ selected_offers|sum_premiums_variant2|format_currency_with_spaces }}
-                            {% else %}
-                                {{ selected_offers|sum_premiums_variant1|format_currency_with_spaces }}
-                            {% endif %}
-                        </div>
-                    </div>
-                </div>
-            </div>
+{# ── ШАПКА ── #}
+<div class="ds-head">
+    <div class="ds-head__main">
+        <a href="{% url 'summaries:deal_list' %}" class="ds-back"><i class="bi bi-arrow-left"></i> Сделки</a>
+        <div class="ds-head__title-row">
+            <h1 class="ds-title">{{ client_name }}</h1>
+            <span class="ds-status">Сделка завершена</span>
+            {% if deal_status_display %}
+                <span class="ds-chip ds-chip--{{ request.deal_status }}">{{ deal_status_display }}</span>
             {% endif %}
         </div>
+        <div class="ds-head__sub">
+            {% if request_number %}<b>{{ request_number }}</b>{% endif %}{% if branch %} · {{ branch }}{% endif %}{% if client_inn %} · ИНН {{ client_inn }}{% endif %}
+        </div>
+    </div>
+    <div class="ds-head__links">
+        <a href="{% url 'insurance_requests:request_detail' request.pk %}"><i class="bi bi-file-text"></i> Заявка</a>
+        <a href="{% url 'summaries:summary_detail' summary.pk %}"><i class="bi bi-collection"></i> Свод</a>
     </div>
 </div>
 
-{# ── ОСНОВНОЙ КОНТЕНТ ── #}
+{# ── ИТОГ СДЕЛКИ ── #}
+<div class="ds-card ds-result">
+    <div class="ds-result__item">
+        <span class="ds-label">Страховая компания</span>
+        <b class="ds-result__company">{{ selected_company }}</b>
+        {% if selected_franchise_variant_display %}<small>{{ selected_franchise_variant_display }}</small>{% endif %}
+    </div>
+    {% if selected_offers %}
+    <div class="ds-result__item">
+        <span class="ds-label">Срок</span>
+        <b>{{ total_years_label }}</b>
+        {% if insurance_period and insurance_period != total_years_label %}<small>{{ insurance_period }}</small>{% endif %}
+    </div>
+    {% endif %}
+    {% if insured_party_display or premium_frequency_display %}
+    <div class="ds-result__item">
+        <span class="ds-label">Страхователь</span>
+        <b>{{ insured_party_display|default:"—" }}</b>
+        {% if premium_frequency_display %}<small>Уплата премии: {{ premium_frequency_display|lower }}</small>{% endif %}
+    </div>
+    {% endif %}
+    {% if selected_offers %}
+    <div class="ds-result__item ds-result__item--total">
+        <span class="ds-label">Итоговая премия</span>
+        <b>
+            {% if selected_franchise_variant == 2 %}
+                {{ selected_offers|sum_premiums_variant2|format_currency_with_spaces }}
+            {% else %}
+                {{ selected_offers|sum_premiums_variant1|format_currency_with_spaces }}
+            {% endif %}
+        </b>
+        <small>за {{ total_years_label }}</small>
+    </div>
+    {% endif %}
+</div>
+
+{% if deal_summary_note %}
+<div class="ds-summary-note">
+    <span class="ds-label">Примечание к резюме</span>
+    <div>{{ deal_summary_note|linebreaksbr }}</div>
+</div>
+{% endif %}
+
 <div class="row g-4">
     <div class="col-lg-8">
 
-        {% if deal_summary_note %}
-        <div class="deal-summary-note-alert mb-4">
-            <div class="deal-summary-note-alert__icon">
-                <i class="bi bi-exclamation-circle-fill"></i>
-            </div>
-            <div class="deal-summary-note-alert__body">
-                <div class="deal-summary-note-alert__label">Примечание к резюме</div>
-                <div class="deal-summary-note-alert__text">{{ deal_summary_note|linebreaksbr }}</div>
-            </div>
-        </div>
-        {% endif %}
-
         {# ── ИТОГОВОЕ ПРЕДЛОЖЕНИЕ ── #}
-        <div class="card mb-4">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0"><i class="bi bi-building me-2"></i>Итоговое предложение</h5>
-                <span class="text-muted fw-semibold">{{ selected_company }}</span>
+        <div class="ds-card">
+            <div class="ds-card__head"><h2>Итоговое предложение</h2></div>
+            {% if selected_offers %}
+            <div class="table-responsive">
+                <table class="ds-table">
+                    <thead>
+                        <tr>
+                            <th>Год</th>
+                            <th class="ds-num">Страх. сумма</th>
+                            <th class="ds-num">Франшиза</th>
+                            <th class="ds-num">Страх. премия</th>
+                            <th class="ds-num">Рассрочка</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for offer in selected_offers %}
+                        <tr>
+                            <td>{{ offer.get_insurance_year_display }}</td>
+                            <td class="ds-num">{{ offer.insurance_sum|format_currency_with_spaces }}</td>
+                            <td class="ds-num ds-muted">
+                                {% if selected_franchise_variant == 2 %}
+                                    {% if offer.franchise_2 %}{{ offer.franchise_2|format_currency_with_spaces }}{% else %}—{% endif %}
+                                {% else %}
+                                    {{ offer.franchise_1|format_currency_with_spaces }}
+                                {% endif %}
+                            </td>
+                            <td class="ds-num">
+                                <b>
+                                    {% if selected_franchise_variant == 2 %}
+                                        {{ offer.premium_with_franchise_2|format_currency_with_spaces }}
+                                    {% else %}
+                                        {{ offer.premium_with_franchise_1|format_currency_with_spaces }}
+                                    {% endif %}
+                                </b>
+                            </td>
+                            <td class="ds-num">
+                                {% if selected_franchise_variant == 2 %}
+                                    {% if offer.installment_variant_2 and offer.payments_per_year_variant_2 > 1 %}
+                                        {{ offer.payments_per_year_variant_2 }} пл./год
+                                        <small class="ds-installment">≈ {{ offer.get_payment_amount_variant_2|format_currency_with_spaces }}/платёж</small>
+                                    {% else %}
+                                        <span class="ds-muted">—</span>
+                                    {% endif %}
+                                {% else %}
+                                    {% if offer.installment_variant_1 and offer.payments_per_year_variant_1 > 1 %}
+                                        {{ offer.payments_per_year_variant_1 }} пл./год
+                                        <small class="ds-installment">≈ {{ offer.get_payment_amount_variant_1|format_currency_with_spaces }}/платёж</small>
+                                    {% else %}
+                                        <span class="ds-muted">—</span>
+                                    {% endif %}
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+
+                        {% if total_years > 1 %}
+                        <tr class="ds-total-row">
+                            <td>Итого</td>
+                            <td></td>
+                            <td></td>
+                            <td class="ds-num">
+                                <b>
+                                    {% if selected_franchise_variant == 2 %}
+                                        {{ selected_offers|sum_premiums_variant2|format_currency_with_spaces }}
+                                    {% else %}
+                                        {{ selected_offers|sum_premiums_variant1|format_currency_with_spaces }}
+                                    {% endif %}
+                                </b>
+                            </td>
+                            <td></td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
             </div>
-            <div class="card-body p-0">
-                {% if selected_offers %}
-                <div class="table-responsive">
-                    <table class="table table-hover mb-0 deal-offers-table">
-                        <thead>
-                            <tr>
-                                <th class="offers-th-base" style="width:10%">Год</th>
-                                <th class="offers-th-base" style="width:22%">Страх. сумма</th>
-                                <th class="offers-th-base" style="width:20%">Франшиза</th>
-                                <th class="offers-th-base" style="width:25%">Страх. премия</th>
-                                <th class="offers-th-base" style="width:23%">Рассрочка</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for offer in selected_offers %}
-                            <tr>
-                                <td><strong>{{ offer.get_insurance_year_display }}</strong></td>
-                                <td>{{ offer.insurance_sum|format_currency_with_spaces }}</td>
-                                <td>
-                                    {% if selected_franchise_variant == 2 %}
-                                        {% if offer.franchise_2 %}{{ offer.franchise_2|format_currency_with_spaces }}{% else %}<span class="text-muted">—</span>{% endif %}
-                                    {% else %}
-                                        {{ offer.franchise_1|format_currency_with_spaces }}
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    <strong class="deal-premium-value">
-                                        {% if selected_franchise_variant == 2 %}
-                                            {{ offer.premium_with_franchise_2|format_currency_with_spaces }}
-                                        {% else %}
-                                            {{ offer.premium_with_franchise_1|format_currency_with_spaces }}
-                                        {% endif %}
-                                    </strong>
-                                </td>
-                                <td>
-                                    {% if selected_franchise_variant == 2 %}
-                                        {% if offer.installment_variant_2 and offer.payments_per_year_variant_2 > 1 %}
-                                            <span class="badge bg-success me-1">{{ offer.payments_per_year_variant_2 }} пл./год</span>
-                                            <br><small class="text-muted">≈ {{ offer.get_payment_amount_variant_2|format_currency_with_spaces }}/платёж</small>
-                                        {% else %}
-                                            <span class="text-muted">—</span>
-                                        {% endif %}
-                                    {% else %}
-                                        {% if offer.installment_variant_1 and offer.payments_per_year_variant_1 > 1 %}
-                                            <span class="badge bg-success me-1">{{ offer.payments_per_year_variant_1 }} пл./год</span>
-                                            <br><small class="text-muted">≈ {{ offer.get_payment_amount_variant_1|format_currency_with_spaces }}/платёж</small>
-                                        {% else %}
-                                            <span class="text-muted">—</span>
-                                        {% endif %}
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            {% endfor %}
-
-                            {% if total_years > 1 %}
-                            <tr class="deal-total-row">
-                                <td class="text-muted fw-semibold">Итого</td>
-                                <td><span class="text-muted">—</span></td>
-                                <td><span class="text-muted">—</span></td>
-                                <td>
-                                    <strong class="deal-premium-value deal-premium-total">
-                                        {% if selected_franchise_variant == 2 %}
-                                            {{ selected_offers|sum_premiums_variant2|format_currency_with_spaces }}
-                                        {% else %}
-                                            {{ selected_offers|sum_premiums_variant1|format_currency_with_spaces }}
-                                        {% endif %}
-                                    </strong>
-                                </td>
-                                <td><span class="text-muted">—</span></td>
-                            </tr>
-                            {% endif %}
-
-                            {% if selected_offer_notes_summary %}
-                            <tr class="deal-offer-note-row">
-                                <td colspan="5">
-                                    <div class="deal-offer-note">
-                                        <i class="bi bi-chat-left-text me-1"></i>
-                                        <strong>Комментарий предложения:</strong>
-                                        {{ selected_offer_notes_summary }}
-                                    </div>
-                                </td>
-                            </tr>
-                            {% endif %}
-                        </tbody>
-                    </table>
+            {% if selected_territory_lines or selected_offer_notes_summary %}
+            <div class="ds-offer-foot">
+                {% for line in selected_territory_lines %}
+                <div>
+                    <span class="ds-label">{% if line.label == 'Территория' %}Территория страхования{% else %}{{ line.label }}{% endif %}</span>
+                    <p>{{ line.text|linebreaksbr }}</p>
                 </div>
-                {% else %}
-                <div class="text-center py-4 text-muted">
-                    <i class="bi bi-inbox display-4"></i>
-                    <p class="mt-2">Предложения не найдены</p>
+                {% endfor %}
+                {% if selected_offer_notes_summary %}
+                <div>
+                    <span class="ds-label">Комментарий предложения</span>
+                    <p>{{ selected_offer_notes_summary }}</p>
                 </div>
                 {% endif %}
             </div>
+            {% endif %}
+            {% else %}
+            <div class="ds-empty">
+                <i class="bi bi-inbox"></i>
+                <p>Предложения не найдены</p>
+            </div>
+            {% endif %}
         </div>
 
         {# ── ПАРАМЕТРЫ СТРАХОВАНИЯ ── #}
-        <div class="card mb-4">
-            <div class="card-header">
-                <h5 class="mb-0"><i class="bi bi-sliders me-2"></i>Параметры страхования</h5>
-            </div>
-            <div class="card-body">
+        <div class="ds-card">
+            <div class="ds-card__head"><h2>Параметры страхования</h2></div>
+            <div class="ds-card__body">
 
-                {# Объект #}
-                <h6 class="deal-section-title">Объект страхования</h6>
-                <div class="row g-3 mb-4">
-                    <div class="col-md-6">
-                        <dl class="deal-dl">
-                            <dt>Тип страхования</dt>
-                            <dd>{{ insurance_type }}</dd>
+                <div class="ds-section">Объект страхования</div>
+                <dl class="ds-kv">
+                    {% if object_summary %}
+                    <div class="ds-kv__wide"><dt>Предмет лизинга</dt><dd>{{ object_summary }}</dd></div>
+                    {% endif %}
+                    <div><dt>Тип страхования</dt><dd>{{ insurance_type }}</dd></div>
+                    {% if equipment_type %}<div><dt>Тип техники</dt><dd>{{ equipment_type }}</dd></div>{% endif %}
+                    {% if machine_kind %}<div><dt>Вид машины</dt><dd>{{ machine_kind }}</dd></div>{% endif %}
+                    {% if power_or_capacity %}<div><dt>Мощность</dt><dd>{{ power_or_capacity }}</dd></div>{% endif %}
+                    {% if manufacturing_year %}<div><dt>Год выпуска</dt><dd>{{ manufacturing_year }}</dd></div>{% endif %}
+                    {% if asset_status %}<div><dt>Статус имущества</dt><dd>{{ asset_status }}</dd></div>{% endif %}
+                    {% if usage_purposes %}<div><dt>Цели использования</dt><dd>{{ usage_purposes }}</dd></div>{% endif %}
+                    {% if guard_conditions %}<div><dt>Условия хранения</dt><dd>{{ guard_conditions }}</dd></div>{% endif %}
+                    {% if insurance_territory %}<div><dt>Территория страхования</dt><dd>{{ insurance_territory }}</dd></div>{% endif %}
+                    {% if property_location_right_holder_display %}
+                    <div><dt>Место расположения</dt><dd>{{ property_location_right_holder_display }}</dd></div>
+                    {% endif %}
+                </dl>
 
-                            {% if object_summary %}
-                            <dt>Предмет лизинга</dt>
-                            <dd>{{ object_summary }}</dd>
-                            {% endif %}
-
-                            {% if manufacturing_year %}
-                            <dt>Год выпуска</dt>
-                            <dd>{{ manufacturing_year }}</dd>
-                            {% endif %}
-
-                            {% if asset_status %}
-                            <dt>Статус имущества</dt>
-                            <dd>{{ asset_status }}</dd>
-                            {% endif %}
-                        </dl>
+                <div class="ds-section">Условия договора</div>
+                <dl class="ds-kv">
+                    {% if insurance_period %}<div><dt>Срок страхования</dt><dd>{{ insurance_period }}</dd></div>{% endif %}
+                    {% if creditor_bank %}<div><dt>Банк-кредитор</dt><dd>{{ creditor_bank }}</dd></div>{% endif %}
+                    {% if insured_sum_type_display %}<div><dt>Тип страховой суммы</dt><dd>{{ insured_sum_type_display }}</dd></div>{% endif %}
+                    {% if premium_frequency_display %}<div><dt>Уплата премии</dt><dd>{{ premium_frequency_display }}</dd></div>{% endif %}
+                    {% if transportation_route %}
+                    <div>
+                        <dt>Перевозка</dt>
+                        <dd>{{ transportation_route }}{% if transportation_days %}, {{ transportation_days }} дн.{% endif %}</dd>
                     </div>
-                    <div class="col-md-6">
-                        <dl class="deal-dl">
-                            {% if usage_purposes %}
-                            <dt>Цели использования</dt>
-                            <dd>{{ usage_purposes }}</dd>
-                            {% endif %}
-
-                            {% if insurance_territory %}
-                            <dt>Территория страхования</dt>
-                            <dd>{{ insurance_territory }}</dd>
-                            {% endif %}
-                        </dl>
-                    </div>
+                    {% endif %}
+                </dl>
+                <div class="ds-chips">
+                    <span class="ds-chip"><i class="bi bi-shield-check"></i> Франшиза: {{ franchise_type_display }}</span>
+                    <span class="ds-chip"><i class="bi bi-credit-card"></i> Рассрочка: {% if has_installment %}Да{% else %}Нет{% endif %}</span>
+                    {% if has_autostart is not None %}
+                    <span class="ds-chip"><i class="bi bi-key"></i> Автозапуск: {% if has_autostart %}Да{% else %}Нет{% endif %}</span>
+                    {% endif %}
+                    {% if has_casco_ce %}<span class="ds-chip ds-chip--accent">КАСКО C/E</span>{% endif %}
+                    {% if has_transportation %}<span class="ds-chip ds-chip--accent">Перевозка</span>{% endif %}
+                    {% if has_construction_work %}<span class="ds-chip ds-chip--accent">СМР</span>{% endif %}
                 </div>
 
-                <hr class="deal-divider">
-
-                {# Условия договора #}
-                <h6 class="deal-section-title">Условия договора</h6>
-                <div class="row g-3 mb-3">
-                    <div class="col-md-6">
-                        <dl class="deal-dl">
-                            {% if creditor_bank %}
-                            <dt>Банк-кредитор</dt>
-                            <dd>{{ creditor_bank }}</dd>
-                            {% endif %}
-
-                            {% if insurance_period %}
-                            <dt>Срок страхования</dt>
-                            <dd>{{ insurance_period }}</dd>
-                            {% endif %}
-                        </dl>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="d-flex flex-wrap gap-2 pt-1">
-                            <span class="badge deal-param-badge {% if franchise_required %}deal-param-badge--yes{% else %}deal-param-badge--no{% endif %}">
-                                <i class="bi bi-shield-check me-1"></i>Франшиза: {{ franchise_type_display }}
-                            </span>
-                            <span class="badge deal-param-badge {% if has_installment %}deal-param-badge--yes{% else %}deal-param-badge--no{% endif %}">
-                                <i class="bi bi-credit-card me-1"></i>Рассрочка: {% if has_installment %}Да{% else %}Нет{% endif %}
-                            </span>
-                            {% if has_autostart is not None %}
-                            <span class="badge deal-param-badge {% if has_autostart %}deal-param-badge--yes{% else %}deal-param-badge--no{% endif %}">
-                                <i class="bi bi-key me-1"></i>Автозапуск: {% if has_autostart %}Да{% else %}Нет{% endif %}
-                            </span>
-                            {% endif %}
-                            {% if has_casco_ce %}
-                            <span class="badge deal-param-badge deal-param-badge--info">КАСКО C/E</span>
-                            {% endif %}
-                            {% if has_transportation %}
-                            <span class="badge deal-param-badge deal-param-badge--info">Перевозка</span>
-                            {% endif %}
-                            {% if has_construction_work %}
-                            <span class="badge deal-param-badge deal-param-badge--info">СМР</span>
-                            {% endif %}
-                        </div>
-                    </div>
-                </div>
-
-                {# КАСКО/спецтехника — доп. параметры #}
                 {% if key_completeness or pts_psm or telematics_complex %}
-                <hr class="deal-divider">
-                <h6 class="deal-section-title">КАСКО / Спецтехника</h6>
-                <div class="row g-3">
-                    <div class="col-md-6">
-                        <dl class="deal-dl">
-                            {% if key_completeness %}
-                            <dt>Комплектность ключей</dt>
-                            <dd>{{ key_completeness }}</dd>
-                            {% endif %}
-                            {% if pts_psm %}
-                            <dt>ПТС / ПСМ</dt>
-                            <dd>{{ pts_psm }}</dd>
-                            {% endif %}
-                        </dl>
-                    </div>
-                    <div class="col-md-6">
-                        {% if telematics_complex %}
-                        <dl class="deal-dl">
-                            <dt>Телематический комплекс</dt>
-                            <dd>{{ telematics_complex }}</dd>
-                        </dl>
-                        {% endif %}
-                    </div>
-                </div>
+                <div class="ds-section">КАСКО / Спецтехника</div>
+                <dl class="ds-kv">
+                    {% if key_completeness %}<div><dt>Комплектность ключей</dt><dd>{{ key_completeness }}</dd></div>{% endif %}
+                    {% if pts_psm %}<div><dt>ПТС / ПСМ</dt><dd>{{ pts_psm }}</dd></div>{% endif %}
+                    {% if telematics_complex %}<div><dt>Телематический комплекс</dt><dd>{{ telematics_complex }}</dd></div>{% endif %}
+                </dl>
                 {% endif %}
 
-                {# Примечание к заявке #}
                 {% if request.notes %}
-                <hr class="deal-divider">
-                <h6 class="deal-section-title">Примечание к заявке</h6>
-                <div class="deal-notes-block">
-                    <pre class="mb-0">{{ request.notes }}</pre>
-                </div>
+                <div class="ds-section">Примечание к заявке</div>
+                <div class="ds-note">{{ request.notes|linebreaksbr }}</div>
                 {% endif %}
-
             </div>
         </div>
 
@@ -326,137 +243,177 @@
     <div class="col-lg-4">
 
         {# ── РЕКВИЗИТЫ СДЕЛКИ ── #}
-        <div class="card mb-4">
-            <div class="card-header">
-                <h6 class="mb-0"><i class="bi bi-person-badge me-2"></i>Реквизиты сделки</h6>
-            </div>
-            <div class="card-body">
-                <dl class="deal-dl-sidebar">
-                    <div class="deal-dl-row">
-                        <dt>Клиент</dt>
-                        <dd class="fw-semibold">{{ client_name }}</dd>
-                    </div>
-                    {% if client_inn %}
-                    <div class="deal-dl-row">
-                        <dt>ИНН</dt>
-                        <dd>{{ client_inn }}</dd>
-                    </div>
-                    {% endif %}
-                    {% if request_number %}
-                    <div class="deal-dl-row">
-                        <dt>Номер ДФА</dt>
-                        <dd><strong>{{ request_number }}</strong></dd>
-                    </div>
-                    {% endif %}
-                    {% if branch %}
-                    <div class="deal-dl-row">
-                        <dt>Филиал</dt>
-                        <dd>{{ branch }}</dd>
-                    </div>
-                    {% endif %}
-                    {% if manager_name %}
-                    <div class="deal-dl-row">
-                        <dt>Менеджер Альянса</dt>
-                        <dd>{{ manager_name }}</dd>
-                    </div>
-                    {% endif %}
-                    {% if manager_online %}
-                    <div class="deal-dl-row">
-                        <dt>Менеджер Онлайна</dt>
-                        <dd>{{ manager_online }}</dd>
-                    </div>
-                    {% endif %}
+        <div class="ds-card">
+            <div class="ds-card__head"><h2>Реквизиты сделки</h2></div>
+            <div class="ds-card__body">
+                <dl class="ds-rows">
+                    {% if manager_name %}<div><dt>Менеджер Альянса</dt><dd>{{ manager_name }}</dd></div>{% endif %}
+                    {% if manager_online %}<div><dt>Менеджер Онлайна</dt><dd>{{ manager_online }}</dd></div>{% endif %}
+                    {% if business_activity %}<div><dt>Вид деятельности клиента</dt><dd>{{ business_activity }}</dd></div>{% endif %}
+                    {% if legal_address %}<div><dt>Юридический адрес</dt><dd>{{ legal_address }}</dd></div>{% endif %}
                 </dl>
-
-                <hr class="my-3">
-
-                <dl class="deal-dl-sidebar">
-                    <div class="deal-dl-row">
-                        <dt>Выбранная СК</dt>
-                        <dd><strong>{{ selected_company }}</strong></dd>
-                    </div>
-                    {% if selected_franchise_variant_display %}
-                    <div class="deal-dl-row">
-                        <dt>Вариант франшизы</dt>
-                        <dd>{{ selected_franchise_variant_display }}</dd>
-                    </div>
-                    {% endif %}
-                    {% if deal_status_display %}
-                    <div class="deal-dl-row">
-                        <dt>Статус сделки</dt>
-                        <dd>{{ deal_status_display }}</dd>
-                    </div>
-                    {% endif %}
-                    <div class="deal-dl-row">
-                        <dt>Тип страхования</dt>
-                        <dd>{{ insurance_type }}</dd>
-                    </div>
-                </dl>
-
-                <div class="mt-3">
-                    <a href="{% url 'summaries:summary_detail' summary.pk %}" class="btn btn-outline-primary btn-sm w-100">
-                        <i class="bi bi-collection me-1"></i>Все предложения по этому своду
-                    </a>
-                </div>
+                <a href="{% url 'summaries:summary_detail' summary.pk %}" class="ds-link">
+                    <i class="bi bi-collection"></i> Все предложения по этому своду
+                </a>
             </div>
         </div>
 
         {# ── ХРОНОЛОГИЯ ── #}
-        <div class="card mb-4">
-            <div class="card-header">
-                <h6 class="mb-0"><i class="bi bi-clock-history me-2"></i>Хронология</h6>
-            </div>
-            <div class="card-body p-0">
-                <ul class="deal-timeline">
-                    <li class="deal-timeline-item deal-timeline-item--done">
-                        <div class="deal-timeline-dot"></div>
-                        <div>
-                            <div class="deal-timeline-label">Заявка создана</div>
-                            <div class="deal-timeline-date">{% timezone "Europe/Moscow" %}{{ request.created_at|date:"d.m.Y в H:i" }}{% endtimezone %}</div>
-                        </div>
-                    </li>
-                    <li class="deal-timeline-item deal-timeline-item--done">
-                        <div class="deal-timeline-dot"></div>
-                        <div>
-                            <div class="deal-timeline-label">Свод создан</div>
-                            <div class="deal-timeline-date">{% timezone "Europe/Moscow" %}{{ summary.created_at|date:"d.m.Y в H:i" }}{% endtimezone %}</div>
-                        </div>
-                    </li>
-                    {% if summary.sent_to_client_at %}
-                    <li class="deal-timeline-item deal-timeline-item--done">
-                        <div class="deal-timeline-dot"></div>
-                        <div>
-                            <div class="deal-timeline-label">Отправлен в Альянс</div>
-                            <div class="deal-timeline-date">{% timezone "Europe/Moscow" %}{{ summary.sent_to_client_at|date:"d.m.Y в H:i" }}{% endtimezone %}</div>
-                        </div>
-                    </li>
-                    {% endif %}
-                    <li class="deal-timeline-item deal-timeline-item--success">
-                        <div class="deal-timeline-dot"></div>
-                        <div>
-                            <div class="deal-timeline-label">Сделка закрыта</div>
-                            <div class="deal-timeline-date">{% timezone "Europe/Moscow" %}{{ summary.updated_at|date:"d.m.Y в H:i" }}{% endtimezone %}</div>
-                        </div>
-                    </li>
-                </ul>
-            </div>
+        <div class="ds-card">
+            <div class="ds-card__head"><h2>Хронология</h2></div>
+            <ul class="ds-timeline">
+                {% if submission_date %}
+                <li>
+                    <b>Заявка подана</b>
+                    <span>{{ submission_date|date:"d.m.Y" }}</span>
+                </li>
+                {% endif %}
+                <li>
+                    <b>Заявка создана</b>
+                    <span>{% timezone "Europe/Moscow" %}{{ request.created_at|date:"d.m.Y в H:i" }}{% endtimezone %}</span>
+                </li>
+                <li>
+                    <b>Свод создан</b>
+                    <span>{% timezone "Europe/Moscow" %}{{ summary.created_at|date:"d.m.Y в H:i" }}{% endtimezone %}</span>
+                </li>
+                {% if summary.sent_to_client_at %}
+                <li>
+                    <b>Отправлен в Альянс</b>
+                    <span>{% timezone "Europe/Moscow" %}{{ summary.sent_to_client_at|date:"d.m.Y в H:i" }}{% endtimezone %}</span>
+                </li>
+                {% endif %}
+                <li class="is-done">
+                    <b>Сделка закрыта</b>
+                    <span>{% timezone "Europe/Moscow" %}{{ deal_closed_at|date:"d.m.Y в H:i" }}{% endtimezone %}</span>
+                </li>
+            </ul>
         </div>
 
         {# ── ПРИМЕЧАНИЕ К СВОДУ ── #}
         {% if summary.notes %}
-        <div class="card mb-4">
-            <div class="card-header">
-                <h6 class="mb-0"><i class="bi bi-sticky me-2"></i>Примечание к своду</h6>
-            </div>
-            <div class="card-body">
-                <div class="alert alert-info mb-0 py-2 px-3">
-                    <i class="bi bi-info-circle me-2"></i>{{ summary.notes|linebreaks }}
-                </div>
+        <div class="ds-card">
+            <div class="ds-card__head"><h2>Примечание к своду</h2></div>
+            <div class="ds-card__body">
+                <div class="ds-note">{{ summary.notes|linebreaksbr }}</div>
             </div>
         </div>
         {% endif %}
 
     </div>{# /col-lg-4 #}
 </div>
+</div>
+{% endblock %}
 
+{% block extra_css %}
+<style>
+    .ds-page {
+        --ds-ink: #0f1b2d;
+        --ds-ink-2: #334155;
+        --ds-muted: #6b7a90;
+        --ds-muted-2: #9aa6b6;
+        --ds-line: #edf1f5;
+        --ds-border: #e6ecf1;
+        font-feature-settings: "tnum" 1;
+    }
+
+    /* Шапка */
+    .ds-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; margin: 0.25rem 0 1.1rem; }
+    .ds-head__main { min-width: 0; }
+    .ds-back { display: inline-flex; align-items: center; gap: 0.35rem; margin-bottom: 0.45rem; font-size: 0.8125rem; font-weight: 600; color: var(--ds-muted); text-decoration: none; }
+    .ds-back:hover { color: var(--app-primary); }
+    .ds-head__title-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; }
+    .ds-title { margin: 0; font-size: 1.75rem; font-weight: 700; letter-spacing: -0.025em; color: var(--ds-ink); }
+    .ds-head__sub { margin-top: 0.35rem; font-size: 0.9rem; color: var(--ds-muted); }
+    .ds-head__sub b { font-family: 'Space Grotesk', 'Manrope', sans-serif; font-weight: 600; color: var(--ds-ink-2); }
+    .ds-head__links { display: flex; flex-shrink: 0; gap: 1.1rem; }
+    .ds-head__links a { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.85rem; font-weight: 600; color: var(--app-primary); text-decoration: none; }
+    .ds-head__links a:hover { text-decoration: underline; }
+    .ds-status { display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.3rem 0.75rem 0.3rem 0.62rem; border-radius: 999px; background: #e9f6ef; color: #1d7047; font-size: 0.8rem; font-weight: 600; white-space: nowrap; }
+    .ds-status::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+
+    /* Чипы и подписи */
+    .ds-chip { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.2rem 0.65rem; border-radius: 999px; background: #f1f4f8; color: #4a5a70; font-size: 0.75rem; font-weight: 600; white-space: nowrap; }
+    .ds-chip--prolongation { background: #eaf2fe; color: #1d5fbf; }
+    .ds-chip--accent { background: #e6f3f1; color: #0b6b66; }
+    .ds-label { display: block; margin-bottom: 0.35rem; font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--ds-muted-2); }
+
+    /* Карточки */
+    .ds-card { margin-bottom: 1.5rem; overflow: hidden; background: #fff; border: 1px solid var(--ds-border); border-radius: 18px; box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 12px 32px -12px rgba(16, 24, 40, 0.1); }
+    .ds-card__head { padding: 0.85rem 1.25rem; border-bottom: 1px solid var(--ds-line); }
+    .ds-card__head h2 { margin: 0; font-size: 0.94rem; font-weight: 700; color: var(--ds-ink); }
+    .ds-card__body { padding: 1rem 1.25rem; }
+
+    /* Итог сделки */
+    .ds-result { display: flex; }
+    .ds-result__item { flex: 1 1 0; min-width: 0; padding: 1.1rem 1.35rem; }
+    .ds-result__item + .ds-result__item { border-left: 1px solid var(--ds-line); }
+    .ds-result__item b { display: block; font-size: 1.12rem; font-weight: 700; letter-spacing: -0.01em; color: var(--ds-ink); }
+    .ds-result__item small { display: block; margin-top: 0.2rem; font-size: 0.78rem; color: var(--ds-muted); }
+    .ds-result__company { color: var(--app-primary) !important; }
+    .ds-result__item--total { flex-grow: 1.2; background: #f4faf7; }
+    .ds-result__item--total b { font-size: 1.65rem; font-weight: 800; }
+
+    .ds-summary-note { margin: -0.5rem 0 1.5rem; padding: 0.8rem 1rem; border-radius: 14px; background: #fdf3e1; color: #6b4a08; font-size: 0.9rem; }
+    .ds-summary-note .ds-label { color: #a06a0c; }
+
+    /* Итоговое предложение */
+    .ds-card .table-responsive { margin: 0; border: 0; border-radius: 0; box-shadow: none; background: transparent; }
+    .ds-table { width: 100%; border-collapse: separate; border-spacing: 0; }
+    .ds-table th { padding: 0.7rem 1.25rem; background: #fafbfc; border-bottom: 1px solid var(--ds-line); font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--ds-muted-2); white-space: nowrap; }
+    .ds-table td { padding: 0.7rem 1.25rem; border-bottom: 1px solid var(--ds-line); font-size: 0.875rem; color: var(--ds-ink-2); vertical-align: top; }
+    .ds-table td b { font-weight: 600; color: var(--ds-ink); }
+    .ds-num { text-align: right; white-space: nowrap; }
+    .ds-muted { color: var(--ds-muted-2) !important; }
+    .ds-installment { display: block; font-size: 0.72rem; color: var(--ds-muted); }
+    .ds-total-row td { border-top: 1px solid #d9e1ea; border-bottom: 0; font-weight: 700; color: var(--ds-ink); }
+    .ds-total-row td b { font-size: 1rem; font-weight: 800; }
+    .ds-offer-foot { display: grid; gap: 0.75rem; padding: 0.8rem 1.25rem 1rem; border-top: 1px solid var(--ds-line); }
+    .ds-offer-foot p { margin: 0; font-size: 0.85rem; line-height: 1.5; color: var(--ds-ink-2); }
+    .ds-empty { padding: 2rem 1rem; text-align: center; color: var(--ds-muted); }
+    .ds-empty i { font-size: 2.5rem; color: var(--ds-muted-2); }
+
+    /* Параметры */
+    .ds-section { margin: 1.1rem 0 0.75rem; padding-top: 1rem; border-top: 1px solid var(--ds-line); font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--app-primary); }
+    .ds-section:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+    .ds-kv { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.9rem 1.25rem; margin: 0; }
+    .ds-kv dt,
+    .ds-rows dt { margin-bottom: 0.2rem; font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--ds-muted-2); }
+    .ds-kv dd,
+    .ds-rows dd { margin: 0; font-size: 0.875rem; color: var(--ds-ink); overflow-wrap: anywhere; }
+    .ds-kv__wide { grid-column: 1 / -1; }
+    .ds-kv__wide dd { font-size: 0.94rem; font-weight: 600; }
+    .ds-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.9rem; }
+    .ds-note { padding: 0.7rem 0.9rem; border-radius: 12px; background: #fdf8e8; color: #5c4a12; font-size: 0.85rem; line-height: 1.5; }
+
+    /* Реквизиты */
+    .ds-rows { margin: 0; }
+    .ds-rows > div { padding: 0.55rem 0; border-bottom: 1px solid var(--ds-line); }
+    .ds-rows > div:first-child { padding-top: 0; }
+    .ds-link { display: inline-flex; align-items: center; gap: 0.35rem; margin-top: 0.85rem; font-size: 0.85rem; font-weight: 600; color: var(--app-primary); text-decoration: none; }
+    .ds-link:hover { text-decoration: underline; }
+
+    /* Хронология */
+    .ds-timeline { position: relative; margin: 0; padding: 1rem 1.25rem 1rem 2.6rem; list-style: none; }
+    .ds-timeline::before { content: ""; position: absolute; left: 1.63rem; top: 1.5rem; bottom: 1.9rem; width: 2px; background: #e6ebf0; }
+    .ds-timeline li { position: relative; padding-bottom: 0.85rem; }
+    .ds-timeline li:last-child { padding-bottom: 0; }
+    .ds-timeline li::before { content: ""; position: absolute; left: -1.25rem; top: 0.3rem; width: 10px; height: 10px; border-radius: 50%; background: #fff; box-shadow: inset 0 0 0 2px #b9d9d5; }
+    .ds-timeline li.is-done::before { background: #1d7047; box-shadow: none; }
+    .ds-timeline b { display: block; font-size: 0.85rem; font-weight: 600; color: var(--ds-ink); }
+    .ds-timeline span { font-size: 0.75rem; color: var(--ds-muted-2); }
+
+    @media (max-width: 991.98px) {
+        .ds-result { flex-wrap: wrap; }
+        .ds-result__item { flex-basis: 50%; }
+        .ds-kv { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+
+    @media (max-width: 767.98px) {
+        .ds-head { flex-direction: column; align-items: flex-start; }
+        .ds-title { font-size: 1.4rem; }
+        .ds-result__item { flex-basis: 100%; }
+        .ds-result__item + .ds-result__item { border-left: 0; border-top: 1px solid var(--ds-line); }
+        .ds-kv { grid-template-columns: minmax(0, 1fr); }
+    }
+</style>
 {% endblock %}

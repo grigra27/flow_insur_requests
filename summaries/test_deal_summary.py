@@ -3,6 +3,8 @@ from decimal import Decimal
 from django.contrib.auth.models import Group, User
 from django.test import Client, TestCase
 from django.urls import reverse
+from django.utils import timezone
+from datetime import date, datetime
 
 from insurance_requests.models import InsuranceRequest
 from summaries.models import InsuranceOffer, InsuranceSummary
@@ -54,7 +56,7 @@ class DealSummaryOfferNotesTests(TestCase):
         response = self.client.get(reverse('summaries:deal_summary', args=[self.summary.pk]))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Комментарий предложения:')
+        self.assertContains(response, 'Комментарий предложения</span>')
         self.assertContains(response, 'Точечный комментарий по предложению')
 
     def test_deal_summary_merges_multiyear_notes_into_one_row(self):
@@ -74,7 +76,7 @@ class DealSummaryOfferNotesTests(TestCase):
         self.assertContains(response, 'Точечный комментарий по предложению')
         self.assertContains(response, 'Комментарий по второму году')
         self.assertContains(response, 'Точечный комментарий по предложению | Комментарий по второму году')
-        self.assertEqual(response.content.decode('utf-8').count('Комментарий предложения:'), 1)
+        self.assertEqual(response.content.decode('utf-8').count('Комментарий предложения</span>'), 1)
 
     def test_deal_summary_hides_offer_note_block_for_empty_notes(self):
         self.offer.notes = ''
@@ -83,7 +85,7 @@ class DealSummaryOfferNotesTests(TestCase):
         response = self.client.get(reverse('summaries:deal_summary', args=[self.summary.pk]))
 
         self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, 'Комментарий предложения:')
+        self.assertNotContains(response, 'Комментарий предложения</span>')
 
     def test_deal_summary_shows_deal_summary_note(self):
         self.summary.deal_summary_note = 'Срочно проверить особое условие перед выпуском полиса'
@@ -100,3 +102,54 @@ class DealSummaryOfferNotesTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, 'Примечание к резюме')
+
+
+class DealSummaryDetailsTests(DealSummaryOfferNotesTests):
+    """Резюме сделки (редизайн 2026-09): поля заявки из V2, территория выбранной СК, дата закрытия."""
+
+    def test_deal_summary_shows_contract_object_and_client_fields(self):
+        InsuranceRequest.objects.filter(pk=self.request_obj.pk).update(
+            insured_party='lessee',
+            insured_sum_type='non_aggregate',
+            premium_frequency='quarterly',
+            equipment_type='гусеничная',
+            machine_kind='Экскаватор',
+            guard_conditions='охраняемая стоянка',
+            legal_address='119192, Москва, Мосфильмовская ул., 74Б',
+            business_activity='Разработка карьера',
+            submission_date=date(2026, 9, 23),
+        )
+
+        response = self.client.get(reverse('summaries:deal_summary', args=[self.summary.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        for text in ('Лизингополучатель', 'Уплата премии: поквартально', 'Неагрегатная', 'гусеничная', 'Экскаватор',
+                     'охраняемая стоянка', 'Мосфильмовская', 'Разработка карьера', 'Заявка подана', '23.09.2026'):
+            self.assertContains(response, text)
+
+    def test_deal_summary_hides_empty_v2_fields(self):
+        response = self.client.get(reverse('summaries:deal_summary', args=[self.summary.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        for text in ('Страхователь', 'Тип страховой суммы', 'Юридический адрес', 'Заявка подана', 'Территория страхования'):
+            self.assertNotContains(response, text)
+
+    def test_deal_summary_shows_selected_company_territory(self):
+        self.offer.coverage_territory = 'Российская Федерация, кроме новых территорий'
+        self.offer.save(update_fields=['coverage_territory'])
+
+        response = self.client.get(reverse('summaries:deal_summary', args=[self.summary.pk]))
+
+        self.assertContains(response, 'Территория страхования')
+        self.assertContains(response, 'Российская Федерация, кроме новых территорий')
+
+    def test_deal_closed_date_comes_from_completed_at(self):
+        completed_at = timezone.make_aware(datetime(2026, 9, 1, 12, 0))
+        InsuranceSummary.objects.filter(pk=self.summary.pk).update(completed_at=completed_at)
+        # правка свода после закрытия не должна сдвигать дату закрытия
+        InsuranceSummary.objects.filter(pk=self.summary.pk).update(updated_at=timezone.now())
+
+        response = self.client.get(reverse('summaries:deal_summary', args=[self.summary.pk]))
+
+        self.assertEqual(response.context['deal_closed_at'], completed_at)
+        self.assertContains(response, '01.09.2026')
