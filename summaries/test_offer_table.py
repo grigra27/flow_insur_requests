@@ -57,7 +57,7 @@ class OfferTableRenderingTests(TestCase):
         self.assertEqual(content.count('class="og-table'), 1)
         self.assertEqual(content.count('<thead>'), 1)
         self.assertEqual(content.count('<tr class="og-company-row">'), 2)
-        self.assertEqual(content.count('РФ, Европа и СНГ'), 1)
+        self.assertEqual(content.count('<span class="og-territory-text">РФ, Европа и СНГ'), 1)
         self.assertIn('2 года · итого <strong class="franchise-variant-1">140', content)
 
     def test_variant_2_columns_only_when_present(self):

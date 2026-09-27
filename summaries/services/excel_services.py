@@ -2657,10 +2657,13 @@ class ExcelExportService:
         columns_mapping: dict = None,
     ) -> None:
         """
-        Объединяет территорию по годам только при полном смысловом совпадении.
+        Территория — одна на компанию в своде (решение владельца 2026-09-27): страховая подтверждает
+        её на весь полис. Ячейки территории по годам объединяются, если у компании одна непустая
+        территория (остальные годы могут быть пустыми или созданными до сбора территории — в
+        объединённой ячейке тогда эта территория, а не «Не указано страховщиком»).
 
-        Если хотя бы один год отличается или не заполнен, значения остаются в
-        отдельных строках, чтобы различия не потерялись.
+        Разные непустые тексты по годам (после синхронизации в summaries/services/offer_territory.py
+        не возникают) остаются в отдельных строках, чтобы различия не потерялись.
         """
         if end_row <= start_row:
             return
@@ -2668,17 +2671,22 @@ class ExcelExportService:
         columns = columns_mapping if columns_mapping is not None else self.COMPANY_DATA_COLUMNS
         territory_column = columns['coverage_territory']
         values = [self._get_export_coverage_territory(offer) for offer in offers]
-        normalized_values = {
-            ' '.join(value.split()).casefold()
-            for value in values
-        }
+        placeholders = {self.MISSING_COVERAGE_TERRITORY, self.LEGACY_COVERAGE_TERRITORY}
+        texts = {}
+        for value in values:
+            if value not in placeholders:
+                texts.setdefault(' '.join(value.split()).casefold(), value)
 
-        if len(normalized_values) != 1:
+        if len(texts) > 1:
             logger.debug(
                 f"Территории компании '{company_name}' отличаются по годам; "
                 "ячейки не объединяются"
             )
             return
+        if texts:
+            values = [next(iter(texts.values()))]
+        elif len(set(values)) > 1:
+            values = [self.MISSING_COVERAGE_TERRITORY]  # часть лет не указана, часть — до сбора территории
 
         merge_range = f'{territory_column}{start_row}:{territory_column}{end_row}'
         try:

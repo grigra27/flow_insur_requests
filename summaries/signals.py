@@ -113,14 +113,34 @@ def company_status_post_save(sender, instance, created, **kwargs):
 
 
 _FLAG_OLD_COMPANY = '_company_status_old_company'
+_FLAG_TERRITORY = '_offer_territory_change'
 
 
 @receiver(pre_save, sender=InsuranceOffer)
 def offer_pre_save(sender, instance, **kwargs):
     if instance.pk:
-        old = sender.objects.filter(pk=instance.pk).values_list('summary_id', 'company_name').first()
-        if old and old != (instance.summary_id, instance.company_name):
-            setattr(instance, _FLAG_OLD_COMPANY, old)
+        old = sender.objects.filter(pk=instance.pk).values_list('summary_id', 'company_name', 'coverage_territory').first()
+        if old and old[:2] != (instance.summary_id, instance.company_name):
+            setattr(instance, _FLAG_OLD_COMPANY, old[:2])
+        # (новое ли предложение для компании в своде, изменилась ли территория) — для синхронизации лет
+        is_new_in_company = old is None or old[:2] != (instance.summary_id, instance.company_name)
+        territory_changed = old is not None and (old[2] or '') != (instance.coverage_territory or '')
+        setattr(instance, _FLAG_TERRITORY, (is_new_in_company, territory_changed))
+    else:
+        setattr(instance, _FLAG_TERRITORY, (True, False))
+
+
+def _sync_territory(instance):
+    from .services.offer_territory import sync_after_save
+
+    flags = getattr(instance, _FLAG_TERRITORY, None)
+    if flags is None:
+        return
+    delattr(instance, _FLAG_TERRITORY)
+    try:
+        sync_after_save(instance, is_new_in_company=flags[0], territory_changed=flags[1])
+    except Exception:  # noqa: BLE001 — синхронизация территории не должна ронять сохранение предложения
+        logger.exception('Territory sync failed for offer #%s', instance.pk)
 
 
 def _sync_offered(summary_id, company_name):
@@ -139,6 +159,7 @@ def offer_post_save(sender, instance, **kwargs):
         delattr(instance, _FLAG_OLD_COMPANY)
         _sync_offered(*old)  # предложение перенесли на другую СК — у прежней могло не остаться предложений
     _sync_offered(instance.summary_id, instance.company_name)
+    _sync_territory(instance)  # территория одна на компанию в своде (services/offer_territory.py)
 
 
 @receiver(post_delete, sender=InsuranceOffer)

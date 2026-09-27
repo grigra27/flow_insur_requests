@@ -160,18 +160,26 @@ class OfferCoverageTerritoryExportTests(TestCase):
             self.assertEqual(sheet['J10'].value, 'Российская Федерация')
             self.assertIn('J10:J11', {str(cell_range) for cell_range in sheet.merged_cells.ranges})
 
-    def test_different_territories_are_not_merged(self):
+    def test_changing_one_year_changes_company_territory(self):
+        # Территория одна на компанию в своде (2026-09-27): правка у одного года обновляет все годы.
         self.offer2.coverage_territory = 'Российская Федерация и Республика Беларусь'
         self.offer2.save(update_fields=['coverage_territory'])
 
         sheet = self._generate()['summary_template_sheet']
 
+        self.assertIn('P10:P11', {str(cell_range) for cell_range in sheet.merged_cells.ranges})
+        self.assertEqual(sheet['P10'].value, 'Российская Федерация и Республика Беларусь')
+
+    def test_different_territories_in_old_data_are_not_merged(self):
+        InsuranceOffer.objects.filter(pk=self.offer2.pk).update(
+            coverage_territory='Российская Федерация и Республика Беларусь'
+        )
+
+        sheet = self._generate()['summary_template_sheet']
+
         self.assertNotIn('P10:P11', {str(cell_range) for cell_range in sheet.merged_cells.ranges})
         self.assertEqual(sheet['P10'].value, 'Российская Федерация')
-        self.assertEqual(
-            sheet['P11'].value,
-            'Российская Федерация и Республика Беларусь',
-        )
+        self.assertEqual(sheet['P11'].value, 'Российская Федерация и Республика Беларусь')
 
     def test_missing_territory_is_explicit_in_export(self):
         InsuranceOffer.objects.filter(summary=self.summary).update(coverage_territory='')
@@ -182,16 +190,21 @@ class OfferCoverageTerritoryExportTests(TestCase):
         self.assertIn('P10:P11', {str(cell_range) for cell_range in sheet.merged_cells.ranges})
 
     def test_legacy_territory_is_distinct_from_explicitly_missing(self):
-        self.offer1.coverage_territory = None
-        self.offer1.save(update_fields=['coverage_territory'])
-        self.offer2.coverage_territory = ''
-        self.offer2.save(update_fields=['coverage_territory'])
+        InsuranceOffer.objects.filter(summary=self.summary).update(coverage_territory=None)
 
         sheet = self._generate()['summary_template_sheet']
 
         self.assertEqual(sheet['P10'].value, 'Нет данных: территория ранее не собиралась')
-        self.assertEqual(sheet['P11'].value, 'Не указано страховщиком')
-        self.assertNotIn('P10:P11', {str(cell_range) for cell_range in sheet.merged_cells.ranges})
+        self.assertIn('P10:P11', {str(cell_range) for cell_range in sheet.merged_cells.ranges})
+
+    def test_mixed_legacy_and_missing_is_one_missing_cell(self):
+        InsuranceOffer.objects.filter(pk=self.offer1.pk).update(coverage_territory=None)
+        InsuranceOffer.objects.filter(pk=self.offer2.pk).update(coverage_territory='')
+
+        sheet = self._generate()['summary_template_sheet']
+
+        self.assertEqual(sheet['P10'].value, 'Не указано страховщиком')
+        self.assertIn('P10:P11', {str(cell_range) for cell_range in sheet.merged_cells.ranges})
 
     def test_export_sanitizes_illegal_characters_and_truncates_text(self):
         self.offer2.delete()

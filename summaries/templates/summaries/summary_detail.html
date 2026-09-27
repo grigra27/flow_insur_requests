@@ -128,7 +128,7 @@
             <div class="card-body">
                 {% if offers %}
                     <!-- Предложения: одна таблица на все компании, шапка один раз (редизайн 2026-09) -->
-                    <div class="og-wrap">
+                    <div class="og-wrap" data-territory-url="{% url 'summaries:set_company_territory' summary.pk %}">
                     <table class="og-table{% if offers_have_variant_2 %} og-has-v2{% endif %}">
                         <thead>
                             {% if offers_have_variant_2 %}
@@ -167,6 +167,7 @@
                                         {% for note in group.notes %}<span class="og-note">{{ note }}</span>{% endfor %}
                                     </div>
                                     {% endif %}
+                                    <div class="og-territory-block">
                                     {% for line in group.territory_lines %}
                                     <div class="og-territory og-territory--{{ line.kind }}">
                                         <span class="og-territory-label">{{ line.label }}</span>
@@ -178,8 +179,19 @@
                                         {% else %}
                                             <span class="og-territory-text"><i class="bi bi-exclamation-triangle"></i> Не указано страховщиком</span>
                                         {% endif %}
+                                        {% if forloop.last %}<button type="button" class="og-territory-edit js-territory-edit" title="Территория общая для всех лет этой страховой">изменить</button>{% endif %}
                                     </div>
                                     {% endfor %}
+                                    </div>
+                                    <form class="og-territory-form d-none js-territory-form" data-company="{{ group.name }}">
+                                        <label class="og-territory-label d-block mb-1">Территория — для всех лет {{ group.name }}</label>
+                                        <textarea class="form-control form-control-sm" rows="3" name="territory"
+                                                  placeholder="Например: Российская Федерация, кроме новых территорий">{{ group.territory_value }}</textarea>
+                                        <div class="d-flex gap-2 mt-2">
+                                            <button type="submit" class="btn btn-success btn-sm">Сохранить</button>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm js-territory-cancel">Отмена</button>
+                                        </div>
+                                    </form>
                                 </td>
                             </tr>
                             {% for offer in group.offers %}
@@ -1004,6 +1016,18 @@
 .og-territory--expanded .og-territory-text { -webkit-line-clamp: unset; display: block; }
 .og-territory--missing .og-territory-text { color: #b45309; }
 .og-territory--legacy .og-territory-text { color: #94a3b8; }
+.og-territory-edit {
+    border: 0;
+    background: none;
+    padding: 0;
+    color: #64748b;
+    font-size: 0.78rem;
+    text-decoration: underline dotted;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.og-territory-edit:hover { color: var(--app-primary, #0f6b5c); }
+.og-territory-form { margin-top: 0.4rem; max-width: 40rem; }
 .og-more {
     border: 0;
     background: none;
@@ -3546,6 +3570,49 @@ function showCompanyStatusesIfMissing(data) {
         more.addEventListener('click', function () {
             const expanded = line.classList.toggle('og-territory--expanded');
             more.textContent = expanded ? 'свернуть' : 'ещё';
+        });
+    });
+    const offersWrap = document.querySelector('.og-wrap');
+    const territoryUrl = offersWrap ? offersWrap.dataset.territoryUrl : null;
+    document.querySelectorAll('.js-territory-edit').forEach(function (button) {
+        button.addEventListener('click', function () {
+            const cell = button.closest('td');
+            cell.querySelector('.og-territory-block').classList.add('d-none');
+            const form = cell.querySelector('.js-territory-form');
+            form.classList.remove('d-none');
+            form.querySelector('textarea').focus();
+        });
+    });
+    document.querySelectorAll('.js-territory-cancel').forEach(function (button) {
+        button.addEventListener('click', function () {
+            const cell = button.closest('td');
+            cell.querySelector('.js-territory-form').classList.add('d-none');
+            cell.querySelector('.og-territory-block').classList.remove('d-none');
+        });
+    });
+    document.querySelectorAll('.js-territory-form').forEach(function (form) {
+        form.addEventListener('submit', function (event) {
+            event.preventDefault();
+            const body = new FormData();
+            body.append('company', form.dataset.company);
+            body.append('territory', form.querySelector('textarea').value);
+            body.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+            const submit = form.querySelector('button[type=submit]');
+            submit.disabled = true;
+            fetch(territoryUrl, { method: 'POST', body: body })
+                .then(function (response) { return response.json(); })
+                .then(function (data) {
+                    if (data.success) {
+                        location.reload();
+                    } else {
+                        submit.disabled = false;
+                        showErrorMessage(data.error || 'Не удалось сохранить территорию', 6000);
+                    }
+                })
+                .catch(function () {
+                    submit.disabled = false;
+                    showErrorMessage('Не удалось сохранить территорию — проверьте соединение', 6000);
+                });
         });
     });
     if (window.bootstrap && bootstrap.Dropdown) {

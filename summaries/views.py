@@ -835,6 +835,7 @@ def _offer_groups(sorted_companies, companies_with_offers, company_totals, compa
             'total_premium_2': totals.get('total_premium_2'),
             'notes': company_notes.get(company_name, []),
             'territory_lines': _territory_lines(company_offers),
+            'territory_value': next((line['text'] for line in _territory_lines(company_offers) if line['kind'] == 'text'), ''),
         })
     return groups
 
@@ -854,6 +855,22 @@ def _company_status_payload(summary):
         'missing': company_statuses.missing_companies(summary),
         'declined': company_statuses.declined_company_names(summary),
     }
+
+
+@require_http_methods(["POST"])
+@user_required
+def set_company_territory(request, summary_id):
+    """Территория страховой в своде — сразу для всех её лет (summaries/services/offer_territory.py)."""
+    from .services.offer_territory import set_company_territory as apply_territory
+
+    summary = get_object_or_404(InsuranceSummary, pk=summary_id)
+    company_name = (request.POST.get('company') or '').strip()
+    if not company_name or not summary.offers.filter(company_name=company_name).exists():
+        return JsonResponse({'success': False, 'error': 'У этой страховой нет предложений в своде.'}, status=400)
+    territory = (request.POST.get('territory') or '').strip()
+    updated = apply_territory(summary.pk, company_name, territory)
+    logger.info(f"Summary {summary_id}: territory of '{company_name}' set for {updated} offers by {request.user.username}")
+    return JsonResponse({'success': True, 'updated': updated})
 
 
 @require_http_methods(["POST"])
