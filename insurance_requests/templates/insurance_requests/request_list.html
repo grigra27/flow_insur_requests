@@ -114,13 +114,6 @@
         font-weight: 600;
     }
 
-    .rl-edits {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.3rem;
-        margin-top: 0.35rem;
-    }
-
     .request-condition-badges {
         max-width: 15rem;
     }
@@ -189,7 +182,7 @@
         line-height: 1.2;
     }
 
-    /* Плоские бейджи: партия, дубли, правки */
+    /* Плоские бейджи: партия, дубли */
     .request-list-badge {
         display: inline-flex;
         align-items: center;
@@ -231,40 +224,6 @@
         background: #fef3c7;
         color: #92400e;
         border: 1px solid rgba(217, 119, 6, 0.32);
-    }
-
-    .request-list-badge--manual-edits {
-        background: var(--app-primary-soft);
-        color: var(--app-primary-dark);
-        border: 1px solid rgba(11, 122, 117, 0.26);
-    }
-
-    .request-list-badge--manual-edits .request-list-badge__count {
-        background: rgba(11, 122, 117, 0.12);
-        color: var(--app-primary-dark);
-    }
-
-    .request-list-badge--manual-edits:hover,
-    .request-list-badge--manual-edits:focus-visible {
-        background: rgba(11, 122, 117, 0.14);
-        color: var(--app-primary-dark);
-    }
-
-    .request-list-badge--post-edits {
-        background: #eef4ff;
-        color: #1d4ed8;
-        border: 1px solid rgba(29, 78, 216, 0.26);
-    }
-
-    .request-list-badge--post-edits .request-list-badge__count {
-        background: rgba(29, 78, 216, 0.12);
-        color: #1e40af;
-    }
-
-    .request-list-badge--post-edits:hover,
-    .request-list-badge--post-edits:focus-visible {
-        background: rgba(29, 78, 216, 0.12);
-        color: #1e40af;
     }
 
     @media (max-width: 767.98px) {
@@ -467,28 +426,6 @@
                                 {% elif request.status == 'email_generated' %}<b>Письмо</b> сгенерировано
                                 {% else %}<b>Загружена</b> · ждёт письма{% endif %}
                             </div>
-                            {% if request.manual_edits_count or request.post_creation_count %}
-                            <div class="rl-edits">
-                                {% if request.manual_edits_count %}
-                                    <a href="{% url 'insurance_requests:request_comparison' request.pk %}"
-                                       class="request-list-badge request-list-badge--manual-edits text-decoration-none"
-                                       title="При создании оператор поправил распознанное парсером: {{ request.manual_edits_count }} полей. Открыть сравнение.">
-                                        <i class="bi bi-pencil-square"></i>
-                                        <span class="d-none d-xl-inline">При создании</span>
-                                        <span class="request-list-badge__count">{{ request.manual_edits_count }}</span>
-                                    </a>
-                                {% endif %}
-                                {% if request.post_creation_count %}
-                                    <a href="{% url 'insurance_requests:request_comparison' request.pk %}"
-                                       class="request-list-badge request-list-badge--post-edits text-decoration-none"
-                                       title="Полей изменено уже после создания заявки: {{ request.post_creation_count }}. Открыть сравнение.">
-                                        <i class="bi bi-clock-history"></i>
-                                        <span class="d-none d-xl-inline">После создания</span>
-                                        <span class="request-list-badge__count">{{ request.post_creation_count }}</span>
-                                    </a>
-                                {% endif %}
-                            </div>
-                            {% endif %}
                         </td>
                         <td class="sl-col-date">
                             {% timezone "Europe/Moscow" %}

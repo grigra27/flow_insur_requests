@@ -1472,8 +1472,8 @@ class ParserV2UploadTests(TestCase):
         created = InsuranceRequest.objects.get()
         self.assertEqual(created.manual_edits_count, 0)
 
-    def test_request_list_shows_manual_edits_badge(self):
-        """Фаза 3: бейдж правок в списке ведёт на страницу сравнения."""
+    def test_request_list_hides_manual_edits_badge(self):
+        """Правки парсера видны в карточке заявки, но не в списке заявок."""
         self.client.login(username='parser_v2_root', password='pwd')
         upload_response = self.client.post(
             reverse('insurance_requests:upload_excel_v2'),
@@ -1484,8 +1484,9 @@ class ParserV2UploadTests(TestCase):
         self.client.post(reverse('insurance_requests:upload_excel_v2'), post_data)
         created = InsuranceRequest.objects.get()
 
+        self.assertEqual(created.manual_edits_count, 1)
         response = self.client.get(reverse('insurance_requests:request_list'))
-        self.assertContains(
+        self.assertNotContains(
             response,
             reverse('insurance_requests:request_comparison', kwargs={'pk': created.pk}),
         )

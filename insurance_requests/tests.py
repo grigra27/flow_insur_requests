@@ -1023,7 +1023,7 @@ class LoginSecurityTest(TestCase):
 
 
 class RequestListEditBadgesTest(TestCase):
-    """Список заявок: бейджи правок и скрытие служебных предупреждений парсера."""
+    """Список заявок: правки парсера и предупреждения разбора в списке не показываются."""
 
     def setUp(self):
         import datetime as _dt
@@ -1061,11 +1061,15 @@ class RequestListEditBadgesTest(TestCase):
         counts = InsuranceRequest.post_creation_counts_for([self.req])
         self.assertEqual(counts.get(self.req.id), 1)
 
-    def test_list_shows_both_stage_badges(self):
+    def test_list_hides_parser_edit_badges(self):
         response = self.client.get(reverse('insurance_requests:request_list'))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'При создании')
-        self.assertContains(response, 'После создания')
+        self.assertNotContains(response, 'При создании')
+        self.assertNotContains(response, 'После создания')
+        self.assertNotContains(
+            response,
+            reverse('insurance_requests:request_comparison', kwargs={'pk': self.req.pk}),
+        )
 
     def test_list_hides_parser_warning_review_badge(self):
         response = self.client.get(reverse('insurance_requests:request_list'))
