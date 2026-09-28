@@ -5,18 +5,17 @@
 формируется чистый документ с тем набором данных, который нужен андеррайтеру
 страховой компании для расчёта тарифа.
 
-Логика отбора полей собрана в одном декларативном манифесте ``SECTIONS``:
-каждая секция — это набор строк, а каждая строка знает, как достать своё
-значение из заявки и показывать ли себя вообще. Пустые и нерелевантные
-текущему типу страхования поля в документ не попадают — секция без строк
-не выводится. Так логика «что класть в заявку» не размазана по шаблону и
-переиспользуема, если позже понадобится JSON/Excel-вариант той же заявки.
+Документ фирменный («ОН-ЛАЙН брокер»: логотип, красный #BA122B и графитовый
+#495E5F) и рассчитан на одну альбомную страницу A4. Отбор и группировка полей
+живут в ``build_application_context`` и его помощниках, а шаблон только
+раскладывает готовые блоки. Пустые и нерелевантные текущему типу страхования
+поля в документ не попадают.
 """
 from __future__ import annotations
 
 import os
 from io import BytesIO
-from typing import Callable, List, NamedTuple, Optional
+from typing import Optional
 
 import pytz
 from django.template.loader import render_to_string
@@ -26,23 +25,12 @@ from django.utils.text import get_valid_filename
 
 MOSCOW_TZ = pytz.timezone('Europe/Moscow')
 
-# Шрифты с кириллицей для xhtml2pdf (reportlab под капотом не имеет кириллицы
-# в стандартных Type1-шрифтах). Лежат в репозитории — Dockerfile трогать не нужно.
-FONT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'core', 'fonts')
-
-
-class Row(NamedTuple):
-    """Одна строка документа: подпись и функция, достающая значение."""
-
-    label: str
-    value: Callable[['object'], Optional[str]]
-
-
-class Section(NamedTuple):
-    """Логический блок заявки с заголовком и строками."""
-
-    title: str
-    rows: List[Row]
+# Шрифты с кириллицей (PT Sans, OFL) и логотип для xhtml2pdf: reportlab под
+# капотом не имеет кириллицы в стандартных Type1-шрифтах. Лежат в репозитории —
+# Dockerfile трогать не нужно.
+CORE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'core')
+FONT_DIR = os.path.join(CORE_DIR, 'fonts')
+BRAND_DIR = os.path.join(CORE_DIR, 'brand')
 
 
 # --- помощники извлечения значений -------------------------------------------
@@ -90,98 +78,207 @@ def _franchise(insurance_request) -> Optional[str]:
     return label
 
 
-def _transportation(insurance_request) -> Optional[str]:
-    """Маршрут перевозки одной строкой, если перевозка требуется."""
-    if not insurance_request.has_transportation:
+# --- состав документа ---------------------------------------------------------
+# Документ — одна альбомная страница A4 в фирменном стиле «ОН-ЛАЙН брокер»:
+# шапка с логотипом и сроком ответа, полоса реквизитов сделки, три колонки
+# (лизингополучатель / объект / условия), плитки параметров и рисков и блок
+# «Ответ страховщика». Каждая строка показывается, только если её значение
+# непустое; флаги рисков выводятся явно — и «Да», и «Нет».
+
+PROPERTY_TYPE = 'страхование имущества'
+
+# Длинные значения (условия охраны и т.п.) не влезают в плитку — они уходят
+# отдельной строкой на всю ширину под плитками.
+LONG_VALUE_THRESHOLD = 45
+
+FRANCHISE_ASKS = {
+    'none': 'Расчёт <b>без франшизы</b>',
+    'with_franchise': 'Расчёт <b>с франшизой</b> — укажите её размер',
+    'both_variants': 'Расчёт в двух вариантах: <b>с франшизой и без</b>',
+}
+
+
+def _rows(pairs):
+    """Оставляет только пары (подпись, значение) с непустым значением."""
+    return [(label, value) for label, value in pairs if _text(value)]
+
+
+def _capitalize(text: Optional[str]) -> Optional[str]:
+    return text[:1].upper() + text[1:] if text else text
+
+
+def _money(value, currency) -> Optional[str]:
+    if value is None:
         return None
-    departure = _text(insurance_request.transportation_departure)
-    destination = _text(insurance_request.transportation_destination)
-    parts = []
-    if departure or destination:
-        parts.append(f'{departure or "—"} → {destination or "—"}')
-    if insurance_request.transportation_days:
-        parts.append(f'срок {insurance_request.transportation_days} дн.')
-    return ', '.join(parts) if parts else 'Да'
+    amount = f'{value:,.0f}'.replace(',', ' ')
+    if (currency or 'RUB') == 'RUB':
+        return f'{amount} руб.'
+    return f'{amount} {currency}'
 
 
-# --- манифест секций ----------------------------------------------------------
-# Порядок строк = порядок в документе. Строка показывается, только если её
-# value(...) вернул непустую строку; пустая секция целиком не выводится.
+def _premium(insurance_request) -> Optional[str]:
+    label = _display(insurance_request, 'premium_frequency')
+    if label and insurance_request.has_installment:
+        return f'{label} (рассрочка)'
+    return label
 
-SECTIONS: List[Section] = [
-    Section('Заявка', [
-        Row('Номер ДФА', lambda r: _text(r.dfa_number)),
-        Row('Филиал', lambda r: _text(r.branch)),
-        Row('Статус сделки', lambda r: _display(r, 'deal_status')),
-        Row('Дата подачи', lambda r: _date(r.submission_date)),
-        Row('Менеджер', lambda r: _text(r.manager_name)),
-        Row('Срок ответа (МСК)', _deadline),
-    ]),
-    Section('Страхователь', [
-        Row('Наименование', lambda r: _text(r.client_name)),
-        Row('ИНН', lambda r: _text(r.inn)),
-        Row('Дата рождения (ИП)', lambda r: _date(r.birth_date)),
-        Row('Юридический адрес', lambda r: _text(r.legal_address)),
-        Row('Почтовый адрес', lambda r: _text(r.postal_address)),
-        Row('Основной вид деятельности', lambda r: _text(r.business_activity)),
-    ]),
-    Section('Объект страхования', [
-        Row('Объект', lambda r: _text(r.object_display_name)),
-        Row('Год выпуска', lambda r: _text(r.manufacturing_year)),
-        Row('Состояние', lambda r: _text(r.condition_label)),
-        Row('Тип/категория техники', lambda r: _text(r.equipment_type)),
-        Row('Мощность/производительность', lambda r: _text(r.power_or_capacity)),
-        Row('Стоимость приобретения', lambda r: _text(r.acquisition_cost_display)),
-        Row('Количество одинаковых объектов',
-            lambda r: str(r.source_object_count) if (r.source_object_count or 0) > 1 else None),
-    ]),
-    Section('Условия страхования', [
-        Row('Тип страхования', lambda r: _text(r.insurance_type)),
-        Row('Срок страхования', lambda r: _text(r.insurance_period)),
-        Row('Территория страхования', lambda r: _text(r.insurance_territory)),
-        Row('Франшиза', _franchise),
-        Row('Частота уплаты премии', lambda r: _display(r, 'premium_frequency')),
-        Row('Рассрочка', lambda r: _yes(r.has_installment)),
-    ]),
-    Section('Дополнительные риски и параметры', [
-        Row('Автозапуск', lambda r: _yes(r.has_autostart)),
-        Row('КАСКО кат. C/E', lambda r: _yes(r.has_casco_ce)),
-        Row('Комплектность ключей', lambda r: _text(r.key_completeness)),
-        Row('ПТС/ПСМ', lambda r: _text(r.pts_psm)),
-        Row('Телематический комплекс', lambda r: _text(r.telematics_complex)),
-        Row('Банк-кредитор', lambda r: _text(r.creditor_bank)),
-        Row('Цели использования', lambda r: _text(r.usage_purposes)),
-        Row('Перевозка', _transportation),
-        Row('Строительно-монтажные работы (СМР)', lambda r: _yes(r.has_construction_work)),
-    ]),
-    Section('Условия страхования имущества', [
-        Row('Страхователь', lambda r: _display(r, 'insured_party')),
-        Row('Тип страховой суммы', lambda r: _display(r, 'insured_sum_type')),
-        Row('Условия охраны/хранения', lambda r: _text(r.guard_conditions)),
-        Row('Правообладатель места расположения',
-            lambda r: _display(r, 'property_location_right_holder')),
-    ]),
-]
+
+def _flag(label, on) -> dict:
+    return {'label': label, 'value': 'Да' if on else 'Нет', 'state': 'on' if on else 'off'}
+
+
+def _info(label, value) -> Optional[dict]:
+    value = _text(value)
+    return {'label': label, 'value': value, 'state': 'info'} if value else None
+
+
+def _insured_rows(r):
+    postal = _text(r.postal_address)
+    if postal and postal == _text(r.legal_address):
+        postal = 'совпадает с юридическим'
+    return _rows([
+        ('Наименование', _text(r.client_name)),
+        ('ИНН', _text(r.inn)),
+        ('Дата рождения (ИП)', _date(r.birth_date)),
+        ('Юридический адрес', _text(r.legal_address)),
+        ('Почтовый адрес', postal),
+        ('Вид деятельности', _text(r.business_activity)),
+    ])
+
+
+def _object_facts(r):
+    return _rows([
+        ('Год выпуска', _text(r.manufacturing_year)),
+        ('Состояние', _text(r.condition_label)),
+        ('Тип / категория', _text(r.equipment_type)),
+        ('Мощность / производ.', _text(r.power_or_capacity)),
+    ])
+
+
+def _terms_rows(r):
+    return _rows([
+        ('Тип страхования', _capitalize(_text(r.insurance_type))),
+        ('Срок страхования', _capitalize(_text(r.insurance_period))),
+        ('Территория', _text(r.insurance_territory)),
+        ('Франшиза', _franchise(r)),
+        ('Уплата премии', _premium(r)),
+        ('Страхователь', _display(r, 'insured_party')),
+        ('Страховая сумма', _display(r, 'insured_sum_type')),
+        ('Банк-кредитор', _text(r.creditor_bank)),
+        ('Место расположения', _display(r, 'property_location_right_holder')),
+    ])
+
+
+def _risk_items(r):
+    """Плитки параметров: флаги (Да/Нет) и короткие справочные значения."""
+    if r.insurance_type == PROPERTY_TYPE:
+        items = [
+            _flag('Перевозка', r.has_transportation),
+            _flag('Строительно-монтажные работы', r.has_construction_work),
+            _info('Цели использования', r.usage_purposes),
+            _info('Охрана и хранение', r.guard_conditions),
+        ]
+    else:
+        items = [
+            _flag('Автозапуск', r.has_autostart),
+            _flag('КАСКО кат. C/E', r.has_casco_ce),
+            _flag('Перевозка', r.has_transportation),
+            _flag('Строительно-монтажные работы', True) if r.has_construction_work else None,
+            _info('Комплектов ключей', r.key_completeness),
+            _info('ПТС / ПСМ', r.pts_psm),
+            _info('Телематика', r.telematics_complex),
+            _info('Цели использования', r.usage_purposes),
+            _info('Охрана и хранение', r.guard_conditions),
+        ]
+    return [item for item in items if item]
+
+
+def _transport_row(r):
+    if not r.has_transportation:
+        return None
+    route = ' — '.join(
+        part for part in (_text(r.transportation_departure), _text(r.transportation_destination)) if part
+    )
+    if r.transportation_days:
+        route = f'{route} · {r.transportation_days} дн.' if route else f'{r.transportation_days} дн.'
+    return ('Маршрут перевозки', route) if route else None
+
+
+def _asks(r):
+    premium = _premium(r)
+    asks = [
+        'Страховую сумму, тариф и премию <b>по каждому году</b> срока страхования'
+        ' — в прилагаемой таблице Excel',
+        FRANCHISE_ASKS.get(r.franchise_type),
+        f'Премию с учётом порядка уплаты: <b>{premium.lower()}</b>' if premium else None,
+        'Условия, исключения и срок действия предложения',
+    ]
+    return [ask for ask in asks if ask]
 
 
 def build_application_context(insurance_request) -> dict:
-    """Готовит контекст для PDF-шаблона: только непустые строки и секции."""
-    sections = []
-    for section in SECTIONS:
-        rows = []
-        for row in section.rows:
-            value = row.value(insurance_request)
-            if _text(value):
-                rows.append({'label': row.label, 'value': value})
-        if rows:
-            sections.append({'title': section.title, 'rows': rows})
+    """Готовит контекст фирменного PDF-шаблона заявки для страховой."""
+    r = insurance_request
+    deadline = r.response_deadline_moscow
+    title = _capitalize(_text(r.object_display_name)) or 'Объект не указан'
+    source_text = _text(r.object_description)
+    if source_text and source_text.lower() == title.lower():
+        source_text = None
 
+    kind = [part for part in (
+        _text(r.machine_kind),
+        f'марка {r.object_brand}' if _text(r.object_brand) else None,
+    ) if part]
+
+    risk_items = _risk_items(r)
+    long_rows = [
+        (item['label'], item['value']) for item in risk_items
+        if item['state'] == 'info' and len(item['value']) > LONG_VALUE_THRESHOLD
+    ]
+    tiles = [item for item in risk_items
+             if not (item['state'] == 'info' and len(item['value']) > LONG_VALUE_THRESHOLD)]
+    tile_rows = [tiles[i:i + 4] for i in range(0, len(tiles), 4)]
+    if tile_rows and len(tile_rows[-1]) < 4:
+        tile_rows[-1] = tile_rows[-1] + [None] * (4 - len(tile_rows[-1]))
+    transport = _transport_row(r)
+    if transport:
+        long_rows.append(transport)
+
+    facts = _object_facts(r)
+    author = r.created_by.get_full_name() or r.created_by.username if r.created_by_id else None
     generated_at = timezone.localtime(timezone.now(), MOSCOW_TZ).strftime('%d.%m.%Y %H:%M')
     return {
-        'request': insurance_request,
-        'title': insurance_request.get_display_name(),
-        'sections': sections,
-        'deadline': _deadline(insurance_request),
+        'request': r,
+        'title': r.get_display_name(),
+        'type_label': _text(r.insurance_type) or '',
+        'object_title': title,
+        'object_kind': ' · '.join(kind),
+        'client_name': _text(r.client_name),
+        'batch_label': f'объект {r.item_no} из {r.item_count} по ДФА' if (r.item_count or 0) > 1 else None,
+        'deadline': _deadline(r),
+        'deadline_time': deadline.strftime('%H:%M') if deadline else None,
+        'deadline_date': deadline.strftime('%d.%m.%Y') if deadline else None,
+        'strip': _rows([
+            ('Номер ДФА', _text(r.dfa_number)),
+            ('Филиал', _text(r.branch)),
+            ('Сделка', _display(r, 'deal_status')),
+            ('Дата подачи', _date(r.submission_date)),
+            ('Менеджер сделки', _text(r.manager_name)),
+        ]),
+        'insured_rows': _insured_rows(r),
+        'facts': facts,
+        'facts_width': 100 // max(len(facts), 1),
+        'cost': _money(r.acquisition_cost_value, r.acquisition_cost_currency),
+        'quantity': (
+            f'× {r.source_object_count} одинаковых объекта'
+            if (r.source_object_count or 0) > 1 else None
+        ),
+        'source_text': source_text,
+        'terms_rows': _terms_rows(r),
+        'tile_rows': tile_rows,
+        'long_rows': long_rows,
+        'asks': _asks(r),
+        'author': author,
         'generated_at': generated_at,
     }
 
@@ -195,11 +292,12 @@ def build_application_filename(insurance_request) -> str:
 
 
 def _link_callback(uri: str, rel: str) -> str:
-    """Резолвит ссылки шаблона (шрифты) в абсолютные пути файловой системы."""
-    if uri.startswith('fonts/'):
-        path = os.path.join(FONT_DIR, os.path.basename(uri))
-        if os.path.exists(path):
-            return path
+    """Резолвит ссылки шаблона (шрифты, логотип) в абсолютные пути файловой системы."""
+    for prefix, directory in (('fonts/', FONT_DIR), ('brand/', BRAND_DIR)):
+        if uri.startswith(prefix):
+            path = os.path.join(directory, os.path.basename(uri))
+            if os.path.exists(path):
+                return path
     return uri
 
 

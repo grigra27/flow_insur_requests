@@ -322,6 +322,40 @@ class RequestApplicationPdfExportTest(TestCase):
         self.assertNotIn('Внутренний комментарий', text)
         self.assertNotIn('Загружено', text)
 
+    def test_application_pdf_is_one_landscape_page_with_logo(self):
+        from pypdf import PdfReader
+        from .application_export import render_application_pdf
+
+        reader = PdfReader(BytesIO(render_application_pdf(self.request)))
+        self.assertEqual(len(reader.pages), 1)
+        page = reader.pages[0]
+        self.assertGreater(float(page.mediabox.width), float(page.mediabox.height))
+        self.assertTrue(page.images, 'логотип должен быть встроен в PDF')
+
+    def test_application_shows_explicit_no_for_risk_flags(self):
+        from .application_export import build_application_context
+
+        context = build_application_context(self.request)
+        tiles = {tile['label']: tile['value'] for row in context['tile_rows'] for tile in row if tile}
+        self.assertEqual(tiles['Автозапуск'], 'Да')
+        self.assertEqual(tiles['КАСКО кат. C/E'], 'Нет')
+        self.assertEqual(tiles['Перевозка'], 'Да')
+        self.assertIn(('Маршрут перевозки', 'Москва — Казань · 3 дн.'), context['long_rows'])
+        self.assertEqual(context['author'], 'appuser')
+
+    def test_application_moves_long_values_out_of_tiles(self):
+        from .application_export import build_application_context
+
+        self.request.insurance_type = 'страхование имущества'
+        self.request.guard_conditions = (
+            'Территория ограждена забором, пропускная система, видеонаблюдение, охрана'
+        )
+        context = build_application_context(self.request)
+        tile_labels = [tile['label'] for row in context['tile_rows'] for tile in row if tile]
+        self.assertNotIn('Охрана и хранение', tile_labels)
+        self.assertIn('Охрана и хранение', [label for label, _ in context['long_rows']])
+        self.assertNotIn('Автозапуск', tile_labels)
+
     def test_export_application_forbidden_for_regular_user(self):
         # Только суперпользователь: обычный пользователь группы Пользователи
         # получает 403.
