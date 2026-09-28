@@ -620,6 +620,47 @@ class EmailTemplateGeneratorTest(TestCase):
         self.assertEqual(req.get_display_name(), f'#{req.id} / объект 2 из 4')
 
 
+class RequestListRedesignTest(TestCase):
+    """Список заявок в языке сводов: счётчики филиалов и шкала пути заявки."""
+
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user(username='redesignuser', password='pwd')
+        user_group, _ = Group.objects.get_or_create(name='Пользователи')
+        self.user.groups.add(user_group)
+        self.client.login(username='redesignuser', password='pwd')
+
+        for branch, dfa, status in (
+            ('Казань', 'ДФА-KZ-1', 'uploaded'),
+            ('Казань', 'ДФА-KZ-2', 'emails_sent'),
+            ('Москва', 'ДФА-MSK-1', 'email_generated'),
+        ):
+            InsuranceRequest.objects.create(
+                client_name='Клиент',
+                inn='5555555555',
+                insurance_type='страхование спецтехники',
+                dfa_number=dfa,
+                branch=branch,
+                status=status,
+                created_by=self.user,
+            )
+
+    def test_branch_counts_ignore_branch_filter_but_respect_others(self):
+        response = self.client.get(
+            reverse('insurance_requests:request_list') + '?branch=Москва&dfa_filter=KZ'
+        )
+        self.assertEqual(response.context['branch_counts'], {'Казань': 2})
+        self.assertEqual(response.context['total_requests_count'], 2)
+        self.assertEqual(response.context['total_requests'], 0)
+
+    def test_rows_show_status_path_and_short_type(self):
+        response = self.client.get(reverse('insurance_requests:request_list'))
+        self.assertContains(response, 'rl-path--uploaded')
+        self.assertContains(response, 'rl-path--email_generated')
+        self.assertContains(response, 'rl-path--emails_sent')
+        self.assertContains(response, 'Казань · Спецтехника')
+
+
 class RequestListBatchGroupingTest(TestCase):
     """Stage 4.3: batch siblings must look like a group in /request_list/."""
 

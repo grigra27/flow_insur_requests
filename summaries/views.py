@@ -190,12 +190,7 @@ def summary_list(request):
     })
 
 
-SUMMARY_LIST_TYPE_LABELS = {
-    'КАСКО': 'КАСКО',
-    'страхование спецтехники': 'Спецтехника',
-    'страхование имущества': 'Имущество',
-    'другое': 'Другое',
-}
+SUMMARY_LIST_TYPE_LABELS = InsuranceRequest.SHORT_INSURANCE_TYPE_LABELS
 
 
 def _attach_summary_list_info(page_summaries):

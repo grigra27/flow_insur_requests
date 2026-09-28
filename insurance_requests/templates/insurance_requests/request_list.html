@@ -5,100 +5,177 @@
 {% block title %}Список заявок - {{ block.super }}{% endblock %}
 
 {% block extra_css %}
+{% include 'summaries/_list_page_styles.html' %}
 <style>
-    /* Multi-object V2 requests are shown as one soft group without hiding
-       individual clickable rows. */
-    .request-row--batch {
-        --request-batch-rgb: 22, 163, 74;
-        --request-batch-rgb-soft: 134, 239, 172;
-        --request-batch-text: #166534;
+    /* Заявки: общий язык списков (.sl-*) + своё — шкала пути, рейка партий, бейджи условий. */
+    .rl-per-page.form-select {
+        height: 36px;
+        width: auto;
+        padding: 0 2.1rem 0 0.75rem;
+        background-color: #fafbfc;
+        border: 1px solid var(--sl-border);
+        border-radius: 10px;
+        font-size: 0.8125rem;
+        font-weight: 600;
+        color: var(--sl-ink-2);
     }
-    .request-row--batch > * {
-        --bs-table-bg: rgba(var(--request-batch-rgb), 0.026);
-        border-color: rgba(var(--request-batch-rgb), 0.10);
-        transition: background-color 0.18s ease, border-color 0.18s ease;
-    }
-    .table-striped > tbody > tr.request-row--batch:nth-of-type(odd) > * {
-        --bs-table-accent-bg: rgba(var(--request-batch-rgb), 0.036);
-    }
-    .table-hover > tbody > tr.request-row--batch:hover > *,
-    .request-row--batch.request-row--batch-hover > * {
-        --bs-table-accent-bg: rgba(var(--request-batch-rgb), 0.060);
-        border-color: rgba(var(--request-batch-rgb), 0.16);
-    }
-    .request-row--batch-first > * {
-        border-top-color: rgba(var(--request-batch-rgb), 0.18);
-    }
-    .request-row--batch-last > * {
-        border-bottom-color: rgba(var(--request-batch-rgb), 0.18);
-    }
-    .request-row--batch + .request-row:not(.request-row--batch) > * {
-        border-top-color: var(--bs-border-color-translucent);
-    }
-    .request-row--batch > td:first-child {
-        position: relative;
-        padding-left: 2.2rem;
-    }
-    .request-row--batch > td:first-child::before {
-        content: "";
-        position: absolute;
-        left: 0.95rem;
-        top: -1px;
-        bottom: -1px;
-        width: 2px;
-        border-radius: 999px;
-        background: linear-gradient(180deg, rgba(var(--request-batch-rgb), 0.14) 0%, rgba(var(--request-batch-rgb-soft), 0.52) 50%, rgba(var(--request-batch-rgb), 0.14) 100%);
-    }
-    .request-row--batch-first > td:first-child::before {
-        top: 1.15rem;
-    }
-    .request-row--batch-last > td:first-child::before {
-        bottom: 1.15rem;
-    }
-    .request-row--batch > td:first-child::after {
-        content: "";
-        position: absolute;
-        left: 0.62rem;
-        top: 50%;
-        width: 0.72rem;
-        height: 0.72rem;
-        border-radius: 999px;
-        border: 2px solid rgba(var(--request-batch-rgb), 0.28);
-        background: #ffffff;
-        transform: translateY(-50%);
-        box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.92);
-    }
-    .request-row--batch-first > td:first-child::after {
-        width: 0.84rem;
-        height: 0.84rem;
-        left: 0.56rem;
-        border-color: rgba(var(--request-batch-rgb), 0.44);
-    }
-    .request-object-title {
-        max-width: 34rem;
-    }
-    .request-object-meta {
-        line-height: 1.35;
-    }
-    .request-condition-badges {
-        min-width: 10rem;
-    }
-    .request-title-stack {
+
+    .rl-bar-actions {
         display: flex;
-        flex-direction: column;
-        gap: 0.2rem;
+        align-items: center;
+        gap: 0.5rem;
     }
-    .request-title-line {
+
+    .rl-presets {
         display: flex;
         flex-wrap: wrap;
         align-items: center;
         gap: 0.4rem;
-    }
-    .request-batch-caption {
-        color: #5f6f65;
+        margin-top: 0.9rem;
         font-size: 0.78rem;
-        line-height: 1.25;
+        color: var(--sl-muted-2);
     }
+
+    .rl-preset {
+        padding: 0.2rem 0.65rem;
+        border: 1px solid var(--sl-border);
+        border-radius: 999px;
+        background: #fff;
+        font-weight: 600;
+        color: var(--sl-muted);
+        text-decoration: none;
+        transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+    }
+
+    .rl-preset:hover,
+    .rl-preset.is-active {
+        border-color: var(--sl-teal);
+        background: var(--sl-teal-soft);
+        color: var(--app-primary-dark);
+    }
+
+    /* Строка */
+    .request-row {
+        cursor: pointer;
+    }
+
+    .request-row:focus-visible {
+        outline: 2px solid rgba(11, 122, 117, 0.55);
+        outline-offset: -2px;
+    }
+
+    .rl-row--todo td:first-child {
+        box-shadow: inset 3px 0 0 var(--sl-amber);
+    }
+
+    .rl-go {
+        width: 1%;
+        color: #c3ccd7;
+        transition: color 0.15s ease, transform 0.15s ease;
+    }
+
+    .request-row:hover .rl-go,
+    .request-row:focus-visible .rl-go {
+        color: var(--sl-teal);
+    }
+
+    /* Путь заявки: загружена → письмо → отправлено */
+    .rl-path {
+        display: flex;
+        gap: 3px;
+    }
+
+    .rl-path span {
+        width: 22px;
+        height: 6px;
+        border-radius: 3px;
+        background: #e5eaf0;
+    }
+
+    .rl-path--uploaded span:nth-child(1),
+    .rl-path--email_generated span:nth-child(2) {
+        background: var(--sl-amber);
+    }
+
+    .rl-path--email_generated span:nth-child(1),
+    .rl-path--emails_sent span {
+        background: var(--sl-teal);
+    }
+
+    .rl-path-label {
+        margin-top: 0.35rem;
+        font-size: 0.78rem;
+        color: var(--sl-muted);
+        white-space: nowrap;
+    }
+
+    .rl-path-label b {
+        color: var(--sl-ink-2);
+        font-weight: 600;
+    }
+
+    .rl-edits {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.3rem;
+        margin-top: 0.35rem;
+    }
+
+    .request-condition-badges {
+        max-width: 15rem;
+    }
+
+    /* Партия V2: мягкий зелёный фон и рейка, связывающая строки одной загрузки */
+    .request-row--batch {
+        --request-batch-rgb: 22, 163, 74;
+        --request-batch-text: #166534;
+    }
+
+    .sl-table .request-row--batch td {
+        background: rgba(var(--request-batch-rgb), 0.028);
+    }
+
+    .sl-table .request-row--batch:hover td,
+    .sl-table .request-row--batch.request-row--batch-hover td {
+        background: rgba(var(--request-batch-rgb), 0.06);
+    }
+
+    .sl-table .request-row--batch td:first-child {
+        position: relative;
+        padding-left: 2.4rem;
+    }
+
+    .request-row--batch td:first-child::before {
+        content: "";
+        position: absolute;
+        left: 1.05rem;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: rgba(var(--request-batch-rgb), 0.35);
+    }
+
+    .request-row--batch-first td:first-child::before {
+        top: 50%;
+    }
+
+    .request-row--batch-last td:first-child::before {
+        bottom: 50%;
+    }
+
+    .request-row--batch td:first-child::after {
+        content: "";
+        position: absolute;
+        left: 0.72rem;
+        top: 50%;
+        width: 0.75rem;
+        height: 0.75rem;
+        border: 2px solid rgba(var(--request-batch-rgb), 0.4);
+        border-radius: 50%;
+        background: #fff;
+        transform: translateY(-50%);
+    }
+
     .request-batch-index {
         display: inline-flex;
         align-items: center;
@@ -107,428 +184,294 @@
         border: 1px solid rgba(var(--request-batch-rgb), 0.14);
         background: rgba(var(--request-batch-rgb), 0.08);
         color: var(--request-batch-text);
-        font-size: 0.76rem;
+        font-size: 0.72rem;
         font-weight: 700;
-        line-height: 1;
-        vertical-align: middle;
+        line-height: 1.2;
     }
-    /* Плоские бейджи: однотонные заливки, тонкие бордеры, без «надутых» теней. */
+
+    /* Плоские бейджи: партия, дубли, правки */
     .request-list-badge {
         display: inline-flex;
-        position: relative;
         align-items: center;
         gap: 0.35rem;
-        padding: 0.22rem 0.55rem;
-        overflow: hidden;
+        padding: 0.2rem 0.5rem;
         border-radius: 999px;
+        font-size: 0.72rem;
         font-weight: 600;
-        letter-spacing: 0.01em;
-        line-height: 1;
-        vertical-align: middle;
-        box-shadow: none;
-        transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+        line-height: 1.2;
+        transition: background-color 0.18s ease, color 0.18s ease;
     }
+
     .request-list-badge i {
         font-size: 0.85em;
-        line-height: 1;
     }
+
     .request-list-badge__count {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        min-width: 1.3rem;
-        padding: 0.1rem 0.36rem;
+        min-width: 1.2rem;
+        padding: 0.05rem 0.34rem;
         border-radius: 999px;
         font-weight: 700;
     }
+
     .request-list-badge--batch {
         background: rgba(var(--request-batch-rgb), 0.08);
         color: var(--request-batch-text);
         border: 1px solid rgba(var(--request-batch-rgb), 0.22);
     }
+
     .request-list-badge--batch .request-list-badge__count {
         background: rgba(var(--request-batch-rgb), 0.12);
         color: var(--request-batch-text);
     }
+
     .request-list-badge--duplicate {
         background: #fef3c7;
         color: #92400e;
         border: 1px solid rgba(217, 119, 6, 0.32);
     }
+
     .request-list-badge--manual-edits {
         background: var(--app-primary-soft);
         color: var(--app-primary-dark);
         border: 1px solid rgba(11, 122, 117, 0.26);
     }
+
     .request-list-badge--manual-edits .request-list-badge__count {
         background: rgba(11, 122, 117, 0.12);
         color: var(--app-primary-dark);
     }
+
     .request-list-badge--manual-edits:hover,
     .request-list-badge--manual-edits:focus-visible {
         background: rgba(11, 122, 117, 0.14);
         color: var(--app-primary-dark);
     }
+
     .request-list-badge--post-edits {
         background: #eef4ff;
         color: #1d4ed8;
         border: 1px solid rgba(29, 78, 216, 0.26);
     }
+
     .request-list-badge--post-edits .request-list-badge__count {
         background: rgba(29, 78, 216, 0.12);
         color: #1e40af;
     }
+
     .request-list-badge--post-edits:hover,
     .request-list-badge--post-edits:focus-visible {
         background: rgba(29, 78, 216, 0.12);
         color: #1e40af;
     }
 
-    /* (5) Залипающая шапка таблицы + единый фон у строк партии (зебра — только
-       у обычных строк). На широких экранах снимаем горизонтальный скролл-контекст,
-       иначе sticky не сработает; на узких — оставляем скролл, шапка не липнет. */
-    .request-table thead th {
-        position: sticky;
-        top: 0;
-        z-index: 5;
-    }
-    @media (min-width: 992px) {
-        .request-table-responsive { overflow: visible; }
-    }
-    .table-striped > tbody > tr.request-row--batch:nth-of-type(odd) > * {
-        --bs-table-accent-bg: rgba(var(--request-batch-rgb), 0.026);
-    }
+    @media (max-width: 767.98px) {
+        .rl-bar-actions {
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
 
-    /* (9) Видимый аффорданс кликабельной строки: подсветка фона + стрелка. */
-    .request-row { transition: background-color 0.15s ease; }
-    .request-row:focus-visible {
-        outline: 2px solid rgba(11, 122, 117, 0.55);
-        outline-offset: -2px;
+        .rl-go {
+            display: none;
+        }
     }
-    .request-go-col { width: 1%; }
-    .request-go-cell {
-        text-align: right;
-        white-space: nowrap;
-        color: var(--app-muted);
-        opacity: 0.32;
-        transition: opacity 0.16s ease, transform 0.16s ease, color 0.16s ease;
-    }
-    .table-hover > tbody > tr.request-row:hover .request-go-cell,
-    .request-row:focus-visible .request-go-cell {
-        opacity: 1;
-        color: var(--app-primary);
-        transform: translateX(3px);
-    }
-
-    /* (10) Чипы-пресеты периода и переключатель размера страницы. */
-    .period-presets { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
-    .period-preset-chip {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.3rem;
-        padding: 0.3rem 0.7rem;
-        border-radius: 999px;
-        border: 1px solid var(--app-border);
-        background: var(--app-surface);
-        color: var(--app-muted);
-        font-size: 0.82rem;
-        font-weight: 600;
-        text-decoration: none;
-        transition: all 0.16s ease;
-    }
-    .period-preset-chip:hover {
-        border-color: rgba(11, 122, 117, 0.4);
-        color: var(--app-primary-dark);
-        background: var(--app-primary-soft);
-    }
-    .period-preset-chip.active {
-        border-color: var(--app-primary);
-        background: var(--app-primary-soft);
-        color: var(--app-primary-dark);
-    }
-    .per-page-switch .btn { --bs-btn-padding-y: 0.2rem; }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h1><i class="bi bi-list-ul"></i> Заявки на страхование</h1>
-    <div class="d-flex gap-2">
-        <a href="{% url 'insurance_requests:upload_excel' %}" class="btn btn-primary">
-            <i class="bi bi-upload"></i> Загрузить новую заявку
-        </a>
+<div class="sl-page">
+<div class="sl-head">
+    <div>
+        <h1 class="sl-title">Заявки на страхование</h1>
+        <p class="sl-sub">Входящие заявки лизинговых компаний: загрузка, письмо страховщикам, отправка.</p>
     </div>
+    <a href="{% url 'insurance_requests:upload_excel' %}" class="btn btn-primary">
+        <i class="bi bi-upload"></i> Загрузить заявку
+    </a>
 </div>
 
-<!-- Branch filtering tabs -->
+<!-- Вкладки филиалов -->
 {% if available_branches %}
-<div class="branch-filter-tabs mb-4">
-    <ul class="nav nav-tabs">
-        <li class="nav-item">
-            <a class="nav-link {% if not current_branch %}active{% endif %}"
-               href="{% qs_replace branch=None page=None %}"
-               >
-                <i class="bi bi-list-ul"></i> Все
-                {% if not current_branch %}
-                    <span class="badge app-branch-count-badge ms-1">{{ total_requests }}</span>
-                {% endif %}
-            </a>
-        </li>
-        {% for branch in available_branches %}
-        <li class="nav-item">
-            <a class="nav-link {% if current_branch == branch %}active{% endif %}"
-               href="{% qs_replace branch=branch page=None %}"
-               >
-                {{ branch }}
-                {% if current_branch == branch %}
-                    <span class="badge app-branch-count-badge ms-1">{{ total_requests }}</span>
-                {% endif %}
-            </a>
-        </li>
-        {% endfor %}
-    </ul>
-    
-    <!-- Month and Year filtering form -->
-    <div class="mt-3">
-        <form method="GET" class="row g-3 align-items-end">
-            <!-- Preserve branch filter when applying date filters -->
-            {% if current_branch %}
-                <input type="hidden" name="branch" value="{{ current_branch }}">
-            {% endif %}
-            
-            <div class="col-md-3">
-                <label for="dfa-filter" class="form-label">
-                    <i class="bi bi-hash"></i> Номер ДФА
-                </label>
-                <input type="text" 
-                       name="dfa_filter" 
-                       id="dfa-filter" 
-                       class="form-control{% if dfa_filter_error %} is-invalid{% endif %}"
-                       value="{{ current_dfa_filter }}"
-                       placeholder="Введите номер или часть номера"
-                       maxlength="100">
-                {% if dfa_filter_error %}
-                    <div class="invalid-feedback">
-                        <i class="bi bi-exclamation-triangle"></i> {{ dfa_filter_error }}
-                    </div>
-                {% endif %}
-            </div>
-            
-            <div class="col-md-3">
-                <label for="month-select" class="form-label">
-                    <i class="bi bi-calendar-month"></i> Месяц
-                </label>
-                <select name="month" id="month-select" class="form-select">
-                    <option value="">Все месяцы</option>
-                    {% for month_num, month_name in months %}
-                    <option value="{{ month_num }}" {% if current_month == month_num %}selected{% endif %}>
-                        {{ month_name }}
-                    </option>
-                    {% endfor %}
-                </select>
-            </div>
-            
-            <div class="col-md-3">
-                <label for="year-select" class="form-label">
-                    <i class="bi bi-calendar-year"></i> Год
-                </label>
-                <select name="year" id="year-select" class="form-select">
-                    <option value="">Все годы</option>
-                    {% for year in available_years %}
-                    <option value="{{ year }}" {% if current_year == year %}selected{% endif %}>
-                        {{ year }}
-                    </option>
-                    {% endfor %}
-                </select>
-            </div>
-            
-            <div class="col-md-3">
-                <button type="submit" class="btn btn-primary">
-                    <i class="bi bi-funnel"></i> Применить
-                </button>
-                <a href="{% url 'insurance_requests:request_list' %}" class="btn btn-outline-secondary ms-2">
-                    <i class="bi bi-arrow-clockwise"></i> Сбросить
-                </a>
-            </div>
-
-            {% if current_per_page != default_per_page %}
-                <input type="hidden" name="per_page" value="{{ current_per_page }}">
-            {% endif %}
-
-            <div class="col-12">
-                <div class="period-presets">
-                    <span class="text-muted small me-1"><i class="bi bi-lightning-charge"></i> Быстрый период:</span>
-                    <a class="period-preset-chip{% if current_month == period_presets.this_month.month and current_year == period_presets.this_month.year %} active{% endif %}"
-                       href="{% qs_replace month=period_presets.this_month.month year=period_presets.this_month.year page=None %}">Этот месяц</a>
-                    <a class="period-preset-chip{% if current_month == period_presets.last_month.month and current_year == period_presets.last_month.year %} active{% endif %}"
-                       href="{% qs_replace month=period_presets.last_month.month year=period_presets.last_month.year page=None %}">Прошлый месяц</a>
-                    <a class="period-preset-chip{% if not current_month and current_year == period_presets.this_year.year %} active{% endif %}"
-                       href="{% qs_replace year=period_presets.this_year.year month=None page=None %}">Этот год</a>
-                </div>
-            </div>
-        </form>
-    </div>
-</div>
+<nav class="sl-branches" aria-label="Филиалы">
+    <a class="sl-branch{% if not current_branch %} is-active{% endif %}" href="{% qs_replace branch=None page=None %}">
+        Все <span class="sl-branch__count">{{ total_requests_count }}</span>
+    </a>
+    {% for branch in available_branches %}
+    <a class="sl-branch{% if current_branch == branch %} is-active{% endif %}" href="{% qs_replace branch=branch page=None %}">
+        {{ branch }} <span class="sl-branch__count">{{ branch_counts|get_item:branch|default:0 }}</span>
+    </a>
+    {% endfor %}
+</nav>
 {% endif %}
 
-{% if requests %}
-    <!-- Active filters: one chip per filter with its own remove control -->
-    {% if has_filters %}
-    <div class="active-filters d-flex flex-wrap align-items-center gap-2 mb-3">
-        <span class="text-muted small"><i class="bi bi-funnel-fill"></i> Фильтры:</span>
-        {% if current_branch %}
-            <span class="badge app-filter-chip d-inline-flex align-items-center gap-1">
-                Филиал: {{ current_branch|escape }}
-                <a href="{% qs_replace branch=None page=None %}" class="text-reset text-decoration-none lh-1" aria-label="Убрать фильтр по филиалу"><i class="bi bi-x-circle"></i></a>
-            </span>
-        {% endif %}
-        {% if current_month and current_year %}
-            <span class="badge app-filter-chip d-inline-flex align-items-center gap-1">
-                Период: {{ current_month|date:"F" }} {{ current_year }}
-                <a href="{% qs_replace month=None year=None page=None %}" class="text-reset text-decoration-none lh-1" aria-label="Убрать фильтр по периоду"><i class="bi bi-x-circle"></i></a>
-            </span>
-        {% elif current_year %}
-            <span class="badge app-filter-chip d-inline-flex align-items-center gap-1">
-                Год: {{ current_year }}
-                <a href="{% qs_replace year=None page=None %}" class="text-reset text-decoration-none lh-1" aria-label="Убрать фильтр по году"><i class="bi bi-x-circle"></i></a>
-            </span>
-        {% elif current_month %}
-            <span class="badge app-filter-chip d-inline-flex align-items-center gap-1">
-                Месяц: {{ current_month|date:"F" }}
-                <a href="{% qs_replace month=None page=None %}" class="text-reset text-decoration-none lh-1" aria-label="Убрать фильтр по месяцу"><i class="bi bi-x-circle"></i></a>
-            </span>
-        {% endif %}
-        {% if current_dfa_filter %}
-            <span class="badge bg-success d-inline-flex align-items-center gap-1">
-                ДФА: {{ current_dfa_filter|escape }}
-                <a href="{% qs_replace dfa_filter=None page=None %}" class="text-reset text-decoration-none lh-1" aria-label="Убрать фильтр по номеру ДФА"><i class="bi bi-x-circle"></i></a>
-            </span>
-        {% endif %}
-        <span class="text-muted small ms-1">найдено: <strong>{{ total_requests }}</strong> {{ total_requests|pluralize:"заявка,заявки,заявок" }}</span>
-        <a href="{% url 'insurance_requests:request_list' %}" class="btn btn-outline-secondary btn-sm ms-auto">
-            <i class="bi bi-x-circle"></i> Сбросить все
-        </a>
-    </div>
-    {% endif %}
-
-    <div class="d-flex justify-content-end align-items-center gap-2 mb-2">
-        <span class="text-muted small">На странице:</span>
-        <div class="per-page-switch btn-group btn-group-sm" role="group" aria-label="Количество заявок на странице">
-            {% for opt in per_page_options %}
-                <a class="btn {% if opt == current_per_page %}btn-primary{% else %}btn-outline-secondary{% endif %}"
-                   href="{% qs_replace per_page=opt page=None %}">{{ opt }}</a>
-            {% endfor %}
+{% with filters_open=current_dfa_filter|default:current_month|default:current_year|default:dfa_filter_error %}
+<div class="sl-card{% if filters_open %} filter-active{% endif %}">
+    <div class="sl-card__bar">
+        <div class="sl-card__total">
+            {% if requests %}
+                Показано <b>{{ page_obj.start_index }}–{{ page_obj.end_index }}</b> из <b>{{ total_requests }}</b>
+            {% endif %}
+        </div>
+        <div class="rl-bar-actions">
+            {% if requests %}
+            <select class="form-select rl-per-page" id="rl-per-page" aria-label="Заявок на странице">
+                {% for opt in per_page_options %}
+                    <option value="{% qs_replace per_page=opt page=None %}"{% if opt == current_per_page %} selected{% endif %}>По {{ opt }}</option>
+                {% endfor %}
+            </select>
+            {% endif %}
+            <button class="sl-filter-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#requestFilterForm" aria-expanded="{% if filters_open %}true{% else %}false{% endif %}" aria-controls="requestFilterForm">
+                <i class="bi bi-funnel"></i>
+                <span class="sl-filter-toggle__title">Фильтры заявок</span>
+                <span class="sl-filter-toggle__hint d-none d-md-inline">ДФА, месяц, год</span>
+                <i class="bi bi-chevron-down sl-filter-toggle__icon"></i>
+            </button>
         </div>
     </div>
 
-    <div class="table-responsive request-table-responsive">
-        <table class="table table-striped table-hover request-table">
-            <thead class="table-dark">
+    <!-- Форма фильтрации -->
+    <div class="collapse{% if filters_open %} show{% endif %}" id="requestFilterForm">
+        <form method="get" class="sl-filter-form">
+            {% if current_branch %}
+                <input type="hidden" name="branch" value="{{ current_branch }}">
+            {% endif %}
+            {% if current_per_page != default_per_page %}
+                <input type="hidden" name="per_page" value="{{ current_per_page }}">
+            {% endif %}
+            <div class="row g-3">
+                <div class="col-12 col-md-6 col-lg-4">
+                    <label for="dfa-filter" class="form-label">Номер ДФА</label>
+                    <input type="text"
+                           name="dfa_filter"
+                           id="dfa-filter"
+                           class="form-control{% if dfa_filter_error %} is-invalid{% endif %}"
+                           value="{{ current_dfa_filter }}"
+                           placeholder="Номер или часть номера"
+                           maxlength="100">
+                    {% if dfa_filter_error %}
+                        <div class="invalid-feedback">
+                            <i class="bi bi-exclamation-triangle"></i> {{ dfa_filter_error }}
+                        </div>
+                    {% endif %}
+                </div>
+                <div class="col-6 col-md-3 col-lg-2">
+                    <label for="month-select" class="form-label">Месяц</label>
+                    <select name="month" id="month-select" class="form-select">
+                        <option value="">Все месяцы</option>
+                        {% for month_num, month_name in months %}
+                        <option value="{{ month_num }}" {% if current_month == month_num %}selected{% endif %}>{{ month_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-6 col-md-3 col-lg-2">
+                    <label for="year-select" class="form-label">Год</label>
+                    <select name="year" id="year-select" class="form-select">
+                        <option value="">Все годы</option>
+                        {% for year in available_years %}
+                        <option value="{{ year }}" {% if current_year == year %}selected{% endif %}>{{ year }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-12 col-md-6 col-lg-4 sl-filter-actions">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-search"></i> Применить
+                    </button>
+                    <a href="{% url 'insurance_requests:request_list' %}" class="btn btn-outline-secondary">
+                        <i class="bi bi-x-circle"></i> Сбросить
+                    </a>
+                </div>
+            </div>
+            <div class="rl-presets">
+                Быстрый период:
+                <a class="rl-preset{% if current_month == period_presets.this_month.month and current_year == period_presets.this_month.year %} is-active{% endif %}"
+                   href="{% qs_replace month=period_presets.this_month.month year=period_presets.this_month.year page=None %}">Этот месяц</a>
+                <a class="rl-preset{% if current_month == period_presets.last_month.month and current_year == period_presets.last_month.year %} is-active{% endif %}"
+                   href="{% qs_replace month=period_presets.last_month.month year=period_presets.last_month.year page=None %}">Прошлый месяц</a>
+                <a class="rl-preset{% if not current_month and current_year == period_presets.this_year.year %} is-active{% endif %}"
+                   href="{% qs_replace year=period_presets.this_year.year month=None page=None %}">Этот год</a>
+            </div>
+        </form>
+    </div>
+
+{% if requests %}
+    <div class="table-responsive">
+        <table class="sl-table request-table">
+            <thead>
                 <tr>
-                    <th scope="col">Заявка</th>
-                    <th scope="col">Клиент</th>
-                    <th scope="col">Предмет лизинга</th>
-                    <th scope="col">Филиал</th>
-                    <th scope="col">Статус</th>
-                    <th scope="col">Дата создания</th>
-                    <th scope="col">Условия</th>
-                    <th scope="col" class="request-go-col" aria-hidden="true"></th>
+                    <th>Заявка</th>
+                    <th>Клиент и объект</th>
+                    <th>Путь заявки</th>
+                    <th class="sl-col-date">Создана</th>
+                    <th>Условия</th>
+                    <th class="rl-go"><span class="visually-hidden">Открыть</span></th>
                 </tr>
             </thead>
             <tbody>
                 {% for request in requests %}
-                    <tr class="request-row{% if request.source_batch_id %} request-row--batch{% endif %}{% if request.item_no == 1 and request.item_count and request.item_count > 1 %} request-row--batch-first{% endif %}{% if request.item_count and request.item_count > 1 and request.item_no == request.item_count %} request-row--batch-last{% endif %}"
+                    <tr class="request-row{% if request.status == 'uploaded' %} rl-row--todo{% endif %}{% if request.source_batch_id %} request-row--batch{% endif %}{% if request.item_no == 1 and request.item_count and request.item_count > 1 %} request-row--batch-first{% endif %}{% if request.item_count and request.item_count > 1 and request.item_no == request.item_count %} request-row--batch-last{% endif %}"
                         data-href="{% url 'insurance_requests:request_detail' request.pk %}"
                         {% if request.source_batch_id %}data-batch-id="{{ request.source_batch_id }}"{% endif %}
-                        style="cursor: pointer;"
                         tabindex="0"
                         role="link"
                         aria-label="Открыть заявку {{ request.get_display_name }}">
-                        <td>
-                            <div class="request-title-stack">
-                                <div class="request-title-line">
-                                    <strong>
-                                        {% if request.item_count and request.item_count > 1 %}
-                                            {% if request.dfa_number and request.dfa_number != 'Номер ДФА не указан' %}
-                                                {{ request.dfa_number }}
-                                            {% else %}
-                                                #{{ request.id }}
-                                            {% endif %}
-                                        {% else %}
-                                            {{ request.get_display_name }}
-                                        {% endif %}
-                                    </strong>
+                        <td class="sl-cell-number">
+                            <div class="sl-number-line">
+                                <span class="sl-number">
                                     {% if request.item_count and request.item_count > 1 %}
-                                        {% if request.item_no == 1 %}
-                                            <span class="badge request-list-badge request-list-badge--batch"
-                                                  title="Партия из {{ request.item_count }} заявок. Эта запись — объект {{ request.item_no }} из {{ request.item_count }}.">
-                                                <i class="bi bi-collection"></i>
-                                                <span class="d-none d-lg-inline">Партия</span>
-                                                <span class="request-list-badge__count">{{ request.item_no }}/{{ request.item_count }}</span>
-                                            </span>
-                                        {% else %}
-                                            <span class="request-batch-index"
-                                                  title="Объект {{ request.item_no }} из {{ request.item_count }} в партии">
-                                                {{ request.item_no }}/{{ request.item_count }}
-                                            </span>
-                                        {% endif %}
+                                        {% if request.dfa_number and request.dfa_number != 'Номер ДФА не указан' %}{{ request.dfa_number }}{% else %}#{{ request.id }}{% endif %}
+                                    {% else %}
+                                        {{ request.get_display_name }}
                                     {% endif %}
-	                                {% if request.source_object_count and request.source_object_count > 1 %}
-	                                    <span class="badge request-list-badge request-list-badge--duplicate"
-	                                          title="Эта позиция представляет {{ request.source_object_count }} полностью одинаковых строк исходной Excel-заявки.">
-	                                        <i class="bi bi-layers-fill"></i>
-	                                        {{ request.source_object_count }} штук
-	                                    </span>
-	                                {% endif %}
-                                </div>
-                                {% if request.item_no == 1 and request.item_count and request.item_count > 1 %}
-                                    <div class="request-batch-caption d-none d-lg-block">
-                                        Единая партия объектов. Связанные позиции идут следующими строками.
-                                    </div>
+                                </span>
+                                {% if request.item_count and request.item_count > 1 %}
+                                    {% if request.item_no == 1 %}
+                                        <span class="request-list-badge request-list-badge--batch"
+                                              title="Партия из {{ request.item_count }} заявок. Эта запись — объект {{ request.item_no }} из {{ request.item_count }}. Связанные позиции идут следующими строками.">
+                                            <i class="bi bi-collection"></i>
+                                            <span class="d-none d-lg-inline">Партия</span>
+                                            <span class="request-list-badge__count">{{ request.item_no }}/{{ request.item_count }}</span>
+                                        </span>
+                                    {% else %}
+                                        <span class="request-batch-index"
+                                              title="Объект {{ request.item_no }} из {{ request.item_count }} в партии">{{ request.item_no }}/{{ request.item_count }}</span>
+                                    {% endif %}
+                                {% endif %}
+                                {% if request.source_object_count and request.source_object_count > 1 %}
+                                    <span class="request-list-badge request-list-badge--duplicate"
+                                          title="Эта позиция представляет {{ request.source_object_count }} полностью одинаковых строк исходной Excel-заявки.">
+                                        <i class="bi bi-layers-fill"></i>
+                                        {{ request.source_object_count_label }}
+                                    </span>
                                 {% endif %}
                             </div>
-	                        </td>
-	                        <td>{{ request.client_name }}</td>
-	                        <td>
-	                            <div class="d-flex gap-2">
-	                                <i class="bi bi-box-seam text-muted mt-1"></i>
-	                                <div class="request-object-title">
-	                                    {% if request.has_structured_object_data %}
-	                                        <div class="fw-semibold d-none d-lg-block">
-	                                            {{ request.object_display_name|default:"Объект не указан" }}
-	                                        </div>
-	                                        <div class="small text-muted request-object-meta d-none d-lg-block">
-	                                            {% if request.manufacturing_year %}{{ request.manufacturing_year }}{% endif %}
-	                                            {% if request.condition %}{% if request.manufacturing_year %} · {% endif %}{{ request.get_condition_display }}{% endif %}
-	                                            {% if request.equipment_type %}{% if request.manufacturing_year or request.condition %} · {% endif %}{{ request.equipment_type }}{% endif %}
-	                                            {% if request.acquisition_cost_display %}{% if request.manufacturing_year or request.condition or request.equipment_type %} · {% endif %}{{ request.acquisition_cost_display }}{% endif %}
-	                                        </div>
-                                        <span class="d-lg-none">{{ request.object_display_name|default:"Объект"|truncatechars:24 }}</span>
-                                    {% else %}
-                                        <span class="d-none d-lg-inline">{{ request.object_display_name|default:"Не указан" }}</span>
-	                                        <span class="d-lg-none">{{ request.object_display_name|default:"Не указан"|truncatechars:24 }}</span>
-	                                    {% endif %}
-	                                </div>
-	                            </div>
-	                        </td>
-                        <td>
-                            <i class="bi bi-building text-muted"></i>
-                            <span class="d-none d-lg-inline">{{ request.branch|default:"Не указан" }}</span>
-                            <span class="d-lg-none">{{ request.branch|default:"Не указан"|truncatechars:15 }}</span>
+                            <div class="sl-meta">
+                                {{ request.branch|default:"Филиал не указан" }}{% if request.short_type_label %} · {{ request.short_type_label }}{% endif %}
+                            </div>
                         </td>
                         <td>
-                            <div class="d-flex flex-column align-items-start gap-1">
-	                                <span class="badge {{ request.status|status_badge_class }}">
-                                    <span class="d-none d-sm-inline">{{ request.get_status_display }}</span>
-                                    <span class="d-sm-none">
-                                        {% if request.status == 'emails_sent' %}✓
-                                        {% elif request.status == 'email_generated' %}✉️
-                                        {% else %}⏳{% endif %}
-                                    </span>
-                                </span>
+                            <div class="sl-client" title="{{ request.client_name }}">{{ request.client_name }}</div>
+                            {% if request.has_structured_object_data %}
+                                <div class="sl-object" title="{{ request.object_display_name|default:'Объект не указан' }}">
+                                    {{ request.object_display_name|default:"Объект не указан" }}{% if request.manufacturing_year %} · {{ request.manufacturing_year }}{% endif %}{% if request.condition %} · {{ request.get_condition_display }}{% endif %}{% if request.acquisition_cost_display %} · {{ request.acquisition_cost_display }}{% endif %}
+                                </div>
+                            {% else %}
+                                <div class="sl-object" title="{{ request.object_display_name|default:'Не указан' }}">{{ request.object_display_name|default:"Не указан" }}</div>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="rl-path rl-path--{{ request.status }}" aria-hidden="true"><span></span><span></span><span></span></div>
+                            <div class="rl-path-label">
+                                {% if request.status == 'emails_sent' %}<b>Письма</b> отправлены
+                                {% elif request.status == 'email_generated' %}<b>Письмо</b> сгенерировано
+                                {% else %}<b>Загружена</b> · ждёт письма{% endif %}
+                            </div>
+                            {% if request.manual_edits_count or request.post_creation_count %}
+                            <div class="rl-edits">
                                 {% if request.manual_edits_count %}
                                     <a href="{% url 'insurance_requests:request_comparison' request.pk %}"
-                                       class="badge request-list-badge request-list-badge--manual-edits text-decoration-none"
+                                       class="request-list-badge request-list-badge--manual-edits text-decoration-none"
                                        title="При создании оператор поправил распознанное парсером: {{ request.manual_edits_count }} полей. Открыть сравнение.">
                                         <i class="bi bi-pencil-square"></i>
                                         <span class="d-none d-xl-inline">При создании</span>
@@ -537,7 +480,7 @@
                                 {% endif %}
                                 {% if request.post_creation_count %}
                                     <a href="{% url 'insurance_requests:request_comparison' request.pk %}"
-                                       class="badge request-list-badge request-list-badge--post-edits text-decoration-none"
+                                       class="request-list-badge request-list-badge--post-edits text-decoration-none"
                                        title="Полей изменено уже после создания заявки: {{ request.post_creation_count }}. Открыть сравнение.">
                                         <i class="bi bi-clock-history"></i>
                                         <span class="d-none d-xl-inline">После создания</span>
@@ -545,37 +488,38 @@
                                     </a>
                                 {% endif %}
                             </div>
+                            {% endif %}
+                        </td>
+                        <td class="sl-col-date">
+                            {% timezone "Europe/Moscow" %}
+                                <div class="sl-date">{{ request.created_at|date:"d.m.Y" }}</div>
+                                <div class="sl-time">{{ request.created_at|date:"H:i" }} МСК</div>
+                            {% endtimezone %}
                         </td>
                         <td>
-                            <i class="bi bi-calendar text-muted"></i>
-                            <span class="d-none d-lg-inline">{% timezone "Europe/Moscow" %}{{ request.created_at|date:"d.m.Y H:i" }}{% endtimezone %}</span>
-                            <span class="d-lg-none">{% timezone "Europe/Moscow" %}{{ request.created_at|date:"d.m.y" }}{% endtimezone %}</span>
-                            <small class="text-muted d-none d-lg-inline">(МСК)</small>
-                        </td>
-                        <td>
-	                            <div class="d-flex flex-wrap gap-1 request-condition-badges">
-	                                {% if request.franchise_type != 'none' %}
-	                                    <span class="badge bg-warning text-dark" title="{{ request.get_franchise_type_display }}">
-	                                        <span class="d-none d-xl-inline">Франшиза</span>
-	                                        <span class="d-xl-none">Ф</span>
-	                                    </span>
-	                                {% endif %}
-	                                {% if request.list_premium_frequency_display %}
-	                                    <span class="badge bg-info text-dark" title="Частота уплаты премии: {{ request.list_premium_frequency_display }}">
-	                                        <span class="d-none d-xl-inline">{{ request.list_premium_frequency_display }}</span>
-	                                        <span class="d-xl-none">Прем.</span>
-	                                    </span>
-	                                {% elif request.list_has_installment_badge %}
-	                                    <span class="badge bg-info text-dark" title="Рассрочка">
-	                                        <span class="d-none d-xl-inline">Рассрочка</span>
-	                                        <span class="d-xl-none">Р</span>
-	                                    </span>
-	                                {% endif %}
-	                                {% if request.has_autostart %}
-	                                    <span class="badge req-param-badge--autostart" title="Автозапуск">
-	                                        <span class="d-none d-xl-inline">Автозапуск</span>
-	                                        <span class="d-xl-none">А</span>
-	                                    </span>
+                            <div class="d-flex flex-wrap gap-1 request-condition-badges">
+                                {% if request.franchise_type != 'none' %}
+                                    <span class="badge bg-warning text-dark" title="{{ request.get_franchise_type_display }}">
+                                        <span class="d-none d-xl-inline">Франшиза</span>
+                                        <span class="d-xl-none">Ф</span>
+                                    </span>
+                                {% endif %}
+                                {% if request.list_premium_frequency_display %}
+                                    <span class="badge bg-info text-dark" title="Частота уплаты премии: {{ request.list_premium_frequency_display }}">
+                                        <span class="d-none d-xl-inline">{{ request.list_premium_frequency_display }}</span>
+                                        <span class="d-xl-none">Прем.</span>
+                                    </span>
+                                {% elif request.list_has_installment_badge %}
+                                    <span class="badge bg-info text-dark" title="Рассрочка">
+                                        <span class="d-none d-xl-inline">Рассрочка</span>
+                                        <span class="d-xl-none">Р</span>
+                                    </span>
+                                {% endif %}
+                                {% if request.has_autostart %}
+                                    <span class="badge req-param-badge--autostart" title="Автозапуск">
+                                        <span class="d-none d-xl-inline">Автозапуск</span>
+                                        <span class="d-xl-none">А</span>
+                                    </span>
                                 {% endif %}
                                 {% if request.has_casco_ce %}
                                     <span class="badge bg-primary" title="КАСКО кат. C/E">
@@ -589,237 +533,120 @@
                                         <span class="d-xl-none">П</span>
                                     </span>
                                 {% endif %}
-	                                {% if request.has_construction_work %}
-	                                    <span class="badge bg-dark text-light" title="СМР">
-	                                        <span class="d-none d-xl-inline">СМР</span>
-	                                        <span class="d-xl-none">СМР</span>
-	                                    </span>
-	                                {% endif %}
-	                                {% if request.franchise_type == 'none' and not request.list_premium_frequency_display and not request.list_has_installment_badge and not request.has_autostart and not request.has_casco_ce and not request.has_transportation and not request.has_construction_work %}
-	                                    <span class="text-muted small">Без особенностей</span>
-	                                {% endif %}
-	                            </div>
+                                {% if request.has_construction_work %}
+                                    <span class="badge bg-dark text-light" title="СМР">
+                                        <span class="d-none d-xl-inline">СМР</span>
+                                        <span class="d-xl-none">СМР</span>
+                                    </span>
+                                {% endif %}
+                                {% if request.franchise_type == 'none' and not request.list_premium_frequency_display and not request.list_has_installment_badge and not request.has_autostart and not request.has_casco_ce and not request.has_transportation and not request.has_construction_work %}
+                                    <span class="sl-empty">Без особенностей</span>
+                                {% endif %}
+                            </div>
                         </td>
-                        <td class="request-go-cell"><i class="bi bi-chevron-right"></i></td>
+                        <td class="rl-go"><i class="bi bi-chevron-right"></i></td>
                     </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
-    
-    <!-- Pagination Controls -->
-    {% if is_paginated %}
-    <nav aria-label="Навигация по страницам" class="mt-4">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <div class="pagination-info">
-                <small class="text-muted">
-                    <i class="bi bi-info-circle"></i>
-                    Показано {{ page_obj.start_index }}-{{ page_obj.end_index }} из {{ paginator.count }} {{ paginator.count|pluralize:"заявки,заявок,заявок" }}
-                </small>
-            </div>
-            <div class="pagination-summary d-none d-md-block">
-                <small class="text-muted">
-                    Страница {{ page_obj.number }} из {{ paginator.num_pages }}
-                </small>
-            </div>
-        </div>
-        
-        <ul class="pagination justify-content-center flex-wrap app-pagination">
-            <!-- Previous Button -->
-            {% if page_obj.has_previous %}
-                <li class="page-item">
-                    <a class="page-link" href="{% qs_replace page=page_obj.previous_page_number %}" aria-label="Предыдущая">
-                        <span aria-hidden="true">&laquo;</span>
-                        <span class="d-none d-sm-inline ms-1">Предыдущая</span>
-                    </a>
-                </li>
-            {% else %}
-                <li class="page-item disabled">
-                    <span class="page-link">
-                        <span aria-hidden="true">&laquo;</span>
-                        <span class="d-none d-sm-inline ms-1">Предыдущая</span>
-                    </span>
-                </li>
-            {% endif %}
-            
-            <!-- Page Numbers with Ellipsis Logic -->
-            {% if paginator.num_pages <= 7 %}
-                <!-- Show all pages if 7 or fewer -->
-                {% for num in paginator.page_range %}
-                    {% if page_obj.number == num %}
-                        <li class="page-item active" aria-current="page">
-                            <span class="page-link">{{ num }}</span>
-                        </li>
-                    {% else %}
-                        <li class="page-item">
-                            <a class="page-link" href="{% qs_replace page=num %}">{{ num }}</a>
-                        </li>
-                    {% endif %}
-                {% endfor %}
-            {% else %}
-                <!-- Show condensed pagination with ellipsis -->
-                <!-- Always show first page -->
-                {% if page_obj.number != 1 %}
-                    <li class="page-item">
-                        <a class="page-link" href="{% qs_replace page=1 %}">1</a>
-                    </li>
-                {% else %}
-                    <li class="page-item active" aria-current="page">
-                        <span class="page-link">1</span>
-                    </li>
-                {% endif %}
-                
-                <!-- Show ellipsis if current page is far from start -->
-                {% if page_obj.number > 4 %}
-                    <li class="page-item disabled">
-                        <span class="page-link">...</span>
-                    </li>
-                {% endif %}
-                
-                <!-- Show pages around current page -->
-                {% for num in paginator.page_range %}
-                    {% if num > 1 and num < paginator.num_pages %}
-                        {% if num >= page_obj.number|add:"-2" and num <= page_obj.number|add:"2" %}
-                            {% if page_obj.number == num %}
-                                <li class="page-item active" aria-current="page">
-                                    <span class="page-link">{{ num }}</span>
-                                </li>
-                            {% else %}
-                                <li class="page-item">
-                                    <a class="page-link" href="{% qs_replace page=num %}">{{ num }}</a>
-                                </li>
-                            {% endif %}
-                        {% endif %}
-                    {% endif %}
-                {% endfor %}
-                
-                <!-- Show ellipsis if current page is far from end -->
-                {% if page_obj.number < paginator.num_pages|add:"-3" %}
-                    <li class="page-item disabled">
-                        <span class="page-link">...</span>
-                    </li>
-                {% endif %}
-                
-                <!-- Always show last page -->
-                {% if paginator.num_pages > 1 %}
-                    {% if page_obj.number != paginator.num_pages %}
-                        <li class="page-item">
-                            <a class="page-link" href="{% qs_replace page=paginator.num_pages %}">{{ paginator.num_pages }}</a>
-                        </li>
-                    {% else %}
-                        <li class="page-item active" aria-current="page">
-                            <span class="page-link">{{ paginator.num_pages }}</span>
-                        </li>
-                    {% endif %}
-                {% endif %}
-            {% endif %}
-            
-            <!-- Next Button -->
-            {% if page_obj.has_next %}
-                <li class="page-item">
-                    <a class="page-link" href="{% qs_replace page=page_obj.next_page_number %}" aria-label="Следующая">
-                        <span class="d-none d-sm-inline me-1">Следующая</span>
-                        <span aria-hidden="true">&raquo;</span>
-                    </a>
-                </li>
-            {% else %}
-                <li class="page-item disabled">
-                    <span class="page-link">
-                        <span class="d-none d-sm-inline me-1">Следующая</span>
-                        <span aria-hidden="true">&raquo;</span>
-                    </span>
-                </li>
-            {% endif %}
-        </ul>
-        
-        <!-- Mobile-friendly page jump -->
-        <div class="d-md-none mt-3">
-            <form method="GET" class="d-flex justify-content-center">
-                <!-- Preserve all current filters -->
-                {% if current_branch %}
-                    <input type="hidden" name="branch" value="{{ current_branch }}">
-                {% endif %}
-                {% if current_dfa_filter %}
-                    <input type="hidden" name="dfa_filter" value="{{ current_dfa_filter }}">
-                {% endif %}
-                {% if current_month %}
-                    <input type="hidden" name="month" value="{{ current_month }}">
-                {% endif %}
-                {% if current_year %}
-                    <input type="hidden" name="year" value="{{ current_year }}">
-                {% endif %}
-                {% if current_per_page != default_per_page %}
-                    <input type="hidden" name="per_page" value="{{ current_per_page }}">
-                {% endif %}
-
-                <div class="input-group" style="max-width: 200px;">
-                    <span class="input-group-text">Стр.</span>
-                    <input type="number" name="page" class="form-control" 
-                           value="{{ page_obj.number }}" 
-                           min="1" max="{{ paginator.num_pages }}"
-                           aria-label="Номер страницы">
-                    <button class="btn btn-outline-secondary" type="submit">
-                        <i class="bi bi-arrow-right"></i>
-                    </button>
-                </div>
-            </form>
-        </div>
-    </nav>
-    {% endif %}
 {% else %}
-    <div class="text-center py-5">
+    <div class="sl-empty-state">
         {% if has_filters %}
-            <i class="bi bi-search display-1 text-muted"></i>
-            <h3 class="mt-3">Заявки не найдены</h3>
-            <div class="alert alert-warning mt-3" role="alert">
-                <h5 class="alert-heading">
-                    <i class="bi bi-exclamation-triangle"></i> Результаты поиска
-                </h5>
-                <p class="mb-2">По указанным критериям поиска заявки не найдены:</p>
-                <ul class="mb-3">
-                    {% if current_branch %}
-                        <li>Филиал: <strong>{{ current_branch|escape }}</strong></li>
-                    {% endif %}
-                    {% if current_month and current_year %}
-                        <li>Период: <strong>{{ current_month|date:"F" }} {{ current_year }}</strong></li>
-                    {% elif current_year %}
-                        <li>Год: <strong>{{ current_year }}</strong></li>
-                    {% elif current_month %}
-                        <li>Месяц: <strong>{{ current_month|date:"F" }}</strong></li>
-                    {% endif %}
-                    {% if current_dfa_filter %}
-                        <li>Номер ДФА содержит: <strong>{{ current_dfa_filter|escape }}</strong></li>
-                    {% endif %}
-                </ul>
-                <p class="mb-0">
-                    <small class="text-muted">
-                        Попробуйте изменить критерии поиска или сбросить фильтры для просмотра всех заявок.
-                    </small>
-                </p>
-            </div>
-            <div class="mt-3">
-                <a href="{% url 'insurance_requests:request_list' %}" class="btn btn-outline-primary">
-                    <i class="bi bi-arrow-clockwise"></i> Сбросить фильтры
-                </a>
-                <a href="{% url 'insurance_requests:upload_excel' %}" class="btn btn-primary ms-2">
-                    <i class="bi bi-upload"></i> Загрузить заявку
-                </a>
-            </div>
+            <i class="bi bi-search"></i>
+            <h3>Заявки не найдены</h3>
+            <p>
+                Ничего не нашлось
+                {% if current_branch %} в филиале «{{ current_branch }}»{% endif %}
+                {% if current_month and current_year %} за {{ current_month|stringformat:"02d" }}.{{ current_year }}{% elif current_year %} за {{ current_year }} год{% endif %}
+                {% if current_dfa_filter %} по номеру ДФА «{{ current_dfa_filter }}»{% endif %}.
+                Измените условия или сбросьте фильтры.
+            </p>
+            <a href="{% url 'insurance_requests:request_list' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-clockwise"></i> Сбросить фильтры
+            </a>
         {% else %}
-            <i class="bi bi-inbox display-1 text-muted"></i>
-            <h3 class="mt-3">Заявок пока нет</h3>
-            <p class="text-muted">Загрузите Excel файл с заявкой, чтобы начать работу</p>
+            <i class="bi bi-inbox"></i>
+            <h3>Заявок пока нет</h3>
+            <p>Загрузите Excel-файл с заявкой, чтобы начать работу</p>
             <a href="{% url 'insurance_requests:upload_excel' %}" class="btn btn-primary">
                 <i class="bi bi-upload"></i> Загрузить заявку
             </a>
         {% endif %}
     </div>
 {% endif %}
+</div>
+{% endwith %}
+
+{% if is_paginated %}
+<nav aria-label="Навигация по страницам" class="sl-pagination">
+    <span class="sl-pagination__info">Страница {{ page_obj.number }} из {{ paginator.num_pages }}</span>
+    <ul class="pagination">
+        {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="{% qs_replace page=page_obj.previous_page_number %}" aria-label="Предыдущая">
+                    <i class="bi bi-chevron-left"></i>
+                </a>
+            </li>
+        {% else %}
+            <li class="page-item disabled">
+                <span class="page-link" aria-label="Предыдущая"><i class="bi bi-chevron-left"></i></span>
+            </li>
+        {% endif %}
+
+        {% for num in paginator.page_range %}
+            {% if page_obj.number == num %}
+                <li class="page-item active" aria-current="page">
+                    <span class="page-link">{{ num }}</span>
+                </li>
+            {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                <li class="page-item">
+                    <a class="page-link" href="{% qs_replace page=num %}">{{ num }}</a>
+                </li>
+            {% elif num == 1 %}
+                <li class="page-item">
+                    <a class="page-link" href="{% qs_replace page=1 %}">1</a>
+                </li>
+                {% if page_obj.number > 4 %}
+                    <li class="page-item disabled"><span class="page-link">…</span></li>
+                {% endif %}
+            {% elif num == paginator.num_pages %}
+                {% if page_obj.number < paginator.num_pages|add:'-3' %}
+                    <li class="page-item disabled"><span class="page-link">…</span></li>
+                {% endif %}
+                <li class="page-item">
+                    <a class="page-link" href="{% qs_replace page=paginator.num_pages %}">{{ paginator.num_pages }}</a>
+                </li>
+            {% endif %}
+        {% endfor %}
+
+        {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="{% qs_replace page=page_obj.next_page_number %}" aria-label="Следующая">
+                    <i class="bi bi-chevron-right"></i>
+                </a>
+            </li>
+        {% else %}
+            <li class="page-item disabled">
+                <span class="page-link" aria-label="Следующая"><i class="bi bi-chevron-right"></i></span>
+            </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+</div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+    const perPage = document.getElementById('rl-per-page');
+    if (perPage) {
+        perPage.addEventListener('change', function () {
+            window.location.href = this.value;
+        });
+    }
+
     const requestRows = document.querySelectorAll('.request-row[data-href]');
     const batchRowsMap = new Map();
 

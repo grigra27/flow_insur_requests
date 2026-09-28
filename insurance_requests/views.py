@@ -11,6 +11,7 @@ from django.core.files import File
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.db import transaction
+from django.db.models import Count
 from django.utils import timezone
 from django.utils.text import get_valid_filename
 import os
@@ -627,10 +628,6 @@ def request_list(request):
             # Сбрасываем dfa_filter чтобы не показывать некорректное значение в форме
             dfa_filter = ""
     
-    # Применяем фильтр по филиалу
-    if branch_filter:
-        queryset = queryset.filter(branch=branch_filter)
-    
     # Применяем фильтры по дате
     if year_filter:
         try:
@@ -648,7 +645,17 @@ def request_list(request):
         except ValueError:
             # Игнорируем некорректные значения месяца
             pass
-    
+
+    # Счётчики на вкладках филиалов: все фильтры, кроме самого филиала
+    branch_counts = dict(
+        queryset.order_by().values_list('branch').annotate(count=Count('id'))
+    )
+    total_requests_count = sum(branch_counts.values())
+
+    # Применяем фильтр по филиалу
+    if branch_filter:
+        queryset = queryset.filter(branch=branch_filter)
+
     # Сортируем по дате создания (новые сначала). Внутри одного «момента» —
     # сёстры партии идут подряд по item_no, чтобы оператор видел партию целым
     # блоком. Заявки без партии (V1 и одиночные V2) — без вторичной сортировки.
@@ -744,6 +751,8 @@ def request_list(request):
         # Дополнительные данные для удобства работы с фильтрами
         'has_filters': bool(branch_filter or month_filter or year_filter or dfa_filter),
         'total_requests': paginator.count,
+        'branch_counts': branch_counts,
+        'total_requests_count': total_requests_count,
         # Данные пагинации
         'paginator': paginator,
         'page_obj': requests,

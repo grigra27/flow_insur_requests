@@ -26,6 +26,14 @@ class InsuranceRequest(models.Model):
         ('страхование имущества', 'страхование имущества'),
         ('другое', 'другое'),
     ]
+
+    # Короткие подписи типа для списков заявок, сводов и сделок.
+    SHORT_INSURANCE_TYPE_LABELS = {
+        'КАСКО': 'КАСКО',
+        'страхование спецтехники': 'Спецтехника',
+        'страхование имущества': 'Имущество',
+        'другое': 'Другое',
+    }
     
     INSURANCE_PERIOD_CHOICES = [
         ('1 год', '1 год'),
@@ -636,6 +644,11 @@ class InsuranceRequest(models.Model):
         if self.premium_frequency in {'quarterly', 'biannual'}:
             return self.get_premium_frequency_display()
         return ''
+
+    @property
+    def short_type_label(self):
+        """Короткая подпись типа страхования для строк списков."""
+        return self.SHORT_INSURANCE_TYPE_LABELS.get(self.insurance_type or '', self.insurance_type or '')
 
     @property
     def list_has_installment_badge(self):
