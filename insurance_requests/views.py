@@ -1311,7 +1311,7 @@ def export_request_database(request, pk):
     return response
 
 
-@superuser_required
+@user_required
 def export_request_application(request, pk):
     """Скачивание «Заявки для страховой» в PDF — только нужные поля.
 

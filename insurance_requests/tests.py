@@ -285,14 +285,13 @@ class RequestApplicationPdfExportTest(TestCase):
             reverse('insurance_requests:export_request_application', kwargs={'pk': self.request.pk}),
         )
 
-    def test_request_detail_hides_application_pdf_button_for_regular_user(self):
-        # Выгрузка заявки — инструмент суперпользователя; обычный пользователь
-        # кнопку не видит.
+    def test_request_detail_shows_application_pdf_button_for_regular_user(self):
+        # Заявку для страховой скачивает любой сотрудник.
         response = self.user_client.get(
             reverse('insurance_requests:request_detail', kwargs={'pk': self.request.pk})
         )
         self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, 'Скачать заявку (PDF)')
+        self.assertContains(response, 'Скачать заявку (PDF)')
 
     def test_export_application_returns_pdf_with_insurer_fields(self):
         response = self.superuser_client.get(
@@ -356,13 +355,12 @@ class RequestApplicationPdfExportTest(TestCase):
         self.assertIn('Охрана и хранение', [label for label, _ in context['long_rows']])
         self.assertNotIn('Автозапуск', tile_labels)
 
-    def test_export_application_forbidden_for_regular_user(self):
-        # Только суперпользователь: обычный пользователь группы Пользователи
-        # получает 403.
+    def test_export_application_allowed_for_regular_user(self):
         response = self.user_client.get(
             reverse('insurance_requests:export_request_application', kwargs={'pk': self.request.pk})
         )
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'application/pdf')
 
 
 class RequestV1V2DisplayCompatibilityTest(TestCase):
@@ -476,8 +474,19 @@ class RequestV1V2DisplayCompatibilityTest(TestCase):
         self.assertContains(v2_response, 'Состояние:')
         self.assertContains(v2_response, 'Б/у')
         self.assertNotContains(v2_response, 'Автомобиль LADA Largus KS045L 2024 б/у')
-        self.assertContains(v2_response, 'Alla Borisovna Magic Parser')
-        self.assertContains(v2_response, '88%')
+        # Блок парсера — служебный, обычный пользователь его не видит.
+        self.assertNotContains(v2_response, 'Alla Borisovna Magic Parser')
+
+        superuser = User.objects.create_superuser(username='compatroot', password='pwd')
+        superuser.groups.add(Group.objects.get(name='Пользователи'))
+        root_client = Client()
+        root_client.force_login(superuser)
+        root_response = root_client.get(
+            reverse('insurance_requests:request_detail', kwargs={'pk': self.v2_request.pk})
+        )
+        self.assertContains(root_response, 'Alla Borisovna Magic Parser')
+        self.assertContains(root_response, '88%')
+        self.assertContains(root_response, 'Скачать карточку заявки')
 
     def test_edit_request_renders_v2_fields_without_breaking_v1(self):
         v1_response = self.client.get(

@@ -1349,11 +1349,12 @@ class ParserV2UploadTests(TestCase):
         self.assertEqual(client_edits[0]['edit_type'], 'changed')
         self.assertGreaterEqual(created.parser_v2_edit_count, 1)
 
-        # Блок «Ручные правки оператора» рендерится в карточке заявки.
+        # Таблица правок в карточке заявки больше не выводится: правки видны
+        # на странице сравнения.
         detail = self.client.get(
             reverse('insurance_requests:request_detail', kwargs={'pk': created.pk})
         )
-        self.assertContains(detail, 'Ручные правки оператора')
+        self.assertNotContains(detail, 'Правки оператора при создании')
         self.assertContains(detail, 'ООО Лютик')
 
     def test_parser_v2_no_false_positive_edits_when_unchanged(self):
