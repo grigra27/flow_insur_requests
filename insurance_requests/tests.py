@@ -48,29 +48,32 @@ class RequestDetailViewTest(TestCase):
             created_by=self.user
         )
     
-    def test_create_summary_button_shown_for_uploaded_status(self):
-        """Test that create summary button is shown for uploaded status"""
+    def test_create_summary_locked_for_uploaded_status(self):
+        """До отправки писем кнопка неактивна и показаны шаги"""
         url = reverse('insurance_requests:request_detail', kwargs={'pk': self.request.pk})
         response = self.client.get(url)
-        
+
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Создать свод')
-        self.assertContains(response, 'Свод предложений не создан')
-        self.assertNotContains(response, 'Свод недоступен')
-    
-    def test_create_summary_button_shown_for_email_generated_status(self):
-        """Test that create summary button is shown for email_generated status"""
+        self.assertContains(response, 'Свод можно создать после отправки писем страховщикам')
+        self.assertContains(response, 'Сгенерируйте письмо')
+        self.assertNotContains(
+            response, reverse('summaries:create_summary', kwargs={'request_id': self.request.pk})
+        )
+
+    def test_create_summary_locked_for_email_generated_status(self):
+        """Письмо сгенерировано, но не отправлено — свод ещё нельзя создать"""
         self.request.status = 'email_generated'
         self.request.save()
-        
+
         url = reverse('insurance_requests:request_detail', kwargs={'pk': self.request.pk})
         response = self.client.get(url)
-        
+
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Создать свод')
-        self.assertContains(response, 'Свод предложений не создан')
-        self.assertNotContains(response, 'Свод недоступен')
-    
+        self.assertContains(response, 'Поставьте статус «Письма отправлены»')
+        self.assertNotContains(
+            response, reverse('summaries:create_summary', kwargs={'request_id': self.request.pk})
+        )
+
     def test_create_summary_button_shown_for_emails_sent_status(self):
         """Test that create summary button is shown for emails_sent status"""
         self.request.status = 'emails_sent'

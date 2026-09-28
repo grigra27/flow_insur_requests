@@ -637,12 +637,34 @@
                         <i class="bi bi-eye"></i> Открыть свод
                     </a>
                 </div>
-                {% elif request.status == 'uploaded' or request.status == 'email_generated' or request.status == 'emails_sent' %}
+                {% elif request.status == 'emails_sent' %}
                 <div class="text-center create-summary-section">
                     <p class="text-muted mb-3">Свод предложений не создан</p>
                     <a href="{% url 'summaries:create_summary' request.pk %}" class="btn btn-success create-summary-btn">
                         <i class="bi bi-plus-circle"></i> Создать свод
                     </a>
+                </div>
+                {% elif request.status == 'uploaded' or request.status == 'email_generated' %}
+                <!-- Свод создаётся только после отправки писем: показываем, что осталось сделать -->
+                <div class="summary-locked">
+                    <p class="text-muted small mb-2">
+                        <i class="bi bi-lock"></i> Свод можно создать после отправки писем страховщикам:
+                    </p>
+                    <ol class="small mb-3 ps-3">
+                        <li class="{% if request.status == 'uploaded' %}fw-semibold{% else %}text-muted text-decoration-line-through{% endif %}">
+                            Сгенерируйте письмо
+                        </li>
+                        <li class="{% if request.status == 'email_generated' %}fw-semibold{% else %}text-muted{% endif %}">
+                            Отправьте письма страховщикам
+                        </li>
+                        <li class="{% if request.status == 'email_generated' %}fw-semibold{% else %}text-muted{% endif %}">
+                            Поставьте статус «Письма отправлены»
+                        </li>
+                    </ol>
+                    <button type="button" class="btn btn-outline-secondary w-100" disabled
+                            title="Доступно после статуса «Письма отправлены»">
+                        <i class="bi bi-plus-circle"></i> Создать свод
+                    </button>
                 </div>
                 {% else %}
                 <div class="text-center py-3">

@@ -1116,14 +1116,13 @@ def create_summary(request, request_id):
         messages.info(request, f'Свод для заявки {insurance_request.get_display_name()} уже существует')
         return redirect('summaries:summary_detail', pk=insurance_request.summary.pk)
     
-    # Проверяем статус заявки - можно создавать свод только для определенных статусов
-    # Важно: список синхронизирован с InsuranceRequest.STATUS_CHOICES
-    allowed_statuses = ['uploaded', 'email_generated', 'emails_sent']
-    if insurance_request.status not in allowed_statuses:
-        messages.error(request, 
+    # Свод создаётся только после отправки писем страховщикам
+    # (см. InsuranceRequest.can_create_summary).
+    if insurance_request.status != 'emails_sent':
+        messages.error(request,
                       f'Нельзя создать свод для заявки со статусом "{insurance_request.get_status_display()}". '
-                      f'Свод можно создать только для заявок со статусами: '
-                      f'{", ".join([dict(insurance_request.STATUS_CHOICES).get(s, s) for s in allowed_statuses])}')
+                      f'Сначала сгенерируйте письмо, отправьте его страховщикам и поставьте статус '
+                      f'«Письма отправлены».')
         return redirect('insurance_requests:request_detail', pk=request_id)
     
     # Проверяем обязательные поля заявки
@@ -1152,12 +1151,7 @@ def create_summary(request, request_id):
                 status='collecting'
             )
             company_statuses.init_for_summary(summary)  # все СК «не определён» (этап 2)
-            
-            # Обновляем статус заявки, если необходимо
-            if insurance_request.status == 'uploaded':
-                insurance_request.status = 'email_generated'
-                insurance_request.save(update_fields=['status', 'updated_at'])
-            
+
             logger.info(f"Summary created successfully for request {request_id} by user {request.user.username}")
             
             # Улучшенное сообщение об успехе (требование 1.3)

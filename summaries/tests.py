@@ -186,24 +186,26 @@ class CreateSummaryViewTests(TestCase):
             # Проверяем, что есть сообщение об ошибке базы данных
             self.assertTrue(any('Временная ошибка базы данных' in msg for msg in error_messages))
     
-    def test_create_summary_status_update(self):
-        """Тест обновления статуса заявки при создании свода"""
+    def test_create_summary_rejected_before_emails_sent(self):
+        """Свод нельзя создать, пока письма не отправлены"""
         self.client.login(username='admin', password='testpass123')
-        
-        # Устанавливаем статус 'uploaded'
-        self.insurance_request.status = 'uploaded'
-        self.insurance_request.save()
-        
-        url = reverse('summaries:create_summary', kwargs={'request_id': self.insurance_request.pk})
-        response = self.client.post(url)
-        
-        # Проверяем, что свод создан
-        self.assertTrue(InsuranceSummary.objects.filter(request=self.insurance_request).exists())
-        
-        # Проверяем, что статус заявки обновился
-        self.insurance_request.refresh_from_db()
-        self.assertEqual(self.insurance_request.status, 'email_generated')
-    
+
+        for status in ('uploaded', 'email_generated'):
+            self.insurance_request.status = status
+            self.insurance_request.save()
+
+            url = reverse('summaries:create_summary', kwargs={'request_id': self.insurance_request.pk})
+            response = self.client.post(url)
+
+            self.assertRedirects(
+                response,
+                reverse('insurance_requests:request_detail', kwargs={'pk': self.insurance_request.pk}),
+                fetch_redirect_response=False,
+            )
+            self.assertFalse(InsuranceSummary.objects.filter(request=self.insurance_request).exists())
+            self.insurance_request.refresh_from_db()
+            self.assertEqual(self.insurance_request.status, status)
+
     def test_create_summary_nonexistent_request(self):
         """Тест обработки несуществующей заявки"""
         self.client.login(username='admin', password='testpass123')

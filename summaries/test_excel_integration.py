@@ -279,7 +279,7 @@ class FullCycleExcelGenerationTests(ExcelExportIntegrationTestCase):
             vehicle_info='новый автомобиль Toyota Camry',
             dfa_number='ТС-20001-МСК-ТС',
             branch='Москва',
-            status='uploaded',
+            status='emails_sent',
             created_by=self.admin_user,
             insurance_period='3 года'
         )
