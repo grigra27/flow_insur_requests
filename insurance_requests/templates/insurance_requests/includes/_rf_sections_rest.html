@@ -1,0 +1,72 @@
+{# Общие секции формы заявки, часть 2 (после объектов): условия, КАСКО, имущество, реквизиты, примечание. #}
+<!-- Условия страхования -->
+<div class="card rf-card">
+    <div class="card-header"><h6 class="mb-0">Условия страхования</h6></div>
+    <div class="card-body">
+        <div class="rf-grid">
+            {% include "insurance_requests/includes/_rf_field.html" with f=form.insurance_type email=True %}
+            {% include "insurance_requests/includes/_rf_field.html" with f=form.insurance_period email=True show_help=True %}
+            {% include "insurance_requests/includes/_rf_field.html" with f=form.franchise_type email=True %}
+            {% include "insurance_requests/includes/_rf_field.html" with f=form.premium_frequency email=True %}
+            {% include "insurance_requests/includes/_rf_field.html" with f=form.insured_party email=True %}
+            {% include "insurance_requests/includes/_rf_field.html" with f=form.insured_sum_type email=True %}
+            {% include "insurance_requests/includes/_rf_field.html" with f=form.creditor_bank %}
+            {% include "insurance_requests/includes/_rf_field.html" with f=form.usage_purposes %}
+        </div>
+        <!-- Флаги: те же цвета, что бейджи в списке и карточке заявки -->
+        <div class="rf-subtitle">Дополнительные риски <span><i class="bi bi-envelope"></i> влияют на текст письма</span></div>
+        <div class="rf-toggles">
+            <label class="rf-toggle rf-toggle--installment">{{ form.has_installment }}<span>{{ form.has_installment.label }}</span></label>
+            <label class="rf-toggle rf-toggle--autostart">{{ form.has_autostart }}<span>{{ form.has_autostart.label }}</span></label>
+            <label class="rf-toggle rf-toggle--casco">{{ form.has_casco_ce }}<span>{{ form.has_casco_ce.label }}</span></label>
+            <label class="rf-toggle rf-toggle--transport">{{ form.has_transportation }}<span>{{ form.has_transportation.label }}</span></label>
+            <label class="rf-toggle rf-toggle--smr">{{ form.has_construction_work }}<span>{{ form.has_construction_work.label }}</span></label>
+        </div>
+        {% for f in form %}{% if f.name == 'has_installment' or f.name == 'has_autostart' or f.name == 'has_casco_ce' or f.name == 'has_transportation' or f.name == 'has_construction_work' %}{% for error in f.errors %}<div class="rf-error">{{ f.label }}: {{ error }}</div>{% endfor %}{% endif %}{% endfor %}
+        <div id="transportation-details" class="rf-route{% if not form.has_transportation.value %} d-none{% endif %}">
+            <i class="bi bi-truck"></i>
+            {% include "insurance_requests/includes/_rf_field.html" with f=form.transportation_departure span=2 %}
+            {% include "insurance_requests/includes/_rf_field.html" with f=form.transportation_destination span=2 %}
+            {% include "insurance_requests/includes/_rf_field.html" with f=form.transportation_days %}
+        </div>
+    </div>
+</div>
+
+<!-- КАСКО и спецтехника -->
+<div class="card rf-card" id="casco-additional-fields">
+    <div class="card-header"><h6 class="mb-0">КАСКО и спецтехника</h6></div>
+    <div class="card-body rf-grid">
+        {% include "insurance_requests/includes/_rf_field.html" with f=form.key_completeness %}
+        {% include "insurance_requests/includes/_rf_field.html" with f=form.pts_psm %}
+        {% include "insurance_requests/includes/_rf_field.html" with f=form.telematics_complex span=2 %}
+    </div>
+</div>
+
+<!-- Имущество -->
+<div class="card rf-card" id="property-additional-fields">
+    <div class="card-header"><h6 class="mb-0">Имущество</h6></div>
+    <div class="card-body rf-grid">
+        {% include "insurance_requests/includes/_rf_field.html" with f=form.insurance_territory span=2 %}
+        {% include "insurance_requests/includes/_rf_field.html" with f=form.property_location_right_holder span=2 %}
+        {% include "insurance_requests/includes/_rf_field.html" with f=form.guard_conditions span=4 %}
+    </div>
+</div>
+
+<!-- Реквизиты страхователя -->
+<div class="card rf-card">
+    <div class="card-header"><h6 class="mb-0">Реквизиты страхователя</h6></div>
+    <div class="card-body rf-grid">
+        {% include "insurance_requests/includes/_rf_field.html" with f=form.legal_address span=2 %}
+        {% include "insurance_requests/includes/_rf_field.html" with f=form.postal_address span=2 %}
+        {% include "insurance_requests/includes/_rf_field.html" with f=form.business_activity span=3 %}
+        {% include "insurance_requests/includes/_rf_field.html" with f=form.birth_date %}
+    </div>
+</div>
+
+<!-- Примечание -->
+<div class="card rf-card">
+    <div class="card-header"><h6 class="mb-0">Примечание</h6></div>
+    <div class="card-body notes-field">
+        {% include "insurance_requests/includes/_rf_field.html" with f=form.notes span=4 show_help=True %}
+    </div>
+</div>

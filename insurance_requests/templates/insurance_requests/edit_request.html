@@ -4,723 +4,112 @@
 {% block title %}Редактирование {{ request.get_display_name }} - {{ block.super }}{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-lg-8">
-        <div class="card">
-            <div class="card-header">
-                <h4 class="mb-0"><i class="bi bi-pencil"></i> Редактирование {{ request.get_display_name }}</h4>
+{% include "insurance_requests/includes/_rf_styles.html" %}
+<div class="rf-page">
+<form method="post" id="rf-form">
+    {% csrf_token %}
+
+    <div class="rf-head">
+        <div class="rf-head__main">
+            <a href="{% url 'insurance_requests:request_detail' request.pk %}" class="rf-back"><i class="bi bi-arrow-left"></i> Карточка заявки</a>
+            <div class="rf-head__title-row">
+                <h1 class="rf-title">Редактирование {{ request.get_display_name }}</h1>
+                {% if request.item_count and request.item_count > 1 %}<span class="rf-chip rf-chip--batch"><i class="bi bi-collection"></i> Партия {{ request.item_no }}/{{ request.item_count }}</span>{% endif %}
             </div>
-            <div class="card-body">
-                <form method="post">
-                    {% csrf_token %}
+            <div class="rf-head__sub"><b>{{ request.client_name }}</b>{% if request.branch %} · {{ request.branch }}{% endif %} · изменения сохранятся только в этой заявке</div>
+        </div>
+    </div>
 
-                    {% if form.non_field_errors %}
-                    <div class="alert alert-danger">
-                        {% for error in form.non_field_errors %}
-                        <div>{{ error }}</div>
-                        {% endfor %}
+    {% if form.non_field_errors %}
+    <div class="alert alert-danger">{% for error in form.non_field_errors %}<div>{{ error }}</div>{% endfor %}</div>
+    {% endif %}
+
+    <div class="row">
+        <div class="col-lg-9">
+            {% include "insurance_requests/includes/_rf_sections_head.html" %}
+
+            <!-- Объект страхования -->
+            <div class="card rf-card">
+                <div class="card-header"><h6 class="mb-0">Объект страхования</h6></div>
+                <div class="card-body">
+                    <div class="rf-grid">
+                        {% include "insurance_requests/includes/_rf_field.html" with f=form.brand %}
+                        {% include "insurance_requests/includes/_rf_field.html" with f=form.model span=2 %}
+                        {% include "insurance_requests/includes/_rf_field.html" with f=form.manufacturing_year help="Год выпуска предмета лизинга" %}
+                        {% include "insurance_requests/includes/_rf_field.html" with f=form.condition %}
+                        {% include "insurance_requests/includes/_rf_field.html" with f=form.equipment_type %}
+                        {% include "insurance_requests/includes/_rf_field.html" with f=form.power_or_capacity span=2 %}
+                        {% include "insurance_requests/includes/_rf_field.html" with f=form.acquisition_cost_value %}
+                        {% include "insurance_requests/includes/_rf_field.html" with f=form.acquisition_cost_currency %}
+                        {% include "insurance_requests/includes/_rf_field.html" with f=form.source_object_count span=2 show_help=True %}
                     </div>
+                    {% if form.vehicle_info or form.asset_status %}
+                    <details class="rf-legacy"{% if request.vehicle_info or request.asset_status %} open{% endif %}>
+                        <summary>Поля старого формата заявки (V1)</summary>
+                        <div class="rf-grid mt-2">
+                            {% if form.vehicle_info %}{% include "insurance_requests/includes/_rf_field.html" with f=form.vehicle_info span=3 %}{% endif %}
+                            {% if form.asset_status %}{% include "insurance_requests/includes/_rf_field.html" with f=form.asset_status help="Статус имущества предмета лизинга" %}{% endif %}
+                        </div>
+                    </details>
                     {% endif %}
+                </div>
+            </div>
 
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="{{ form.client_name.id_for_label }}" class="form-label">
-                                    {{ form.client_name.label }}
-                                </label>
-                                {{ form.client_name }}
-                                {% if form.client_name.errors %}
-                                <div class="text-danger">
-                                    {% for error in form.client_name.errors %}
-                                    <small>{{ error }}</small>
-                                    {% endfor %}
-                                </div>
-                                {% endif %}
-                            </div>
-                        </div>
+            {% include "insurance_requests/includes/_rf_sections_rest.html" %}
+        </div>
 
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="{{ form.inn.id_for_label }}" class="form-label">
-                                    {{ form.inn.label }}
-                                </label>
-                                {{ form.inn }}
-                                {% if form.inn.errors %}
-                                <div class="text-danger">
-                                    {% for error in form.inn.errors %}
-                                    <small>{{ error }}</small>
-                                    {% endfor %}
-                                </div>
-                                {% endif %}
-                            </div>
+        <div class="col-lg-3">
+            <div class="rf-side">
+                <div class="card rf-card">
+                    <div class="card-header"><h6 class="mb-0">Заявка</h6></div>
+                    <div class="card-body">
+                        <div class="rf-side-rows">
+                            <div class="rf-side-row"><span>Статус</span><b>{{ request.get_status_display }}</b></div>
+                            <div class="rf-side-row"><span>Создана</span><b>{% timezone "Europe/Moscow" %}{{ request.created_at|date:"d.m.Y H:i" }}{% endtimezone %}</b></div>
+                            <div class="rf-side-row"><span>Обновлена</span><b>{% timezone "Europe/Moscow" %}{{ request.updated_at|date:"d.m.Y H:i" }}{% endtimezone %}</b></div>
+                            {% if request.summary %}<div class="rf-side-row"><span>Свод</span><b>{{ request.summary.get_status_display }}</b></div>{% endif %}
                         </div>
                     </div>
-
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="{{ form.insurance_type.id_for_label }}" class="form-label">
-                                    {{ form.insurance_type.label }}
-                                </label>
-                                {{ form.insurance_type }}
-                                {% if form.insurance_type.errors %}
-                                <div class="text-danger">
-                                    {% for error in form.insurance_type.errors %}
-                                    <small>{{ error }}</small>
-                                    {% endfor %}
-                                </div>
-                                {% endif %}
-                            </div>
-                        </div>
-
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="{{ form.insurance_period.id_for_label }}" class="form-label">
-                                    {{ form.insurance_period.label }}
-                                </label>
-                                {{ form.insurance_period }}
-                                {% if form.insurance_period.help_text %}
-                                <div class="form-text">{{ form.insurance_period.help_text }}</div>
-                                {% endif %}
-                                {% if form.insurance_period.errors %}
-                                <div class="text-danger">
-                                    {% for error in form.insurance_period.errors %}
-                                    <small>{{ error }}</small>
-                                    {% endfor %}
-                                </div>
-                                {% endif %}
-                            </div>
-                        </div>
+                </div>
+                <div class="card rf-card">
+                    <div class="card-header"><h6 class="mb-0">Подсказки</h6></div>
+                    <div class="card-body rf-side-rows">
+                        <div><i class="bi bi-envelope text-success"></i> Поля со значком конверта попадают в текст письма страховщикам.</div>
+                        <div><i class="bi bi-file-earmark-pdf" style="color:#ba122b"></i> Все поля выводятся в «Заявке для страховой» (PDF).</div>
                     </div>
-
-
-
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="{{ form.branch.id_for_label }}" class="form-label">
-                                    {{ form.branch.label }}
-                                </label>
-                                {{ form.branch }}
-                                {% if form.branch.errors %}
-                                <div class="text-danger">
-                                    {% for error in form.branch.errors %}
-                                    <small>{{ error }}</small>
-                                    {% endfor %}
-                                </div>
-                                {% endif %}
-                            </div>
-                        </div>
-
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="{{ form.dfa_number.id_for_label }}" class="form-label">
-                                    {{ form.dfa_number.label }}
-                                </label>
-                                {{ form.dfa_number }}
-                                {% if form.dfa_number.errors %}
-                                <div class="text-danger">
-                                    {% for error in form.dfa_number.errors %}
-                                    <small>{{ error }}</small>
-                                    {% endfor %}
-                                </div>
-                                {% endif %}
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="{{ form.manager_name.id_for_label }}" class="form-label">
-                                    {{ form.manager_name.label }}
-                                </label>
-                                {{ form.manager_name }}
-                                {% if form.manager_name.errors %}
-                                <div class="text-danger">
-                                    {% for error in form.manager_name.errors %}
-                                    <small>{{ error }}</small>
-                                    {% endfor %}
-                                </div>
-                                {% endif %}
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="{{ form.deal_status.id_for_label }}" class="form-label">
-                                    {{ form.deal_status.label }}
-                                </label>
-                                {{ form.deal_status }}
-                                {% if form.deal_status.errors %}
-                                <div class="text-danger">
-                                    {% for error in form.deal_status.errors %}
-                                    <small>{{ error }}</small>
-                                    {% endfor %}
-                                </div>
-                                {% endif %}
-                            </div>
-                        </div>
-                    </div>
-
-	                    {% if form.vehicle_info %}
-	                    <div class="mb-3">
-	                        <label for="{{ form.vehicle_info.id_for_label }}" class="form-label">
-	                            {{ form.vehicle_info.label }}
-	                        </label>
-                        {{ form.vehicle_info }}
-                        {% if form.vehicle_info.errors %}
-                        <div class="text-danger">
-                            {% for error in form.vehicle_info.errors %}
-                            <small>{{ error }}</small>
-                            {% endfor %}
-                        </div>
-	                        {% endif %}
-	                    </div>
-	                    {% endif %}
-
-	                    <div class="mb-4">
-	                        <h6 class="text-muted mb-3">Структурированные данные объекта</h6>
-	                        <div class="row">
-	                            <div class="col-md-4">
-	                                <div class="mb-3">
-	                                    <label for="{{ form.brand.id_for_label }}" class="form-label">{{ form.brand.label }}</label>
-	                                    {{ form.brand }}
-	                                    {% if form.brand.errors %}<div class="text-danger">{% for error in form.brand.errors %}<small>{{ error }}</small>{% endfor %}</div>{% endif %}
-	                                </div>
-	                            </div>
-	                            <div class="col-md-8">
-	                                <div class="mb-3">
-	                                    <label for="{{ form.model.id_for_label }}" class="form-label">{{ form.model.label }}</label>
-	                                    {{ form.model }}
-	                                    {% if form.model.errors %}<div class="text-danger">{% for error in form.model.errors %}<small>{{ error }}</small>{% endfor %}</div>{% endif %}
-	                                </div>
-	                            </div>
-	                        </div>
-	                        <div class="row">
-	                            <div class="col-md-4">
-	                                <div class="mb-3">
-	                                    <label for="{{ form.condition.id_for_label }}" class="form-label">{{ form.condition.label }}</label>
-	                                    {{ form.condition }}
-	                                    {% if form.condition.errors %}<div class="text-danger">{% for error in form.condition.errors %}<small>{{ error }}</small>{% endfor %}</div>{% endif %}
-	                                </div>
-	                            </div>
-	                            <div class="col-md-4">
-	                                <div class="mb-3">
-	                                    <label for="{{ form.equipment_type.id_for_label }}" class="form-label">{{ form.equipment_type.label }}</label>
-	                                    {{ form.equipment_type }}
-	                                    {% if form.equipment_type.errors %}<div class="text-danger">{% for error in form.equipment_type.errors %}<small>{{ error }}</small>{% endfor %}</div>{% endif %}
-	                                </div>
-	                            </div>
-	                            <div class="col-md-4">
-	                                <div class="mb-3">
-	                                    <label for="{{ form.power_or_capacity.id_for_label }}" class="form-label">{{ form.power_or_capacity.label }}</label>
-	                                    {{ form.power_or_capacity }}
-	                                    {% if form.power_or_capacity.errors %}<div class="text-danger">{% for error in form.power_or_capacity.errors %}<small>{{ error }}</small>{% endfor %}</div>{% endif %}
-	                                </div>
-	                            </div>
-	                        </div>
-	                        <div class="row">
-	                            <div class="col-md-4">
-	                                <div class="mb-3">
-	                                    <label for="{{ form.acquisition_cost_value.id_for_label }}" class="form-label">{{ form.acquisition_cost_value.label }}</label>
-	                                    {{ form.acquisition_cost_value }}
-	                                    {% if form.acquisition_cost_value.errors %}<div class="text-danger">{% for error in form.acquisition_cost_value.errors %}<small>{{ error }}</small>{% endfor %}</div>{% endif %}
-	                                </div>
-	                            </div>
-	                            <div class="col-md-4">
-	                                <div class="mb-3">
-	                                    <label for="{{ form.acquisition_cost_currency.id_for_label }}" class="form-label">{{ form.acquisition_cost_currency.label }}</label>
-	                                    {{ form.acquisition_cost_currency }}
-	                                    {% if form.acquisition_cost_currency.errors %}<div class="text-danger">{% for error in form.acquisition_cost_currency.errors %}<small>{{ error }}</small>{% endfor %}</div>{% endif %}
-	                                </div>
-	                            </div>
-	                            <div class="col-md-4">
-	                                <div class="mb-3">
-	                                    <label for="{{ form.source_object_count.id_for_label }}" class="form-label">{{ form.source_object_count.label }}</label>
-	                                    {{ form.source_object_count }}
-	                                    {% if form.source_object_count.help_text %}<div class="form-text">{{ form.source_object_count.help_text }}</div>{% endif %}
-	                                    {% if form.source_object_count.errors %}<div class="text-danger">{% for error in form.source_object_count.errors %}<small>{{ error }}</small>{% endfor %}</div>{% endif %}
-	                                </div>
-	                            </div>
-	                        </div>
-	                    </div>
-
-                    <!-- Общие дополнительные параметры -->
-                    <div class="mb-4 common-additional-fields">
-                        <h6 class="text-muted mb-3">Необязательные параметры</h6>
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label for="{{ form.creditor_bank.id_for_label }}" class="form-label">
-                                        {{ form.creditor_bank.label }}
-                                    </label>
-                                    {{ form.creditor_bank }}
-                                    {% if form.creditor_bank.errors %}
-                                    <div class="text-danger">
-                                        {% for error in form.creditor_bank.errors %}
-                                        <small>{{ error }}</small>
-                                        {% endfor %}
-                                    </div>
-                                    {% endif %}
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label for="{{ form.usage_purposes.id_for_label }}" class="form-label">
-                                        {{ form.usage_purposes.label }}
-                                    </label>
-                                    {{ form.usage_purposes }}
-                                    {% if form.usage_purposes.errors %}
-                                    <div class="text-danger">
-                                        {% for error in form.usage_purposes.errors %}
-                                        <small>{{ error }}</small>
-                                        {% endfor %}
-                                    </div>
-                                    {% endif %}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="mb-4">
-                        <h6 class="text-muted mb-3">Реквизиты страхователя</h6>
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label for="{{ form.legal_address.id_for_label }}" class="form-label">{{ form.legal_address.label }}</label>
-                                    {{ form.legal_address }}
-                                    {% if form.legal_address.errors %}<div class="text-danger">{% for error in form.legal_address.errors %}<small>{{ error }}</small>{% endfor %}</div>{% endif %}
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label for="{{ form.postal_address.id_for_label }}" class="form-label">{{ form.postal_address.label }}</label>
-                                    {{ form.postal_address }}
-                                    {% if form.postal_address.errors %}<div class="text-danger">{% for error in form.postal_address.errors %}<small>{{ error }}</small>{% endfor %}</div>{% endif %}
-                                </div>
-                            </div>
-                        </div>
-                        <div class="row">
-                            <div class="col-md-12">
-                                <div class="mb-3">
-                                    <label for="{{ form.business_activity.id_for_label }}" class="form-label">{{ form.business_activity.label }}</label>
-                                    {{ form.business_activity }}
-                                    {% if form.business_activity.errors %}<div class="text-danger">{% for error in form.business_activity.errors %}<small>{{ error }}</small>{% endfor %}</div>{% endif %}
-                                </div>
-                            </div>
-                        </div>
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label for="{{ form.birth_date.id_for_label }}" class="form-label">{{ form.birth_date.label }}</label>
-                                    {{ form.birth_date }}
-                                    {% if form.birth_date.errors %}<div class="text-danger">{% for error in form.birth_date.errors %}<small>{{ error }}</small>{% endfor %}</div>{% endif %}
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label for="{{ form.submission_date.id_for_label }}" class="form-label">{{ form.submission_date.label }}</label>
-                                    {{ form.submission_date }}
-                                    {% if form.submission_date.errors %}<div class="text-danger">{% for error in form.submission_date.errors %}<small>{{ error }}</small>{% endfor %}</div>{% endif %}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Дополнительные параметры КАСКО/спецтехника -->
-                    <div class="mb-4" id="casco-additional-fields">
-                        <h6 class="text-muted mb-3">Дополнительные параметры КАСКО/спецтехника</h6>
-                        
-                        <div class="row">
-                            <div class="col-md-6 casco-specific">
-                                <div class="mb-3">
-                                    <label for="{{ form.manufacturing_year.id_for_label }}" class="form-label">
-                                        {{ form.manufacturing_year.label }}
-                                    </label>
-                                    {{ form.manufacturing_year }}
-                                    <div class="form-text">Год выпуска предмета лизинга</div>
-                                    {% if form.manufacturing_year.errors %}
-                                    <div class="text-danger">
-                                        {% for error in form.manufacturing_year.errors %}
-                                        <small>{{ error }}</small>
-                                        {% endfor %}
-                                    </div>
-                                    {% endif %}
-                                </div>
-                            </div>
-                            <div class="col-md-6 casco-specific">
-                                <div class="mb-3">
-                                    <label for="{{ form.key_completeness.id_for_label }}" class="form-label">
-                                        {{ form.key_completeness.label }}
-                                    </label>
-                                    {{ form.key_completeness }}
-                                    {% if form.key_completeness.errors %}
-                                    <div class="text-danger">
-                                        {% for error in form.key_completeness.errors %}
-                                        <small>{{ error }}</small>
-                                        {% endfor %}
-                                    </div>
-                                    {% endif %}
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="row">
-                            <div class="col-md-6 casco-specific">
-                                <div class="mb-3">
-                                    <label for="{{ form.pts_psm.id_for_label }}" class="form-label">
-                                        {{ form.pts_psm.label }}
-                                    </label>
-                                    {{ form.pts_psm }}
-                                    {% if form.pts_psm.errors %}
-                                    <div class="text-danger">
-                                        {% for error in form.pts_psm.errors %}
-                                        <small>{{ error }}</small>
-                                        {% endfor %}
-                                    </div>
-                                    {% endif %}
-                                </div>
-                            </div>
-                            <div class="col-md-6 casco-specific">
-                                <div class="mb-3">
-                                    <label for="{{ form.telematics_complex.id_for_label }}" class="form-label">
-                                        {{ form.telematics_complex.label }}
-                                    </label>
-                                    {{ form.telematics_complex }}
-                                    {% if form.telematics_complex.errors %}
-                                    <div class="text-danger">
-                                        {% for error in form.telematics_complex.errors %}
-                                        <small>{{ error }}</small>
-                                        {% endfor %}
-                                    </div>
-                                    {% endif %}
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="row">
-                            {% if form.asset_status %}
-                            <div class="col-md-6 casco-specific">
-                                <div class="mb-3">
-                                    <label for="{{ form.asset_status.id_for_label }}" class="form-label">
-                                        {{ form.asset_status.label }}
-                                    </label>
-                                    {{ form.asset_status }}
-                                    <div class="form-text">Статус имущества предмета лизинга</div>
-                                    {% if form.asset_status.errors %}
-                                    <div class="text-danger">
-                                        {% for error in form.asset_status.errors %}
-                                        <small>{{ error }}</small>
-                                        {% endfor %}
-                                    </div>
-                                    {% endif %}
-                                </div>
-                            </div>
-                            {% endif %}
-                            <div class="col-md-6">
-                                <!-- Пустая колонка для симметрии -->
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Дополнительные параметры для страхования имущества -->
-                    <div class="mb-4" id="property-additional-fields">
-                        <h6 class="text-muted mb-3">Дополнительные параметры страхования имущества</h6>
-                        
-	                        <div class="row">
-	                            <div class="col-md-6">
-	                                <div class="mb-3">
-	                                    <label for="{{ form.insurance_territory.id_for_label }}" class="form-label">
-	                                        {{ form.insurance_territory.label }}
-                                    </label>
-                                    {{ form.insurance_territory }}
-                                    {% if form.insurance_territory.errors %}
-                                    <div class="text-danger">
-                                        {% for error in form.insurance_territory.errors %}
-                                        <small>{{ error }}</small>
-                                        {% endfor %}
-                                    </div>
-                                    {% endif %}
-                                </div>
-                            </div>
-	                            <div class="col-md-6">
-	                                <!-- Пустая колонка для симметрии -->
-	                            </div>
-	                        </div>
-	                        <div class="row">
-	                            <div class="col-md-6">
-	                                <div class="mb-3">
-	                                    <label for="{{ form.property_location_right_holder.id_for_label }}" class="form-label">
-	                                        {{ form.property_location_right_holder.label }}
-	                                    </label>
-	                                    {{ form.property_location_right_holder }}
-	                                    {% if form.property_location_right_holder.errors %}
-	                                    <div class="text-danger">
-	                                        {% for error in form.property_location_right_holder.errors %}
-	                                        <small>{{ error }}</small>
-	                                        {% endfor %}
-	                                    </div>
-	                                    {% endif %}
-	                                </div>
-	                            </div>
-	                            <div class="col-md-6">
-	                                <div class="mb-3">
-	                                    <label for="{{ form.guard_conditions.id_for_label }}" class="form-label">
-	                                        {{ form.guard_conditions.label }}
-	                                    </label>
-	                                    {{ form.guard_conditions }}
-	                                    {% if form.guard_conditions.errors %}
-	                                    <div class="text-danger">
-	                                        {% for error in form.guard_conditions.errors %}
-	                                        <small>{{ error }}</small>
-	                                        {% endfor %}
-	                                    </div>
-	                                    {% endif %}
-	                                </div>
-	                            </div>
-	                        </div>
-	                    </div>
-
-                    <div class="mb-3">
-                        <label for="{{ form.response_deadline.id_for_label }}" class="form-label">
-                            {{ form.response_deadline.label }}
-                        </label>
-                        {{ form.response_deadline }}
-                        <div class="form-text">Время указывается в московском часовом поясе (МСК)</div>
-                        {% if form.response_deadline.errors %}
-                        <div class="text-danger">
-                            {% for error in form.response_deadline.errors %}
-                            <small>{{ error }}</small>
-                            {% endfor %}
-                        </div>
-                        {% endif %}
-                    </div>
-
-                    <div class="mb-3 notes-field">
-                        <label for="{{ form.notes.id_for_label }}" class="form-label">
-                            {{ form.notes.label }}
-                        </label>
-                        {{ form.notes }}
-                        {% if form.notes.help_text %}
-                        <div class="form-text" id="notes-help">{{ form.notes.help_text }}</div>
-                        {% endif %}
-                        {% if form.notes.errors %}
-                        <div class="text-danger">
-                            {% for error in form.notes.errors %}
-                            <small>{{ error }}</small>
-                            {% endfor %}
-                        </div>
-                        {% endif %}
-                    </div>
-
-                    <!-- Дополнительные параметры -->
-                    <div class="mb-4">
-                        <h6 class="text-muted mb-3">Дополнительные параметры - <i>влияет на текст письма</i></h6>
-                        
-                        <!-- Общие параметры -->
-                        <div class="card border-0 bg-light mb-3">
-                            <div class="card-body py-2">
-                                <h6 class="card-subtitle mb-2 text-muted small">Общие</h6>
-	                                <div class="row">
-	                                    <div class="col-md-6">
-	                                        <label class="form-label" for="{{ form.franchise_type.id_for_label }}">
-	                                            {{ form.franchise_type.label }}
-	                                        </label>
-                                        {{ form.franchise_type }}
-                                        {% if form.franchise_type.errors %}
-                                        <div class="text-danger">
-                                            {% for error in form.franchise_type.errors %}
-                                            <small>{{ error }}</small>
-                                            {% endfor %}
-                                        </div>
-                                        {% endif %}
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-check">
-                                            {{ form.has_installment }}
-                                            <label class="form-check-label" for="{{ form.has_installment.id_for_label }}">
-                                                {{ form.has_installment.label }}
-                                            </label>
-	                                        </div>
-	                                    </div>
-	                                </div>
-	                                <div class="row mt-3">
-	                                    <div class="col-md-6">
-	                                        <label class="form-label" for="{{ form.premium_frequency.id_for_label }}">
-	                                            {{ form.premium_frequency.label }}
-	                                        </label>
-	                                        {{ form.premium_frequency }}
-	                                        {% if form.premium_frequency.errors %}
-	                                        <div class="text-danger">
-	                                            {% for error in form.premium_frequency.errors %}
-	                                            <small>{{ error }}</small>
-	                                            {% endfor %}
-	                                        </div>
-	                                        {% endif %}
-	                                    </div>
-	                                    <div class="col-md-6">
-	                                        <label class="form-label" for="{{ form.insured_party.id_for_label }}">
-	                                            {{ form.insured_party.label }}
-	                                        </label>
-	                                        {{ form.insured_party }}
-	                                        {% if form.insured_party.errors %}
-	                                        <div class="text-danger">
-	                                            {% for error in form.insured_party.errors %}
-	                                            <small>{{ error }}</small>
-	                                            {% endfor %}
-	                                        </div>
-	                                        {% endif %}
-	                                    </div>
-	                                </div>
-	                                <div class="row mt-3">
-	                                    <div class="col-md-6">
-	                                        <label class="form-label" for="{{ form.insured_sum_type.id_for_label }}">
-	                                            {{ form.insured_sum_type.label }}
-	                                        </label>
-	                                        {{ form.insured_sum_type }}
-	                                        {% if form.insured_sum_type.errors %}
-	                                        <div class="text-danger">
-	                                            {% for error in form.insured_sum_type.errors %}
-	                                            <small>{{ error }}</small>
-	                                            {% endfor %}
-	                                        </div>
-	                                        {% endif %}
-	                                    </div>
-	                                </div>
-	                            </div>
-	                        </div>
-
-                        <!-- Параметры для КАСКО и СТ -->
-                        <div class="card border-0 bg-light mb-3">
-                            <div class="card-body py-2">
-                                <h6 class="card-subtitle mb-2 text-muted small">КАСКО и СТ</h6>
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <div class="form-check">
-                                            {{ form.has_autostart }}
-                                            <label class="form-check-label" for="{{ form.has_autostart.id_for_label }}">
-                                                {{ form.has_autostart.label }}
-                                            </label>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-check">
-                                            {{ form.has_casco_ce }}
-                                            <label class="form-check-label" for="{{ form.has_casco_ce.id_for_label }}">
-                                                {{ form.has_casco_ce.label }}
-                                            </label>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Параметры для имущества -->
-                        <div class="card border-0 bg-light mb-3">
-                            <div class="card-body py-2">
-                                <h6 class="card-subtitle mb-2 text-muted small">Имущество</h6>
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <div class="form-check">
-                                            {{ form.has_transportation }}
-                                            <label class="form-check-label" for="{{ form.has_transportation.id_for_label }}">
-                                                {{ form.has_transportation.label }}
-                                            </label>
-                                            {% if form.has_transportation.errors %}
-                                            <div class="text-danger">
-                                                {% for error in form.has_transportation.errors %}
-                                                <small>{{ error }}</small>
-                                                {% endfor %}
-                                            </div>
-                                            {% endif %}
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-check">
-                                            {{ form.has_construction_work }}
-                                            <label class="form-check-label" for="{{ form.has_construction_work.id_for_label }}">
-                                                {{ form.has_construction_work.label }}
-                                            </label>
-                                            {% if form.has_construction_work.errors %}
-                                            <div class="text-danger">
-                                                {% for error in form.has_construction_work.errors %}
-                                                <small>{{ error }}</small>
-                                                {% endfor %}
-                                            </div>
-                                            {% endif %}
-                                        </div>
-                                    </div>
-                                </div>
-                                <div id="transportation-details" class="row mt-2{% if not form.has_transportation.value %} d-none{% endif %}">
-                                    <div class="col-md-5">
-                                        <label class="form-label small" for="{{ form.transportation_departure.id_for_label }}">
-                                            {{ form.transportation_departure.label }}
-                                        </label>
-                                        {{ form.transportation_departure }}
-                                        {% if form.transportation_departure.errors %}
-                                        <div class="text-danger">
-                                            {% for error in form.transportation_departure.errors %}
-                                            <small>{{ error }}</small>
-                                            {% endfor %}
-                                        </div>
-                                        {% endif %}
-                                    </div>
-                                    <div class="col-md-5">
-                                        <label class="form-label small" for="{{ form.transportation_destination.id_for_label }}">
-                                            {{ form.transportation_destination.label }}
-                                        </label>
-                                        {{ form.transportation_destination }}
-                                        {% if form.transportation_destination.errors %}
-                                        <div class="text-danger">
-                                            {% for error in form.transportation_destination.errors %}
-                                            <small>{{ error }}</small>
-                                            {% endfor %}
-                                        </div>
-                                        {% endif %}
-                                    </div>
-                                    <div class="col-md-2">
-                                        <label class="form-label small" for="{{ form.transportation_days.id_for_label }}">
-                                            {{ form.transportation_days.label }}
-                                        </label>
-                                        {{ form.transportation_days }}
-                                        {% if form.transportation_days.errors %}
-                                        <div class="text-danger">
-                                            {% for error in form.transportation_days.errors %}
-                                            <small>{{ error }}</small>
-                                            {% endfor %}
-                                        </div>
-                                        {% endif %}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                        <a href="{% url 'insurance_requests:request_detail' request.pk %}" class="btn btn-secondary">
-                            <i class="bi bi-x-circle"></i> Отмена
-                        </a>
-                        <button type="submit" class="btn btn-primary">
-                            <i class="bi bi-check-circle"></i> Сохранить изменения
-                        </button>
-                    </div>
-                </form>
+                </div>
             </div>
         </div>
     </div>
+
+    <div class="rf-actionbar">
+        <div class="container-fluid rf-actionbar__inner">
+            <div class="rf-actionbar__info">Изменено полей: <b id="rf-changed">0</b></div>
+            <div class="rf-actionbar__buttons">
+                <a href="{% url 'insurance_requests:request_detail' request.pk %}" class="btn btn-outline-secondary"><i class="bi bi-x-circle"></i> Отмена</a>
+                <button type="submit" class="btn btn-primary"><i class="bi bi-check-circle"></i> Сохранить изменения</button>
+            </div>
+        </div>
+    </div>
+</form>
 </div>
+<style>
+.rf-legacy { margin-top: 1rem; padding-top: 0.8rem; border-top: 1px solid var(--rf-line); }
+.rf-legacy summary { font-size: 0.8rem; font-weight: 600; color: var(--rf-muted); cursor: pointer; }
+.rf-field--changed .form-control, .rf-field--changed .form-select { border-color: var(--app-primary); background-color: #f4fbfa; }
+</style>
 {% endblock %}
 
 {% block extra_js %}
 <script>
     document.addEventListener('DOMContentLoaded', function () {
+        const form = document.getElementById('rf-form');
         const notesInput = document.getElementById('{{ form.notes.id_for_label }}');
-        const form = document.querySelector('form');
         const insuranceTypeSelect = document.getElementById('{{ form.insurance_type.id_for_label }}');
         const cascoFields = document.getElementById('casco-additional-fields');
         const propertyFields = document.getElementById('property-additional-fields');
 
-        // Показ/скрытие деталей перевозки в зависимости от чекбокса
+        // Маршрут перевозки виден, только когда перевозка включена
         const transportationCheckbox = document.getElementById('{{ form.has_transportation.id_for_label }}');
         const transportationDetails = document.getElementById('transportation-details');
         if (transportationCheckbox && transportationDetails) {
@@ -729,12 +118,10 @@
             });
         }
 
-        // Функция для показа/скрытия дополнительных полей в зависимости от типа страхования
+        // Блоки «КАСКО и спецтехника» и «Имущество» — по типу страхования
         function toggleAdditionalFields() {
             if (!insuranceTypeSelect || !cascoFields || !propertyFields) return;
-            
             const selectedType = insuranceTypeSelect.value;
-            
             if (selectedType === 'КАСКО' || selectedType === 'страхование спецтехники') {
                 cascoFields.style.display = 'block';
                 propertyFields.style.display = 'none';
@@ -742,326 +129,118 @@
                 cascoFields.style.display = 'none';
                 propertyFields.style.display = 'block';
             } else {
-                // Для типа "другое" показываем все поля
                 cascoFields.style.display = 'block';
                 propertyFields.style.display = 'block';
             }
         }
-
-        // Инициализация при загрузке страницы
         toggleAdditionalFields();
-
-        // Обработчик изменения типа страхования
         if (insuranceTypeSelect) {
             insuranceTypeSelect.addEventListener('change', toggleAdditionalFields);
         }
 
-        // Функция для отображения ошибок валидации
+        // Счётчик изменённых полей в нижней панели
+        const changedCounter = document.getElementById('rf-changed');
+        const controls = form ? Array.from(form.querySelectorAll('input, select, textarea')).filter(function (el) {
+            return el.name && el.type !== 'hidden' && el.name !== 'csrfmiddlewaretoken';
+        }) : [];
+        const initialValues = new Map(controls.map(function (el) {
+            return [el, el.type === 'checkbox' ? el.checked : el.value];
+        }));
+        function updateChangedCount() {
+            if (!changedCounter) return;
+            const changed = controls.filter(function (el) {
+                const now = el.type === 'checkbox' ? el.checked : el.value;
+                return now !== initialValues.get(el);
+            });
+            changedCounter.textContent = changed.length;
+            controls.forEach(function (el) {
+                const field = el.closest('.rf-field');
+                if (field) field.classList.toggle('rf-field--changed', changed.includes(el));
+            });
+        }
+        controls.forEach(function (el) {
+            el.addEventListener('input', updateChangedCount);
+            el.addEventListener('change', updateChangedCount);
+        });
+
+        // Проверка примечания и счётчик символов
         function showFieldError(field, message) {
-            // Удаляем предыдущие ошибки
-            const existingError = field.parentNode.querySelector('.client-validation-error');
-            if (existingError) {
-                existingError.remove();
-            }
-
-            // Добавляем новую ошибку
+            clearFieldError(field);
             const errorDiv = document.createElement('div');
-            errorDiv.className = 'text-danger client-validation-error';
-            errorDiv.innerHTML = '<small>' + message + '</small>';
+            errorDiv.className = 'rf-error client-validation-error';
+            errorDiv.textContent = message;
             field.parentNode.appendChild(errorDiv);
-
-            // Добавляем класс ошибки к полю
             field.classList.add('is-invalid');
         }
 
-        // Функция для очистки ошибок валидации
         function clearFieldError(field) {
             const existingError = field.parentNode.querySelector('.client-validation-error');
-            if (existingError) {
-                existingError.remove();
-            }
+            if (existingError) existingError.remove();
             field.classList.remove('is-invalid');
         }
 
-        // Функция валидации примечаний
-        function validateNotes() {
-            let isValid = true;
-
-            if (notesInput) {
-                // Очищаем предыдущие ошибки
-                clearFieldError(notesInput);
-
-                const notesValue = notesInput.value.trim();
-
-                // Проверка максимальной длины
-                if (notesValue.length > 2000) {
-                    showFieldError(notesInput, 'Примечание не должно превышать 2000 символов');
-                    isValid = false;
-                }
-
-                // Проверка минимальной длины (если поле не пустое)
-                if (notesValue.length > 0 && notesValue.length < 3) {
-                    showFieldError(notesInput, 'Примечание должно содержать минимум 3 символа');
-                    isValid = false;
-                }
-
-                // Проверка на потенциально опасный контент
-                const dangerousPatterns = [
-                    /<script[^>]*>/i,
-                    /<\/script>/i,
-                    /javascript:/i,
-                    /<iframe[^>]*>/i,
-                    /<object[^>]*>/i,
-                    /<embed[^>]*>/i
-                ];
-
-                for (const pattern of dangerousPatterns) {
-                    if (pattern.test(notesValue)) {
-                        showFieldError(notesInput, 'Примечание содержит недопустимые элементы');
-                        isValid = false;
-                        break;
-                    }
-                }
-
-                // Обновляем счетчик символов
-                updateCharacterCount();
+        function updateCharacterCount() {
+            if (!notesInput) return;
+            const currentLength = notesInput.value.length;
+            const maxLength = 2000;
+            let counterElement = document.getElementById('notes-char-counter');
+            if (!counterElement) {
+                counterElement = document.createElement('div');
+                counterElement.id = 'notes-char-counter';
+                notesInput.parentNode.appendChild(counterElement);
             }
+            counterElement.textContent = `${currentLength}/${maxLength} символов`;
+            counterElement.className = 'rf-help text-end' + (currentLength > maxLength ? ' text-danger' : currentLength > maxLength * 0.9 ? ' text-warning' : '');
+        }
 
+        function validateNotes() {
+            if (!notesInput) return true;
+            let isValid = true;
+            clearFieldError(notesInput);
+            const notesValue = notesInput.value.trim();
+            if (notesValue.length > 2000) {
+                showFieldError(notesInput, 'Примечание не должно превышать 2000 символов');
+                isValid = false;
+            }
+            if (notesValue.length > 0 && notesValue.length < 3) {
+                showFieldError(notesInput, 'Примечание должно содержать минимум 3 символа');
+                isValid = false;
+            }
+            const dangerousPatterns = [/<script[^>]*>/i, /<\/script>/i, /javascript:/i, /<iframe[^>]*>/i, /<object[^>]*>/i, /<embed[^>]*>/i];
+            for (const pattern of dangerousPatterns) {
+                if (pattern.test(notesValue)) {
+                    showFieldError(notesInput, 'Примечание содержит недопустимые элементы');
+                    isValid = false;
+                    break;
+                }
+            }
+            updateCharacterCount();
             return isValid;
         }
 
-        // Функция для обновления счетчика символов
-        function updateCharacterCount() {
-            if (notesInput) {
-                const currentLength = notesInput.value.length;
-                const maxLength = 2000;
-                
-                let counterElement = document.getElementById('notes-char-counter');
-                if (!counterElement) {
-                    counterElement = document.createElement('div');
-                    counterElement.id = 'notes-char-counter';
-                    counterElement.className = 'form-text text-end';
-                    notesInput.parentNode.appendChild(counterElement);
-                }
-                
-                counterElement.textContent = `${currentLength}/${maxLength} символов`;
-                
-                // Изменяем цвет при приближении к лимиту
-                if (currentLength > maxLength * 0.9) {
-                    counterElement.className = 'form-text text-end text-warning';
-                } else if (currentLength > maxLength) {
-                    counterElement.className = 'form-text text-end text-danger';
-                } else {
-                    counterElement.className = 'form-text text-end text-muted';
-                }
-            }
-        }
-
-
-
-
-
-        // Обработчики событий для поля примечаний
         if (notesInput) {
-            // Валидация при вводе текста
-            notesInput.addEventListener('input', function() {
+            notesInput.addEventListener('input', function () {
                 updateCharacterCount();
-                // Задержка валидации для лучшего UX
                 clearTimeout(this.validationTimeout);
                 this.validationTimeout = setTimeout(validateNotes, 500);
             });
-
-            // Валидация при потере фокуса
             notesInput.addEventListener('blur', validateNotes);
-
-            // Улучшение доступности
             notesInput.setAttribute('aria-label', 'Примечания к заявке');
-            notesInput.setAttribute('aria-describedby', 'notes-help notes-char-counter');
-
-            // Инициализация счетчика символов
-            updateCharacterCount();
+            validateNotes();
         }
 
-        // Валидация при отправке формы
         if (form) {
             form.addEventListener('submit', function (e) {
-                const notesValid = validateNotes();
-                
-                if (!notesValid) {
+                if (!validateNotes()) {
                     e.preventDefault();
-
-                    // Прокручиваем к первому полю с ошибкой
                     const firstError = document.querySelector('.is-invalid');
                     if (firstError) {
                         firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
                         firstError.focus();
                     }
-
-                    // Показываем общее сообщение об ошибке
-                    const alertDiv = document.createElement('div');
-                    alertDiv.className = 'alert alert-warning alert-dismissible fade show';
-                    let errorMessage = '<strong>Внимание!</strong> Пожалуйста, исправьте ошибки в полях перед сохранением:';
-                    
-                    if (!notesValid) {
-                        errorMessage += '<br>• Проверьте содержимое поля примечаний';
-                    }
-                    
-                    alertDiv.innerHTML = errorMessage + `
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Закрыть"></button>
-                `;
-
-                    // Вставляем предупреждение в начало формы
-                    const existingAlert = form.querySelector('.alert-warning');
-                    if (existingAlert) {
-                        existingAlert.remove();
-                    }
-                    form.insertBefore(alertDiv, form.firstChild);
                 }
             });
         }
-
-        // Инициализация валидации при загрузке страницы
-        if (notesInput) {
-            validateNotes();
-        }
     });
 </script>
-
-<style>
-    /* Дополнительные стили для улучшения UX */
-    .client-validation-error {
-        margin-top: 0.25rem;
-    }
-
-    /* Стили для поля примечаний */
-    .notes-field textarea {
-        resize: vertical;
-        min-height: 100px;
-    }
-
-    .notes-field textarea:focus {
-        border-color: #0d6efd;
-        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
-    }
-
-    .notes-field textarea.is-invalid {
-        border-color: #dc3545;
-        box-shadow: 0 0 0 0.25rem rgba(220, 53, 69, 0.25);
-    }
-
-    #notes-char-counter {
-        font-size: 0.875rem;
-        margin-top: 0.25rem;
-    }
-
-    #notes-char-counter.text-warning {
-        font-weight: 500;
-    }
-
-    #notes-char-counter.text-danger {
-        font-weight: 600;
-    }
-
-    /* Улучшение доступности для screen readers */
-    .sr-only {
-        position: absolute;
-        width: 1px;
-        height: 1px;
-        padding: 0;
-        margin: -1px;
-        overflow: hidden;
-        clip: rect(0, 0, 0, 0);
-        white-space: nowrap;
-        border: 0;
-    }
-
-    /* Стили для блоков дополнительных параметров */
-    .card.border-0.bg-light {
-        background-color: #f8f9fa !important;
-        border-radius: 0.5rem;
-    }
-
-    .card.border-0.bg-light .card-body {
-        padding: 0.75rem 1rem;
-    }
-
-    .card.border-0.bg-light .card-subtitle {
-        font-weight: 600;
-        color: #6c757d !important;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        font-size: 0.75rem;
-    }
-
-    .card.border-0.bg-light .form-check {
-        margin-bottom: 0.5rem;
-    }
-
-    .card.border-0.bg-light .form-check-label {
-        font-size: 0.9rem;
-        color: #495057;
-    }
-
-    .card.border-0.bg-light:hover {
-        background-color: #e9ecef !important;
-        transition: background-color 0.2s ease;
-    }
-
-    /* Стили для дополнительных полей КАСКО/имущество */
-    #casco-additional-fields,
-    #property-additional-fields {
-        border: 1px solid #e9ecef;
-        border-radius: 0.5rem;
-        padding: 1rem;
-        background-color: #f8f9fa;
-        margin-bottom: 1rem;
-        transition: all 0.3s ease;
-    }
-
-    #casco-additional-fields h6,
-    #property-additional-fields h6 {
-        color: #495057;
-        font-weight: 600;
-        margin-bottom: 1rem;
-        padding-bottom: 0.5rem;
-        border-bottom: 1px solid #dee2e6;
-    }
-
-    #casco-additional-fields .form-control,
-    #property-additional-fields .form-control {
-        border-color: #ced4da;
-    }
-
-    #casco-additional-fields .form-control:focus,
-    #property-additional-fields .form-control:focus {
-        border-color: #0d6efd;
-        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
-    }
-
-    /* Стили для блока общих дополнительных параметров */
-    .common-additional-fields {
-        border: 1px solid #d1ecf1;
-        border-radius: 0.5rem;
-        padding: 1rem;
-        background-color: #f1f9fc;
-        margin-bottom: 1rem;
-    }
-
-    .common-additional-fields h6 {
-        color: #0c5460;
-        font-weight: 600;
-        margin-bottom: 1rem;
-        padding-bottom: 0.5rem;
-        border-bottom: 1px solid #bee5eb;
-    }
-
-    .common-additional-fields .form-control {
-        border-color: #ced4da;
-    }
-
-    .common-additional-fields .form-control:focus {
-        border-color: #0d6efd;
-        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
-    }
-</style>
 {% endblock %}

@@ -1,0 +1,15 @@
+{# Поле формы заявки: подпись капсом, поле, ошибки, подсказка, ячейка-источник Excel и предупреждение парсера. #}
+{% load summary_extras %}
+{% with warn=field_warnings|get_item:f.name src=source_map|get_item:f.name %}
+<div class="rf-field rf-span-{{ span|default:1 }}{% if warn %} rf-field--warn{% endif %}{% if f.errors %} rf-field--error{% endif %}" id="rf-{{ f.name }}">
+    <label class="rf-label" for="{{ f.id_for_label }}">
+        {{ label|default:f.label }}
+        {% if src %}<span class="rf-src" title="Ячейка исходного Excel">{{ src|truncatechars:14 }}</span>{% endif %}
+        {% if email %}<i class="bi bi-envelope rf-mail" title="Влияет на текст письма"></i>{% endif %}
+    </label>
+    {{ f }}
+    {% for message in warn %}<div class="rf-warn"><i class="bi bi-exclamation-triangle-fill"></i> {{ message }}</div>{% endfor %}
+    {% for error in f.errors %}<div class="rf-error">{{ error }}</div>{% endfor %}
+    {% if help %}<div class="rf-help">{{ help }}</div>{% elif f.help_text and show_help %}<div class="rf-help">{{ f.help_text }}</div>{% endif %}
+</div>
+{% endwith %}

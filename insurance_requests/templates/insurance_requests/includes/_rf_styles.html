@@ -1,0 +1,150 @@
+{# Стили форм заявки (редактирование, проверка после загрузки) в языке карточек заявки и свода. #}
+<style>
+.rf-page {
+    --rf-ink: #0f1b2d;
+    --rf-ink-2: #334155;
+    --rf-muted: #6b7a90;
+    --rf-muted-2: #9aa6b6;
+    --rf-line: #edf1f5;
+    --rf-border: #e6ecf1;
+    --rf-soft: #f7f9fb;
+    --rf-warn: #f0a93b;
+    font-feature-settings: "tnum" 1;
+    padding-bottom: 5.5rem;
+}
+
+/* Шапка — как у карточки заявки */
+.rf-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; margin: 0.25rem 0 1.1rem; }
+.rf-head__main { min-width: 0; }
+.rf-back { display: inline-flex; align-items: center; gap: 0.35rem; margin-bottom: 0.45rem; font-size: 0.8125rem; font-weight: 600; color: var(--rf-muted); text-decoration: none; }
+.rf-back:hover { color: var(--app-primary); }
+.rf-head__title-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.9rem; }
+.rf-title { margin: 0; font-family: 'Space Grotesk', 'Manrope', sans-serif; font-size: 1.75rem; font-weight: 700; letter-spacing: -0.02em; color: var(--rf-ink); }
+.rf-head__sub { margin-top: 0.35rem; font-size: 0.93rem; color: var(--rf-muted); }
+.rf-head__sub b { font-weight: 600; color: var(--rf-ink-2); }
+.rf-head__actions { display: flex; gap: 0.5rem; flex-shrink: 0; }
+.rf-chip { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.2rem 0.6rem; border-radius: 999px; background: #f1f4f8; color: #4a5a70; font-size: 0.75rem; font-weight: 600; white-space: nowrap; }
+.rf-chip--batch { background: rgba(22, 163, 74, 0.08); color: #166534; box-shadow: inset 0 0 0 1px rgba(22, 163, 74, 0.22); }
+.rf-chip--warn { background: #fdf3e1; color: #8a5a00; }
+
+/* Карточки-секции */
+.rf-page .rf-card { margin-bottom: 1rem; border: 1px solid var(--rf-border); border-radius: 18px; overflow: hidden; background: #fff; box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 12px 32px -12px rgba(16, 24, 40, 0.1); }
+.rf-page .rf-card:hover { transform: none; }
+.rf-page .rf-card > .card-header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 0.8rem 1.25rem; background: #fff; border-bottom: 1px solid var(--rf-line); }
+.rf-page .rf-card > .card-header h6 { font-size: 0.94rem; font-weight: 700; color: var(--rf-ink); }
+.rf-page .rf-card > .card-body { padding: 1.1rem 1.25rem 1.2rem; }
+
+/* Сетка полей: 4 колонки, поле занимает 1–4 */
+.rf-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.9rem 1rem; }
+.rf-span-1 { grid-column: span 1; }
+.rf-span-2 { grid-column: span 2; }
+.rf-span-3 { grid-column: span 3; }
+.rf-span-4 { grid-column: 1 / -1; }
+.rf-field { min-width: 0; }
+.rf-label { display: flex; align-items: center; gap: 0.35rem; margin-bottom: 0.3rem; font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--rf-muted-2); }
+.rf-src { margin-left: auto; padding: 0 0.35rem; border-radius: 4px; background: #eef6f5; color: #0b6b66; font-family: ui-monospace, Menlo, monospace; font-size: 0.66rem; font-weight: 600; letter-spacing: 0; text-transform: none; }
+.rf-mail { color: var(--app-primary); font-size: 0.72rem; }
+.rf-page .rf-field .form-control,
+.rf-page .rf-field .form-select { border-color: #dfe6ec; border-radius: 10px; font-size: 0.9rem; color: var(--rf-ink); background-color: #fff; }
+.rf-page .rf-field textarea.form-control { min-height: 2.6rem; }
+.rf-page .rf-field .form-control:focus,
+.rf-page .rf-field .form-select:focus { border-color: var(--app-primary); box-shadow: 0 0 0 3px rgba(11, 122, 117, 0.14); }
+.rf-help { margin-top: 0.25rem; font-size: 0.75rem; color: var(--rf-muted); }
+.rf-error { margin-top: 0.25rem; font-size: 0.78rem; font-weight: 600; color: #b4342d; }
+.rf-field--error .form-control, .rf-field--error .form-select { border-color: #e2a3a0; }
+
+/* Предупреждение парсера прямо у поля */
+.rf-field--warn .form-control, .rf-field--warn .form-select { border-color: var(--rf-warn); background-color: #fffaf1; }
+.rf-warn { margin-top: 0.3rem; font-size: 0.76rem; color: #8a5a00; }
+.rf-warn .bi { color: var(--rf-warn); }
+.rf-suggest { margin-top: 0.3rem; font-size: 0.76rem; color: var(--rf-muted); }
+.rf-suggest b { color: var(--rf-ink); }
+.rf-suggest button { margin-left: 0.25rem; padding: 0 0.45rem; border: 1px solid rgba(11, 122, 117, 0.35); border-radius: 999px; background: #fff; font-size: 0.72rem; font-weight: 700; color: var(--app-primary); }
+
+/* Флаги-переключатели: цвета как бейджи в списке и карточке заявки */
+.rf-subtitle { display: flex; align-items: center; gap: 0.6rem; margin: 1.2rem 0 0.55rem; font-size: 0.72rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--app-primary); }
+.rf-subtitle span { font-size: 0.72rem; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--rf-muted); }
+.rf-toggles { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.rf-toggle { display: inline-flex; align-items: center; gap: 0.45rem; margin: 0; padding: 0.45rem 0.8rem 0.45rem 0.6rem; border-radius: 10px; border: 1px solid #dfe6ec; background: #f7f9fb; font-size: 0.85rem; font-weight: 600; color: var(--rf-muted); cursor: pointer; user-select: none; transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease; }
+.rf-toggle input { width: 1rem; height: 1rem; margin: 0; accent-color: currentColor; cursor: pointer; }
+.rf-toggle:hover { border-color: #c5d0da; }
+.rf-toggle:has(input:checked) { color: #fff; border-color: transparent; }
+.rf-toggle--installment:has(input:checked) { background: #0dcaf0; color: #212529; }
+.rf-toggle--autostart:has(input:checked) { background: #6f42c1; }
+.rf-toggle--casco:has(input:checked) { background: var(--app-primary); }
+.rf-toggle--transport:has(input:checked) { background: #dc3545; }
+.rf-toggle--smr:has(input:checked) { background: #212529; }
+.rf-route { display: grid; grid-template-columns: auto repeat(5, minmax(0, 1fr)); gap: 0.9rem 1rem; align-items: end; margin-top: 0.9rem; padding: 0.85rem 1rem; border-radius: 12px; background: #fdf2f3; }
+.rf-route > .bi-truck { align-self: center; font-size: 1.3rem; color: #dc3545; }
+
+/* Объекты (партия) */
+.rf-batch-note { display: flex; gap: 0.6rem; align-items: flex-start; margin-bottom: 0.9rem; padding: 0.7rem 0.9rem; border-radius: 12px; background: #f3faf5; color: #14532d; font-size: 0.85rem; }
+.rf-batch-note .bi { color: #16a34a; font-size: 1.1rem; }
+.rf-object { position: relative; padding: 0.9rem 1rem 1rem 1.1rem; border-radius: 14px; border: 1px solid #dcebe1; background: #fff; box-shadow: inset 4px 0 0 #16a34a; }
+.rf-object + .rf-object { margin-top: 0.75rem; }
+.rf-object--warn { border-color: #f3d9a8; box-shadow: inset 4px 0 0 var(--rf-warn); background: #fffdf8; }
+.rf-object--skip { opacity: 0.55; box-shadow: inset 4px 0 0 #c3ccd7; }
+.rf-object__head { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; }
+.rf-object__title { display: flex; align-items: center; gap: 0.55rem; font-weight: 700; color: var(--rf-ink); }
+.rf-object__idx { padding: 0.05rem 0.5rem; border-radius: 999px; background: rgba(22, 163, 74, 0.1); color: #166534; font-size: 0.75rem; font-weight: 800; }
+.rf-object__skip { display: inline-flex; align-items: center; gap: 0.4rem; margin: 0; font-size: 0.8rem; font-weight: 600; color: var(--rf-muted); cursor: pointer; }
+.rf-object__grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.rf-object__grid .rf-span-2 { grid-column: span 2; }
+.rf-object__grid .rf-span-3 { grid-column: span 3; }
+
+/* Правая колонка */
+.rf-side { position: sticky; top: 1rem; }
+.rf-steps { display: flex; gap: 0.35rem; margin-bottom: 0.9rem; }
+.rf-step { flex: 1; padding: 0.45rem 0.5rem; border-radius: 10px; background: var(--rf-soft); text-align: center; font-size: 0.72rem; font-weight: 700; color: var(--rf-muted-2); }
+.rf-step b { display: block; font-size: 0.95rem; }
+.rf-step--done { background: #e6f3f1; color: #0b6b66; }
+.rf-step--current { background: var(--app-primary); color: #fff; }
+.rf-meter { height: 6px; border-radius: 3px; background: #e5eaf0; overflow: hidden; }
+.rf-meter span { display: block; height: 100%; background: var(--app-primary); }
+.rf-file { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.9rem; font-size: 0.85rem; font-weight: 600; color: var(--rf-ink); overflow-wrap: anywhere; }
+.rf-file .bi { font-size: 1.4rem; color: #1d7047; }
+.rf-warnlist { display: grid; gap: 0.45rem; }
+.rf-warnitem { display: block; padding: 0.55rem 0.7rem; border-radius: 10px; background: #fffaf1; border: 1px solid #f6e3bd; color: inherit; text-decoration: none; }
+a.rf-warnitem:hover { border-color: var(--rf-warn); }
+.rf-warnitem--info { background: #f4f8fe; border-color: #dde8f8; }
+.rf-warnitem__top { display: flex; justify-content: space-between; gap: 0.5rem; font-size: 0.8rem; font-weight: 700; color: var(--rf-ink); }
+.rf-warnitem__msg { margin-top: 0.15rem; font-size: 0.78rem; color: var(--rf-ink-2); }
+.rf-warnitem__src { margin-top: 0.15rem; font-size: 0.72rem; color: var(--rf-muted); }
+.rf-level { padding: 0 0.45rem; border-radius: 999px; font-size: 0.66rem; font-weight: 800; background: #fdf3e1; color: #8a5a00; white-space: nowrap; }
+.rf-level--info { background: #eaf2fe; color: #1d5fbf; }
+.rf-level--error { background: #fbeeee; color: #b4342d; }
+.rf-side-rows { display: grid; gap: 0.45rem; font-size: 0.84rem; }
+.rf-side-row { display: flex; justify-content: space-between; gap: 0.75rem; }
+.rf-side-row span { color: var(--rf-muted); }
+.rf-side-row b { font-weight: 600; color: var(--rf-ink); text-align: right; }
+.rf-sourcemap { max-height: 260px; overflow: auto; }
+
+/* Подсветка поля при переходе из списка предупреждений */
+.rf-flash { animation: rf-flash 1.6s ease; border-radius: 12px; }
+@keyframes rf-flash { 0%, 60% { box-shadow: 0 0 0 4px rgba(240, 169, 59, 0.45); } 100% { box-shadow: 0 0 0 4px rgba(240, 169, 59, 0); } }
+@media (prefers-reduced-motion: reduce) { .rf-flash { animation: none; } }
+
+/* Нижняя панель действий — всегда под рукой */
+.rf-actionbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 1030; padding: 0.7rem 0 calc(0.7rem + env(safe-area-inset-bottom, 0px)); background: rgba(255, 255, 255, 0.94); border-top: 1px solid var(--rf-border); box-shadow: 0 -8px 24px -16px rgba(16, 24, 40, 0.35); backdrop-filter: blur(6px); }
+.rf-actionbar__inner { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+.rf-actionbar__info { font-size: 0.88rem; color: var(--rf-muted); }
+.rf-actionbar__info b { color: var(--rf-ink); }
+.rf-actionbar__buttons { display: flex; gap: 0.5rem; }
+
+@media (max-width: 991.98px) {
+    .rf-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .rf-span-3, .rf-span-4 { grid-column: 1 / -1; }
+    .rf-object__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .rf-object__grid .rf-span-3 { grid-column: 1 / -1; }
+    .rf-route { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .rf-route > .bi-truck { display: none; }
+    .rf-side { position: static; }
+}
+@media (max-width: 767.98px) {
+    .rf-head { flex-direction: column; align-items: stretch; }
+    .rf-title { font-size: 1.4rem; }
+    .rf-grid { grid-template-columns: 1fr; }
+    .rf-grid > .rf-field { grid-column: 1 / -1; }
+    .rf-actionbar__info { display: none; }
+}
+</style>

@@ -497,7 +497,10 @@ class RequestV1V2DisplayCompatibilityTest(TestCase):
         )
         self.assertEqual(v1_response.status_code, 200)
         self.assertContains(v1_response, 'Старое описание предмета лизинга V1')
-        self.assertContains(v1_response, 'Структурированные данные объекта')
+        self.assertContains(v1_response, 'Объект страхования')
+        # У V1 поле описания предмета лизинга остаётся — в блоке старого формата.
+        self.assertContains(v1_response, 'Поля старого формата заявки (V1)')
+        self.assertContains(v1_response, 'Сохранить изменения')
 
         v2_response = self.client.get(
             reverse('insurance_requests:edit_request', kwargs={'pk': self.v2_request.pk})
@@ -506,6 +509,33 @@ class RequestV1V2DisplayCompatibilityTest(TestCase):
         self.assertContains(v2_response, 'LADA')
         self.assertContains(v2_response, 'Частота уплаты премии')
         self.assertContains(v2_response, 'Страхователь')
+
+
+class PreviewWarningContextTest(TestCase):
+    """Предупреждения превью привязываются к полям формы и объектам партии."""
+
+    def test_warnings_get_anchor_label_and_object_numbers(self):
+        from .forms import ParserV2PreviewForm
+        from .views import _preview_warning_context
+
+        form = ParserV2PreviewForm()
+        warnings, field_warnings, object_numbers = _preview_warning_context([
+            {'level': 'info', 'field': 'dfa_number', 'message': 'Нет суффикса'},
+            {'level': 'info', 'field': 'insured_objects', 'message': 'Найдено объектов: 6.'},
+            {'level': 'check', 'anchor': 'birth_date', 'field': 'Дата рождения (для ИП)',
+             'label': 'Дата рождения (для ИП)', 'message': 'Дата в будущем'},
+            {'level': 'check', 'object_number': 2, 'field': 'Объект 2: Год выпуска',
+             'label': 'Год выпуска', 'message': 'Год 2063'},
+        ], form)
+
+        self.assertEqual(warnings[0]['anchor'], 'dfa_number')
+        self.assertEqual(warnings[0]['label'], form.fields['dfa_number'].label)
+        self.assertEqual(warnings[1]['anchor'], '')
+        self.assertEqual(warnings[1]['label'], 'Объекты в файле')
+        self.assertEqual(warnings[2]['anchor'], 'birth_date')
+        self.assertEqual(warnings[3]['label'], 'Объект 2: Год выпуска')
+        self.assertEqual(field_warnings, {'dfa_number': ['Нет суффикса'], 'birth_date': ['Дата в будущем']})
+        self.assertEqual(object_numbers, {2})
 
 
 class DisplayNameBatchTest(TestCase):

@@ -1,0 +1,26 @@
+{# Общие секции формы заявки, часть 1 (до объектов): редактирование и проверка после загрузки. #}
+<!-- Заявка и клиент -->
+<div class="card rf-card">
+    <div class="card-header"><h6 class="mb-0">Заявка и клиент</h6></div>
+    <div class="card-body rf-grid">
+        {% include "insurance_requests/includes/_rf_field.html" with f=form.client_name span=2 %}
+        {% include "insurance_requests/includes/_rf_field.html" with f=form.inn %}
+        <div class="rf-field rf-span-1{% if field_warnings.dfa_number %} rf-field--warn{% endif %}" id="rf-dfa_number">
+            <label class="rf-label" for="{{ form.dfa_number.id_for_label }}">{{ form.dfa_number.label }}{% if source_map.dfa_number %} <span class="rf-src">{{ source_map.dfa_number|truncatechars:14 }}</span>{% endif %}</label>
+            {{ form.dfa_number }}
+            {% for error in form.dfa_number.errors %}<div class="rf-error">{{ error }}</div>{% endfor %}
+            {% if dfa_suggestion %}
+            <div class="rf-suggest js-dfa-suggestion">
+                Полный номер: <b>{{ dfa_suggestion }}</b>
+                <button type="button" data-target="{{ form.dfa_number.id_for_label }}" data-value="{{ dfa_suggestion }}"
+                        onclick="document.getElementById(this.dataset.target).value = this.dataset.value; this.closest('.js-dfa-suggestion').remove();">Подставить</button>
+            </div>
+            {% endif %}
+        </div>
+        {% include "insurance_requests/includes/_rf_field.html" with f=form.branch %}
+        {% include "insurance_requests/includes/_rf_field.html" with f=form.manager_name span=2 %}
+        {% include "insurance_requests/includes/_rf_field.html" with f=form.deal_status %}
+        {% include "insurance_requests/includes/_rf_field.html" with f=form.submission_date %}
+        {% include "insurance_requests/includes/_rf_field.html" with f=form.response_deadline span=2 help="Время московское (МСК)" %}
+    </div>
+</div>

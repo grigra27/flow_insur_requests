@@ -2,62 +2,27 @@
 
 {% block title %}Предварительная проверка заявки - {{ block.super }}{% endblock %}
 
-{% block extra_css %}
-<style>
-.parser-v2-meter {
-    height: 0.55rem;
-}
-.parser-v2-source-map {
-    max-height: 260px;
-    overflow: auto;
-}
-.parser-v2-section {
-    border: 1px solid var(--bs-border-color);
-    border-radius: 0.5rem;
-    padding: 1rem;
-}
-.parser-v2-section + .parser-v2-section {
-    margin-top: 1rem;
-}
-.parser-v2-section-title {
-    align-items: center;
-    display: flex;
-    gap: 0.45rem;
-    margin-bottom: 0.9rem;
-}
-.parser-v2-check-grid {
-    display: grid;
-    gap: 0.75rem;
-    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-}
-.parser-v2-check-grid .form-check {
-    background: var(--bs-light);
-    border: 1px solid var(--bs-border-color);
-    border-radius: 0.375rem;
-    margin: 0;
-    min-height: 2.65rem;
-    padding: 0.65rem 0.75rem 0.6rem 2.2rem;
-}
-</style>
-{% endblock %}
-
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <div>
-        <h1 class="mb-1"><i class="bi bi-clipboard-check"></i> Предварительная проверка</h1>
-        <div class="text-muted">{{ original_filename }}</div>
+{% include "insurance_requests/includes/_rf_styles.html" %}
+<div class="rf-page">
+<form method="post" novalidate id="rf-form">
+    {% csrf_token %}
+    {{ form.draft_id }}
+
+    <div class="rf-head">
+        <div class="rf-head__main">
+            <a href="{% url 'insurance_requests:upload_excel' %}" class="rf-back"><i class="bi bi-arrow-clockwise"></i> Загрузить другой файл</a>
+            <div class="rf-head__title-row">
+                <h1 class="rf-title">Предварительная проверка</h1>
+                {% if is_batch %}<span class="rf-chip rf-chip--batch"><i class="bi bi-collection"></i> Партия объектов ({{ batch_size }})</span>{% endif %}
+                {% if warnings %}<span class="rf-chip rf-chip--warn"><i class="bi bi-exclamation-triangle"></i> Предупреждений: {{ warnings|length }}</span>{% endif %}
+            </div>
+            <div class="rf-head__sub">Проверьте распознанное и исправьте ошибки: всё, что здесь, попадёт в заявку, письмо и PDF для страховой</div>
+        </div>
     </div>
-    <a href="{% url 'insurance_requests:upload_excel' %}" class="btn btn-outline-secondary">
-        <i class="bi bi-arrow-clockwise"></i> Загрузить другой файл
-    </a>
-</div>
 
-<div class="row g-4">
-    <div class="col-lg-8">
-        <form method="post" novalidate>
-            {% csrf_token %}
-            {{ form.draft_id }}
-
+    <div class="row">
+        <div class="col-lg-9">
             {% if seized_applied %}
             <div class="alert alert-info d-flex gap-2 align-items-start">
                 <i class="bi bi-box-seam fs-5"></i>
@@ -71,468 +36,143 @@
             </div>
             {% endif %}
 
-            <div class="card mb-4">
-                <div class="card-header bg-primary text-white">
-                    <i class="bi bi-pencil-square"></i> Данные заявки
+            {% include "insurance_requests/includes/_rf_sections_head.html" %}
+
+            {% if has_objects %}
+            <!-- Объекты: сразу после клиента — здесь чаще всего ошибки распознавания -->
+            <div class="card rf-card">
+                <div class="card-header">
+                    <h6 class="mb-0">{% if is_batch %}Партия объектов ({{ batch_size }}){% else %}Объект страхования{% endif %}</h6>
                 </div>
                 <div class="card-body">
-                    <section class="parser-v2-section">
-                        <h6 class="parser-v2-section-title text-uppercase text-muted">
-                            <i class="bi bi-person-vcard"></i> Основные данные
-                        </h6>
-                        <div class="row g-3">
-                            <div class="col-md-8">
-                                <label class="form-label fw-semibold" for="{{ form.client_name.id_for_label }}">{{ form.client_name.label }}</label>
-                                {{ form.client_name }}
-                                {% for error in form.client_name.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label fw-semibold" for="{{ form.inn.id_for_label }}">{{ form.inn.label }}</label>
-                                {{ form.inn }}
-                                {% for error in form.inn.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label fw-semibold" for="{{ form.dfa_number.id_for_label }}">{{ form.dfa_number.label }}</label>
-                                {{ form.dfa_number }}
-                                {% for error in form.dfa_number.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                                {% if dfa_suggestion %}
-                                <div class="small mt-1 js-dfa-suggestion">
-                                    Предлагаемый полный номер: <strong>{{ dfa_suggestion }}</strong>
-                                    <button type="button" class="btn btn-sm btn-outline-primary py-0 ms-1"
-                                            data-target="{{ form.dfa_number.id_for_label }}" data-value="{{ dfa_suggestion }}"
-                                            onclick="document.getElementById(this.dataset.target).value = this.dataset.value; this.closest('.js-dfa-suggestion').remove();">
-                                        Подставить
-                                    </button>
-                                </div>
-                                {% endif %}
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label fw-semibold" for="{{ form.branch.id_for_label }}">{{ form.branch.label }}</label>
-                                {{ form.branch }}
-                                {% for error in form.branch.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label fw-semibold" for="{{ form.manager_name.id_for_label }}">{{ form.manager_name.label }}</label>
-                                {{ form.manager_name }}
-                                {% for error in form.manager_name.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label fw-semibold" for="{{ form.deal_status.id_for_label }}">{{ form.deal_status.label }}</label>
-                                {{ form.deal_status }}
-                                {% for error in form.deal_status.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label fw-semibold" for="{{ form.response_deadline.id_for_label }}">{{ form.response_deadline.label }}</label>
-                                {{ form.response_deadline }}
-                                {% for error in form.response_deadline.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                            </div>
-                        </div>
-                    </section>
-
-                    <section class="parser-v2-section">
-                        <h6 class="parser-v2-section-title text-uppercase text-muted">
-                            <i class="bi bi-shield-check"></i> Условия страхования
-                        </h6>
-                        <div class="row g-3 align-items-end">
-                            <div class="col-md-4">
-                                <label class="form-label fw-semibold" for="{{ form.insurance_type.id_for_label }}">{{ form.insurance_type.label }}</label>
-                                {{ form.insurance_type }}
-                                {% for error in form.insurance_type.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label fw-semibold" for="{{ form.insurance_period.id_for_label }}">{{ form.insurance_period.label }}</label>
-                                {{ form.insurance_period }}
-                                {% for error in form.insurance_period.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label fw-semibold" for="{{ form.franchise_type.id_for_label }}">{{ form.franchise_type.label }}</label>
-                                {{ form.franchise_type }}
-                                {% for error in form.franchise_type.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label fw-semibold" for="{{ form.premium_frequency.id_for_label }}">{{ form.premium_frequency.label }}</label>
-                                {{ form.premium_frequency }}
-                                {% for error in form.premium_frequency.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                            </div>
-                        </div>
-                        <div class="parser-v2-check-grid mt-3">
-                            <div class="form-check">
-                                {{ form.has_installment }}
-                                <label class="form-check-label" for="{{ form.has_installment.id_for_label }}">{{ form.has_installment.label }}</label>
-                            </div>
-                        </div>
-                        {% for error in form.has_installment.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                    </section>
-
-                    {% if not has_objects %}
-                    <section class="parser-v2-section">
-                        <h6 class="parser-v2-section-title text-uppercase text-muted">
-                            <i class="bi bi-truck"></i> Предмет лизинга
-                        </h6>
-                        <div class="row g-3">
-                            <div class="col-12">
-                                <label class="form-label fw-semibold" for="{{ form.vehicle_info.id_for_label }}">{{ form.vehicle_info.label }}</label>
-                                {{ form.vehicle_info }}
-                                {% for error in form.vehicle_info.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label fw-semibold" for="{{ form.manufacturing_year.id_for_label }}">{{ form.manufacturing_year.label }}</label>
-                                {{ form.manufacturing_year }}
-                                {% for error in form.manufacturing_year.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                            </div>
-                            <div class="col-md-8">
-                                <label class="form-label fw-semibold" for="{{ form.asset_status.id_for_label }}">{{ form.asset_status.label }}</label>
-                                {{ form.asset_status }}
-                                {% for error in form.asset_status.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                            </div>
-                        </div>
-                    </section>
-                    {% else %}
-                    {# Hide legacy single-object fields when the formset renders per-object cards. #}
-                    {# `asset_status` stays per-batch (operator can edit via admin) — hide it too if needed. #}
-                    <div class="d-none">
-                        {{ form.vehicle_info }}
-                        {{ form.manufacturing_year }}
-                        {{ form.asset_status }}
-                    </div>
-                    {% endif %}
-
-                    <section class="parser-v2-section">
-                        <h6 class="parser-v2-section-title text-uppercase text-muted">
-                            <i class="bi bi-car-front"></i> КАСКО и спецтехника
-                        </h6>
-                        <div class="row g-3">
-                            <div class="col-md-4">
-                                <label class="form-label fw-semibold" for="{{ form.key_completeness.id_for_label }}">{{ form.key_completeness.label }}</label>
-                                {{ form.key_completeness }}
-                                {% for error in form.key_completeness.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label fw-semibold" for="{{ form.pts_psm.id_for_label }}">{{ form.pts_psm.label }}</label>
-                                {{ form.pts_psm }}
-                                {% for error in form.pts_psm.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label fw-semibold" for="{{ form.creditor_bank.id_for_label }}">{{ form.creditor_bank.label }}</label>
-                                {{ form.creditor_bank }}
-                                {% for error in form.creditor_bank.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label fw-semibold" for="{{ form.usage_purposes.id_for_label }}">{{ form.usage_purposes.label }}</label>
-                                {{ form.usage_purposes }}
-                                {% for error in form.usage_purposes.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label fw-semibold" for="{{ form.telematics_complex.id_for_label }}">{{ form.telematics_complex.label }}</label>
-                                {{ form.telematics_complex }}
-                                {% for error in form.telematics_complex.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                            </div>
-                        </div>
-                        <div class="parser-v2-check-grid mt-3">
-                            <div class="form-check">
-                                {{ form.has_autostart }}
-                                <label class="form-check-label" for="{{ form.has_autostart.id_for_label }}">{{ form.has_autostart.label }}</label>
-                            </div>
-                            <div class="form-check">
-                                {{ form.has_casco_ce }}
-                                <label class="form-check-label" for="{{ form.has_casco_ce.id_for_label }}">{{ form.has_casco_ce.label }}</label>
-                            </div>
-                        </div>
-                    </section>
-
-                    <section class="parser-v2-section">
-                        <h6 class="parser-v2-section-title text-uppercase text-muted">
-                            <i class="bi bi-building"></i> Имущество
-                        </h6>
-                        <div class="row g-3">
-                            <div class="col-12">
-                                <label class="form-label fw-semibold" for="{{ form.insurance_territory.id_for_label }}">{{ form.insurance_territory.label }}</label>
-                                {{ form.insurance_territory }}
-                                {% for error in form.insurance_territory.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                            </div>
-                        </div>
-                        <div class="parser-v2-check-grid mt-3">
-                            <div class="form-check">
-                                {{ form.has_transportation }}
-                                <label class="form-check-label" for="{{ form.has_transportation.id_for_label }}">{{ form.has_transportation.label }}</label>
-                            </div>
-                            <div class="form-check">
-                                {{ form.has_construction_work }}
-                                <label class="form-check-label" for="{{ form.has_construction_work.id_for_label }}">{{ form.has_construction_work.label }}</label>
-                            </div>
-                        </div>
-                        <div id="transportation-details" class="row g-3 mt-1{% if not form.has_transportation.value %} d-none{% endif %}">
-                            <div class="col-md-5">
-                                <label class="form-label fw-semibold" for="{{ form.transportation_departure.id_for_label }}">{{ form.transportation_departure.label }}</label>
-                                {{ form.transportation_departure }}
-                                {% for error in form.transportation_departure.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                            </div>
-                            <div class="col-md-5">
-                                <label class="form-label fw-semibold" for="{{ form.transportation_destination.id_for_label }}">{{ form.transportation_destination.label }}</label>
-                                {{ form.transportation_destination }}
-                                {% for error in form.transportation_destination.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                            </div>
-                            <div class="col-md-2">
-                                <label class="form-label fw-semibold" for="{{ form.transportation_days.id_for_label }}">{{ form.transportation_days.label }}</label>
-                                {{ form.transportation_days }}
-                                {% for error in form.transportation_days.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                            </div>
-                        </div>
-                    </section>
-
-                    <section class="parser-v2-section">
-                        <h6 class="parser-v2-section-title text-uppercase text-muted">
-                            <i class="bi bi-building"></i> Реквизиты страхователя
-                        </h6>
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <label class="form-label fw-semibold" for="{{ form.legal_address.id_for_label }}">{{ form.legal_address.label }}</label>
-                                {{ form.legal_address }}
-                                {% for error in form.legal_address.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label fw-semibold" for="{{ form.postal_address.id_for_label }}">{{ form.postal_address.label }}</label>
-                                {{ form.postal_address }}
-                                {% for error in form.postal_address.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                            </div>
-                            <div class="col-md-12">
-                                <label class="form-label fw-semibold" for="{{ form.business_activity.id_for_label }}">{{ form.business_activity.label }}</label>
-                                {{ form.business_activity }}
-                                {% for error in form.business_activity.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label fw-semibold" for="{{ form.birth_date.id_for_label }}">{{ form.birth_date.label }}</label>
-                                {{ form.birth_date }}
-                                {% for error in form.birth_date.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label fw-semibold" for="{{ form.submission_date.id_for_label }}">{{ form.submission_date.label }}</label>
-                                {{ form.submission_date }}
-                                {% for error in form.submission_date.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                            </div>
-                        </div>
-                    </section>
-
-                    <section class="parser-v2-section">
-                        <h6 class="parser-v2-section-title text-uppercase text-muted">
-                            <i class="bi bi-file-text"></i> Параметры сделки
-                        </h6>
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <label class="form-label fw-semibold" for="{{ form.insured_party.id_for_label }}">{{ form.insured_party.label }}</label>
-                                {{ form.insured_party }}
-                                {% for error in form.insured_party.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label fw-semibold" for="{{ form.insured_sum_type.id_for_label }}">{{ form.insured_sum_type.label }}</label>
-                                {{ form.insured_sum_type }}
-                                {% for error in form.insured_sum_type.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label fw-semibold" for="{{ form.property_location_right_holder.id_for_label }}">{{ form.property_location_right_holder.label }}</label>
-                                {{ form.property_location_right_holder }}
-                                {% for error in form.property_location_right_holder.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                            </div>
-                            <div class="col-md-12">
-                                <label class="form-label fw-semibold" for="{{ form.guard_conditions.id_for_label }}">{{ form.guard_conditions.label }}</label>
-                                {{ form.guard_conditions }}
-                                {% for error in form.guard_conditions.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                            </div>
-                        </div>
-                    </section>
-
-                    {% if has_objects %}
-                    <section class="parser-v2-section">
-                        <h6 class="parser-v2-section-title text-uppercase text-muted">
-                            <i class="bi bi-collection"></i>
-                            {% if is_batch %}
-                                Партия объектов ({{ batch_size }})
-                            {% else %}
-                                Объект страхования
-                            {% endif %}
-                        </h6>
-                        {% if is_batch %}
-                        <div class="alert alert-info mb-3">
-                            <i class="bi bi-info-circle"></i>
-                            В файле найдено <strong>{{ batch_size }}</strong> объектов.
-                            Будут созданы N заявок-сестёр с общими реквизитами выше и
-                            индивидуальными данными ниже. Любую карточку можно отметить
-                            «Не создавать», чтобы исключить из партии.
-                        </div>
-                        {% endif %}
-
-                        {{ object_formset.management_form }}
-                        {% if object_formset.non_form_errors %}
-                            <div class="alert alert-danger">{{ object_formset.non_form_errors }}</div>
-                        {% endif %}
-
-                        {% for obj_form in object_formset %}
-                        <div class="card mb-3 parser-v2-object-card">
-                            <div class="card-header d-flex justify-content-between align-items-center">
-                                <strong>
-                                    {% if is_batch %}
-                                        Объект {{ forloop.counter }} из {{ batch_size }}
-                                    {% else %}
-                                        Объект страхования
-                                    {% endif %}
-                                    {% with soc=obj_form.source_object_count.value %}
-                                        {% if soc and soc|add:"0" > 1 %}
-                                            <span class="badge bg-warning text-dark ms-1">Одинаковых строк: {{ soc }}</span>
-                                        {% endif %}
-                                    {% endwith %}
-                                </strong>
-                                {% if is_batch %}
-                                <div class="form-check">
-                                    {{ obj_form.skip }}
-                                    <label class="form-check-label small text-muted" for="{{ obj_form.skip.id_for_label }}">
-                                        {{ obj_form.skip.label }}
-                                    </label>
-                                </div>
-                                {% endif %}
-                            </div>
-                            <div class="card-body">
-                                <div class="row g-3">
-                                    <div class="col-md-4">
-                                        <label class="form-label fw-semibold" for="{{ obj_form.brand.id_for_label }}">{{ obj_form.brand.label }}</label>
-                                        {{ obj_form.brand }}
-                                        {% for error in obj_form.brand.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                                    </div>
-                                    <div class="col-md-8">
-                                        <label class="form-label fw-semibold" for="{{ obj_form.model.id_for_label }}">{{ obj_form.model.label }}</label>
-                                        {{ obj_form.model }}
-                                        {% for error in obj_form.model.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                                    </div>
-                                    <div class="col-md-3">
-                                        <label class="form-label fw-semibold" for="{{ obj_form.manufacturing_year.id_for_label }}">{{ obj_form.manufacturing_year.label }}</label>
-                                        {{ obj_form.manufacturing_year }}
-                                    </div>
-                                    <div class="col-md-3">
-                                        <label class="form-label fw-semibold" for="{{ obj_form.condition.id_for_label }}">{{ obj_form.condition.label }}</label>
-                                        {{ obj_form.condition }}
-                                    </div>
-                                    <div class="col-md-3">
-                                        <label class="form-label fw-semibold" for="{{ obj_form.equipment_type.id_for_label }}">{{ obj_form.equipment_type.label }}</label>
-                                        {{ obj_form.equipment_type }}
-                                    </div>
-                                    <div class="col-md-3">
-                                        <label class="form-label fw-semibold" for="{{ obj_form.power_or_capacity.id_for_label }}">{{ obj_form.power_or_capacity.label }}</label>
-                                        {{ obj_form.power_or_capacity }}
-                                    </div>
-                                    <div class="col-md-6">
-                                        <label class="form-label fw-semibold" for="{{ obj_form.acquisition_cost_value.id_for_label }}">{{ obj_form.acquisition_cost_value.label }}</label>
-                                        {{ obj_form.acquisition_cost_value }}
-                                        {% for error in obj_form.acquisition_cost_value.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                                    </div>
-                                    <div class="col-md-6">
-                                        <label class="form-label fw-semibold" for="{{ obj_form.acquisition_cost_currency.id_for_label }}">{{ obj_form.acquisition_cost_currency.label }}</label>
-                                        {{ obj_form.acquisition_cost_currency }}
-                                    </div>
-                                    <div class="col-md-4">
-                                        <label class="form-label fw-semibold" for="{{ obj_form.source_object_count.id_for_label }}">{{ obj_form.source_object_count.label }}</label>
-                                        {{ obj_form.source_object_count }}
-                                        <div class="form-text">Сколько полностью одинаковых строк объекта эта карточка представляет.</div>
-                                        {% for error in obj_form.source_object_count.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        {% endfor %}
-                    </section>
-                    {% endif %}
-
-                    <section class="parser-v2-section">
-                        <h6 class="parser-v2-section-title text-uppercase text-muted">
-                            <i class="bi bi-journal-text"></i> Примечание
-                        </h6>
-                        <label class="form-label fw-semibold" for="{{ form.notes.id_for_label }}">{{ form.notes.label }}</label>
-                        {{ form.notes }}
-                        {% for error in form.notes.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                    </section>
-                </div>
-            </div>
-
-            <div class="d-flex gap-2 mb-4">
-                <button type="submit" class="btn btn-success btn-lg">
-                    <i class="bi bi-check-circle"></i>
                     {% if is_batch %}
-                        Создать партию из {{ batch_size }} заявок
-                    {% else %}
-                        Создать заявку
-                    {% endif %}
-                </button>
-                <a href="{% url 'insurance_requests:upload_excel' %}" class="btn btn-outline-secondary btn-lg">
-                    Отмена
-                </a>
-            </div>
-        </form>
-    </div>
-
-    <div class="col-lg-4">
-        <div class="card mb-4">
-            <div class="card-header">
-                <i class="bi bi-speedometer2"></i> Уверенность разбора
-            </div>
-            <div class="card-body">
-                <div class="d-flex justify-content-between mb-2">
-                    <span>{{ confidence|floatformat:2 }}</span>
-                    <span class="text-muted">из 1.00</span>
-                </div>
-                <div class="progress parser-v2-meter">
-                    <div class="progress-bar" role="progressbar" style="width: {{ confidence_percent }}%"></div>
-                </div>
-            </div>
-        </div>
-
-        <div class="card mb-4">
-            <div class="card-header">
-                <i class="bi bi-exclamation-triangle"></i> Предупреждения
-            </div>
-            <div class="card-body">
-                {% if warnings %}
-                    <div class="list-group list-group-flush">
-                        {% for warning in warnings %}
-                            <div class="list-group-item px-0">
-                                <div class="d-flex justify-content-between gap-2">
-                                    <strong>{{ warning.field }}</strong>
-                                    <span class="badge {% if warning.level == 'error' %}bg-danger{% elif warning.level == 'manual_required' %}bg-warning text-dark{% elif warning.level == 'check' %}bg-danger{% elif warning.level == 'info' %}bg-info text-dark{% else %}bg-secondary{% endif %}">
-                                        {% if warning.level == 'check' %}проверьте{% else %}{{ warning.level }}{% endif %}
-                                    </span>
-                                </div>
-                                <div class="small mt-1">{{ warning.message }}</div>
-                                {% if warning.source %}
-                                    <div class="small text-muted mt-1">{{ warning.source }}</div>
-                                {% endif %}
-                            </div>
-                        {% endfor %}
+                    <div class="rf-batch-note">
+                        <i class="bi bi-info-circle"></i>
+                        <div>В файле найдено <strong>{{ batch_size }}</strong> объектов. Будут созданы N заявок-сестёр с общими реквизитами и индивидуальными данными объекта. Любую карточку можно отметить «Не создавать», чтобы исключить из партии. «Одинаковых строк» — сколько полностью одинаковых строк объекта эта карточка представляет.</div>
                     </div>
-                {% else %}
-                    <p class="mb-0 text-muted">Критичных предупреждений нет.</p>
-                {% endif %}
+                    {% endif %}
+                    {{ object_formset.management_form }}
+                    {% if object_formset.non_form_errors %}<div class="alert alert-danger">{{ object_formset.non_form_errors }}</div>{% endif %}
+                    {% for obj_form in object_formset %}
+                    <div class="rf-object{% if forloop.counter in object_warn_numbers %} rf-object--warn{% endif %}" id="rf-object-{{ forloop.counter }}">
+                        <div class="rf-object__head">
+                            <div class="rf-object__title">
+                                {% if is_batch %}<span class="rf-object__idx">{{ forloop.counter }}/{{ batch_size }}</span> Объект {{ forloop.counter }} из {{ batch_size }}{% else %}Объект страхования{% endif %}
+                                {% with soc=obj_form.source_object_count.value %}{% if soc and soc|add:"0" > 1 %}<span class="rf-chip rf-chip--warn">Одинаковых строк: {{ soc }}</span>{% endif %}{% endwith %}
+                            </div>
+                            {% if is_batch %}
+                            <label class="rf-object__skip">{{ obj_form.skip }} {{ obj_form.skip.label }}</label>
+                            {% endif %}
+                        </div>
+                        <div class="rf-grid rf-object__grid">
+                            {% include "insurance_requests/includes/_rf_field.html" with source_map=None field_warnings=None f=obj_form.brand span=2 %}
+                            {% include "insurance_requests/includes/_rf_field.html" with source_map=None field_warnings=None f=obj_form.model span=3 %}
+                            {% include "insurance_requests/includes/_rf_field.html" with source_map=None field_warnings=None f=obj_form.manufacturing_year %}
+                            {% include "insurance_requests/includes/_rf_field.html" with source_map=None field_warnings=None f=obj_form.condition %}
+                            {% include "insurance_requests/includes/_rf_field.html" with source_map=None field_warnings=None f=obj_form.equipment_type %}
+                            {% include "insurance_requests/includes/_rf_field.html" with source_map=None field_warnings=None f=obj_form.power_or_capacity %}
+                            {% include "insurance_requests/includes/_rf_field.html" with source_map=None field_warnings=None f=obj_form.acquisition_cost_value %}
+                            {% include "insurance_requests/includes/_rf_field.html" with source_map=None field_warnings=None f=obj_form.acquisition_cost_currency %}
+                            {% include "insurance_requests/includes/_rf_field.html" with source_map=None field_warnings=None f=obj_form.source_object_count label="Одинаковых строк" %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
             </div>
+            <div class="d-none">{{ form.vehicle_info }}{{ form.manufacturing_year }}{{ form.asset_status }}</div>
+            {% else %}
+            <div class="card rf-card">
+                <div class="card-header"><h6 class="mb-0">Предмет лизинга</h6></div>
+                <div class="card-body rf-grid">
+                    {% include "insurance_requests/includes/_rf_field.html" with f=form.vehicle_info span=4 %}
+                    {% include "insurance_requests/includes/_rf_field.html" with f=form.manufacturing_year %}
+                    {% include "insurance_requests/includes/_rf_field.html" with f=form.asset_status span=3 %}
+                </div>
+            </div>
+            {% endif %}
+
+            {% include "insurance_requests/includes/_rf_sections_rest.html" %}
         </div>
 
-        <div class="card">
-            <div class="card-header">
-                <i class="bi bi-grid-3x3-gap"></i> Источники полей
-            </div>
-            <div class="card-body parser-v2-source-map">
-                {% if source_map %}
-                    <table class="table table-sm align-middle mb-0">
-                        <tbody>
-                            {% for field_name, source in source_map.items %}
-                                <tr>
-                                    <th class="text-nowrap">{{ field_name }}</th>
-                                    <td>{{ source }}</td>
-                                </tr>
+        <div class="col-lg-3">
+            <div class="rf-side">
+                <div class="card rf-card">
+                    <div class="card-header"><h6 class="mb-0">Загрузка заявки</h6></div>
+                    <div class="card-body">
+                        <div class="rf-steps">
+                            <div class="rf-step rf-step--done"><b>1</b>Файл</div>
+                            <div class="rf-step rf-step--current"><b>2</b>Проверка</div>
+                            <div class="rf-step"><b>3</b>Заявк{% if is_batch %}и{% else %}а{% endif %}</div>
+                        </div>
+                        <div class="rf-file"><i class="bi bi-file-earmark-excel"></i> {{ original_filename }}</div>
+                        <div class="d-flex justify-content-between small mb-1">
+                            <span class="text-muted">Уверенность разбора</span>
+                            <b>{{ confidence|floatformat:2 }} <span class="text-muted fw-normal">из 1.00</span></b>
+                        </div>
+                        <div class="rf-meter"><span style="width: {{ confidence_percent }}%"></span></div>
+                    </div>
+                </div>
+
+                <div class="card rf-card">
+                    <div class="card-header"><h6 class="mb-0">Предупреждения</h6>{% if warnings %}<span class="rf-level">{{ warnings|length }}</span>{% endif %}</div>
+                    <div class="card-body">
+                        {% if warnings %}
+                        <div class="rf-warnlist">
+                            {% for warning in warnings %}
+                            <a class="rf-warnitem{% if warning.level == 'info' %} rf-warnitem--info{% endif %}" {% if warning.anchor %}href="#rf-{{ warning.anchor }}"{% elif warning.object_number %}href="#rf-object-{{ warning.object_number }}"{% endif %}>
+                                <div class="rf-warnitem__top">
+                                    <span>{{ warning.label|default:warning.field }}</span>
+                                    <span class="rf-level{% if warning.level == 'info' %} rf-level--info{% elif warning.level == 'error' %} rf-level--error{% endif %}">{% if warning.level == 'check' %}проверьте{% else %}{{ warning.level }}{% endif %}</span>
+                                </div>
+                                <div class="rf-warnitem__msg">{{ warning.message }}</div>
+                                {% if warning.source %}<div class="rf-warnitem__src">{{ warning.source }}</div>{% endif %}
+                            </a>
                             {% endfor %}
-                        </tbody>
-                    </table>
-                {% else %}
-                    <p class="mb-0 text-muted">Карта источников пока пустая.</p>
-                {% endif %}
+                        </div>
+                        {% else %}
+                        <p class="mb-0 text-muted small">Критичных предупреждений нет.</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="card rf-card">
+                    <div class="card-header"><h6 class="mb-0">Источники полей</h6></div>
+                    <div class="card-body">
+                        {% if source_map %}
+                        <details>
+                            <summary class="small text-muted">Ячейки Excel для каждого поля (показаны и у самих полей)</summary>
+                            <div class="rf-sourcemap mt-2">
+                                <table class="table table-sm align-middle mb-0 small">
+                                    <tbody>
+                                        {% for field_name, source in source_map.items %}
+                                        <tr><th class="text-nowrap">{{ field_name }}</th><td>{{ source }}</td></tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </details>
+                        {% else %}
+                        <p class="mb-0 text-muted small">Карта источников пока пустая.</p>
+                        {% endif %}
+                    </div>
+                </div>
             </div>
         </div>
     </div>
+
+    <div class="rf-actionbar">
+        <div class="container-fluid rf-actionbar__inner">
+            <div class="rf-actionbar__info">{% if is_batch %}Будет создано заявок: <b id="rf-create-count">{{ batch_size }}</b> из {{ batch_size }}{% else %}Будет создана <b>1</b> заявка{% endif %}</div>
+            <div class="rf-actionbar__buttons">
+                <a href="{% url 'insurance_requests:upload_excel' %}" class="btn btn-outline-secondary">Отмена</a>
+                <button type="submit" class="btn btn-success">
+                    <i class="bi bi-check-circle"></i>
+                    {% if is_batch %}Создать партию из {{ batch_size }} заявок{% else %}Создать заявку{% endif %}
+                </button>
+            </div>
+        </div>
+    </div>
+</form>
 </div>
 {% endblock %}
 
@@ -568,6 +208,7 @@
         }
         {% endif %}
 
+        // Маршрут перевозки виден, только когда перевозка включена
         const transportationCheckbox = document.getElementById('{{ form.has_transportation.id_for_label }}');
         const transportationDetails = document.getElementById('transportation-details');
         if (transportationCheckbox && transportationDetails) {
@@ -575,6 +216,34 @@
                 transportationDetails.classList.toggle('d-none', !transportationCheckbox.checked);
             });
         }
+
+        // «Не создавать эту заявку»: карточка тускнеет, счётчик в нижней панели пересчитывается
+        const createCount = document.getElementById('rf-create-count');
+        const skipBoxes = document.querySelectorAll('.rf-object__skip input[type="checkbox"]');
+        function updateSkipped() {
+            let created = 0;
+            skipBoxes.forEach(function (box) {
+                box.closest('.rf-object').classList.toggle('rf-object--skip', box.checked);
+                if (!box.checked) created += 1;
+            });
+            if (createCount) createCount.textContent = created;
+        }
+        skipBoxes.forEach(function (box) { box.addEventListener('change', updateSkipped); });
+        updateSkipped();
+
+        // Переход из списка предупреждений: подсветить поле и поставить в него курсор
+        document.querySelectorAll('.rf-warnitem[href]').forEach(function (link) {
+            link.addEventListener('click', function (e) {
+                const target = document.querySelector(link.getAttribute('href'));
+                if (!target) return;
+                e.preventDefault();
+                target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                target.classList.add('rf-flash');
+                setTimeout(function () { target.classList.remove('rf-flash'); }, 1600);
+                const input = target.querySelector('input:not([type="checkbox"]), select, textarea');
+                if (input) input.focus({ preventScroll: true });
+            });
+        });
     });
 </script>
 {% endblock %}

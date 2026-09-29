@@ -32,7 +32,8 @@ def lookup(dictionary, key):
 @register.filter
 def get_item(dictionary, key):
     """Получает значение из словаря по ключу (альтернатива lookup для простых значений)"""
-    if dictionary is None:
+    # Отсутствующая переменная шаблона приходит пустой строкой — это не словарь.
+    if dictionary is None or not hasattr(dictionary, 'get'):
         return None
     return dictionary.get(key)
 

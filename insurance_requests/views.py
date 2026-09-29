@@ -438,18 +438,54 @@ def _create_requests_with_splitting(*, request_fields, additional_data, object_k
 
 def _plausibility_warnings(parse_result, insured_objects):
     """Проверки правдоподобия распознанных значений для превью (analytics_redesign_2026_09, 5.4)."""
+    # anchor — имя поля формы (для подсветки у поля), object_number — номер объекта партии.
     warnings = [
-        {**warning, 'field': warning['label']}
+        {**warning, 'anchor': warning['field'], 'field': warning['label']}
         for warning in check_plausibility(parse_result.get('data') or {})
     ]
     objects = parser_v2_object_initial_from_payload(insured_objects)
     for number, object_values in enumerate(objects, start=1):
         prefix = f'Объект {number}: ' if len(objects) > 1 else ''
         warnings.extend(
-            {**warning, 'field': prefix + warning['label']}
+            {**warning, 'object_number': number, 'field': prefix + warning['label']}
             for warning in check_plausibility(object_values)
         )
     return warnings
+
+
+PREVIEW_WARNING_LABELS = {
+    'insured_objects': 'Объекты в файле',
+}
+
+
+def _preview_warning_context(warnings, form):
+    """Привязывает предупреждения превью к полям формы и объектам партии.
+
+    Возвращает (warnings, field_warnings, object_warn_numbers): у каждого
+    предупреждения появляются anchor (поле для перехода) и label (подпись поля
+    вместо внутреннего имени); field_warnings — {поле: [сообщения]} для подсветки
+    прямо у поля; object_warn_numbers — номера объектов с предупреждениями.
+    """
+    field_warnings = {}
+    object_warn_numbers = set()
+    annotated = []
+    for warning in warnings:
+        warning = dict(warning)
+        anchor = warning.get('anchor') or warning.get('field')
+        if anchor in form.fields:
+            warning['anchor'] = anchor
+            warning.setdefault('label', form.fields[anchor].label)
+            if warning.get('field') == anchor:
+                warning['label'] = form.fields[anchor].label
+            field_warnings.setdefault(anchor, []).append(warning.get('message', ''))
+        else:
+            warning['anchor'] = ''
+            warning['label'] = PREVIEW_WARNING_LABELS.get(warning.get('field'), warning.get('field'))
+        if warning.get('object_number'):
+            warning['label'] = warning.get('field')
+            object_warn_numbers.add(warning['object_number'])
+        annotated.append(warning)
+    return annotated, field_warnings, object_warn_numbers
 
 
 def _render_parser_v2_preview(request, draft_id, draft, preview_form=None, object_formset=None):
@@ -468,10 +504,17 @@ def _render_parser_v2_preview(request, draft_id, draft, preview_form=None, objec
             prefix='objects',
         )
 
+    warnings, field_warnings, object_warn_numbers = _preview_warning_context(
+        list(parse_result.get('warnings', [])) + _plausibility_warnings(parse_result, insured_objects),
+        preview_form,
+    )
+
     return render(request, 'insurance_requests/upload_excel_v2_preview.html', {
         'form': preview_form,
         'object_formset': object_formset,
-        'warnings': list(parse_result.get('warnings', [])) + _plausibility_warnings(parse_result, insured_objects),
+        'warnings': warnings,
+        'field_warnings': field_warnings,
+        'object_warn_numbers': object_warn_numbers,
         'source_map': parse_result.get('source_map', {}),
         'confidence': confidence,
         'confidence_percent': int(confidence * 100),
