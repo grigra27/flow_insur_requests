@@ -270,7 +270,7 @@ class PostCreationAccessTests(TestCase):
         for removed in ('Средняя уверенность', 'По филиалам', 'По операторам'):
             self.assertNotContains(response, removed)
 
-    def test_regular_user_forbidden(self):
+    def test_regular_user_redirected_to_recognition_page(self):
         self.client.login(username='u', password='x')
         response = self.client.get(reverse('summaries:analytics_post_creation'))
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 302)

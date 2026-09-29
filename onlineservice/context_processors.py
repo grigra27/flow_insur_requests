@@ -76,7 +76,6 @@ MAIN_NAV_ITEMS = [
             ('Сотрудники', 'summaries:analytics_managers'),
             ('Служебное: качество распознавания', 'summaries:analytics_parser_edits'),
         ],
-        'requires_admin': True,
     },
 ]
 
@@ -123,21 +122,9 @@ SECTION_CONFIG = {
 }
 
 
-ADMIN_ONLY_ROUTES = {
-    'summaries:analytics',
-    'summaries:analytics_insurance_companies',
-    'summaries:analytics_insurance_company_card',
-    'summaries:export_analytics_insurance_company_card',
-    'summaries:analytics_tariffs',
-    'summaries:analytics_tariff_group',
-    'summaries:export_analytics_tariffs',
-    'summaries:analytics_managers',
-    'summaries:analytics_manager_detail',
-    'summaries:export_analytics_managers_widget',
-    'summaries:export_analytics_manager_detail',
-    'summaries:analytics_parser_edits',
-    'summaries:analytics_post_creation',
-}
+# Пункты меню, скрытые от не-администраторов. Раздел «Аналитика» виден всем: страница «Сотрудники»
+# остаётся в меню, но сама закрыта декоратором admin_required и показывает «Доступ запрещен».
+ADMIN_ONLY_ROUTES = set()
 
 
 SUPERUSER_ONLY_ROUTES = set()

@@ -134,8 +134,8 @@ class CompanyCardViewTests(TestCase):
         self.assertIn('Сделки', workbook.sheetnames)
         self.assertEqual(workbook['Сводка']['B6'].value, 1)
 
-    def test_regular_user_has_no_access(self):
+    def test_regular_user_has_access(self):
         user = User.objects.create_user(username='card_user', password='pwd')
         user.groups.add(Group.objects.get_or_create(name='Пользователи')[0])
         self.client.login(username='card_user', password='pwd')
-        self.assertNotEqual(self.client.get(self.url('Абсолют')).status_code, 200)
+        self.assertEqual(self.client.get(self.url('Абсолют')).status_code, 200)

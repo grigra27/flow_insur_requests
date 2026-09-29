@@ -141,10 +141,10 @@ class AnalyticsParserEditsAccessTests(TestCase):
         self.assertTemplateUsed(response, 'summaries/analytics_parser_edits.html')
         self.assertContains(response, 'Служебное: качество распознавания')
 
-    def test_regular_user_forbidden(self):
+    def test_regular_user_allowed(self):
         self.client.login(username='u', password='x')
         response = self.client.get(reverse('summaries:analytics_parser_edits'))
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 200)
 
 
 class ParserVersionTests(TestCase):

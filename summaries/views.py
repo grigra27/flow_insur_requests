@@ -22,7 +22,7 @@ from pathlib import Path
 
 from .models import InsuranceSummary, InsuranceOffer, SummaryCompanyStatus, SummaryTemplate
 from insurance_requests.models import InsuranceRequest
-from insurance_requests.decorators import admin_required, has_admin_access, user_required
+from insurance_requests.decorators import admin_required, user_required
 from .forms import OfferForm, SummaryForm, AddOfferToSummaryForm, DealListFilterForm
 from .exceptions import DuplicateOfferError
 from .services.analytics_insurance_companies import (
@@ -809,7 +809,6 @@ def summary_detail(request, pk):
             selected_company=(summary.selected_company or '').strip(),
         ),
         'offers_have_variant_2': any(offer.premium_with_franchise_2 or offer.franchise_2 for offer in offers),
-        'can_open_analytics': has_admin_access(request.user),
     })
 
 
@@ -2618,7 +2617,7 @@ def _build_deal_price_row(summary, comparison_mode='selected_variant', require_f
     }
 
 
-@admin_required
+@user_required
 def analytics_insurance_companies(request):
     """Страховые компании: куда уходит бизнес (сделки, страховая сумма, премия, доли)."""
     filters = _parse_company_analytics_filters(request)
@@ -2696,7 +2695,7 @@ def _tariff_filter_context(filters):
     }
 
 
-@admin_required
+@user_required
 def analytics_tariffs(request):
     """Аналитика → Тарифы (tariffs_analytics_2026_09, шаг 2)."""
     filters = _parse_tariff_filters(request)
@@ -2707,7 +2706,7 @@ def analytics_tariffs(request):
     return render(request, 'summaries/analytics_tariffs.html', {**payload, **_tariff_filter_context(filters)})
 
 
-@admin_required
+@user_required
 def analytics_tariff_group(request, dimension, group):
     """Страница марки (или вида машины для спецтехники): страховые, кварталы, модели, предложения."""
     if dimension not in (tariffs_service.DIMENSION_BRAND, tariffs_service.DIMENSION_KIND):
@@ -2719,7 +2718,7 @@ def analytics_tariff_group(request, dimension, group):
     return render(request, 'summaries/analytics_tariff_group.html', {**payload, **_tariff_filter_context(filters)})
 
 
-@admin_required
+@user_required
 def export_analytics_tariffs(request):
     """XLSX страницы «Тарифы»: классы, марки и виды машин, «группа × страховая», все предложения."""
     from io import BytesIO
@@ -2802,7 +2801,7 @@ def _company_card_context(request, company):
     return filters, payload
 
 
-@admin_required
+@user_required
 def analytics_insurance_company_card(request, company):
     """Карточка страховой компании (analytics_redesign_2026_09, этап 3)."""
     filters, payload = _company_card_context(request, company)
@@ -2829,7 +2828,7 @@ def analytics_insurance_company_card(request, company):
     return render(request, 'summaries/analytics_insurance_company_card.html', context)
 
 
-@admin_required
+@user_required
 def export_analytics_insurance_company_card(request, company):
     """XLSX карточки СК: сводка, месяцы, разрезы, цена, воронка, сделки."""
     from io import BytesIO
@@ -2935,7 +2934,7 @@ def export_analytics_insurance_company_card(request, company):
     return response
 
 
-@admin_required
+@user_required
 def export_analytics_insurance_companies_widget(request):
     """XLSX страницы «Страховые компании»: сводка, СК, месяцы, СК × филиал, СК × тип."""
     from io import BytesIO
@@ -3026,7 +3025,7 @@ def export_analytics_insurance_companies_widget(request):
     return response
 
 
-@admin_required
+@user_required
 def analytics_placeholder(request):
     """Обзор аналитики: главные цифры за период, два графика и переходы в разделы."""
     filters = _parse_statistics_filters(request)
@@ -3052,7 +3051,7 @@ def analytics_placeholder(request):
     return render(request, 'summaries/analytics_placeholder.html', context)
 
 
-@admin_required
+@user_required
 def analytics_parser_edits(request):
     """Служебное: качество распознавания — вкладки «При загрузке» и «После создания»."""
     tab = 'post' if request.GET.get('tab') == 'post' else 'intake'
@@ -3066,7 +3065,7 @@ def analytics_parser_edits(request):
     return render(request, 'summaries/analytics_parser_edits.html', payload)
 
 
-@admin_required
+@user_required
 def analytics_post_creation(request):
     """Старый адрес «Правки после создания» — теперь вкладка страницы качества распознавания."""
     params = request.GET.copy()

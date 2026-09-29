@@ -134,10 +134,10 @@ class InsuranceCompaniesAnalyticsTests(TestCase):
         self.client.logout()
         self.client.login(username='analytics_companies_user', password='testpass123')
         user_response = self.client.get(reverse('summaries:analytics_insurance_companies'))
-        self.assertEqual(user_response.status_code, 403)
-        self.assertTemplateUsed(user_response, 'insurance_requests/access_denied.html')
+        self.assertEqual(user_response.status_code, 200)
+        self.assertTemplateUsed(user_response, 'summaries/analytics_insurance_companies.html')
 
-    def test_navigation_item_visible_for_admin_only(self):
+    def test_navigation_item_visible_for_everyone(self):
         analytics_companies_url = reverse('summaries:analytics_insurance_companies')
 
         admin_response = self.client.get(reverse('summaries:summary_list'))
@@ -146,7 +146,7 @@ class InsuranceCompaniesAnalyticsTests(TestCase):
         self.client.logout()
         self.client.login(username='analytics_companies_user', password='testpass123')
         user_response = self.client.get(reverse('summaries:summary_list'))
-        self.assertNotContains(user_response, analytics_companies_url)
+        self.assertContains(user_response, analytics_companies_url)
 
     def test_page_renders_new_blocks_and_drops_old_ones(self):
         response = self.client.get(reverse('summaries:analytics_insurance_companies'))

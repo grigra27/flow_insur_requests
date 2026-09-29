@@ -632,7 +632,7 @@
                     <div class="small text-muted">Недостаточно данных, чтобы сравнить страховые.</div>
                     {% endif %}
                     <div class="small text-muted mt-2">Тариф 1-го года без франшизы по прошлым предложениям — ориентир, а не прогноз.
-                        {% if can_open_analytics and tariff_hint.level == 'group' %}<a href="{% url 'summaries:analytics_tariff_group' tariff_hint.dimension tariff_hint.group %}">Подробнее</a>{% elif can_open_analytics %}<a href="{% url 'summaries:analytics_tariffs' %}">Подробнее</a>{% endif %}
+                        {% if tariff_hint.level == 'group' %}<a href="{% url 'summaries:analytics_tariff_group' tariff_hint.dimension tariff_hint.group %}">Подробнее</a>{% else %}<a href="{% url 'summaries:analytics_tariffs' %}">Подробнее</a>{% endif %}
                     </div>
                 </div>
             </div>

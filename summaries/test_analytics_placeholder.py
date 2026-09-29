@@ -32,13 +32,13 @@ class AnalyticsPlaceholderAccessTests(TestCase):
         self.assertTemplateUsed(response, 'summaries/analytics_placeholder.html')
         self.assertContains(response, 'Аналитика')
 
-    def test_analytics_page_forbidden_for_non_admin_group(self):
+    def test_analytics_page_open_for_regular_user(self):
         self.client.login(username='analytics_user', password='testpass123')
 
         response = self.client.get(reverse('summaries:analytics'))
 
-        self.assertEqual(response.status_code, 403)
-        self.assertTemplateUsed(response, 'insurance_requests/access_denied.html')
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'summaries/analytics_placeholder.html')
 
     def test_analytics_companies_page_available_for_admin(self):
         self.client.login(username='analytics_admin', password='testpass123')
@@ -47,13 +47,22 @@ class AnalyticsPlaceholderAccessTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
 
-    def test_analytics_companies_page_forbidden_for_regular_user(self):
+    def test_analytics_companies_page_open_for_regular_user(self):
         self.client.login(username='analytics_user', password='testpass123')
 
         response = self.client.get(reverse('summaries:analytics_insurance_companies'))
 
-        self.assertEqual(response.status_code, 403)
-        self.assertTemplateUsed(response, 'insurance_requests/access_denied.html')
+        self.assertEqual(response.status_code, 200)
+
+    def test_employees_pages_forbidden_for_regular_user(self):
+        self.client.login(username='analytics_user', password='testpass123')
+
+        for url in (reverse('summaries:analytics_managers'),
+                    reverse('summaries:analytics_manager_detail', args=[self.admin_user.pk]),
+                    reverse('summaries:export_analytics_managers_widget')):
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, 403, url)
+            self.assertTemplateUsed(response, 'insurance_requests/access_denied.html')
 
     def test_removed_statistics_pages_redirect_to_analytics(self):
         # Старая «Статистика» удалена (analytics_redesign_2026_09, задача 1.3).
@@ -74,7 +83,7 @@ class AnalyticsPlaceholderAccessTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, '/summaries/statistics/')
 
-    def test_top_menu_item_visible_only_for_admin_group(self):
+    def test_top_menu_item_visible_for_everyone(self):
         analytics_url = reverse('summaries:analytics')
         analytics_offers_url = '/summaries/analytics/insurance-offers/'
         analytics_companies_url = reverse('summaries:analytics_insurance_companies')
@@ -89,9 +98,11 @@ class AnalyticsPlaceholderAccessTests(TestCase):
         self.client.logout()
         self.client.login(username='analytics_user', password='testpass123')
         user_response = self.client.get(reverse('summaries:summary_list'))
-        self.assertNotContains(user_response, analytics_url)
+        self.assertContains(user_response, analytics_url)
         self.assertNotContains(user_response, analytics_offers_url)
-        self.assertNotContains(user_response, analytics_companies_url)
+        self.assertContains(user_response, analytics_companies_url)
+        # «Сотрудники» остаются в меню, сама страница закрыта (см. test_employees_pages_forbidden_for_regular_user)
+        self.assertContains(user_response, reverse('summaries:analytics_managers'))
 
     def test_analytics_page_uses_its_own_navigation_section(self):
         self.client.login(username='analytics_admin', password='testpass123')
@@ -153,10 +164,9 @@ class AnalyticsPlaceholderAccessTests(TestCase):
                 self.assertIn('Служебное: распознавание', section_labels)
                 self.assertNotIn('Служебное: после создания', section_labels)  # теперь вкладка (5.6)
 
-    def test_recognition_quality_links_hidden_from_regular_users(self):
+    def test_recognition_quality_link_visible_to_regular_users(self):
         self.client.login(username='analytics_user', password='testpass123')
 
         response = self.client.get(reverse('summaries:summary_list'))
 
-        self.assertNotContains(response, reverse('summaries:analytics_parser_edits'))
-        self.assertNotContains(response, reverse('summaries:analytics_post_creation'))
+        self.assertContains(response, reverse('summaries:analytics_parser_edits'))
