@@ -3,409 +3,531 @@
 {% block title %}Справка по работе со сводами - {{ block.super }}{% endblock %}
 
 {% block extra_css %}
-{% load static %}
-<link rel="stylesheet" href="{% static 'css/help.css' %}">
+{# Справка по сводам (редизайн 2026-09): тот же язык, что у списков, карточки свода и аналитики. #}
+<style>
+.hp-page {
+    --hp-ink: #0f1b2d;
+    --hp-ink-2: #334155;
+    --hp-muted: #6b7a90;
+    --hp-muted-2: #9aa6b6;
+    --hp-line: #edf1f5;
+    --hp-border: #e6ecf1;
+    --hp-soft: #f7f9fb;
+    --hp-teal: var(--app-primary);
+    --hp-teal-soft: #e6f3f1;
+    --hp-amber: #b7791f;
+    --hp-amber-soft: #fff7e8;
+    --hp-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 12px 32px -12px rgba(16, 24, 40, 0.1);
+    color: var(--hp-ink-2);
+}
+
+/* Шапка */
+.hp-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; margin: 0.25rem 0 1.1rem; }
+.hp-crumbs { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.45rem; font-size: 0.8125rem; font-weight: 600; color: var(--hp-muted); }
+.hp-crumbs a { color: var(--hp-muted); text-decoration: none; }
+.hp-crumbs a:hover { color: var(--hp-teal); }
+.hp-title { margin: 0; font-family: 'Space Grotesk', 'Manrope', sans-serif; font-size: 1.85rem; font-weight: 700; letter-spacing: -0.02em; color: var(--hp-ink); text-wrap: balance; }
+.hp-sub { margin: 0.35rem 0 0; font-size: 0.93rem; color: var(--hp-muted); }
+.hp-btn { display: inline-flex; align-items: center; gap: 0.4rem; height: 36px; padding: 0 0.85rem; border: 1px solid var(--hp-border); border-radius: 10px; background: #fff; font-size: 0.82rem; font-weight: 700; color: var(--hp-ink-2); text-decoration: none; white-space: nowrap; }
+.hp-btn:hover { border-color: #c9dcd9; color: var(--hp-teal); }
+.hp-btn--wrap { height: auto; min-height: 36px; padding-block: 0.4rem; white-space: normal; }
+
+/* Путь свода: статусы по порядку */
+.hp-track { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(0, 1.25fr); margin-bottom: 1.25rem; border: 1px solid var(--hp-border); border-radius: 18px; overflow: hidden; background: #fff; box-shadow: var(--hp-shadow); }
+.hp-track__step { position: relative; min-width: 0; padding: 0.85rem 1.1rem; border-right: 1px solid var(--hp-line); }
+.hp-track__step:last-child { border-right: 0; }
+.hp-track__num { font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--hp-muted-2); }
+.hp-track__name { margin-top: 0.15rem; font-size: 0.9rem; font-weight: 800; line-height: 1.25; color: var(--hp-ink); }
+.hp-track__name small { display: block; font-weight: 700; }
+.hp-track__hint { margin-top: 0.2rem; font-size: 0.76rem; line-height: 1.35; color: var(--hp-muted); }
+.hp-track__step--start { background: #f6faf9; }
+.hp-track__step--start .hp-track__num { color: var(--hp-teal); }
+.hp-track__ok { color: #1d7047; }
+.hp-track__no { color: #b42318; }
+
+/* Раскладка: навигация + содержание */
+.hp-layout { display: grid; grid-template-columns: 236px minmax(0, 1fr); gap: 1.25rem; align-items: start; }
+.hp-nav { position: sticky; top: 1rem; padding: 0.6rem; border: 1px solid var(--hp-border); border-radius: 18px; background: #fff; box-shadow: var(--hp-shadow); }
+.hp-nav__label { padding: 0.35rem 0.6rem 0.5rem; font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--hp-muted-2); }
+.hp-nav__list { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.hp-nav__link { display: flex; align-items: center; gap: 0.55rem; padding: 0.45rem 0.6rem; border-radius: 10px; font-size: 0.86rem; font-weight: 600; color: #4a5a70; text-decoration: none; }
+.hp-nav__link .bi { width: 1rem; color: var(--hp-muted-2); }
+.hp-nav__link:hover { background: var(--hp-soft); color: var(--hp-ink); }
+.hp-nav__link.active { background: var(--hp-teal-soft); color: var(--hp-teal); }
+.hp-nav__link.active .bi { color: var(--hp-teal); }
+
+.hp-content { display: grid; gap: 1rem; min-width: 0; }
+
+/* Раздел — карточка */
+.hp-section { scroll-margin-top: 1rem; border: 1px solid var(--hp-border); border-radius: 18px; background: #fff; box-shadow: var(--hp-shadow); }
+.hp-section__head { display: flex; align-items: center; gap: 0.7rem; padding: 0.95rem 1.35rem; border-bottom: 1px solid var(--hp-line); }
+.hp-section__icon { display: inline-grid; flex-shrink: 0; place-items: center; width: 34px; height: 34px; border-radius: 10px; background: var(--hp-teal-soft); color: var(--hp-teal); font-size: 1rem; }
+.hp-section__title { margin: 0; font-size: 1.05rem; font-weight: 800; letter-spacing: -0.01em; color: var(--hp-ink); }
+.hp-section__body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.9rem; padding: 1.1rem 1.35rem 1.25rem; font-size: 0.9rem; line-height: 1.55; }
+.hp-section__body > * { margin: 0; }
+.hp-h { margin: 0.25rem 0 -0.35rem; font-size: 0.72rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--hp-teal); }
+.hp-list { display: grid; gap: 0.4rem; margin: 0; padding: 0; list-style: none; max-width: 72ch; }
+.hp-list li { position: relative; padding-left: 1.05rem; }
+.hp-list li::before { content: ''; position: absolute; left: 0.1rem; top: 0.62em; width: 5px; height: 5px; border-radius: 50%; background: #b9cbc8; }
+.hp-page strong { color: var(--hp-ink); font-weight: 700; }
+.hp-page code { padding: 0.05rem 0.35rem; border-radius: 6px; background: var(--hp-soft); font-size: 0.82em; color: var(--hp-ink-2); }
+
+/* Выноски */
+.hp-callout { display: flex; gap: 0.65rem; padding: 0.75rem 0.95rem; border-radius: 12px; font-size: 0.87rem; line-height: 1.5; }
+.hp-callout > .bi { flex-shrink: 0; margin-top: 0.1rem; }
+.hp-callout--info { background: var(--hp-teal-soft); color: #0d4f4b; }
+.hp-callout--info > .bi { color: var(--hp-teal); }
+.hp-callout--warn { background: var(--hp-amber-soft); color: #6b4a12; }
+.hp-callout--warn > .bi { color: var(--hp-amber); }
+.hp-callout strong { color: inherit; }
+
+/* Статусы страховых — чипы */
+.hp-chips { display: grid; gap: 0.45rem; }
+.hp-chip-row { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 0.75rem; align-items: baseline; }
+.hp-chip-group { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.hp-chip { justify-self: start; padding: 0.2rem 0.6rem; border-radius: 999px; font-size: 0.78rem; font-weight: 700; white-space: nowrap; }
+.hp-chip--undefined { background: #f1f4f7; color: #6b7a90; }
+.hp-chip--manual { background: #eef2ff; color: #3b4a9c; }
+.hp-chip--offered { background: #e3f4ea; color: #1d7047; }
+
+/* Таблицы */
+.hp-table-wrap { overflow-x: auto; border: 1px solid var(--hp-line); border-radius: 12px; }
+.hp-table { width: 100%; margin: 0; border-collapse: collapse; font-size: 0.85rem; }
+.hp-table th { padding: 0.55rem 0.8rem; background: #fafbfc; border-bottom: 1px solid var(--hp-line); font-size: 0.66rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--hp-muted-2); text-align: left; white-space: nowrap; }
+.hp-table td { padding: 0.55rem 0.8rem; border-bottom: 1px solid var(--hp-line); vertical-align: top; }
+.hp-table tr:last-child td { border-bottom: 0; }
+.hp-table td:first-child { color: var(--hp-ink); font-weight: 700; }
+.hp-cell { display: inline-block; padding: 0.1rem 0.45rem; border: 1px solid #cfe3e0; border-radius: 6px; background: #f6faf9; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.8rem; font-weight: 600; color: var(--hp-teal); white-space: nowrap; }
+
+/* Имена файлов */
+.hp-files { display: grid; gap: 0.4rem; }
+.hp-file { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: baseline; padding: 0.55rem 0.8rem; border-radius: 10px; background: var(--hp-soft); font-size: 0.85rem; }
+.hp-file span { min-width: 90px; color: var(--hp-muted); }
+.hp-file b { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.8rem; color: var(--hp-ink); word-break: break-all; }
+
+/* Частые ошибки */
+.hp-faq { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.hp-faq li { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 0.75rem; padding: 0.85rem 0; border-top: 1px solid var(--hp-line); }
+.hp-faq li:first-child { border-top: 0; padding-top: 0.1rem; }
+.hp-faq__num { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; background: var(--hp-soft); font-size: 0.8rem; font-weight: 800; color: var(--hp-muted); }
+.hp-faq__q { margin: 0 0 0.25rem; font-size: 0.9rem; font-weight: 700; color: var(--hp-ink); }
+.hp-faq__a { margin: 0; max-width: 72ch; }
+
+/* Подвал */
+.hp-footer { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.75rem 1rem; padding: 1rem 1.35rem; border: 1px dashed #cfe3e0; border-radius: 18px; background: #f6faf9; }
+.hp-footer__title { margin: 0 0 0.15rem; font-size: 0.92rem; font-weight: 800; color: var(--hp-ink); }
+.hp-footer__text { margin: 0; font-size: 0.85rem; color: var(--hp-muted); }
+
+@media (max-width: 991.98px) {
+    .hp-layout { grid-template-columns: minmax(0, 1fr); }
+    .hp-nav { position: static; min-width: 0; padding: 0.4rem; overflow-x: auto; }
+    .hp-nav__label { display: none; }
+    .hp-nav__list { display: flex; gap: 0.25rem; width: max-content; }
+    .hp-nav__link { white-space: nowrap; }
+    .hp-track { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .hp-track__step { border-bottom: 1px solid var(--hp-line); }
+    .hp-track__step:nth-child(2n) { border-right: 0; }
+    .hp-track__step:last-child { grid-column: 1 / -1; border-bottom: 0; }
+}
+@media (max-width: 575.98px) {
+    .hp-head { flex-direction: column; align-items: flex-start; }
+    .hp-title { font-size: 1.5rem; }
+    .hp-section__head, .hp-section__body { padding-left: 1rem; padding-right: 1rem; }
+    .hp-chip-row { grid-template-columns: minmax(0, 1fr); gap: 0.2rem; }
+}
+</style>
 {% endblock %}
 
 {% block content %}
-<div class="row help-page">
-    <div class="col-lg-3">
-        <!-- Быстрая навигация -->
-        <nav class="help-navigation">
-            <h5 class="mb-3"><i class="bi bi-list-ul"></i> Разделы справки</h5>
-            <ul class="nav nav-pills flex-column">
-                <li class="nav-item">
-                    <a class="nav-link active" href="#overview">
-                        <i class="bi bi-collection"></i> Как устроены своды
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="#summary-list">
-                        <i class="bi bi-list-check"></i> Список сводов
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="#company-statuses">
-                        <i class="bi bi-ui-checks"></i> Статусы страховых
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="#manual-offers">
-                        <i class="bi bi-pencil-square"></i> Ручное добавление
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="#excel-upload">
-                        <i class="bi bi-upload"></i> Загрузка Excel
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="#status-management">
-                        <i class="bi bi-arrow-repeat"></i> Статусы и завершение
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="#excel-export">
-                        <i class="bi bi-download"></i> Выгрузка Excel
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="#deals">
-                        <i class="bi bi-briefcase"></i> Сделки
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="#troubleshooting">
-                        <i class="bi bi-exclamation-triangle"></i> Частые ошибки
-                    </a>
-                </li>
-            </ul>
-            <div class="mt-3">
-                <a href="{% url 'summaries:summary_list' %}" class="btn btn-outline-primary btn-sm">
-                    <i class="bi bi-arrow-left"></i> К сводам
-                </a>
-            </div>
-        </nav>
+<div class="hp-page">
+    <div class="hp-head">
+        <div>
+            <div class="hp-crumbs"><a href="{% url 'summaries:summary_list' %}">Своды</a><i class="bi bi-chevron-right"></i><span>Справка</span></div>
+            <h1 class="hp-title">Справка по работе со сводами</h1>
+            <p class="hp-sub">Как создать свод, собрать предложения страховщиков, выгрузить Excel и закрыть сделку.</p>
+        </div>
+        <a href="{% url 'summaries:summary_list' %}" class="hp-btn"><i class="bi bi-arrow-left"></i> К сводам</a>
     </div>
 
-    <div class="col-lg-9">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h1><i class="bi bi-question-circle"></i> Справка по работе со сводами</h1>
+    <!-- Путь свода: статусы по порядку -->
+    <div class="hp-track" aria-label="Путь свода">
+        <div class="hp-track__step hp-track__step--start">
+            <div class="hp-track__num">Старт</div>
+            <div class="hp-track__name">Заявка «Письма отправлены»</div>
+            <div class="hp-track__hint">кнопка «Создать свод» в карточке заявки</div>
         </div>
+        <div class="hp-track__step">
+            <div class="hp-track__num">Шаг 1</div>
+            <div class="hp-track__name">Сбор предложений</div>
+            <div class="hp-track__hint">Excel от страховщиков и ручной ввод</div>
+        </div>
+        <div class="hp-track__step">
+            <div class="hp-track__num">Шаг 2</div>
+            <div class="hp-track__name">Готов к отправке</div>
+            <div class="hp-track__hint">проверка и выгрузка Excel</div>
+        </div>
+        <div class="hp-track__step">
+            <div class="hp-track__num">Шаг 3</div>
+            <div class="hp-track__name">Отправлен в Альянс</div>
+            <div class="hp-track__hint">ждем решения клиента</div>
+        </div>
+        <div class="hp-track__step">
+            <div class="hp-track__num">Итог</div>
+            <div class="hp-track__name"><small class="hp-track__ok">Завершен: акцепт/распоряжение</small><small class="hp-track__no">Завершен: не будет</small></div>
+            <div class="hp-track__hint">акцепт попадает в «Сделки»</div>
+        </div>
+    </div>
 
-        <section id="overview" class="help-section">
-            <h3><i class="bi bi-collection"></i> Как устроены своды</h3>
-
-            <div class="highlight-info">
-                <i class="bi bi-info-circle"></i>
-                <strong>Ключевое:</strong> свод создается из карточки заявки кнопкой «Создать свод» — только когда письма страховщикам уже отправлены.
-            </div>
-
-            <h4>Где создается свод</h4>
-            <ul>
-                <li>Кнопка «Создать свод» есть в карточке заявки, только если у заявки статус <strong>«Письма отправлены»</strong>.</li>
-                <li>В статусах «Загружено» и «Письмо сгенерировано» вместо кнопки показана подсказка с шагами: сгенерировать письмо, отправить его страховщикам и поставить статус «Письма отправлены».</li>
-                <li>Статус заявки при создании свода не меняется.</li>
-                <li>Если свод уже существует, открывается существующий свод.</li>
-                <li>Одна заявка — один объект страхования. Если в загруженном файле было несколько объектов, у каждого объекта своя заявка и свой свод.</li>
+    <div class="hp-layout">
+        <!-- Быстрая навигация -->
+        <nav class="hp-nav" aria-label="Разделы справки">
+            <div class="hp-nav__label">Разделы справки</div>
+            <ul class="hp-nav__list">
+                <li><a class="hp-nav__link active" href="#overview"><i class="bi bi-collection"></i> Как устроены своды</a></li>
+                <li><a class="hp-nav__link" href="#summary-list"><i class="bi bi-list-check"></i> Список сводов</a></li>
+                <li><a class="hp-nav__link" href="#company-statuses"><i class="bi bi-ui-checks"></i> Статусы страховых</a></li>
+                <li><a class="hp-nav__link" href="#manual-offers"><i class="bi bi-pencil-square"></i> Ручное добавление</a></li>
+                <li><a class="hp-nav__link" href="#excel-upload"><i class="bi bi-upload"></i> Загрузка Excel</a></li>
+                <li><a class="hp-nav__link" href="#status-management"><i class="bi bi-arrow-repeat"></i> Статусы и завершение</a></li>
+                <li><a class="hp-nav__link" href="#excel-export"><i class="bi bi-download"></i> Выгрузка Excel</a></li>
+                <li><a class="hp-nav__link" href="#deals"><i class="bi bi-briefcase"></i> Сделки</a></li>
+                <li><a class="hp-nav__link" href="#troubleshooting"><i class="bi bi-exclamation-triangle"></i> Частые ошибки</a></li>
             </ul>
+        </nav>
 
-            <h4>Кто имеет доступ</h4>
-            <ul>
-                <li>Своды, «Сделки» и эта справка доступны пользователям групп <strong>«Администраторы»</strong> и <strong>«Пользователи»</strong>.</li>
-                <li>Раздел <strong>«Аналитика»</strong> (обзор, страховые, тарифы, сотрудники, качество распознавания) доступен только группе <strong>«Администраторы»</strong>.</li>
-            </ul>
-        </section>
+        <div class="hp-content">
+            <section id="overview" class="hp-section">
+                <div class="hp-section__head">
+                    <span class="hp-section__icon"><i class="bi bi-collection"></i></span>
+                    <h2 class="hp-section__title">Как устроены своды</h2>
+                </div>
+                <div class="hp-section__body">
+                    <div class="hp-callout hp-callout--info">
+                        <i class="bi bi-info-circle"></i>
+                        <div><strong>Ключевое:</strong> свод создается из карточки заявки кнопкой «Создать свод» — только когда письма страховщикам уже отправлены.</div>
+                    </div>
 
-        <section id="summary-list" class="help-section">
-            <h3><i class="bi bi-list-check"></i> Список сводов</h3>
+                    <h3 class="hp-h">Где создается свод</h3>
+                    <ul class="hp-list">
+                        <li>Кнопка «Создать свод» есть в карточке заявки, только если у заявки статус <strong>«Письма отправлены»</strong>.</li>
+                        <li>В статусах «Загружено» и «Письмо сгенерировано» вместо кнопки показана подсказка с шагами: сгенерировать письмо, отправить его страховщикам и поставить статус «Письма отправлены».</li>
+                        <li>Статус заявки при создании свода не меняется.</li>
+                        <li>Если свод уже существует, открывается существующий свод.</li>
+                        <li>Одна заявка — один объект страхования. Если в загруженном файле было несколько объектов, у каждого объекта своя заявка и свой свод.</li>
+                    </ul>
 
-            <h4>Что есть на странице</h4>
-            <ul>
-                <li>Вкладки филиалов: «Все» и филиалы из сводов, у каждой вкладки — число сводов с учетом остальных фильтров.</li>
-                <li>Блок «Фильтры сводов»: поиск (номер заявки, клиент, ИНН, выбранная страховая), статус свода, тип страхования, период создания (с — по), менеджер.</li>
-                <li>Постраничный вывод — по 30 сводов на страницу.</li>
-                <li>Колонки: номер заявки, клиент и объект, статус, «Лучшее за срок» (минимальная итоговая премия за весь срок страхования), число компаний, дата создания.</li>
-            </ul>
+                    <h3 class="hp-h">Кто имеет доступ</h3>
+                    <ul class="hp-list">
+                        <li>Своды, «Сделки» и эта справка доступны пользователям групп <strong>«Администраторы»</strong> и <strong>«Пользователи»</strong>.</li>
+                        <li>Раздел <strong>«Аналитика»</strong> (обзор, страховые, тарифы, сотрудники, качество распознавания) доступен только группе <strong>«Администраторы»</strong>.</li>
+                    </ul>
+                </div>
+            </section>
 
-            <div class="highlight-warning">
-                <i class="bi bi-exclamation-triangle"></i>
-                <strong>Важно:</strong> счетчик «Компаний» в своде считает уникальные страховые компании, а не количество строк предложений.
-            </div>
-        </section>
+            <section id="summary-list" class="hp-section">
+                <div class="hp-section__head">
+                    <span class="hp-section__icon"><i class="bi bi-list-check"></i></span>
+                    <h2 class="hp-section__title">Список сводов</h2>
+                </div>
+                <div class="hp-section__body">
+                    <h3 class="hp-h">Что есть на странице</h3>
+                    <ul class="hp-list">
+                        <li>Вкладки филиалов: «Все» и филиалы из сводов, у каждой вкладки — число сводов с учетом остальных фильтров.</li>
+                        <li>Блок «Фильтры сводов»: поиск (номер заявки, клиент, ИНН, выбранная страховая), статус свода, тип страхования, период создания (с — по), менеджер.</li>
+                        <li>Постраничный вывод — по 30 сводов на страницу.</li>
+                        <li>Колонки: номер заявки, клиент и объект, статус, «Лучшее за срок» (минимальная итоговая премия за весь срок страхования), число компаний, дата создания.</li>
+                    </ul>
 
-        <section id="company-statuses" class="help-section">
-            <h3><i class="bi bi-ui-checks"></i> Статусы страховых компаний</h3>
+                    <div class="hp-callout hp-callout--warn">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        <div><strong>Важно:</strong> счетчик «Компаний» в своде считает уникальные страховые компании, а не количество строк предложений.</div>
+                    </div>
+                </div>
+            </section>
 
-            <p>В карточке свода блок «Статусы страховых компаний» показывает, что происходит с каждой страховой из справочника.</p>
+            <section id="company-statuses" class="hp-section">
+                <div class="hp-section__head">
+                    <span class="hp-section__icon"><i class="bi bi-ui-checks"></i></span>
+                    <h2 class="hp-section__title">Статусы страховых компаний</h2>
+                </div>
+                <div class="hp-section__body">
+                    <p>В карточке свода блок «Статусы страховых компаний» показывает, что происходит с каждой страховой из справочника.</p>
 
-            <h4>Какие бывают статусы</h4>
-            <ul>
-                <li><strong>Не определён</strong> — статус еще не указан.</li>
-                <li><strong>Не запрашивалась</strong>, <strong>Запрошена</strong>, <strong>Отказ</strong> — ставятся вручную кнопками в строке компании.</li>
-                <li><strong>Предложение</strong> — ставится автоматически, когда у компании появляется предложение в своде (вручную или из Excel).</li>
-                <li>Кнопка «Остальные — не запрашивались» переводит все оставшиеся «Не определён» одним действием.</li>
-            </ul>
+                    <h3 class="hp-h">Какие бывают статусы</h3>
+                    <div class="hp-chips">
+                        <div class="hp-chip-row"><span class="hp-chip hp-chip--undefined">Не определён</span><span>статус еще не указан.</span></div>
+                        <div class="hp-chip-row"><span class="hp-chip-group"><span class="hp-chip hp-chip--manual">Не запрашивалась</span><span class="hp-chip hp-chip--manual">Запрошена</span><span class="hp-chip hp-chip--manual">Отказ</span></span><span>ставятся вручную кнопками в строке компании.</span></div>
+                        <div class="hp-chip-row"><span class="hp-chip hp-chip--offered">Предложение</span><span>ставится автоматически, когда у компании появляется предложение в своде (вручную или из Excel).</span></div>
+                    </div>
+                    <p>Кнопка «Остальные — не запрашивались» переводит все оставшиеся «Не определён» одним действием.</p>
 
-            <div class="highlight-warning">
-                <i class="bi bi-exclamation-triangle"></i>
-                <strong>Важно:</strong> для сводов, созданных после запуска статусов страховых, статус свода нельзя сменить, пока хотя бы у одной компании стоит «Не определён». Для более старых сводов заполнение необязательно.
-            </div>
+                    <div class="hp-callout hp-callout--warn">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        <div><strong>Важно:</strong> для сводов, созданных после запуска статусов страховых, статус свода нельзя сменить, пока хотя бы у одной компании стоит «Не определён». Для более старых сводов заполнение необязательно.</div>
+                    </div>
 
-            <p>Компании со статусом «Отказ» попадают в Excel-свод отдельными строками «Отказ от страхования» после предложений.</p>
-        </section>
+                    <p>Компании со статусом «Отказ» попадают в Excel-свод отдельными строками «Отказ от страхования» после предложений.</p>
+                </div>
+            </section>
 
-        <section id="manual-offers" class="help-section">
-            <h3><i class="bi bi-pencil-square"></i> Ручное добавление предложений</h3>
+            <section id="manual-offers" class="hp-section">
+                <div class="hp-section__head">
+                    <span class="hp-section__icon"><i class="bi bi-pencil-square"></i></span>
+                    <h2 class="hp-section__title">Ручное добавление предложений</h2>
+                </div>
+                <div class="hp-section__body">
+                    <h3 class="hp-h">Основные правила</h3>
+                    <ul class="hp-list">
+                        <li>Кнопка «Добавить предложение вручную» показывается в статусе <strong>«Сбор предложений»</strong>.</li>
+                        <li>В одной форме можно добавить сразу несколько лет страхования одной компании (до 10 строк).</li>
+                        <li>Редактировать, копировать и удалять предложения можно из меню строки предложения в любом статусе свода. Копия должна отличаться годом или страховой компанией.</li>
+                        <li>Компания выбирается из закрытого списка (включая «Другое»).</li>
+                        <li>Для одного свода нельзя создать дубликат: <strong>одна компания + один год страхования</strong>.</li>
+                    </ul>
 
-            <h4>Основные правила</h4>
-            <ul>
-                <li>Кнопка «Добавить предложение вручную» показывается в статусе <strong>«Сбор предложений»</strong>.</li>
-                <li>В одной форме можно добавить сразу несколько лет страхования одной компании (до 10 строк).</li>
-                <li>Редактировать, копировать и удалять предложения можно из меню строки предложения в любом статусе свода. Копия должна отличаться годом или страховой компанией.</li>
-                <li>Компания выбирается из закрытого списка (включая «Другое»).</li>
-                <li>Для одного свода нельзя создать дубликат: <strong>одна компания + один год страхования</strong>.</li>
-            </ul>
+                    <h3 class="hp-h">Валидация полей</h3>
+                    <ul class="hp-list">
+                        <li>Год страхования: от 1 до 10.</li>
+                        <li>Страховая сумма: больше 0.</li>
+                        <li>Франшизы: не могут быть отрицательными.</li>
+                        <li>Нужно указать хотя бы одну премию (вариант 1 или вариант 2).</li>
+                        <li>Премия не может быть больше страховой суммы.</li>
+                        <li>Рассрочку нельзя включить для варианта без премии.</li>
+                        <li>Рассрочка в ручной форме: 1, 2, 3, 4 или 12 платежей в год.</li>
+                        <li>Территория страхования и ограничения из ответа страховщика заполняются отдельным необязательным полем.</li>
+                    </ul>
+                </div>
+            </section>
 
-            <h4>Валидация полей</h4>
-            <ul>
-                <li>Год страхования: от 1 до 10.</li>
-                <li>Страховая сумма: больше 0.</li>
-                <li>Франшизы: не могут быть отрицательными.</li>
-                <li>Нужно указать хотя бы одну премию (вариант 1 или вариант 2).</li>
-                <li>Премия не может быть больше страховой суммы.</li>
-                <li>Рассрочку нельзя включить для варианта без премии.</li>
-                <li>Рассрочка в ручной форме: 1, 2, 3, 4 или 12 платежей в год.</li>
-                <li>Территория страхования и ограничения из ответа страховщика заполняются отдельным необязательным полем.</li>
-            </ul>
-        </section>
+            <section id="excel-upload" class="hp-section">
+                <div class="hp-section__head">
+                    <span class="hp-section__icon"><i class="bi bi-upload"></i></span>
+                    <h2 class="hp-section__title">Загрузка ответов из Excel</h2>
+                </div>
+                <div class="hp-section__body">
+                    <div class="hp-callout hp-callout--info">
+                        <i class="bi bi-info-circle"></i>
+                        <div><strong>Загрузка работает только в статусе «Сбор предложений».</strong></div>
+                    </div>
 
-        <section id="excel-upload" class="help-section">
-            <h3><i class="bi bi-upload"></i> Загрузка ответов из Excel</h3>
+                    <div>
+                        <a href="{% url 'summaries:download_company_response_template' %}" class="hp-btn hp-btn--wrap">
+                            <i class="bi bi-file-earmark-arrow-down"></i>
+                            Скачать актуальный шаблон ответа страховщика
+                        </a>
+                    </div>
 
-            <div class="highlight-info">
-                <i class="bi bi-info-circle"></i>
-                <strong>Загрузка работает только в статусе «Сбор предложений».</strong>
-            </div>
+                    <h3 class="hp-h">Ограничения загрузки</h3>
+                    <ul class="hp-list">
+                        <li>Только <strong>.xlsx</strong>.</li>
+                        <li>До 10 файлов за загрузку.</li>
+                        <li>До 1 MB на файл.</li>
+                        <li>До 10 MB суммарно.</li>
+                    </ul>
 
-            <p>
-                <a href="{% url 'summaries:download_company_response_template' %}"
-                   class="btn btn-outline-secondary btn-sm">
-                    <i class="bi bi-file-earmark-arrow-down"></i>
-                    Скачать актуальный шаблон ответа страховщика
+                    <h3 class="hp-h">Какие ячейки читает система</h3>
+                    <div class="hp-table-wrap">
+                        <table class="hp-table">
+                            <thead>
+                                <tr><th>Данные</th><th>Ячейка</th><th>Комментарий</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td>Название компании</td><td><span class="hp-cell">B2</span></td><td>Сопоставляется с закрытым списком компаний. Если не найдено совпадение, ставится «другое».</td></tr>
+                                <tr><td>Территория страхования и ограничения</td><td><span class="hp-cell">B3</span></td><td>Общее значение ответа страховщика. Копируется во все годы из файла; старые файлы без значения принимаются.</td></tr>
+                                <tr><td>Примечание для 1-го года</td><td><span class="hp-cell">F2</span></td><td>Записывается в комментарий предложения первого года.</td></tr>
+                                <tr><td>Год страхования</td><td><span class="hp-cell">A6:A10</span></td><td>Допустимые значения: 1..10.</td></tr>
+                                <tr><td>Страховая сумма</td><td><span class="hp-cell">B6:B10</span></td><td>Обязательное поле строки.</td></tr>
+                                <tr><td>Премия-1</td><td><span class="hp-cell">D6:D10</span></td><td>Обязательное поле строки.</td></tr>
+                                <tr><td>Франшиза-1</td><td><span class="hp-cell">E6:E10</span></td><td>Обязательное поле строки (текст в ячейке интерпретируется как 0).</td></tr>
+                                <tr><td>Рассрочка-1</td><td><span class="hp-cell">F6:F10</span></td><td>Допустимо: 1, 2, 3, 4, 6, 12.</td></tr>
+                                <tr><td>Премия-2 / Франшиза-2 / Рассрочка-2</td><td><span class="hp-cell">H:I:J</span></td><td>Необязательные поля второго варианта.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="hp-callout hp-callout--warn">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        <div><strong>Практический нюанс:</strong> первичная проверка формы ожидает данные минимум в строке 6 или 7. Если файл заполнен только с 8-й строки, загрузка будет отклонена.</div>
+                    </div>
+
+                    <h3 class="hp-h">Что происходит при загрузке</h3>
+                    <ul class="hp-list">
+                        <li>Для каждого года создается отдельное предложение.</li>
+                        <li>Статус компании в блоке «Статусы страховых компаний» автоматически становится «Предложение».</li>
+                        <li>Территория из B3 сохраняется в каждом созданном предложении. Если B3 пуста, загрузка не блокируется, но система показывает предупреждение.</li>
+                        <li>Если в своде уже есть такая же пара «компания + год», файл/строка отклоняется как дубликат.</li>
+                        <li>По множественной загрузке выдается результат по каждому файлу: успешные и ошибки.</li>
+                    </ul>
+                </div>
+            </section>
+
+            <section id="status-management" class="hp-section">
+                <div class="hp-section__head">
+                    <span class="hp-section__icon"><i class="bi bi-arrow-repeat"></i></span>
+                    <h2 class="hp-section__title">Статусы и завершение</h2>
+                </div>
+                <div class="hp-section__body">
+                    <h3 class="hp-h">Статусы свода</h3>
+                    <div class="hp-table-wrap">
+                        <table class="hp-table">
+                            <thead>
+                                <tr><th>Статус</th><th>Что обычно делают</th><th>Ограничения</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td>Сбор предложений</td><td>Загрузка Excel и ручное наполнение</td><td>Только в этом статусе доступны загрузка ответов компаний и кнопка ручного добавления</td></tr>
+                                <tr><td>Готов к отправке</td><td>Финальная проверка и выгрузка Excel</td><td>В этом статусе кнопки выгрузки Excel видят все пользователи</td></tr>
+                                <tr><td>Отправлен в Альянс</td><td>Фиксация факта отправки</td><td>Записывается дата/время отправки</td></tr>
+                                <tr><td>Завершен: акцепт/распоряжение</td><td>Фиксация выбранной СК</td><td>Обязателен выбор компании из предложений свода</td></tr>
+                                <tr><td>Завершен: не будет</td><td>Закрытие без акцепта</td><td>Поля выбранной компании очищаются</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <p>Статус меняется в блоке «Управление статусом» на карточке свода. Если статусы страховых обязательны для свода, сначала заполните блок «Статусы страховых компаний».</p>
+
+                    <h3 class="hp-h">Выбор СК и варианта при акцепте</h3>
+                    <ul class="hp-list">
+                        <li>Компания выбирается только из тех, что уже есть в предложениях текущего свода.</li>
+                        <li>Если у выбранной компании доступны оба варианта (1 и 2) по всем годам, выбор варианта обязателен.</li>
+                        <li>Если доступен только один вариант, система проставляет его автоматически.</li>
+                        <li>При акцепте можно добавить важную деталь для резюме сделки.</li>
+                    </ul>
+
+                    <h3 class="hp-h">Резюме по сделке</h3>
+                    <ul class="hp-list">
+                        <li>Кнопка «Открыть резюме по сделке» появляется, когда свод завершен с акцептом и выбрана СК.</li>
+                        <li>В резюме показываются данные заявки и предложения выбранной компании по годам.</li>
+                    </ul>
+
+                    <div class="hp-callout hp-callout--warn">
+                        <i class="bi bi-moon-stars"></i>
+                        <div><strong>Автозакрытие:</strong> каждую ночь (00:10 по Москве) своды старше 30 дней в статусах «Сбор предложений», «Готов к отправке» и «Отправлен в Альянс» автоматически переводятся в «Завершен: не будет».</div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="excel-export" class="hp-section">
+                <div class="hp-section__head">
+                    <span class="hp-section__icon"><i class="bi bi-download"></i></span>
+                    <h2 class="hp-section__title">Выгрузка Excel</h2>
+                </div>
+                <div class="hp-section__body">
+                    <div class="hp-callout hp-callout--info">
+                        <i class="bi bi-info-circle"></i>
+                        <div><strong>Кнопки выгрузки — в шапке карточки свода.</strong> Всем пользователям они доступны в статусе «Готов к отправке», суперпользователю — в любом статусе.</div>
+                    </div>
+
+                    <h3 class="hp-h">Варианты выгрузки</h3>
+                    <ul class="hp-list">
+                        <li><strong>«Скачать полный Excel»</strong> — для работы, с техническим листом (<code>tech_info</code>).</li>
+                        <li><strong>«Скачать клиентский Excel»</strong> — для клиента, без технического листа.</li>
+                    </ul>
+
+                    <h3 class="hp-h">Как выбирается шаблон</h3>
+                    <ul class="hp-list">
+                        <li>Если в своде есть хотя бы одно предложение с заполненной премией-2 (&gt; 0), используется полный шаблон с колонками двух вариантов.</li>
+                        <li>Если премии-2 нет ни у одного предложения, используется упрощенный шаблон.</li>
+                        <li>Территория ответа страховщика всегда выводится отдельной колонкой. Новый ответ без B3 отмечается как «Не указано страховщиком», а старое предложение, созданное до сбора территории, — как историческое без данных.</li>
+                        <li>Компании со статусом «Отказ» добавляются строками «Отказ от страхования» после предложений.</li>
+                    </ul>
+
+                    <h3 class="hp-h">Что проверяется перед генерацией</h3>
+                    <ul class="hp-list">
+                        <li>Наличие связанной заявки.</li>
+                        <li>Заполненность обязательных полей заявки: номер заявки (ДФА), клиент, объект страхования.</li>
+                    </ul>
+
+                    <h3 class="hp-h">Формат имени файла</h3>
+                    <div class="hp-files">
+                        <div class="hp-file"><span>Полный:</span><b>full_svod_&lt;цифры_из_DFA&gt;_&lt;дд_мм_гггг&gt;.xlsx</b></div>
+                        <div class="hp-file"><span>Клиентский:</span><b>client_svod_&lt;цифры_из_DFA&gt;_&lt;дд_мм_гггг&gt;.xlsx</b></div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="deals" class="hp-section">
+                <div class="hp-section__head">
+                    <span class="hp-section__icon"><i class="bi bi-briefcase"></i></span>
+                    <h2 class="hp-section__title">Сделки</h2>
+                </div>
+                <div class="hp-section__body">
+                    <ul class="hp-list">
+                        <li>Раздел «Сделки» — это своды в статусе «Завершен: акцепт/распоряжение».</li>
+                        <li>В строке: клиент и объект, выбранная компания, премия, линейка предложений, число СК в своде и дата закрытия.</li>
+                        <li>Фильтры: период (все время, 30, 90, 365 дней или свои даты), поиск, тип страхования, менеджер, вкладки филиалов; сортировка по дате закрытия, премии или клиенту.</li>
+                        <li>Клик по строке открывает резюме по сделке.</li>
+                    </ul>
+                </div>
+            </section>
+
+            <section id="troubleshooting" class="hp-section">
+                <div class="hp-section__head">
+                    <span class="hp-section__icon"><i class="bi bi-exclamation-triangle"></i></span>
+                    <h2 class="hp-section__title">Частые ошибки и что делать</h2>
+                </div>
+                <div class="hp-section__body">
+                    <ol class="hp-faq">
+                        <li>
+                            <span class="hp-faq__num">1</span>
+                            <div>
+                                <h3 class="hp-faq__q">«Нельзя создать свод для заявки со статусом ...»</h3>
+                                <p class="hp-faq__a">Свод создается только для заявки в статусе <strong>«Письма отправлены»</strong>. Сгенерируйте письмо, отправьте его страховщикам и поставьте этот статус в карточке заявки.</p>
+                            </div>
+                        </li>
+                        <li>
+                            <span class="hp-faq__num">2</span>
+                            <div>
+                                <h3 class="hp-faq__q">«Загрузка ответов компаний доступна только при статусе "Сбор предложений"»</h3>
+                                <p class="hp-faq__a">Переведите свод в статус <strong>«Сбор предложений»</strong> в блоке «Управление статусом».</p>
+                            </div>
+                        </li>
+                        <li>
+                            <span class="hp-faq__num">3</span>
+                            <div>
+                                <h3 class="hp-faq__q">«Предложение от компании ... на ... год уже существует»</h3>
+                                <p class="hp-faq__a">В одном своде нельзя иметь две записи одной компании на один и тот же год. Отредактируйте существующую запись или измените год.</p>
+                            </div>
+                        </li>
+                        <li>
+                            <span class="hp-faq__num">4</span>
+                            <div>
+                                <h3 class="hp-faq__q">Ошибка структуры файла Excel</h3>
+                                <p class="hp-faq__a">Проверьте: формат <strong>.xlsx</strong>, компания в <strong>B2</strong>, данные годов в строках <strong>6-10</strong>, обязательные колонки <strong>A/B/D/E/F</strong>.</p>
+                            </div>
+                        </li>
+                        <li>
+                            <span class="hp-faq__num">5</span>
+                            <div>
+                                <h3 class="hp-faq__q">«Сначала укажите статус каждой страховой компании ...»</h3>
+                                <p class="hp-faq__a">Статус свода не меняется, пока у какой-то компании стоит «Не определён». Проставьте статусы в блоке «Статусы страховых компаний» или нажмите «Остальные — не запрашивались».</p>
+                            </div>
+                        </li>
+                        <li>
+                            <span class="hp-faq__num">6</span>
+                            <div>
+                                <h3 class="hp-faq__q">Нет кнопок «Скачать полный Excel» / «Скачать клиентский Excel»</h3>
+                                <p class="hp-faq__a">Для выгрузки смените статус свода на <strong>«Готов к отправке»</strong>. Суперпользователю кнопки доступны в любом статусе.</p>
+                            </div>
+                        </li>
+                        <li>
+                            <span class="hp-faq__num">7</span>
+                            <div>
+                                <h3 class="hp-faq__q">Нет кнопки «Открыть резюме по сделке»</h3>
+                                <p class="hp-faq__a">Нужно перевести свод в статус <strong>«Завершен: акцепт/распоряжение»</strong> и выбрать страховую компанию (и вариант, если требуется).</p>
+                            </div>
+                        </li>
+                    </ol>
+                </div>
+            </section>
+
+            <div class="hp-footer">
+                <div>
+                    <p class="hp-footer__title"><i class="bi bi-lightbulb"></i> Нужна дополнительная помощь?</p>
+                    <p class="hp-footer__text">Если у вас остались вопросы по работе со сводами, обратитесь к Григорию.</p>
+                </div>
+                <a href="{% url 'summaries:summary_list' %}" class="btn btn-primary">
+                    <i class="bi bi-arrow-left"></i> Вернуться к сводам
                 </a>
-            </p>
-
-            <h4>Ограничения загрузки</h4>
-            <ul>
-                <li>Только <strong>.xlsx</strong>.</li>
-                <li>До 10 файлов за загрузку.</li>
-                <li>До 1 MB на файл.</li>
-                <li>До 10 MB суммарно.</li>
-            </ul>
-
-            <h4>Какие ячейки читает система</h4>
-            <div class="table-responsive">
-                <table class="table table-sm table-bordered">
-                    <thead>
-                        <tr>
-                            <th>Данные</th>
-                            <th>Ячейка</th>
-                            <th>Комментарий</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td><strong>Название компании</strong></td>
-                            <td><span class="table-cell-example">B2</span></td>
-                            <td>Сопоставляется с закрытым списком компаний. Если не найдено совпадение, ставится «другое».</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Территория страхования и ограничения</strong></td>
-                            <td><span class="table-cell-example">B3</span></td>
-                            <td>Общее значение ответа страховщика. Копируется во все годы из файла; старые файлы без значения принимаются.</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Примечание для 1-го года</strong></td>
-                            <td><span class="table-cell-example">F2</span></td>
-                            <td>Записывается в комментарий предложения первого года.</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Год страхования</strong></td>
-                            <td><span class="table-cell-example">A6:A10</span></td>
-                            <td>Допустимые значения: 1..10.</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Страховая сумма</strong></td>
-                            <td><span class="table-cell-example">B6:B10</span></td>
-                            <td>Обязательное поле строки.</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Премия-1</strong></td>
-                            <td><span class="table-cell-example">D6:D10</span></td>
-                            <td>Обязательное поле строки.</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Франшиза-1</strong></td>
-                            <td><span class="table-cell-example">E6:E10</span></td>
-                            <td>Обязательное поле строки (текст в ячейке интерпретируется как 0).</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Рассрочка-1</strong></td>
-                            <td><span class="table-cell-example">F6:F10</span></td>
-                            <td>Допустимо: 1, 2, 3, 4, 6, 12.</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Премия-2 / Франшиза-2 / Рассрочка-2</strong></td>
-                            <td><span class="table-cell-example">H:I:J</span></td>
-                            <td>Необязательные поля второго варианта.</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <div class="highlight-warning">
-                <i class="bi bi-exclamation-triangle"></i>
-                <strong>Практический нюанс:</strong> первичная проверка формы ожидает данные минимум в строке 6 или 7. Если файл заполнен только с 8-й строки, загрузка будет отклонена.
-            </div>
-
-            <h4>Что происходит при загрузке</h4>
-            <ul>
-                <li>Для каждого года создается отдельное предложение.</li>
-                <li>Статус компании в блоке «Статусы страховых компаний» автоматически становится «Предложение».</li>
-                <li>Территория из B3 сохраняется в каждом созданном предложении. Если B3 пуста, загрузка не блокируется, но система показывает предупреждение.</li>
-                <li>Если в своде уже есть такая же пара «компания + год», файл/строка отклоняется как дубликат.</li>
-                <li>По множественной загрузке выдается результат по каждому файлу: успешные и ошибки.</li>
-            </ul>
-        </section>
-
-        <section id="status-management" class="help-section">
-            <h3><i class="bi bi-arrow-repeat"></i> Статусы и завершение</h3>
-
-            <h4>Статусы свода</h4>
-            <div class="table-responsive">
-                <table class="table table-sm table-bordered">
-                    <thead>
-                        <tr>
-                            <th>Статус</th>
-                            <th>Что обычно делают</th>
-                            <th>Ограничения</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td><strong>Сбор предложений</strong></td>
-                            <td>Загрузка Excel и ручное наполнение</td>
-                            <td>Только в этом статусе доступны загрузка ответов компаний и кнопка ручного добавления</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Готов к отправке</strong></td>
-                            <td>Финальная проверка и выгрузка Excel</td>
-                            <td>В этом статусе кнопки выгрузки Excel видят все пользователи</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Отправлен в Альянс</strong></td>
-                            <td>Фиксация факта отправки</td>
-                            <td>Записывается дата/время отправки</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Завершен: акцепт/распоряжение</strong></td>
-                            <td>Фиксация выбранной СК</td>
-                            <td>Обязателен выбор компании из предложений свода</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Завершен: не будет</strong></td>
-                            <td>Закрытие без акцепта</td>
-                            <td>Поля выбранной компании очищаются</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <p>Статус меняется в блоке «Управление статусом» на карточке свода. Если статусы страховых обязательны для свода, сначала заполните блок «Статусы страховых компаний».</p>
-
-            <h4>Выбор СК и варианта при акцепте</h4>
-            <ul>
-                <li>Компания выбирается только из тех, что уже есть в предложениях текущего свода.</li>
-                <li>Если у выбранной компании доступны оба варианта (1 и 2) по всем годам, выбор варианта обязателен.</li>
-                <li>Если доступен только один вариант, система проставляет его автоматически.</li>
-                <li>При акцепте можно добавить важную деталь для резюме сделки.</li>
-            </ul>
-
-            <h4>Резюме по сделке</h4>
-            <ul>
-                <li>Кнопка «Открыть резюме по сделке» появляется, когда свод завершен с акцептом и выбрана СК.</li>
-                <li>В резюме показываются данные заявки и предложения выбранной компании по годам.</li>
-            </ul>
-
-            <div class="highlight-warning">
-                <i class="bi bi-exclamation-triangle"></i>
-                <strong>Автозакрытие:</strong> каждую ночь (00:10 по Москве) своды старше 30 дней в статусах «Сбор предложений», «Готов к отправке» и «Отправлен в Альянс» автоматически переводятся в «Завершен: не будет».
-            </div>
-        </section>
-
-        <section id="excel-export" class="help-section">
-            <h3><i class="bi bi-download"></i> Выгрузка Excel</h3>
-
-            <div class="highlight-info">
-                <i class="bi bi-info-circle"></i>
-                <strong>Кнопки выгрузки — в шапке карточки свода.</strong> Всем пользователям они доступны в статусе «Готов к отправке», суперпользователю — в любом статусе.
-            </div>
-
-            <h4>Варианты выгрузки</h4>
-            <ul>
-                <li><strong>«Скачать полный Excel»</strong> — для работы, с техническим листом (`tech_info`).</li>
-                <li><strong>«Скачать клиентский Excel»</strong> — для клиента, без технического листа.</li>
-            </ul>
-
-            <h4>Как выбирается шаблон</h4>
-            <ul>
-                <li>Если в своде есть хотя бы одно предложение с заполненной премией-2 (&gt; 0), используется полный шаблон с колонками двух вариантов.</li>
-                <li>Если премии-2 нет ни у одного предложения, используется упрощенный шаблон.</li>
-                <li>Территория ответа страховщика всегда выводится отдельной колонкой. Новый ответ без B3 отмечается как «Не указано страховщиком», а старое предложение, созданное до сбора территории, — как историческое без данных.</li>
-                <li>Компании со статусом «Отказ» добавляются строками «Отказ от страхования» после предложений.</li>
-            </ul>
-
-            <h4>Что проверяется перед генерацией</h4>
-            <ul>
-                <li>Наличие связанной заявки.</li>
-                <li>Заполненность обязательных полей заявки: номер заявки (ДФА), клиент, объект страхования.</li>
-            </ul>
-
-            <h4>Формат имени файла</h4>
-            <div class="field-mapping">Полный: <strong>full_svod_&lt;цифры_из_DFA&gt;_&lt;дд_мм_гггг&gt;.xlsx</strong></div>
-            <div class="field-mapping">Клиентский: <strong>client_svod_&lt;цифры_из_DFA&gt;_&lt;дд_мм_гггг&gt;.xlsx</strong></div>
-        </section>
-
-        <section id="deals" class="help-section">
-            <h3><i class="bi bi-briefcase"></i> Сделки</h3>
-
-            <ul>
-                <li>Раздел «Сделки» — это своды в статусе «Завершен: акцепт/распоряжение».</li>
-                <li>В строке: клиент и объект, выбранная компания, премия, линейка предложений, число СК в своде и дата закрытия.</li>
-                <li>Фильтры: период (все время, 30, 90, 365 дней или свои даты), поиск, тип страхования, менеджер, вкладки филиалов; сортировка по дате закрытия, премии или клиенту.</li>
-                <li>Клик по строке открывает резюме по сделке.</li>
-            </ul>
-        </section>
-
-        <section id="troubleshooting" class="help-section">
-            <h3><i class="bi bi-exclamation-triangle"></i> Частые ошибки и что делать</h3>
-
-            <h4>1) «Нельзя создать свод для заявки со статусом ...»</h4>
-            <p>Свод создается только для заявки в статусе <strong>«Письма отправлены»</strong>. Сгенерируйте письмо, отправьте его страховщикам и поставьте этот статус в карточке заявки.</p>
-
-            <h4>2) «Загрузка ответов компаний доступна только при статусе "Сбор предложений"»</h4>
-            <p>Переведите свод в статус <strong>«Сбор предложений»</strong> в блоке «Управление статусом».</p>
-
-            <h4>3) «Предложение от компании ... на ... год уже существует»</h4>
-            <p>В одном своде нельзя иметь две записи одной компании на один и тот же год. Отредактируйте существующую запись или измените год.</p>
-
-            <h4>4) Ошибка структуры файла Excel</h4>
-            <p>Проверьте: формат <strong>.xlsx</strong>, компания в <strong>B2</strong>, данные годов в строках <strong>6-10</strong>, обязательные колонки <strong>A/B/D/E/F</strong>.</p>
-
-            <h4>5) «Сначала укажите статус каждой страховой компании ...»</h4>
-            <p>Статус свода не меняется, пока у какой-то компании стоит «Не определён». Проставьте статусы в блоке «Статусы страховых компаний» или нажмите «Остальные — не запрашивались».</p>
-
-            <h4>6) Нет кнопок «Скачать полный Excel» / «Скачать клиентский Excel»</h4>
-            <p>Для выгрузки смените статус свода на <strong>«Готов к отправке»</strong>. Суперпользователю кнопки доступны в любом статусе.</p>
-
-            <h4>7) Нет кнопки «Открыть резюме по сделке»</h4>
-            <p>Нужно перевести свод в статус <strong>«Завершен: акцепт/распоряжение»</strong> и выбрать страховую компанию (и вариант, если требуется).</p>
-        </section>
-
-        <div class="mt-4 p-3 bg-light rounded">
-            <div class="row align-items-center">
-                <div class="col-md-8">
-                    <h6 class="mb-1"><i class="bi bi-lightbulb"></i> Нужна дополнительная помощь?</h6>
-                    <small class="text-muted">
-                        Если у вас остались вопросы по работе со сводами, обратитесь к Григорию.
-                    </small>
-                </div>
-                <div class="col-md-4 text-md-end">
-                    <a href="{% url 'summaries:summary_list' %}" class="btn btn-primary">
-                        <i class="bi bi-arrow-left"></i> Вернуться к сводам
-                    </a>
-                </div>
             </div>
         </div>
     </div>
@@ -415,42 +537,32 @@
 {% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const navLinks = document.querySelectorAll('.help-navigation .nav-link');
-    const sections = document.querySelectorAll('.help-section');
+    const navLinks = document.querySelectorAll('.hp-nav__link');
+    const sections = document.querySelectorAll('.hp-section');
 
-    navLinks.forEach(link => {
+    function setActive(id) {
+        navLinks.forEach(function(link) {
+            link.classList.toggle('active', link.getAttribute('href') === '#' + id);
+        });
+    }
+
+    navLinks.forEach(function(link) {
         link.addEventListener('click', function(e) {
+            const target = document.getElementById(this.getAttribute('href').substring(1));
+            if (!target) return;
             e.preventDefault();
-            const targetId = this.getAttribute('href').substring(1);
-            const targetElement = document.getElementById(targetId);
-            if (!targetElement) return;
-
-            navLinks.forEach(item => item.classList.remove('active'));
-            this.classList.add('active');
-
-            targetElement.scrollIntoView({
-                behavior: 'smooth',
-                block: 'start'
-            });
+            setActive(target.id);
+            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
         });
     });
 
     const observer = new IntersectionObserver(function(entries) {
-        entries.forEach(entry => {
-            if (entry.isIntersecting) {
-                const currentId = entry.target.getAttribute('id');
-                navLinks.forEach(link => {
-                    link.classList.toggle('active', link.getAttribute('href') === `#${currentId}`);
-                });
-            }
+        entries.forEach(function(entry) {
+            if (entry.isIntersecting) setActive(entry.target.id);
         });
-    }, {
-        threshold: 0.35
-    });
+    }, { rootMargin: '0px 0px -60% 0px' });
 
-    sections.forEach(section => {
-        observer.observe(section);
-    });
+    sections.forEach(function(section) { observer.observe(section); });
 });
 </script>
 {% endblock %}
