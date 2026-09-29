@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+
+{% block title %}Страница не найдена{% endblock %}
+
+{% block extra_css %}{% include "errors/_state_styles.html" %}{% endblock %}
+
+{% block content %}
+<div class="st-page">
+    <div class="st-card">
+        <span class="st-icon"><i class="bi bi-signpost-split"></i></span>
+        <div class="st-code">Ошибка 404</div>
+        <h1 class="st-title">Страница не найдена</h1>
+        <p class="st-text">Такой страницы нет или ссылка устарела. Проверьте адрес или вернитесь к работе.</p>
+        {% if request_path %}
+        <div class="st-rows"><div class="st-row"><span>Адрес</span><b>{{ request_path }}</b></div></div>
+        {% endif %}
+        <div class="st-actions">
+            <a href="{% url 'insurance_requests:request_list' %}" class="btn btn-primary"><i class="bi bi-list-ul"></i> К списку заявок</a>
+            <a href="javascript:history.back()" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> Назад</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

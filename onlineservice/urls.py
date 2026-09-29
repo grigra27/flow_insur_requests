@@ -83,13 +83,12 @@ def custom_404_handler(request, exception):
             # Fallback to first subdomain
             suggested_subdomain = subdomains[0] if subdomains else 'zs.insflow.tw1.su'
         
-        from django.http import HttpResponseNotFound
+        from django.shortcuts import render
         protocol = 'https' if request.is_secure() else 'http'
-        return HttpResponseNotFound(
-            f"<h1>Page Not Found</h1>"
-            f"<p>This page is not available on the main domain.</p>"
-            f"<p>Please visit <a href='{protocol}://{suggested_subdomain}'>{suggested_subdomain}</a> for the application.</p>"
-        )
+        return render(request, 'errors/main_domain_404.html', {
+            'app_host': suggested_subdomain,
+            'app_url': f'{protocol}://{suggested_subdomain}',
+        }, status=404)
     else:
         # For subdomains, use default 404 handling
         from django.views.defaults import page_not_found
