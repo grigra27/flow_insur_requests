@@ -689,6 +689,14 @@ def request_list(request):
             # Игнорируем некорректные значения месяца
             pass
 
+    # Фильтр по статусу (ссылки «Сейчас в работе» из футера)
+    status_filter = request.GET.get('status', '').strip()
+    status_labels = dict(InsuranceRequest.STATUS_CHOICES)
+    if status_filter in status_labels:
+        queryset = queryset.filter(status=status_filter)
+    else:
+        status_filter = ''
+
     # Счётчики на вкладках филиалов: все фильтры, кроме самого филиала
     branch_counts = dict(
         queryset.order_by().values_list('branch').annotate(count=Count('id'))
@@ -787,7 +795,9 @@ def request_list(request):
         'current_dfa_filter': dfa_filter,
         'dfa_filter_error': dfa_filter_error,
         # Дополнительные данные для удобства работы с фильтрами
-        'has_filters': bool(branch_filter or month_filter or year_filter or dfa_filter),
+        'current_status': status_filter,
+        'current_status_label': status_labels.get(status_filter, ''),
+        'has_filters': bool(branch_filter or month_filter or year_filter or dfa_filter or status_filter),
         'total_requests': paginator.count,
         'branch_counts': branch_counts,
         'total_requests_count': total_requests_count,

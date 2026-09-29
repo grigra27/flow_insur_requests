@@ -475,21 +475,64 @@ a.app-crumbs__item:hover {
     vertical-align: middle;
 }
 
-.app-footer__links {
+/* «Сейчас в работе»: счётчики по всей системе, каждая цифра — ссылка в отфильтрованный список */
+.app-footer__work {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.25rem 1.1rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
 }
 
-.app-footer__links a {
-    font-size: 0.84rem;
+.app-footer__live {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin-right: 0.3rem;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: #768398;
+}
+
+.app-footer__live i {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #22b07d;
+    box-shadow: 0 0 0 3px rgba(34, 176, 125, 0.18);
+}
+
+.app-footer__count {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.3rem;
+    padding: 0.3rem 0.65rem;
+    border: 1px solid #e6ecf1;
+    border-radius: 999px;
+    background: #ffffff;
+    font-size: 0.8rem;
     font-weight: 600;
     color: #4f5e74;
     text-decoration: none;
+    transition: border-color 0.15s ease, color 0.15s ease;
 }
 
-.app-footer__links a:hover {
+.app-footer__count b {
+    font-size: 0.9rem;
+    font-weight: 800;
+    color: #0f1b2d;
+    font-variant-numeric: tabular-nums;
+}
+
+.app-footer__count:hover {
+    border-color: #c9dcd9;
     color: var(--app-primary);
+}
+
+.app-footer__count--warn b {
+    color: #b7791f;
 }
 
 .app-footer__meta {

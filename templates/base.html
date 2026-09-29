@@ -92,6 +92,9 @@
                                 <i class="bi bi-chevron-down app-user__chevron"></i>
                             </a>
                             <ul class="dropdown-menu dropdown-menu-end app-dropdown" aria-labelledby="appUserMenu">
+                                <li><a class="dropdown-item" href="{% url 'insurance_requests:help' %}"><i class="bi bi-question-circle"></i> Справка по заявкам</a></li>
+                                <li><a class="dropdown-item" href="{% url 'summaries:help' %}"><i class="bi bi-question-circle"></i> Справка по сводам</a></li>
+                                <li><hr class="dropdown-divider"></li>
                                 {% if user.is_staff %}
                                     <li><a class="dropdown-item" href="/admin/"><i class="bi bi-gear"></i> Админ панель</a></li>
                                     <li><hr class="dropdown-divider"></li>
@@ -155,14 +158,12 @@
         <div class="{{ app_layout.container_class|default:'container app-layout-default' }}">
             <div class="app-footer__row">
                 <div class="app-footer__brand"><b>флоу</b><span>//</span>заявки <em>2.5</em></div>
-                {% if user.is_authenticated %}
-                    <nav class="app-footer__links" aria-label="Разделы">
-                        <a href="{% url 'insurance_requests:request_list' %}">Заявки</a>
-                        <a href="{% url 'summaries:summary_list' %}">Своды</a>
-                        <a href="{% url 'summaries:deal_list' %}">Сделки</a>
-                        <a href="{% url 'summaries:analytics' %}">Аналитика</a>
-                        <a href="{% url 'insurance_requests:help' %}">Справка по заявкам</a>
-                        <a href="{% url 'summaries:help' %}">Справка по сводам</a>
+                {% if app_work %}
+                    <nav class="app-footer__work" aria-label="Сейчас в работе">
+                        <span class="app-footer__live"><i aria-hidden="true"></i>Сейчас в работе</span>
+                        {% for item in app_work %}
+                            <a href="{{ item.url }}" class="app-footer__count{% if item.warn %} app-footer__count--warn{% endif %}"><b>{{ item.count }}</b> {{ item.label }}</a>
+                        {% endfor %}
                     </nav>
                 {% endif %}
                 <div class="app-footer__meta">© 2026</div>

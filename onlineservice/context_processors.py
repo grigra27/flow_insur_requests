@@ -1,5 +1,6 @@
 """Context processors for navigation and page orientation."""
 
+from django.db.models import Count
 from django.urls import NoReverseMatch, reverse
 
 
@@ -477,7 +478,72 @@ def navigation_context(request):
             'container_class': layout_container_class,
         },
         'app_user': _user_badge(getattr(request, 'user', None), user_has_admin_access),
+        'app_work': _work_counters(getattr(request, 'user', None)),
     }
+
+
+def _plural(count, one, few, many):
+    if count % 10 == 1 and count % 100 != 11:
+        return one
+    if 2 <= count % 10 <= 4 and not 12 <= count % 100 <= 14:
+        return few
+    return many
+
+
+WORK_COUNTERS_CACHE_KEY = 'footer_work_counters'
+WORK_COUNTERS_TTL = 60
+
+
+def _work_counters(user):
+    """«Сейчас в работе» для футера: счётчики по всей системе, каждая цифра — ссылка в отфильтрованный список."""
+    if not getattr(user, 'is_authenticated', False):
+        return []
+    from django.core.cache import cache
+    from insurance_requests.models import InsuranceRequest
+    from summaries.models import InsuranceSummary
+
+    counts = cache.get(WORK_COUNTERS_CACHE_KEY)
+    if counts is None:
+        summary_counts = dict(
+            InsuranceSummary.objects.filter(status__in=['collecting', 'ready', 'sent'])
+            .order_by().values_list('status').annotate(total=Count('id'))
+        )
+        counts = {
+            'email_generated': InsuranceRequest.objects.filter(status='email_generated').count(),
+            'collecting': summary_counts.get('collecting', 0),
+            'ready': summary_counts.get('ready', 0),
+            'sent': summary_counts.get('sent', 0),
+        }
+        cache.set(WORK_COUNTERS_CACHE_KEY, counts, WORK_COUNTERS_TTL)
+
+    requests_url = _safe_reverse('insurance_requests:request_list')
+    summaries_url = _safe_reverse('summaries:summary_list')
+    n = counts['email_generated']
+    items = [{
+        'count': n,
+        'label': _plural(n, 'письмо ждёт отправки', 'письма ждут отправки', 'писем ждут отправки'),
+        'url': f'{requests_url}?status=email_generated',
+    }]
+    n = counts['collecting']
+    items.append({
+        'count': n,
+        'label': _plural(n, 'свод собирает предложения', 'свода собирают предложения', 'сводов собирают предложения'),
+        'url': f'{summaries_url}?status=collecting',
+    })
+    n = counts['ready']
+    items.append({
+        'count': n,
+        'label': _plural(n, 'готов к отправке', 'готовы к отправке', 'готовы к отправке'),
+        'url': f'{summaries_url}?status=ready',
+    })
+    n = counts['sent']
+    items.append({
+        'count': n,
+        'label': _plural(n, 'ждёт решения клиента', 'ждут решения клиента', 'ждут решения клиента'),
+        'url': f'{summaries_url}?status=sent',
+        'warn': True,
+    })
+    return items
 
 
 def _user_badge(user, is_admin):

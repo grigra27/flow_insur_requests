@@ -114,6 +114,33 @@
         font-weight: 600;
     }
 
+    .rl-status-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        margin-left: 0.6rem;
+        padding: 0.2rem 0.6rem;
+        border: 1px solid var(--sl-teal);
+        border-radius: 999px;
+        background: var(--sl-teal-soft);
+        font-size: 0.78rem;
+        color: var(--sl-teal);
+        text-decoration: none;
+    }
+
+    .rl-status-chip b {
+        font-weight: 700;
+    }
+
+    .rl-status-chip .bi {
+        font-size: 0.65rem;
+    }
+
+    .rl-status-chip:hover {
+        background: #fff;
+        color: var(--sl-teal);
+    }
+
     .request-condition-badges {
         max-width: 15rem;
     }
@@ -269,6 +296,11 @@
             {% if requests %}
                 Показано <b>{{ page_obj.start_index }}–{{ page_obj.end_index }}</b> из <b>{{ total_requests }}</b>
             {% endif %}
+            {% if current_status %}
+                <a class="rl-status-chip" href="{% qs_replace status=None page=None %}" title="Показать все статусы">
+                    Статус: <b>{{ current_status_label }}</b> <i class="bi bi-x-lg"></i>
+                </a>
+            {% endif %}
         </div>
         <div class="rl-bar-actions">
             {% if requests %}
@@ -292,6 +324,9 @@
         <form method="get" class="sl-filter-form">
             {% if current_branch %}
                 <input type="hidden" name="branch" value="{{ current_branch }}">
+            {% endif %}
+            {% if current_status %}
+                <input type="hidden" name="status" value="{{ current_status }}">
             {% endif %}
             {% if current_per_page != default_per_page %}
                 <input type="hidden" name="per_page" value="{{ current_per_page }}">
