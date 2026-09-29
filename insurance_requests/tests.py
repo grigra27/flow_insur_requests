@@ -474,7 +474,7 @@ class RequestV1V2DisplayCompatibilityTest(TestCase):
         self.assertContains(v2_response, 'LADA Largus KS045L')
         self.assertContains(v2_response, 'Стоимость приобретения')
         self.assertContains(v2_response, '1 490 000 RUB')
-        self.assertContains(v2_response, 'Состояние:')
+        self.assertContains(v2_response, 'Состояние')
         self.assertContains(v2_response, 'Б/у')
         self.assertNotContains(v2_response, 'Автомобиль LADA Largus KS045L 2024 б/у')
         # Блок парсера — служебный, обычный пользователь его не видит.
@@ -822,6 +822,43 @@ class RequestDetailBatchPanelTest(TestCase):
         # Order is by item_no across all but the current one.
         self.assertEqual([s.item_no for s in siblings_in_context], [1, 3])
         self.assertNotIn(middle, siblings_in_context)
+
+    def test_batch_navigator_shows_all_objects_and_neighbours(self):
+        from decimal import Decimal
+        for sibling, cost in zip(self.siblings, ('1000000', '2000000', '3500000')):
+            sibling.acquisition_cost_value = Decimal(cost)
+            sibling.acquisition_cost_currency = 'RUB'
+            sibling.save()
+        middle = self.siblings[1]
+        response = self.client.get(
+            reverse('insurance_requests:request_detail', kwargs={'pk': middle.pk})
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['batch_prev'], self.siblings[0])
+        self.assertEqual(response.context['batch_next'], self.siblings[2])
+        self.assertEqual(response.context['batch_total'], '6 500 000 RUB')
+        self.assertContains(response, 'Все объекты партии')
+        self.assertContains(response, 'вы здесь')
+        self.assertContains(response, 'общая стоимость 6 500 000 RUB')
+        # По PDF на каждый объект партии плюс главная кнопка в шапке.
+        for request_obj in self.siblings:
+            self.assertContains(
+                response,
+                reverse('insurance_requests:export_request_application', kwargs={'pk': request_obj.pk}),
+            )
+
+    def test_batch_navigator_edges_and_mixed_currency(self):
+        self.siblings[0].acquisition_cost_value = 100
+        self.siblings[0].acquisition_cost_currency = 'RUB'
+        self.siblings[0].save()
+        response = self.client.get(
+            reverse('insurance_requests:request_detail', kwargs={'pk': self.siblings[0].pk})
+        )
+        self.assertIsNone(response.context['batch_prev'])
+        self.assertEqual(response.context['batch_next'], self.siblings[1])
+        # У остальных объектов стоимость не указана — общую сумму не показываем.
+        self.assertEqual(response.context['batch_total'], '')
+        self.assertNotContains(response, 'общая стоимость')
 
     def test_standalone_detail_has_no_batch_panel(self):
         url = reverse('insurance_requests:request_detail', kwargs={'pk': self.standalone.pk})

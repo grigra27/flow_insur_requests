@@ -5,357 +5,212 @@
 {% block title %}{{ request.get_display_name }} - {{ block.super }}{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h1><i class="bi bi-file-text"></i> {{ request.get_display_name }}</h1>
-    <div>
+<div class="rq-page">
+
+<!-- Шапка в языке карточки свода; «Скачать заявку (PDF)» — главное действие страницы -->
+<div class="rq-head">
+    <div class="rq-head__main">
+        <a href="{% url 'insurance_requests:request_list' %}" class="rq-back"><i class="bi bi-arrow-left"></i> К списку заявок</a>
+        <div class="rq-head__title-row">
+            <h1 class="rq-title">{{ request.get_display_name }}</h1>
+            <span class="rq-status rq-status--{{ request.status }}" id="status-pill">{{ request.get_status_display }}</span>
+            {% if request.item_count and request.item_count > 1 %}
+                <span class="rq-chip rq-chip--batch"><i class="bi bi-collection"></i> Партия {{ request.item_no }}/{{ request.item_count }}</span>
+            {% endif %}
+        </div>
+        <div class="rq-head__sub">
+            <b>{{ request.client_name }}</b>{% if request.inn %} · ИНН {{ request.inn }}{% endif %}{% if request.branch %} · {{ request.branch }}{% endif %}
+        </div>
+    </div>
+    <div class="rq-head__actions">
         <a href="{% url 'insurance_requests:edit_request' request.pk %}" class="btn btn-outline-primary">
             <i class="bi bi-pencil"></i> Редактировать
         </a>
-        <a href="{% url 'insurance_requests:request_list' %}" class="btn btn-secondary">
-            <i class="bi bi-arrow-left"></i> К списку
+        <a href="{% url 'insurance_requests:export_request_application' request.pk %}" class="rq-pdf-btn">
+            <i class="bi bi-file-earmark-pdf-fill"></i>
+            <span>
+                <b>Скачать заявку (PDF)</b>
+                <small>для страховой · A4 · 1 страница</small>
+            </span>
         </a>
+    </div>
+</div>
+
+{% if request.item_count and request.item_count > 1 %}
+<!-- Навигатор партии: все объекты одной загрузки, текущий выделен -->
+<section class="rq-batchnav">
+    <div class="rq-batchnav__head">
+        <div class="rq-batchnav__title">
+            <i class="bi bi-collection"></i>
+            <div>
+                <b>Партия из {{ request.item_count }} заявок</b>
+                <span class="rq-batchnav__meta">вы смотрите объект <b>{{ request.item_no }}</b> из {{ request.item_count }}{% if batch_total %} · общая стоимость {{ batch_total }}{% endif %} · один файл лизингополучателя, отдельная заявка и свод на каждый объект</span>
+            </div>
+        </div>
+        <div class="rq-batchnav__arrows">
+            {% if batch_prev %}
+            <a class="rq-batchnav__arrow" href="{% url 'insurance_requests:request_detail' batch_prev.pk %}"><i class="bi bi-chevron-left"></i> Объект {{ batch_prev.item_no }}</a>
+            {% endif %}
+            {% if batch_next %}
+            <a class="rq-batchnav__arrow" href="{% url 'insurance_requests:request_detail' batch_next.pk %}">Объект {{ batch_next.item_no }} <i class="bi bi-chevron-right"></i></a>
+            {% endif %}
+        </div>
+    </div>
+    {% if batch_siblings %}
+    <div class="rq-batchnav__caption">Все объекты партии</div>
+    {% else %}
+    <div class="rq-batchnav__caption">Другие заявки партии не найдены (возможно, удалены).</div>
+    {% endif %}
+    <div class="rq-batchnav__tiles">
+        {% for sibling in batch_siblings %}{% if sibling.item_no < request.item_no %}{% include "insurance_requests/includes/_batch_tile.html" with obj=sibling %}{% endif %}{% endfor %}
+        {% include "insurance_requests/includes/_batch_tile.html" with obj=request current=True %}
+        {% for sibling in batch_siblings %}{% if sibling.item_no > request.item_no %}{% include "insurance_requests/includes/_batch_tile.html" with obj=sibling %}{% endif %}{% endfor %}
+    </div>
+</section>
+{% endif %}
+
+<!-- Шкала этапов -->
+<div class="rq-progress">
+    {% if request.summary %}
+        {% status_progress request request.summary %}
+    {% else %}
+        {% status_progress request %}
+    {% endif %}
+</div>
+
+<!-- Ключевые цифры, как в резюме сделки -->
+<div class="rq-kpis">
+    <div class="rq-kpi">
+        <div class="rq-label">Страхование</div>
+        <div class="rq-kpi__value">{{ request.insurance_type }}</div>
+        <div class="rq-kpi__sub">{{ request.insurance_period|default:"Период не указан" }}</div>
+    </div>
+    <div class="rq-kpi">
+        <div class="rq-label">Объект</div>
+        <div class="rq-kpi__value rq-kpi__value--clip" title="{{ request.object_display_name }}">{{ request.object_display_name|default:"Не указано" }}</div>
+        <div class="rq-kpi__sub">{{ request.manufacturing_year|default:"Год не указан" }} · {{ request.condition_label|default:"состояние не указано" }}</div>
+    </div>
+    <div class="rq-kpi">
+        <div class="rq-label">Стоимость приобретения</div>
+        <div class="rq-kpi__value rq-kpi__value--big">{{ request.acquisition_cost_display|default:"—" }}</div>
+        {% if request.source_object_count and request.source_object_count > 1 %}
+        <div class="rq-kpi__sub">одинаковых строк в файле: {{ request.source_object_count }}</div>
+        {% endif %}
+    </div>
+    <div class="rq-kpi rq-kpi--deadline">
+        <div class="rq-label">Срок ответа</div>
+        <div class="rq-kpi__value">{% if request.response_deadline %}{% timezone "Europe/Moscow" %}{{ request.response_deadline|date:"d.m.Y в H:i" }}{% endtimezone %}{% else %}Не указан{% endif %}</div>
+        <div class="rq-kpi__sub">время московское</div>
     </div>
 </div>
 
 <div class="row">
     <div class="col-lg-8">
-        <!-- Прогресс-бар статусов -->
-        {% if request.summary %}
-            {% status_progress request request.summary %}
-        {% else %}
-            {% status_progress request %}
-        {% endif %}
 
-        {% if request.item_count and request.item_count > 1 %}
-        <!-- Stage 4.4: батч-навигация для V2-сёстер -->
-        <div class="card mb-4 border-info">
-            <div class="card-header bg-info-subtle">
-                <i class="bi bi-collection text-info"></i>
-                <strong>Партия из {{ request.item_count }} заявок</strong>
-                — вы смотрите объект <strong>{{ request.item_no }}</strong> из {{ request.item_count }}.
-            </div>
+        <!-- Заявка и клиент -->
+        <div class="card mb-4">
+            <div class="card-header"><h6 class="mb-0">Заявка и клиент</h6></div>
             <div class="card-body">
-                {% if batch_siblings %}
-                <div class="text-muted small mb-2">Другие заявки этой партии:</div>
-                <div class="list-group list-group-flush">
-                    {% for sibling in batch_siblings %}
-                    <a href="{% url 'insurance_requests:request_detail' sibling.pk %}"
-                       class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                        <span>
-                            <span class="badge bg-secondary me-2">{{ sibling.item_no }}/{{ sibling.item_count }}</span>
-                            <strong>{{ sibling.object_display_name|default:"Объект не указан" }}</strong>
-                            <span class="text-muted small ms-2">
-                                {% if sibling.manufacturing_year %}{{ sibling.manufacturing_year }}{% endif %}
-                                {% if sibling.condition %}{% if sibling.manufacturing_year %} · {% endif %}{{ sibling.get_condition_display }}{% endif %}
-                                {% if sibling.acquisition_cost_display %}{% if sibling.manufacturing_year or sibling.condition %} · {% endif %}{{ sibling.acquisition_cost_display }}{% endif %}
-                            </span>
-                            {% if sibling.source_object_count and sibling.source_object_count > 1 %}
-                                <span class="badge bg-warning text-dark ms-2">×{{ sibling.source_object_count }}</span>
-                            {% endif %}
-                        </span>
-                        <span class="badge {{ sibling.status|status_badge_class }}">{{ sibling.get_status_display }}</span>
-                    </a>
-                    {% endfor %}
+                <dl class="rq-kv">
+                    <div><dt>Клиент</dt><dd>{{ request.client_name }}</dd></div>
+                    <div><dt>ИНН</dt><dd>{{ request.inn|default:"—" }}</dd></div>
+                    <div><dt>ДФА</dt><dd>{{ request.dfa_number|default:"—" }}</dd></div>
+                    <div><dt>Филиал</dt><dd>{{ request.branch|default:"Не указан" }}</dd></div>
+                    <div><dt>Статус сделки</dt><dd>{{ request.get_deal_status_display }}</dd></div>
+                    <div><dt>Менеджер Альянса</dt><dd>{{ request.manager_name|default:"Не указано" }}</dd></div>
+                    <div>
+                        <dt>Менеджер Онлайна</dt>
+                        <dd>
+                            {% if request.created_by %}
+                                {% if request.created_by.last_name and request.created_by.first_name %}{{ request.created_by.last_name }} {{ request.created_by.first_name }}{% elif request.created_by.last_name %}{{ request.created_by.last_name }}{% elif request.created_by.first_name %}{{ request.created_by.first_name }}{% else %}Не указано{% endif %}
+                            {% else %}Не указано{% endif %}
+                        </dd>
+                    </div>
+                    {% if request.submission_date %}
+                    <div><dt>Дата подачи заявки</dt><dd>{{ request.submission_date|date:"d.m.Y" }}</dd></div>
+                    {% endif %}
+                    {% if request.additional_data.application_format_display %}
+                    <div>
+                        <dt>Формат заявки</dt>
+                        <dd>
+                            <span class="rq-chip">{{ request.additional_data.application_format_display }}</span>
+                            {% if request.additional_data.application_type_display %}<div class="rq-dd-sub">{{ request.additional_data.application_type_display }}</div>{% endif %}
+                        </dd>
+                    </div>
+                    {% endif %}
+                    <div><dt>Создана</dt><dd>{% timezone "Europe/Moscow" %}{{ request.created_at|date:"d.m.Y в H:i" }}{% endtimezone %}</dd></div>
+                    <div><dt>Обновлена</dt><dd>{% timezone "Europe/Moscow" %}{{ request.updated_at|date:"d.m.Y в H:i" }}{% endtimezone %}</dd></div>
+                </dl>
+
+                {% if request.legal_address or request.postal_address or request.business_activity or request.birth_date %}
+                <div class="rq-section">
+                    <div class="rq-section__title">Реквизиты страхователя</div>
+                    <dl class="rq-kv rq-kv--2">
+                        {% if request.legal_address %}<div><dt>Юридический адрес</dt><dd>{{ request.legal_address }}</dd></div>{% endif %}
+                        {% if request.postal_address %}<div><dt>Почтовый адрес</dt><dd>{{ request.postal_address }}</dd></div>{% endif %}
+                        {% if request.business_activity %}<div><dt>Вид деятельности</dt><dd>{{ request.business_activity }}</dd></div>{% endif %}
+                        {% if request.birth_date %}<div><dt>Дата рождения ИП</dt><dd>{{ request.birth_date|date:"d.m.Y" }}</dd></div>{% endif %}
+                    </dl>
                 </div>
-                {% else %}
-                <div class="text-muted small">Другие заявки партии не найдены (возможно, удалены).</div>
                 {% endif %}
             </div>
         </div>
-        {% endif %}
 
-        <!-- Параметры заявки -->
+        <!-- Параметры страхования -->
         <div class="card mb-4">
-            <div class="card-header">
-                <h5 class="mb-0">Параметры заявки</h5>
-            </div>
+            <div class="card-header"><h6 class="mb-0">Параметры страхования</h6></div>
             <div class="card-body">
-                <div class="req-hero mb-4">
-                    <div class="req-hero__name">{{ request.client_name }}</div>
-                    <div class="req-hero__meta">
-                        {% if request.inn %}
-                        <div class="req-hero__meta-item">
-                            <span class="req-hero__meta-label">ИНН</span>
-                            <span class="req-hero__meta-value">{{ request.inn }}</span>
-                        </div>
-                        {% endif %}
-                        {% if request.dfa_number %}
-                        <div class="req-hero__meta-item">
-                            <span class="req-hero__meta-label">ДФА</span>
-                            <span class="req-hero__meta-value">{{ request.dfa_number }}</span>
-                        </div>
+                <div class="rq-section rq-section--first">
+                    <div class="rq-section__title">Объект страхования</div>
+                    <div class="rq-object">
+                        <span>{{ request.object_display_name|default:"Не указано" }}</span>
+                        {% if request.source_object_count and request.source_object_count > 1 %}
+                            <span class="rq-chip rq-chip--dup"><i class="bi bi-layers"></i> Одинаковых строк в файле: {{ request.source_object_count }}</span>
                         {% endif %}
                     </div>
-                </div>
-                <div class="row g-4">
-                    <div class="col-lg-7">
-                        <section class="mb-4">
-                            <h6 class="text-uppercase text-muted mb-3">Клиент и сделка</h6>
-                            <dl class="row mb-0">
-                                <dt class="col-sm-5">Статус сделки:</dt>
-                                <dd class="col-sm-7">{{ request.get_deal_status_display }}</dd>
-
-                                <dt class="col-sm-5">Филиал:</dt>
-                                <dd class="col-sm-7">{{ request.branch|default:"Не указан" }}</dd>
-
-                                <dt class="col-sm-5">Менеджер Альянса:</dt>
-                                <dd class="col-sm-7">{{ request.manager_name|default:"Не указано" }}</dd>
-
-                                <dt class="col-sm-5">Менеджер Онлайна:</dt>
-                                <dd class="col-sm-7">
-                                    {% if request.created_by %}
-                                        {% if request.created_by.last_name and request.created_by.first_name %}
-                                            {{ request.created_by.last_name }} {{ request.created_by.first_name }}
-                                        {% elif request.created_by.last_name %}
-                                            {{ request.created_by.last_name }}
-                                        {% elif request.created_by.first_name %}
-                                            {{ request.created_by.first_name }}
-                                        {% else %}
-                                            Не указано
-                                        {% endif %}
-                                    {% else %}
-                                        Не указано
-                                    {% endif %}
-                                </dd>
-
-                                {% if request.submission_date %}
-                                <dt class="col-sm-5">Дата подачи заявки:</dt>
-                                <dd class="col-sm-7">{{ request.submission_date|date:"d.m.Y" }}</dd>
-                                {% endif %}
-
-                                {% if request.additional_data.application_format_display %}
-                                <dt class="col-sm-5">Формат заявки:</dt>
-                                <dd class="col-sm-7">
-                                    <span
-                                        class="badge bg-{% if request.additional_data.application_format == 'property' %}info{% else %}secondary{% endif %}">
-                                        {{ request.additional_data.application_format_display }}
-                                    </span>
-                                    {% if request.additional_data.application_type_display %}
-                                    <br><small class="text-muted">{{ request.additional_data.application_type_display }}</small>
-                                    {% endif %}
-                                </dd>
-                                {% endif %}
-                            </dl>
-                        </section>
-
-                        <section class="mb-4">
-                            <div class="req-object-block">
-                                <div class="req-object-block__header">
-                                    <i class="bi bi-truck-front-fill req-object-block__icon"></i>
-                                    <span class="req-object-block__title">Объект страхования</span>
-                                </div>
-                                <div class="req-object-block__vehicle">
-                                    {{ request.object_display_name|default:"Не указано" }}
-                                </div>
-                                <dl class="row mb-0 mt-3">
-                                    {% if request.brand %}
-                                    <dt class="col-sm-5">Марка:</dt>
-                                    <dd class="col-sm-7">{{ request.brand }}</dd>
-                                    {% endif %}
-
-                                    {% if request.model %}
-                                    <dt class="col-sm-5">Модель:</dt>
-                                    <dd class="col-sm-7">{{ request.model }}</dd>
-                                    {% endif %}
-
-                                    <dt class="col-sm-5">Год выпуска:</dt>
-                                    <dd class="col-sm-7">{{ request.manufacturing_year|default:"Не указан" }}</dd>
-
-                                    <dt class="col-sm-5">Состояние:</dt>
-                                    <dd class="col-sm-7">{{ request.condition_label|default:"Не указано" }}</dd>
-
-                                    {% if request.equipment_type %}
-                                    <dt class="col-sm-5">Тип/категория:</dt>
-                                    <dd class="col-sm-7">{{ request.equipment_type }}</dd>
-                                    {% endif %}
-
-                                    {% if request.power_or_capacity %}
-                                    <dt class="col-sm-5">Мощность/производительность:</dt>
-                                    <dd class="col-sm-7">{{ request.power_or_capacity }}</dd>
-                                    {% endif %}
-
-                                    {% if request.acquisition_cost_display %}
-                                    <dt class="col-sm-5">Стоимость приобретения:</dt>
-                                    <dd class="col-sm-7">{{ request.acquisition_cost_display }}</dd>
-                                    {% endif %}
-
-                                    {% if request.source_object_count and request.source_object_count > 1 %}
-                                    <dt class="col-sm-5">Одинаковых строк в файле:</dt>
-                                    <dd class="col-sm-7">
-                                        <span class="badge bg-warning text-dark">{{ request.source_object_count }}</span>
-                                    </dd>
-                                    {% endif %}
-
-                                    <dt class="col-sm-5">Цели использования:</dt>
-                                    <dd class="col-sm-7">{{ request.usage_purposes|default:"Не указано" }}</dd>
-                                </dl>
-                            </div>
-                        </section>
-
-                        {% if request.legal_address or request.postal_address or request.business_activity or request.birth_date %}
-                        <section class="mb-4">
-                            <h6 class="text-uppercase text-muted mb-3">Реквизиты страхователя</h6>
-                            <dl class="row mb-0">
-                                {% if request.legal_address %}
-                                <dt class="col-sm-5">Юридический адрес:</dt>
-                                <dd class="col-sm-7">{{ request.legal_address }}</dd>
-                                {% endif %}
-
-                                {% if request.postal_address %}
-                                <dt class="col-sm-5">Почтовый адрес:</dt>
-                                <dd class="col-sm-7">{{ request.postal_address }}</dd>
-                                {% endif %}
-
-                                {% if request.business_activity %}
-                                <dt class="col-sm-5">Вид деятельности:</dt>
-                                <dd class="col-sm-7">{{ request.business_activity }}</dd>
-                                {% endif %}
-
-                                {% if request.birth_date %}
-                                <dt class="col-sm-5">Дата рождения ИП:</dt>
-                                <dd class="col-sm-7">{{ request.birth_date|date:"d.m.Y" }}</dd>
-                                {% endif %}
-                            </dl>
-                        </section>
-                        {% endif %}
-
-                        {% if request.notes %}
-                        <hr>
-                        <h6>Примечание:</h6>
-                        <div class="bg-light p-3 rounded">
-                            <pre class="mb-0" style="white-space: pre-wrap; font-family: inherit; font-size: 0.9rem;">{{ request.notes|escape }}</pre>
-                        </div>
-                        {% endif %}
-                    </div>
-
-                    <div class="col-lg-5">
-                        <section class="mb-4">
-                            <h6 class="text-uppercase text-muted mb-3">Условия страхования</h6>
-                            <dl class="row mb-3">
-                                <dt class="col-sm-6">Тип страхования:</dt>
-                                <dd class="col-sm-6">{{ request.insurance_type }}</dd>
-
-                                <dt class="col-sm-6">Срок страхования:</dt>
-                                <dd class="col-sm-6">{{ request.insurance_period|default:"Период не указан" }}</dd>
-
-                                <dt class="col-sm-6">Порядок оплаты премии:</dt>
-                                <dd class="col-sm-6">
-                                    {% if request.premium_frequency %}
-                                        {{ request.get_premium_frequency_display }}
-                                    {% elif request.has_installment %}
-                                        Рассрочка
-                                    {% else %}
-                                        Не указано
-                                    {% endif %}
-                                </dd>
-
-                                {% if request.insured_party %}
-                                <dt class="col-sm-6">Страхователь:</dt>
-                                <dd class="col-sm-6">{{ request.get_insured_party_display }}</dd>
-                                {% endif %}
-
-                                {% if request.insured_sum_type %}
-                                <dt class="col-sm-6">Тип страховой суммы:</dt>
-                                <dd class="col-sm-6">{{ request.get_insured_sum_type_display }}</dd>
-                                {% endif %}
-
-                                <dt class="col-sm-6">Франшиза:</dt>
-                                <dd class="col-sm-6">{{ request.get_franchise_type_display }}</dd>
-
-                                <dt class="col-sm-6">Банк-кредитор:</dt>
-                                <dd class="col-sm-6">{{ request.creditor_bank|default:"Не указано" }}</dd>
-                            </dl>
-                        </section>
-
-                        {% if request.insurance_type == 'КАСКО' or request.insurance_type == 'страхование спецтехники' or request.pts_psm or request.key_completeness or request.telematics_complex or request.has_autostart or request.has_casco_ce %}
-                        <section class="mb-4">
-                            <h6 class="text-uppercase text-muted mb-3">КАСКО и спецтехника</h6>
-                            <dl class="row mb-0">
-                                <dt class="col-sm-6">ПТС/ПСМ:</dt>
-                                <dd class="col-sm-6">{{ request.pts_psm|default:"Не указано" }}</dd>
-
-                                <dt class="col-sm-6">Комплектность ключей:</dt>
-                                <dd class="col-sm-6">{{ request.key_completeness|default:"Не указано" }}</dd>
-
-                                <dt class="col-sm-6">Телематический комплекс:</dt>
-                                <dd class="col-sm-6">{{ request.telematics_complex|default:"Не указано" }}</dd>
-
-                                <dt class="col-sm-6">Автозапуск:</dt>
-                                <dd class="col-sm-6">{% if request.has_autostart %}Да{% else %}Нет{% endif %}</dd>
-
-                                <dt class="col-sm-6">КАСКО кат. C/E:</dt>
-                                <dd class="col-sm-6">{% if request.has_casco_ce %}Да{% else %}Нет{% endif %}</dd>
-                            </dl>
-                        </section>
-                        {% endif %}
-
-                        {% if request.insurance_type == 'страхование имущества' or request.insurance_territory or request.guard_conditions or request.property_location_right_holder or request.has_transportation or request.has_construction_work %}
-                        <section>
-                            <h6 class="text-uppercase text-muted mb-3">Имущество</h6>
-                            <dl class="row mb-0">
-                                <dt class="col-sm-6">Территория страхования:</dt>
-                                <dd class="col-sm-6">{{ request.insurance_territory|default:"Не указано" }}</dd>
-
-                                {% if request.guard_conditions %}
-                                <dt class="col-sm-6">Охрана/хранение:</dt>
-                                <dd class="col-sm-6">{{ request.guard_conditions }}</dd>
-                                {% endif %}
-
-                                {% if request.property_location_right_holder %}
-                                <dt class="col-sm-6">Правообладатель места:</dt>
-                                <dd class="col-sm-6">{{ request.get_property_location_right_holder_display }}</dd>
-                                {% endif %}
-
-                                <dt class="col-sm-6">Перевозка:</dt>
-                                <dd class="col-sm-6">{% if request.has_transportation %}Да{% else %}Нет{% endif %}</dd>
-
-                                {% if request.has_transportation %}
-                                {% if request.transportation_departure %}
-                                <dt class="col-sm-6">Пункт отправления:</dt>
-                                <dd class="col-sm-6">{{ request.transportation_departure }}</dd>
-                                {% endif %}
-                                {% if request.transportation_destination %}
-                                <dt class="col-sm-6">Пункт назначения:</dt>
-                                <dd class="col-sm-6">{{ request.transportation_destination }}</dd>
-                                {% endif %}
-                                {% if request.transportation_days %}
-                                <dt class="col-sm-6">Срок перевозки:</dt>
-                                <dd class="col-sm-6">{{ request.transportation_days }} дн.</dd>
-                                {% endif %}
-                                {% endif %}
-
-                                <dt class="col-sm-6">СМР:</dt>
-                                <dd class="col-sm-6">{% if request.has_construction_work %}Да{% else %}Нет{% endif %}</dd>
-                            </dl>
-                        </section>
-                        {% endif %}
-                    </div>
+                    <dl class="rq-kv">
+                        {% if request.brand %}<div><dt>Марка</dt><dd>{{ request.brand }}</dd></div>{% endif %}
+                        {% if request.model %}<div><dt>Модель</dt><dd>{{ request.model }}</dd></div>{% endif %}
+                        <div><dt>Год выпуска</dt><dd>{{ request.manufacturing_year|default:"Не указан" }}</dd></div>
+                        <div><dt>Состояние</dt><dd>{{ request.condition_label|default:"Не указано" }}</dd></div>
+                        {% if request.equipment_type %}<div><dt>Тип/категория</dt><dd>{{ request.equipment_type }}</dd></div>{% endif %}
+                        {% if request.power_or_capacity %}<div><dt>Мощность/производительность</dt><dd>{{ request.power_or_capacity }}</dd></div>{% endif %}
+                        {% if request.acquisition_cost_display %}<div><dt>Стоимость приобретения</dt><dd>{{ request.acquisition_cost_display }}</dd></div>{% endif %}
+                        <div><dt>Цели использования</dt><dd>{{ request.usage_purposes|default:"Не указано" }}</dd></div>
+                    </dl>
                 </div>
 
-                <div class="mt-4 pt-3 border-top">
-                    <h6 class="text-uppercase text-muted mb-3">Дополнительные параметры</h6>
-                    <div class="d-flex flex-wrap gap-2">
+                <div class="rq-section">
+                    <div class="rq-section__title">Условия страхования</div>
+                    <dl class="rq-kv">
+                        <div><dt>Тип страхования</dt><dd>{{ request.insurance_type }}</dd></div>
+                        <div><dt>Срок страхования</dt><dd>{{ request.insurance_period|default:"Период не указан" }}</dd></div>
+                        <div>
+                            <dt>Порядок оплаты премии</dt>
+                            <dd>{% if request.premium_frequency %}{{ request.get_premium_frequency_display }}{% elif request.has_installment %}Рассрочка{% else %}Не указано{% endif %}</dd>
+                        </div>
+                        {% if request.insured_party %}<div><dt>Страхователь</dt><dd>{{ request.get_insured_party_display }}</dd></div>{% endif %}
+                        {% if request.insured_sum_type %}<div><dt>Тип страховой суммы</dt><dd>{{ request.get_insured_sum_type_display }}</dd></div>{% endif %}
+                        <div><dt>Франшиза</dt><dd>{{ request.get_franchise_type_display }}</dd></div>
+                        <div><dt>Банк-кредитор</dt><dd>{{ request.creditor_bank|default:"Не указано" }}</dd></div>
+                    </dl>
+                    <!-- Дополнительные параметры: те же цвета, что в колонке «Условия» списка заявок -->
+                    <div class="rq-flags">
                         <span class="badge req-param-badge {% if request.franchise_type != 'none' %}bg-warning text-dark{% else %}req-param-badge--off{% endif %}">
                             <i class="bi {% if request.franchise_type != 'none' %}bi-check-lg{% else %}bi-x-lg{% endif %} me-1"></i>Франшиза: {{ request.get_franchise_type_display }}
                         </span>
                         {% if request.premium_frequency %}
-                        <span class="badge req-param-badge bg-info text-dark">
-                            <i class="bi bi-check-lg me-1"></i>Премия: {{ request.get_premium_frequency_display }}
-                        </span>
+                        <span class="badge req-param-badge bg-info text-dark"><i class="bi bi-check-lg me-1"></i>Премия: {{ request.get_premium_frequency_display }}</span>
                         {% else %}
                         <span class="badge req-param-badge {% if request.has_installment %}bg-info text-dark{% else %}req-param-badge--off{% endif %}">
                             <i class="bi {% if request.has_installment %}bi-check-lg{% else %}bi-x-lg{% endif %} me-1"></i>Рассрочка
                         </span>
                         {% endif %}
                         {% if request.insured_party %}
-                        <span class="badge req-param-badge bg-secondary">
-                            <i class="bi bi-person-check me-1"></i>Страхователь: {{ request.get_insured_party_display }}
-                        </span>
+                        <span class="badge req-param-badge bg-secondary"><i class="bi bi-person-check me-1"></i>Страхователь: {{ request.get_insured_party_display }}</span>
                         {% endif %}
                         {% if request.insured_sum_type %}
-                        <span class="badge req-param-badge bg-secondary">
-                            <i class="bi bi-shield-check me-1"></i>{{ request.get_insured_sum_type_display }} сумма
-                        </span>
+                        <span class="badge req-param-badge bg-secondary"><i class="bi bi-shield-check me-1"></i>{{ request.get_insured_sum_type_display }} сумма</span>
                         {% endif %}
                         <span class="badge req-param-badge {% if request.has_autostart %}req-param-badge--autostart{% else %}req-param-badge--off{% endif %}">
                             <i class="bi {% if request.has_autostart %}bi-check-lg{% else %}bi-x-lg{% endif %} me-1"></i>Автозапуск
@@ -371,109 +226,175 @@
                         </span>
                     </div>
                 </div>
-            </div>
-            <div class="card-footer req-dates-footer">
-                <span class="req-date-item"><span class="req-date-label">Создана:</span> {% timezone "Europe/Moscow" %}{{ request.created_at|date:"d.m.Y в H:i" }}{% endtimezone %}</span>
-                <span class="req-date-item"><span class="req-date-label">Обновлена:</span> {% timezone "Europe/Moscow" %}{{ request.updated_at|date:"d.m.Y в H:i" }}{% endtimezone %}</span>
-                <span class="req-date-item"><span class="req-date-label">Срок ответа:</span> {% if request.response_deadline %}{% timezone "Europe/Moscow" %}{{ request.response_deadline|date:"d.m.Y в H:i" }}{% endtimezone %}{% else %}Не указан{% endif %}</span>
+
+                {% if request.insurance_type == 'КАСКО' or request.insurance_type == 'страхование спецтехники' or request.pts_psm or request.key_completeness or request.telematics_complex or request.has_autostart or request.has_casco_ce %}
+                <div class="rq-section">
+                    <div class="rq-section__title">КАСКО и спецтехника</div>
+                    <dl class="rq-kv">
+                        <div><dt>ПТС/ПСМ</dt><dd>{{ request.pts_psm|default:"Не указано" }}</dd></div>
+                        <div><dt>Комплектность ключей</dt><dd>{{ request.key_completeness|default:"Не указано" }}</dd></div>
+                        <div><dt>Телематический комплекс</dt><dd>{{ request.telematics_complex|default:"Не указано" }}</dd></div>
+                        <div><dt>Автозапуск</dt><dd>{% if request.has_autostart %}Да{% else %}Нет{% endif %}</dd></div>
+                        <div><dt>КАСКО кат. C/E</dt><dd>{% if request.has_casco_ce %}Да{% else %}Нет{% endif %}</dd></div>
+                    </dl>
+                </div>
+                {% endif %}
+
+                {% if request.insurance_type == 'страхование имущества' or request.insurance_territory or request.guard_conditions or request.property_location_right_holder or request.has_transportation or request.has_construction_work %}
+                <div class="rq-section">
+                    <div class="rq-section__title">Имущество</div>
+                    <dl class="rq-kv">
+                        <div><dt>Территория страхования</dt><dd>{{ request.insurance_territory|default:"Не указано" }}</dd></div>
+                        {% if request.property_location_right_holder %}<div><dt>Правообладатель места</dt><dd>{{ request.get_property_location_right_holder_display }}</dd></div>{% endif %}
+                        <div><dt>Перевозка</dt><dd>{% if request.has_transportation %}Да{% else %}Нет{% endif %}</dd></div>
+                        <div><dt>СМР</dt><dd>{% if request.has_construction_work %}Да{% else %}Нет{% endif %}</dd></div>
+                        {% if request.guard_conditions %}<div class="rq-kv__wide"><dt>Охрана/хранение</dt><dd>{{ request.guard_conditions }}</dd></div>{% endif %}
+                    </dl>
+                    {% if request.has_transportation %}{% if request.transportation_departure or request.transportation_destination or request.transportation_days %}
+                    <div class="rq-route">
+                        <i class="bi bi-truck"></i>
+                        {% if request.transportation_departure %}<div><div class="rq-label">Пункт отправления</div>{{ request.transportation_departure }}</div>{% endif %}
+                        {% if request.transportation_departure and request.transportation_destination %}<i class="bi bi-arrow-right rq-route__arrow"></i>{% endif %}
+                        {% if request.transportation_destination %}<div><div class="rq-label">Пункт назначения</div>{{ request.transportation_destination }}</div>{% endif %}
+                        {% if request.transportation_days %}<div class="rq-route__days"><div class="rq-label">Срок перевозки</div>{{ request.transportation_days }} дн.</div>{% endif %}
+                    </div>
+                    {% endif %}{% endif %}
+                </div>
+                {% endif %}
+
+                {% if request.notes %}
+                <div class="rq-section">
+                    <div class="rq-section__title">Примечание</div>
+                    <div class="rq-note">{{ request.notes|escape|linebreaksbr }}</div>
+                </div>
+                {% endif %}
             </div>
         </div>
 
         <!-- Письмо -->
         {% if request.email_subject or request.email_body %}
         <div class="card mb-4">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">Сгенерированное письмо</h5>
+            <div class="card-header rq-card-header">
                 <div>
+                    <h6 class="mb-0">Сгенерированное письмо</h6>
+                    {% if request.email_subject %}<div class="rq-card-sub">Тема: <b>{{ request.email_subject }}</b></div>{% endif %}
+                </div>
+                <div class="d-flex gap-2">
                     {% if request.status == 'email_generated' %}
-                    <a href="{% url 'insurance_requests:preview_email' request.pk %}" class="btn btn-primary btn-sm">
-                        <i class="bi bi-envelope"></i> Изменить
-                    </a>
+                    <a href="{% url 'insurance_requests:preview_email' request.pk %}" class="btn btn-primary btn-sm"><i class="bi bi-envelope"></i> Изменить</a>
                     {% endif %}
                     {% if request.status == 'uploaded' %}
-                    <a href="{% url 'insurance_requests:generate_email' request.pk %}" class="btn btn-success btn-sm">
-                        <i class="bi bi-magic"></i> Сгенерировать
-                    </a>
+                    <a href="{% url 'insurance_requests:generate_email' request.pk %}" class="btn btn-success btn-sm"><i class="bi bi-magic"></i> Сгенерировать</a>
                     {% endif %}
                 </div>
             </div>
+            {% if request.email_body %}
             <div class="card-body">
-                {% if request.email_subject %}
-                <h6>Тема:</h6>
-                <p class="fw-bold">{{ request.email_subject }}</p>
-                {% endif %}
-
-                {% if request.email_body %}
-                <h6>Текст письма:</h6>
-                <div class="border p-3 bg-light">
-                    <pre class="mb-0" style="white-space: pre-wrap; font-family: inherit;">{{ request.email_body }}</pre>
+                <div class="rq-letter" id="rq-letter">
+                    <pre>{{ request.email_body }}</pre>
                 </div>
-                {% endif %}
-
-
+                <button type="button" class="rq-link-btn mt-2" id="rq-letter-toggle"><i class="bi bi-chevron-down"></i> Показать письмо полностью</button>
             </div>
+            {% endif %}
         </div>
         {% else %}
         <div class="card mb-4">
-            <div class="card-body text-center py-4">
-                <i class="bi bi-envelope display-4 text-muted"></i>
-                <h5 class="mt-3">Письмо не сгенерировано</h5>
-                <p class="text-muted">Нажмите кнопку ниже, чтобы создать письмо на основе данных заявки</p>
-                <a href="{% url 'insurance_requests:generate_email' request.pk %}" class="btn btn-primary">
-                    <i class="bi bi-magic"></i> Сгенерировать письмо
-                </a>
+            <div class="card-body rq-empty">
+                <i class="bi bi-envelope"></i>
+                <h6>Письмо не сгенерировано</h6>
+                <p>Нажмите кнопку ниже, чтобы создать письмо на основе данных заявки</p>
+                <a href="{% url 'insurance_requests:generate_email' request.pk %}" class="btn btn-primary"><i class="bi bi-magic"></i> Сгенерировать письмо</a>
             </div>
         </div>
         {% endif %}
-
     </div>
 
     <div class="col-lg-4">
-        <!-- Вложения -->
+        <!-- Статус заявки -->
         <div class="card mb-4">
-            <div class="card-header">
-                <h6 class="mb-0"><i class="bi bi-paperclip"></i> Вложения</h6>
-            </div>
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-gear"></i> Управление статусом</h6></div>
             <div class="card-body">
-                {% if request.attachments.all %}
-                {% for attachment in request.attachments.all %}
-                <div class="d-flex align-items-center mb-2">
-                    <i class="bi bi-file-earmark-excel text-success me-2"></i>
-                    <div class="flex-grow-1">
-                        <div class="fw-bold">{{ attachment.original_filename }}</div>
-                        <small class="text-muted">{% timezone "Europe/Moscow" %}{{ attachment.uploaded_at|date:"d.m.Y H:i" }}{% endtimezone %} (МСК)</small>
-                    </div>
-                    <a href="{{ attachment.file.url }}" class="btn btn-outline-primary btn-sm" download>
-                        <i class="bi bi-download"></i>
-                    </a>
+                <div class="rq-state">
+                    <span class="rq-label mb-0">Текущий статус:</span>
+                    <span id="status-badge" class="rq-status rq-status--{{ request.status }}">{{ request.get_status_display }}</span>
                 </div>
-                {% endfor %}
+                <form id="status-form">
+                    {% csrf_token %}
+                    <label for="request-status-select" class="rq-label">Изменить статус:</label>
+                    <div class="input-group">
+                        {{ status_form.status }}
+                        <button type="submit" class="btn btn-primary" id="change-status-btn"><i class="bi bi-check-lg"></i> Применить</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Свод предложений -->
+        <div class="card mb-4">
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-collection"></i> Свод предложений</h6></div>
+            <div class="card-body">
+                {% if request.summary %}
+                <div class="rq-summary">
+                    <div>
+                        <div class="rq-summary__title">Свод к {{ request.get_display_name }}</div>
+                        <span class="rq-status rq-status--sum-{{ request.summary.status }}">{{ request.summary.get_status_display }}</span>
+                        {% if request.summary.total_offers > 0 %}<div class="rq-dd-sub mt-1">{{ request.summary.total_offers }} предложений</div>{% endif %}
+                    </div>
+                    <a href="{% url 'summaries:summary_detail' request.summary.pk %}" class="btn btn-outline-primary btn-sm"><i class="bi bi-eye"></i> Открыть свод</a>
+                </div>
+                {% elif request.status == 'emails_sent' %}
+                <div class="rq-empty rq-empty--compact create-summary-section">
+                    <p>Свод предложений не создан</p>
+                    <a href="{% url 'summaries:create_summary' request.pk %}" class="btn btn-success create-summary-btn"><i class="bi bi-plus-circle"></i> Создать свод</a>
+                </div>
+                {% elif request.status == 'uploaded' or request.status == 'email_generated' %}
+                <!-- Свод создаётся только после отправки писем: показываем, что осталось сделать -->
+                <div class="summary-locked">
+                    <p class="rq-card-sub mb-2"><i class="bi bi-lock"></i> Свод можно создать после отправки писем страховщикам:</p>
+                    <ol class="rq-steps">
+                        <li class="{% if request.status == 'uploaded' %}is-current{% else %}is-done{% endif %}">Сгенерируйте письмо</li>
+                        <li class="{% if request.status == 'email_generated' %}is-current{% endif %}">Отправьте письма страховщикам</li>
+                        <li class="{% if request.status == 'email_generated' %}is-current{% endif %}">Поставьте статус «Письма отправлены»</li>
+                    </ol>
+                    <button type="button" class="btn btn-outline-secondary w-100" disabled title="Доступно после статуса «Письма отправлены»"><i class="bi bi-plus-circle"></i> Создать свод</button>
+                </div>
                 {% else %}
-                <p class="text-muted mb-0">Вложений нет</p>
+                <p class="rq-card-sub mb-0">{{ request.get_summary_status }}</p>
                 {% endif %}
             </div>
         </div>
 
+        <!-- Вложения -->
         <div class="card mb-4">
-            <div class="card-header">
-                <h6 class="mb-0"><i class="bi bi-file-earmark-pdf"></i> Заявка для страховой</h6>
-            </div>
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-paperclip"></i> Вложения</h6></div>
             <div class="card-body">
-                <a href="{% url 'insurance_requests:export_request_application' request.pk %}" class="btn btn-outline-primary w-100">
-                    <i class="bi bi-file-earmark-pdf"></i> Скачать заявку (PDF)
-                </a>
+                {% if request.attachments.all %}
+                {% for attachment in request.attachments.all %}
+                <div class="rq-file">
+                    <i class="bi bi-file-earmark-excel rq-file__icon"></i>
+                    <div class="rq-file__main">
+                        <div class="rq-file__name">{{ attachment.original_filename }}</div>
+                        <div class="rq-dd-sub">{% timezone "Europe/Moscow" %}{{ attachment.uploaded_at|date:"d.m.Y H:i" }}{% endtimezone %} (МСК)</div>
+                    </div>
+                    <a href="{{ attachment.file.url }}" class="btn btn-outline-primary btn-sm" download><i class="bi bi-download"></i></a>
+                </div>
+                {% endfor %}
+                {% else %}
+                <p class="rq-card-sub mb-0">Вложений нет</p>
+                {% endif %}
             </div>
         </div>
 
         {% if user.is_superuser %}
         <!-- Служебный блок суперпользователя: разбор парсера V2 и выгрузка карточки -->
-        <div class="card mb-4">
-            <div class="card-header">
+        <div class="card mb-4 rq-service">
+            <div class="card-header rq-card-header">
                 {% if request.is_parser_v2 %}
                 <h6 class="mb-0"><i class="bi bi-magic"></i> Alla Borisovna Magic Parser</h6>
                 {% else %}
                 <h6 class="mb-0"><i class="bi bi-file-earmark-spreadsheet"></i> Выгрузка карточки</h6>
                 {% endif %}
+                <span class="rq-tag">служебное</span>
             </div>
             <div class="card-body">
                 {% if request.is_parser_v2 %}
@@ -481,46 +402,19 @@
                 <div class="mb-3">
                     <div class="d-flex justify-content-between small mb-1">
                         <span class="text-muted">Уверенность разбора</span>
-                        <span>{{ request.parser_v2_confidence_percent }}%</span>
+                        <b>{{ request.parser_v2_confidence_percent }}%</b>
                     </div>
-                    <div class="progress" style="height: 0.45rem;">
-                        <div class="progress-bar" role="progressbar" style="width: {{ request.parser_v2_confidence_percent }}%"></div>
-                    </div>
+                    <div class="rq-meter"><span style="width: {{ request.parser_v2_confidence_percent }}%"></span></div>
                 </div>
                 {% endif %}
-
-                <dl class="row small mb-0">
-                    <dt class="col-6">Предупреждения:</dt>
-                    <dd class="col-6">
-                        {% if request.parser_v2_warning_count %}
-                            <span class="badge bg-warning text-dark">{{ request.parser_v2_warning_count }}</span>
-                        {% else %}
-                            <span class="badge bg-success">0</span>
-                        {% endif %}
-                    </dd>
-
-                    {% if request.parser_v2_source_file_name %}
-                    <dt class="col-6">Исходный файл:</dt>
-                    <dd class="col-6">{{ request.parser_v2_source_file_name }}</dd>
-                    {% endif %}
-
-                    <dt class="col-6">Ответственный за проверку:</dt>
-                    <dd class="col-6">
-                        {% if request.created_by %}
-                            {% if request.created_by.last_name and request.created_by.first_name %}
-                                {{ request.created_by.last_name }} {{ request.created_by.first_name }}
-                            {% elif request.created_by.last_name %}
-                                {{ request.created_by.last_name }}
-                            {% elif request.created_by.first_name %}
-                                {{ request.created_by.first_name }}
-                            {% else %}
-                                Не указано
-                            {% endif %}
-                        {% else %}
-                            Не указано
-                        {% endif %}
-                    </dd>
-                </dl>
+                <div class="rq-rows">
+                    <div class="rq-row"><span>Предупреждения:</span><b>{% if request.parser_v2_warning_count %}<span class="rq-tag rq-tag--warn">{{ request.parser_v2_warning_count }}</span>{% else %}<span class="rq-tag rq-tag--ok">0</span>{% endif %}</b></div>
+                    {% if request.parser_v2_source_file_name %}<div class="rq-row"><span>Исходный файл:</span><b>{{ request.parser_v2_source_file_name }}</b></div>{% endif %}
+                    <div class="rq-row">
+                        <span>Ответственный за проверку:</span>
+                        <b>{% if request.created_by %}{% if request.created_by.last_name and request.created_by.first_name %}{{ request.created_by.last_name }} {{ request.created_by.first_name }}{% elif request.created_by.last_name %}{{ request.created_by.last_name }}{% elif request.created_by.first_name %}{{ request.created_by.first_name }}{% else %}Не указано{% endif %}{% else %}Не указано{% endif %}</b>
+                    </div>
+                </div>
 
                 {% if request.parser_v2_data.warnings %}
                 <details class="mt-3">
@@ -530,9 +424,7 @@
                         <div class="list-group-item px-0">
                             <div class="d-flex justify-content-between gap-2">
                                 <strong class="small">{{ warning.field }}</strong>
-                                <span class="badge {% if warning.level == 'error' %}bg-danger{% elif warning.level == 'manual_required' %}bg-warning text-dark{% elif warning.level == 'info' %}bg-info text-dark{% else %}bg-secondary{% endif %}">
-                                    {{ warning.level }}
-                                </span>
+                                <span class="badge {% if warning.level == 'error' %}bg-danger{% elif warning.level == 'manual_required' %}bg-warning text-dark{% elif warning.level == 'info' %}bg-info text-dark{% else %}bg-secondary{% endif %}">{{ warning.level }}</span>
                             </div>
                             <div class="small mt-1">{{ warning.message }}</div>
                         </div>
@@ -543,19 +435,14 @@
 
                 <div class="d-flex flex-wrap gap-1 mt-3">
                     {% if request.parser_v2_edit_count %}
-                        <span class="badge bg-warning text-dark" title="Оператор поправил распознанное парсером при создании">
-                            Правка парсера: {{ request.parser_v2_edit_count }}
-                        </span>
+                        <span class="rq-tag rq-tag--warn" title="Оператор поправил распознанное парсером при создании">Правка парсера: {{ request.parser_v2_edit_count }}</span>
                     {% endif %}
                     {% if request.parser_v2_post_creation_count %}
-                        <span class="badge" style="background-color:#cfe2ff;color:#084298;" title="Поля меняли после создания заявки">
-                            Изменено после создания: {{ request.parser_v2_post_creation_count }}
-                        </span>
+                        <span class="rq-tag rq-tag--info" title="Поля меняли после создания заявки">Изменено после создания: {{ request.parser_v2_post_creation_count }}</span>
                     {% endif %}
                 </div>
 
-                <a href="{% url 'insurance_requests:request_comparison' request.pk %}"
-                   class="btn btn-outline-secondary btn-sm w-100 mt-2">
+                <a href="{% url 'insurance_requests:request_comparison' request.pk %}" class="btn btn-outline-secondary btn-sm w-100 mt-2">
                     <i class="bi bi-layout-split"></i> Сравнить с Excel (3 состояния)
                 </a>
 
@@ -565,10 +452,7 @@
                     <table class="table table-sm mt-2 mb-0 small">
                         <tbody>
                             {% for field_name, source in request.parser_v2_data.source_map.items %}
-                            <tr>
-                                <th class="text-nowrap">{{ field_name }}</th>
-                                <td>{{ source }}</td>
-                            </tr>
+                            <tr><th class="text-nowrap">{{ field_name }}</th><td>{{ source }}</td></tr>
                             {% endfor %}
                         </tbody>
                     </table>
@@ -583,221 +467,278 @@
             </div>
         </div>
         {% endif %}
-
-        <!-- Управление статусом -->
-        <div class="card mb-4">
-            <div class="card-header">
-                <h6 class="mb-0"><i class="bi bi-gear"></i> Управление статусом</h6>
-            </div>
-            <div class="card-body">
-                <div class="mb-3">
-                    <label class="form-label small text-muted">Текущий статус:</label>
-                    <div>
-                        <span id="status-badge"
-                            class="badge {% load summary_extras %}{{ request.status|status_badge_class }} fs-6">
-                            {{ request.get_status_display }}
-                        </span>
-                    </div>
-                </div>
-                
-                <form id="status-form">
-                    {% csrf_token %}
-                    <div class="mb-3">
-                        <label for="request-status-select" class="form-label">Изменить статус:</label>
-                        {{ status_form.status }}
-                    </div>
-                    <button type="submit" class="btn btn-primary btn-sm w-100" id="change-status-btn">
-                        <i class="bi bi-check-circle"></i> Применить изменения
-                    </button>
-                </form>
-            </div>
-        </div>
-
-        <!-- Свод предложений -->
-        <div class="card mb-4">
-            <div class="card-header">
-                <h6 class="mb-0"><i class="bi bi-collection"></i> Свод предложений</h6>
-            </div>
-            <div class="card-body">
-                {% if request.summary %}
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <div class="fw-bold">Свод к {{ request.get_display_name }}</div>
-                        <span
-                            class="badge {{ request.summary.status|status_badge_class }}">
-                            {{ request.summary.get_status_display }}
-                        </span>
-                        {% if request.summary.total_offers > 0 %}
-                        <div class="mt-2">
-                            <small class="text-muted">{{ request.summary.total_offers }} предложений</small>
-                        </div>
-                        {% endif %}
-                    </div>
-                    <a href="{% url 'summaries:summary_detail' request.summary.pk %}" class="btn btn-outline-primary btn-sm">
-                        <i class="bi bi-eye"></i> Открыть свод
-                    </a>
-                </div>
-                {% elif request.status == 'emails_sent' %}
-                <div class="text-center create-summary-section">
-                    <p class="text-muted mb-3">Свод предложений не создан</p>
-                    <a href="{% url 'summaries:create_summary' request.pk %}" class="btn btn-success create-summary-btn">
-                        <i class="bi bi-plus-circle"></i> Создать свод
-                    </a>
-                </div>
-                {% elif request.status == 'uploaded' or request.status == 'email_generated' %}
-                <!-- Свод создаётся только после отправки писем: показываем, что осталось сделать -->
-                <div class="summary-locked">
-                    <p class="text-muted small mb-2">
-                        <i class="bi bi-lock"></i> Свод можно создать после отправки писем страховщикам:
-                    </p>
-                    <ol class="small mb-3 ps-3">
-                        <li class="{% if request.status == 'uploaded' %}fw-semibold{% else %}text-muted text-decoration-line-through{% endif %}">
-                            Сгенерируйте письмо
-                        </li>
-                        <li class="{% if request.status == 'email_generated' %}fw-semibold{% else %}text-muted{% endif %}">
-                            Отправьте письма страховщикам
-                        </li>
-                        <li class="{% if request.status == 'email_generated' %}fw-semibold{% else %}text-muted{% endif %}">
-                            Поставьте статус «Письма отправлены»
-                        </li>
-                    </ol>
-                    <button type="button" class="btn btn-outline-secondary w-100" disabled
-                            title="Доступно после статуса «Письма отправлены»">
-                        <i class="bi bi-plus-circle"></i> Создать свод
-                    </button>
-                </div>
-                {% else %}
-                <div class="text-center py-3">
-                    <p class="text-muted mb-0">{{ request.get_summary_status }}</p>
-                </div>
-                {% endif %}
-            </div>
-        </div>
-
-
     </div>
 </div>
+</div>
+
+<style>
+.rq-page {
+    --rq-ink: #0f1b2d;
+    --rq-ink-2: #334155;
+    --rq-muted: #6b7a90;
+    --rq-muted-2: #9aa6b6;
+    --rq-line: #edf1f5;
+    --rq-border: #e6ecf1;
+    --rq-soft: #f7f9fb;
+    --rq-brand-red: #ba122b;
+    --rq-batch: #16a34a;
+    font-feature-settings: "tnum" 1;
+}
+
+/* Шапка */
+.rq-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; margin: 0.25rem 0 1.1rem; }
+.rq-head__main { min-width: 0; }
+.rq-back { display: inline-flex; align-items: center; gap: 0.35rem; margin-bottom: 0.45rem; font-size: 0.8125rem; font-weight: 600; color: var(--rq-muted); text-decoration: none; }
+.rq-back:hover { color: var(--app-primary); }
+.rq-head__title-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.9rem; }
+.rq-title { margin: 0; font-family: 'Space Grotesk', 'Manrope', sans-serif; font-size: 1.85rem; font-weight: 700; letter-spacing: -0.02em; color: var(--rq-ink); }
+.rq-head__sub { margin-top: 0.35rem; font-size: 0.93rem; color: var(--rq-muted); }
+.rq-head__sub b { font-weight: 600; color: var(--rq-ink-2); }
+.rq-head__actions { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
+
+/* Кнопка PDF: фирменный красный из логотипа ОН-ЛАЙН брокер */
+.rq-pdf-btn { display: inline-flex; align-items: center; gap: 0.65rem; padding: 0.55rem 1.1rem 0.55rem 0.9rem; border-radius: 12px; background: var(--rq-brand-red); color: #fff; text-decoration: none; box-shadow: 0 6px 16px -6px rgba(186, 18, 43, 0.55); transition: background-color 0.15s ease, transform 0.15s ease; }
+.rq-pdf-btn:hover, .rq-pdf-btn:focus-visible { background: #9e0f24; color: #fff; transform: translateY(-1px); }
+.rq-pdf-btn > .bi { font-size: 1.6rem; line-height: 1; }
+.rq-pdf-btn span { display: flex; flex-direction: column; line-height: 1.15; }
+.rq-pdf-btn b { font-size: 0.98rem; font-weight: 700; }
+.rq-pdf-btn small { font-size: 0.72rem; color: #f5c9d0; }
+
+/* Статусы заявки и свода — мягкая пилюля с точкой, как в списках */
+.rq-status { display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.3rem 0.75rem 0.3rem 0.62rem; border-radius: 999px; font-size: 0.8rem; font-weight: 600; line-height: 1.3; white-space: nowrap; background: #f1f4f8; color: #4a5a70; }
+.rq-status::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.rq-status--sm { padding: 0.15rem 0.55rem 0.15rem 0.5rem; font-size: 0.7rem; }
+.rq-status--uploaded { background: #f1f4f8; color: #4a5a70; }
+.rq-status--email_generated { background: #fdf3e1; color: #98600a; }
+.rq-status--emails_sent { background: #e9f6ef; color: #1d7047; }
+.rq-status--sum-collecting { background: #eaf2fe; color: #1d5fbf; }
+.rq-status--sum-ready { background: #e6f3f1; color: #0b6b66; }
+.rq-status--sum-sent { background: #fdf3e1; color: #98600a; }
+.rq-status--sum-completed_accepted { background: #e9f6ef; color: #1d7047; }
+.rq-status--sum-completed_rejected { background: #fbeeee; color: #b4342d; }
+
+.rq-chip { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.15rem 0.55rem; border-radius: 999px; background: #f1f4f8; color: #4a5a70; font-size: 0.72rem; font-weight: 600; white-space: nowrap; }
+.rq-chip--batch { background: rgba(22, 163, 74, 0.08); color: #166534; box-shadow: inset 0 0 0 1px rgba(22, 163, 74, 0.22); }
+.rq-chip--dup { background: #fef3c7; color: #92400e; }
+.rq-tag { padding: 0.1rem 0.55rem; border-radius: 999px; font-size: 0.69rem; font-weight: 700; background: #f1f4f8; color: #4a5a70; }
+.rq-tag--warn { background: #fdf3e1; color: #8a5a00; }
+.rq-tag--ok { background: #e9f6ef; color: #1d7047; }
+.rq-tag--info { background: #eef4ff; color: #1d4ed8; }
+
+/* Навигатор партии: зелёный, как рейка партий в списке заявок */
+.rq-batchnav { margin-bottom: 1rem; padding: 0.9rem 1.1rem 1rem; border-radius: 18px; background: #f3faf5; border: 1px solid rgba(22, 163, 74, 0.28); box-shadow: inset 4px 0 0 var(--rq-batch); }
+.rq-batchnav__head { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+.rq-batchnav__title { display: flex; align-items: center; gap: 0.7rem; color: #14532d; }
+.rq-batchnav__title > .bi { font-size: 1.5rem; color: var(--rq-batch); }
+.rq-batchnav__title b { font-size: 1rem; }
+.rq-batchnav__meta { display: block; font-size: 0.8rem; color: #3f6b50; }
+.rq-batchnav__arrows { display: flex; gap: 0.4rem; flex-shrink: 0; }
+.rq-batchnav__arrow { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.35rem 0.75rem; border-radius: 10px; background: #fff; border: 1px solid rgba(22, 163, 74, 0.3); font-size: 0.8rem; font-weight: 700; color: #166534; text-decoration: none; }
+.rq-batchnav__arrow:hover { background: #e3f4e8; color: #14532d; }
+.rq-batchnav__caption { margin: 0.8rem 0 0.45rem; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #5d8a6c; }
+.rq-batchnav__tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(205px, 1fr)); gap: 0.55rem; }
+.rq-tile { position: relative; display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; padding: 0.6rem 0.75rem 0.65rem; border-radius: 12px; background: #fff; border: 1px solid #dcebe1; transition: border-color 0.15s ease, box-shadow 0.15s ease; }
+.rq-tile:hover { border-color: var(--rq-batch); box-shadow: 0 4px 12px -6px rgba(22, 163, 74, 0.45); }
+.rq-tile--current { border: 2px solid var(--rq-batch); box-shadow: 0 6px 18px -8px rgba(22, 163, 74, 0.6); }
+.rq-tile__top { display: flex; justify-content: space-between; align-items: center; gap: 0.4rem; }
+.rq-tile__idx { padding: 0.05rem 0.45rem; border-radius: 999px; background: rgba(22, 163, 74, 0.1); color: #166534; font-size: 0.72rem; font-weight: 800; }
+.rq-tile--current .rq-tile__idx { background: var(--rq-batch); color: #fff; }
+.rq-tile__here { font-size: 0.68rem; font-weight: 700; color: var(--rq-batch); text-transform: uppercase; letter-spacing: 0.05em; }
+.rq-tile__name { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 0.86rem; font-weight: 700; line-height: 1.25; color: var(--rq-ink); text-decoration: none; }
+a.rq-tile__name:hover { color: #166534; }
+.rq-tile__link::after { content: ""; position: absolute; inset: 0; }
+.rq-tile__meta { font-size: 0.74rem; color: var(--rq-muted); }
+.rq-tile__foot { display: flex; justify-content: space-between; align-items: center; gap: 0.4rem; margin-top: 0.25rem; }
+.rq-tile__pdf { position: relative; z-index: 2; display: inline-flex; align-items: center; gap: 0.2rem; font-size: 0.72rem; font-weight: 700; color: var(--rq-brand-red); text-decoration: none; }
+.rq-tile__pdf:hover { color: #9e0f24; text-decoration: underline; }
+
+/* Шкала этапов — как в карточке свода; здесь подсвечена фаза «Заявка» */
+.rq-progress .status-progress { margin-bottom: 1rem !important; }
+.rq-progress .status-progress .card-body { padding: 0.75rem 1.25rem 0.6rem !important; }
+.rq-progress .sp-phases { margin-bottom: 0.35rem; }
+.rq-progress .sp-phase-label { padding: 0.2rem 0; border-radius: 8px; }
+.rq-progress .sp-phase-label--request { border-right: 0; margin-right: 6px; background: #eef6f5; color: var(--app-primary); }
+.rq-progress .sp-phase-label--summary { background: var(--rq-soft); color: var(--rq-muted-2); }
+.rq-progress .sp-dot { width: 24px; height: 24px; font-size: 0.7rem; margin-bottom: 0.3rem; }
+.rq-progress .sp-track-bg, .rq-progress .sp-track-fill { top: 11px; height: 2px; }
+.rq-progress .sp-track-fill { background: #b9d9d5; }
+.rq-progress .sp-phase-marker { top: 3px; height: 18px; }
+.rq-progress .sp-step--done .sp-dot { background: #d5ebe8; border-color: #d5ebe8; color: #0b6b66; }
+.rq-progress .sp-step--done.sp-step--rejected .sp-dot { background: #f6dada; border-color: #f6dada; color: #b4342d; }
+.rq-progress .sp-step--active .sp-dot { transform: none; }
+.rq-progress .sp-step--pending .sp-dot { background: #fff; border-color: #dfe5ec; color: #b8c2ce; }
+.rq-progress .sp-label { max-width: none; white-space: nowrap; font-size: 0.7rem; color: var(--rq-muted-2); }
+.rq-progress .sp-step--active .sp-label { color: var(--rq-ink); }
+
+/* Ключевые цифры — как в резюме сделки */
+.rq-kpis { display: grid; grid-template-columns: 1.1fr 1.4fr 1.1fr 1fr; margin-bottom: 1.25rem; background: #fff; border: 1px solid var(--rq-border); border-radius: 18px; overflow: hidden; box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 12px 32px -12px rgba(16, 24, 40, 0.1); }
+.rq-kpi { min-width: 0; padding: 1rem 1.25rem; border-right: 1px solid var(--rq-line); }
+.rq-kpi:last-child { border-right: 0; }
+.rq-kpi--deadline { background: #f6faf9; }
+.rq-kpi__value { font-size: 1.05rem; font-weight: 700; line-height: 1.3; color: var(--rq-ink); }
+.rq-kpi__value--big { font-size: 1.45rem; letter-spacing: -0.01em; }
+.rq-kpi__value--clip { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rq-kpi__sub { margin-top: 0.2rem; font-size: 0.78rem; color: var(--rq-muted); }
+
+/* Карточки */
+.rq-page .card { border: 1px solid var(--rq-border); border-radius: 18px; overflow: hidden; background: #fff; box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 12px 32px -12px rgba(16, 24, 40, 0.1); }
+.rq-page .card:hover { transform: none; }
+.rq-page .card-header { padding: 0.85rem 1.25rem; background: #fff; border-bottom: 1px solid var(--rq-line); }
+.rq-page .card-header h6 { font-size: 0.94rem; font-weight: 700; color: var(--rq-ink); }
+.rq-page .card-header h6 .bi { margin-right: 0.2rem; color: var(--rq-muted-2); }
+.rq-page .card-body { padding: 1rem 1.25rem; }
+.rq-card-header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+.rq-card-sub { margin-top: 0.1rem; font-size: 0.8rem; color: var(--rq-muted); }
+.rq-card-sub b { font-weight: 600; color: var(--rq-ink-2); }
+
+/* Подписи и сетка «ключ — значение» */
+.rq-label, .rq-kv dt { display: block; margin-bottom: 0.25rem; font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--rq-muted-2); }
+.rq-kv { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem 1.25rem; margin: 0; }
+.rq-kv--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.rq-kv__wide { grid-column: 1 / -1; }
+.rq-kv dd { margin: 0; font-size: 0.9rem; color: var(--rq-ink); overflow-wrap: anywhere; }
+.rq-dd-sub { font-size: 0.78rem; color: var(--rq-muted); }
+.rq-section { margin-top: 1.25rem; padding-top: 1.1rem; border-top: 1px solid var(--rq-line); }
+.rq-section--first { margin-top: 0; padding-top: 0; border-top: 0; }
+.rq-section__title { margin-bottom: 0.8rem; font-size: 0.72rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--app-primary); }
+.rq-object { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-bottom: 1rem; font-size: 1.12rem; font-weight: 700; color: var(--rq-ink); }
+.rq-flags { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 1rem; }
+.rq-route { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem 1.1rem; margin-top: 1rem; padding: 0.75rem 1rem; border-radius: 12px; background: var(--rq-soft); font-size: 0.9rem; color: var(--rq-ink); }
+.rq-route > .bi-truck { font-size: 1.2rem; color: var(--rq-muted-2); }
+.rq-route__arrow { color: var(--rq-muted-2); }
+.rq-route__days { margin-left: auto; }
+.rq-note { padding: 0.75rem 0.9rem; border-radius: 12px; background: #fdf8e8; color: #5c4a12; font-size: 0.9rem; line-height: 1.5; }
+
+/* Письмо: свёрнуто до нескольких строк, раскрывается кнопкой */
+.rq-letter { position: relative; max-height: 11rem; overflow: hidden; padding: 0.9rem 1rem; border-radius: 12px; background: var(--rq-soft); }
+.rq-letter::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 3rem; background: linear-gradient(rgba(247, 249, 251, 0), var(--rq-soft)); }
+.rq-letter.is-open { max-height: none; }
+.rq-letter.is-open::after { display: none; }
+.rq-letter pre { margin: 0; white-space: pre-wrap; font-family: inherit; font-size: 0.86rem; line-height: 1.55; color: var(--rq-ink-2); }
+.rq-link-btn { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0; border: 0; background: none; font-size: 0.82rem; font-weight: 600; color: var(--app-primary); }
+.rq-link-btn:hover { text-decoration: underline; }
+.rq-empty { padding: 1.75rem 1rem; text-align: center; color: var(--rq-muted); }
+.rq-empty > .bi { font-size: 2rem; color: var(--rq-muted-2); }
+.rq-empty h6 { margin: 0.5rem 0 0.25rem; font-weight: 700; color: var(--rq-ink); }
+.rq-empty--compact { padding: 0.5rem 0; }
+
+/* Правая колонка */
+.rq-state { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; margin-bottom: 0.9rem; }
+.rq-page #status-form .form-select { font-size: 0.9rem; }
+.rq-summary { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; }
+.rq-summary__title { margin-bottom: 0.35rem; font-weight: 700; color: var(--rq-ink); }
+.rq-steps { margin: 0 0 0.9rem; padding-left: 1.1rem; font-size: 0.85rem; color: var(--rq-muted); }
+.rq-steps li { margin-bottom: 0.2rem; }
+.rq-steps .is-current { font-weight: 600; color: var(--rq-ink); }
+.rq-steps .is-done { text-decoration: line-through; }
+.rq-file { display: flex; align-items: center; gap: 0.7rem; padding: 0.55rem 0; }
+.rq-file + .rq-file { border-top: 1px solid var(--rq-line); }
+.rq-file__icon { font-size: 1.35rem; color: #1d7047; }
+.rq-file__main { flex: 1; min-width: 0; }
+.rq-file__name { font-size: 0.86rem; font-weight: 600; color: var(--rq-ink); overflow-wrap: anywhere; }
+.rq-service { border-style: dashed !important; }
+.rq-service .card-header { background: var(--rq-soft); }
+.rq-rows { display: grid; gap: 0.4rem; }
+.rq-row { display: flex; justify-content: space-between; gap: 0.75rem; font-size: 0.84rem; }
+.rq-row span { flex-shrink: 0; color: var(--rq-muted); }
+.rq-row b { font-weight: 600; text-align: right; color: var(--rq-ink); overflow-wrap: anywhere; }
+.rq-meter { height: 6px; border-radius: 3px; background: #e5eaf0; overflow: hidden; }
+.rq-meter span { display: block; height: 100%; background: var(--app-primary); }
+
+@media (max-width: 991.98px) {
+    .rq-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .rq-kpi:nth-child(2) { border-right: 0; }
+    .rq-kpi:nth-child(-n+2) { border-bottom: 1px solid var(--rq-line); }
+    .rq-kv { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 767.98px) {
+    .rq-head { flex-direction: column; align-items: stretch; }
+    .rq-title { font-size: 1.45rem; }
+    .rq-head__actions { flex-wrap: wrap; }
+    .rq-batchnav__head { flex-direction: column; align-items: flex-start; }
+}
+</style>
 {% endblock %}
 
 {% block extra_js %}
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        // Status change functionality
         initStatusChange();
-        
-
+        initLetterToggle();
     });
 
-    // Status change functionality
+    // Смена статуса без перезагрузки страницы
     function initStatusChange() {
         const statusForm = document.getElementById('status-form');
         const statusSelect = document.getElementById('request-status-select');
-        const statusBadge = document.getElementById('status-badge');
         const changeStatusBtn = document.getElementById('change-status-btn');
 
-        if (!statusForm || !statusSelect || !statusBadge || !changeStatusBtn) {
-            return; // Elements not found, skip initialization
+        if (!statusForm || !statusSelect || !changeStatusBtn) {
+            return;
         }
+        const buttonHtml = changeStatusBtn.innerHTML;
 
-        // Handle form submission
-        statusForm.addEventListener('submit', function(e) {
+        statusForm.addEventListener('submit', function (e) {
             e.preventDefault();
-            
+
             const newStatus = statusSelect.value;
             const currentStatus = statusSelect.dataset.currentStatus || '{{ request.status }}';
-            
             if (newStatus === currentStatus) {
-                return; // No change needed
+                return;
             }
-            
-            // Disable form during request
+
             changeStatusBtn.disabled = true;
             statusSelect.disabled = true;
             changeStatusBtn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
-            
-            // Prepare form data
+
             const formData = new FormData();
             formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
             formData.append('status', newStatus);
-            
-            // Send AJAX request
+
             fetch('{% url "insurance_requests:change_request_status" request.pk %}', {
                 method: 'POST',
                 body: formData,
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
             })
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    // Update status badge
-                    updateStatusBadge(data.new_status, data.new_status_display);
-                    
-                    // Update current status tracking
+                    updateStatusBadges(data.new_status, data.new_status_display);
                     statusSelect.dataset.currentStatus = data.new_status;
-                    
-                    // Show success message
                     showStatusMessage(data.message, 'success');
                 } else {
-                    // Show error message
                     showStatusMessage(data.error || 'Произошла ошибка при изменении статуса', 'error');
-                    
-                    // Reset select to current status
                     statusSelect.value = currentStatus;
                 }
             })
             .catch(error => {
                 console.error('Status change error:', error);
                 showStatusMessage('Произошла ошибка при изменении статуса', 'error');
-                
-                // Reset select to current status
                 statusSelect.value = currentStatus;
             })
             .finally(() => {
-                // Re-enable form
                 changeStatusBtn.disabled = false;
                 statusSelect.disabled = false;
-                changeStatusBtn.innerHTML = '<i class="bi bi-check"></i>';
+                changeStatusBtn.innerHTML = buttonHtml;
             });
         });
 
-        // Track current status
         statusSelect.dataset.currentStatus = '{{ request.status }}';
     }
 
-    function updateStatusBadge(status, statusDisplay) {
-        const statusBadge = document.getElementById('status-badge');
-        if (!statusBadge) return;
-        
-        // Remove existing status and text color classes
-        statusBadge.classList.remove('bg-success', 'bg-info', 'bg-warning', 'bg-secondary', 'text-dark');
-        
-        // Add new status class with appropriate text color
-        switch(status) {
-            case 'completed':
-                statusBadge.classList.add('bg-success');
-                break;
-            case 'email_sent':
-                statusBadge.classList.add('bg-info', 'text-dark');
-                break;
-            case 'email_generated':
-                statusBadge.classList.add('bg-warning', 'text-dark');
-                break;
-            case 'uploaded':
-                statusBadge.classList.add('bg-secondary');
-                break;
-            default:
-                statusBadge.classList.add('bg-secondary');
-                break;
-        }
-        statusBadge.textContent = statusDisplay;
+    // Пилюли статуса в шапке и в блоке «Управление статусом»
+    function updateStatusBadges(status, statusDisplay) {
+        ['status-badge', 'status-pill'].forEach(function (id) {
+            const badge = document.getElementById(id);
+            if (!badge) return;
+            badge.classList.remove('rq-status--uploaded', 'rq-status--email_generated', 'rq-status--emails_sent');
+            badge.classList.add('rq-status--' + status);
+            badge.textContent = statusDisplay;
+        });
     }
 
     function showStatusMessage(message, type) {
-        // Create or update message element
         let messageElement = document.getElementById('status-message');
-        
         if (!messageElement) {
             messageElement = document.createElement('div');
             messageElement.id = 'status-message';
@@ -807,28 +748,17 @@
             messageElement.style.right = '20px';
             messageElement.style.zIndex = '9999';
             messageElement.style.minWidth = '300px';
-            
-            // Add close button
             messageElement.innerHTML = `
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                 <span class="message-text"></span>
             `;
-            
             document.body.appendChild(messageElement);
         }
-        
-        // Update message content and style
-        const messageText = messageElement.querySelector('.message-text');
-        messageText.textContent = message;
-        
-        // Remove existing alert classes
+        messageElement.querySelector('.message-text').textContent = message;
         messageElement.className = messageElement.className.replace(/alert-\w+/g, '');
-        
-        // Add appropriate alert class
-        const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
-        messageElement.className += ' ' + alertClass;
-        
-        // Auto-hide after 3 seconds for success messages
+        messageElement.className += ' ' + (type === 'success' ? 'alert-success' : 'alert-danger');
+
+        // Сообщение об успехе скрывается само через 3 секунды
         if (type === 'success') {
             setTimeout(() => {
                 if (messageElement && messageElement.parentNode) {
@@ -836,6 +766,24 @@
                 }
             }, 3000);
         }
+    }
+
+    // Письмо свёрнуто до нескольких строк; кнопка раскрывает его целиком
+    function initLetterToggle() {
+        const letter = document.getElementById('rq-letter');
+        const toggle = document.getElementById('rq-letter-toggle');
+        if (!letter || !toggle) return;
+        if (letter.scrollHeight <= letter.clientHeight + 4) {
+            letter.classList.add('is-open');
+            toggle.hidden = true;
+            return;
+        }
+        toggle.addEventListener('click', function () {
+            const open = letter.classList.toggle('is-open');
+            toggle.innerHTML = open
+                ? '<i class="bi bi-chevron-up"></i> Свернуть письмо'
+                : '<i class="bi bi-chevron-down"></i> Показать письмо полностью';
+        });
     }
 </script>
 {% endblock %}

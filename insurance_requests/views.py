@@ -1213,6 +1213,8 @@ def request_detail(request, pk):
     # Stage 4.4: when this row belongs to a V2 batch, pull the siblings so
     # the template can render «В этой партии: N заявок» with links.
     batch_siblings = []
+    batch_prev = batch_next = None
+    batch_total = ''
     if insurance_request.source_batch_id and insurance_request.item_count and insurance_request.item_count > 1:
         batch_siblings = list(
             InsuranceRequest.objects
@@ -1220,12 +1222,37 @@ def request_detail(request, pk):
             .exclude(pk=insurance_request.pk)
             .order_by('item_no')
         )
+        # Навигатор партии: соседние объекты по порядку и общая стоимость партии.
+        current_no = insurance_request.item_no or 0
+        batch_prev = next((s for s in reversed(batch_siblings) if (s.item_no or 0) < current_no), None)
+        batch_next = next((s for s in batch_siblings if (s.item_no or 0) > current_no), None)
+        batch_total = _batch_total_display([insurance_request] + batch_siblings)
 
     return render(request, 'insurance_requests/request_detail.html', {
         'request': insurance_request,
         'status_form': status_form,
         'batch_siblings': batch_siblings,
+        'batch_prev': batch_prev,
+        'batch_next': batch_next,
+        'batch_total': batch_total,
     })
+
+
+def _batch_total_display(batch_requests):
+    """Сумма стоимостей объектов партии в формате acquisition_cost_display.
+
+    Пусто, если у какого-то объекта нет стоимости или валюты различаются —
+    тогда сумма ничего не говорит.
+    """
+    values = [r.acquisition_cost_value for r in batch_requests]
+    currencies = {r.acquisition_cost_currency or '' for r in batch_requests}
+    if not values or any(v is None for v in values) or len(currencies) > 1:
+        return ''
+    total = InsuranceRequest(
+        acquisition_cost_value=sum(values),
+        acquisition_cost_currency=currencies.pop() or None,
+    )
+    return total.acquisition_cost_display
 
 
 @user_required

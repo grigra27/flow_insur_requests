@@ -1,0 +1,19 @@
+{# Плитка объекта в навигаторе партии: obj — заявка-объект, current — текущая открытая заявка. #}
+<div class="rq-tile{% if current %} rq-tile--current{% endif %}">
+    <div class="rq-tile__top">
+        <span class="rq-tile__idx">{{ obj.item_no }}/{{ obj.item_count }}</span>
+        {% if current %}<span class="rq-tile__here">вы здесь</span>{% endif %}
+    </div>
+    {% if current %}
+    <div class="rq-tile__name">{{ obj.object_display_name|default:"Объект не указан" }}</div>
+    {% else %}
+    <a class="rq-tile__name rq-tile__link" href="{% url 'insurance_requests:request_detail' obj.pk %}">{{ obj.object_display_name|default:"Объект не указан" }}</a>
+    {% endif %}
+    <div class="rq-tile__meta">
+        {% if obj.manufacturing_year %}{{ obj.manufacturing_year }}{% endif %}{% if obj.condition %}{% if obj.manufacturing_year %} · {% endif %}{{ obj.get_condition_display }}{% endif %}{% if obj.acquisition_cost_display %}{% if obj.manufacturing_year or obj.condition %} · {% endif %}{{ obj.acquisition_cost_display }}{% endif %}{% if obj.source_object_count and obj.source_object_count > 1 %} · ×{{ obj.source_object_count }}{% endif %}
+    </div>
+    <div class="rq-tile__foot">
+        <span class="rq-status rq-status--{{ obj.status }} rq-status--sm">{{ obj.get_status_display }}</span>
+        <a class="rq-tile__pdf" href="{% url 'insurance_requests:export_request_application' obj.pk %}" title="Заявка для страховой по объекту {{ obj.item_no }}"><i class="bi bi-file-earmark-pdf"></i> PDF</a>
+    </div>
+</div>
