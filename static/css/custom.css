@@ -6,7 +6,7 @@
     --app-surface: #ffffff;
     --app-border: #d9e5ef;
     --app-text: #182235;
-    --app-muted: #5b6d84;
+    --app-muted: #465871;
     --app-primary: #0b7a75;
     --app-primary-dark: #075c58;
     --app-primary-soft: #e5f4f2;
@@ -21,7 +21,7 @@
 }
 
 body.app-body {
-    font-family: 'Manrope', 'Segoe UI', Tahoma, sans-serif;
+    font-family: 'Onest', 'Manrope', 'Segoe UI', Tahoma, sans-serif;
     color: var(--app-text);
     background:
         radial-gradient(1200px 420px at 8% -12%, rgba(11, 122, 117, 0.16), transparent 56%),
@@ -49,6 +49,25 @@ body.app-body {
 .app-layout-full {
     width: 100%;
     max-width: 100% !important;
+}
+
+/* Большие мониторы (2026-09): всё крупнее (размеры в rem), основной текст плотнее. */
+@media (min-width: 1600px) {
+    html {
+        font-size: 18px;
+    }
+
+    body.app-body {
+        font-weight: 500;
+    }
+
+    .app-layout-default {
+        max-width: 1380px !important;
+    }
+
+    .app-layout-wide {
+        max-width: 1720px !important;
+    }
 }
 
 h1,
