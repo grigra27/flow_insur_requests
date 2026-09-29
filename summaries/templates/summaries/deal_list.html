@@ -287,7 +287,7 @@
                     <td class="sl-cell-client">
                         <div class="sl-client dl-client" title="{{ req.client_name }}">{{ req.client_name|default:req.get_display_name }}</div>
                         <div class="sl-meta" title="ИНН {{ req.inn|default:'—' }}">
-                            <span class="dl-number">{{ req.get_display_name }}</span>{% if req.branch %} · {{ req.branch|format_branch }}{% endif %}{% if deal.type_label %} · {{ deal.type_label }}{% endif %}
+                            <span class="dl-number">{{ req.get_display_name }}</span>{% if req.branch %} · {{ req.branch|branch_badge }}{% endif %}{% if deal.type_label %} · {{ deal.type_label }}{% endif %}
                         </div>
                         {% with object_summary=req.object_summary %}
                             {% if object_summary %}

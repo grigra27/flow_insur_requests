@@ -262,7 +262,7 @@
                             <thead>
                                 <tr>
                                     <th>СК</th>
-                                    {% for column in heatmap.columns %}<th class="heat-col">{{ column }}</th>{% endfor %}
+                                    {% for column in heatmap.columns %}<th class="heat-col" title="{{ column }}">{% if key == 'branch' %}{{ column|branch_badge:'only'|default:column }}{% else %}{{ column }}{% endif %}</th>{% endfor %}
                                     <th class="num">Итого</th>
                                 </tr>
                             </thead>

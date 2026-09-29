@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load tz %}
+{% load summary_extras %}
 
 {% block title %}Редактирование {{ request.get_display_name }} - {{ block.super }}{% endblock %}
 
@@ -16,7 +17,7 @@
                 <h1 class="rf-title">Редактирование {{ request.get_display_name }}</h1>
                 {% if request.item_count and request.item_count > 1 %}<span class="rf-chip rf-chip--batch"><i class="bi bi-collection"></i> Партия {{ request.item_no }}/{{ request.item_count }}</span>{% endif %}
             </div>
-            <div class="rf-head__sub"><b>{{ request.client_name }}</b>{% if request.branch %} · {{ request.branch }}{% endif %} · изменения сохранятся только в этой заявке</div>
+            <div class="rf-head__sub"><b>{{ request.client_name }}</b>{% if request.branch %} · {{ request.branch|branch_badge }}{% endif %} · изменения сохранятся только в этой заявке</div>
         </div>
     </div>
 

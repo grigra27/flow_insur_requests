@@ -67,7 +67,7 @@
                     </div>
                 </div>
                 <dl class="sd-kv">
-                    <div><dt>Филиал</dt><dd>{{ summary.branch|format_branch }}</dd></div>
+                    <div><dt>Филиал</dt><dd>{% if summary.branch %}{{ summary.branch|branch_badge }}{% else %}Не указан{% endif %}</dd></div>
                     <div><dt>Тип страхования</dt><dd>{{ summary.request.insurance_type }}</dd></div>
                     {% if summary.request.inn %}
                     <div><dt>ИНН</dt><dd>{{ summary.request.inn }}</dd></div>

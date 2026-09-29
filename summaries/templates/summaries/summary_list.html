@@ -132,7 +132,7 @@
                             {% endif %}
                         </div>
                         <div class="sl-meta">
-                            {{ summary.branch|format_branch }}{% if info.type_label %} · {{ info.type_label }}{% endif %}{% if info.years_label %} · {{ info.years_label }}{% endif %}
+                            {% if summary.branch %}{{ summary.branch|branch_badge }}{% else %}Не указан{% endif %}{% if info.type_label %} · {{ info.type_label }}{% endif %}{% if info.years_label %} · {{ info.years_label }}{% endif %}
                         </div>
                     </td>
                     <td class="sl-cell-client">

@@ -388,3 +388,29 @@ def insurer_logo_urls_json(element_id='insurer-logo-urls'):
     from ..services.insurer_logos import logo_urls
 
     return json_script(logo_urls(), element_id)
+
+
+@register.filter
+def branch_badge(name, mode=''):
+    """Значок филиала + название: {{ request.branch|branch_badge }}; только значок: {{ name|branch_badge:'only' }}.
+
+    Значок — цветная плашка с буквами филиала (как в ДФА) и кодом региона. Филиал без значка
+    выводится текстом, пустой филиал — пустой строкой.
+    """
+    from django.utils.html import format_html
+
+    from core.branch_badges import branch_badge_data
+
+    label = str(name).strip() if name else ''
+    if not label:
+        return ''
+    data = branch_badge_data(label)
+    if data is None:
+        return '' if mode == 'only' else label
+    badge = format_html(
+        '<span class="brb" style="--brb:{}" title="{} · {} регион"><b>{}</b><i>{}</i></span>',
+        data['color'], label, data['region'], data['letters'], data['region'],
+    )
+    if mode == 'only':
+        return badge
+    return format_html('<span class="brb-wrap">{}{}</span>', badge, label)

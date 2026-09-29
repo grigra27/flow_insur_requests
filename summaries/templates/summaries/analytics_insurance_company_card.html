@@ -266,7 +266,7 @@
                             <thead><tr><th>Филиал</th><th class="num">Участвовала</th><th class="num">Выиграла</th><th class="num">Доля</th><th class="num" title="Была самой дешёвой, но выбрали другую СК">Дешевле всех, но проиграла</th></tr></thead>
                             <tbody>
                             {% for row in branch_price_rows %}
-                                <tr><td>{{ row.label }}</td><td class="num">{{ row.participated }}</td><td class="num">{{ row.won }}</td>
+                                <tr><td>{{ row.label|branch_badge }}</td><td class="num">{{ row.participated }}</td><td class="num">{{ row.won }}</td>
                                     <td class="num">{% if row.win_rate_pct is not None %}{{ row.win_rate_pct|floatformat:0 }}%{% else %}—{% endif %}</td>
                                     <td class="num">{% if row.cheapest_lost %}<span class="cc-cheapest">{{ row.cheapest_lost }}</span>{% else %}—{% endif %}</td></tr>
                             {% empty %}<tr><td colspan="5" class="text-center text-muted py-3">Нет участий.</td></tr>{% endfor %}
@@ -339,7 +339,7 @@
                             <td class="text-nowrap">{% timezone "Europe/Moscow" %}{{ row.created_at|date:"d.m.Y" }}{% endtimezone %}</td>
                             <td class="text-nowrap"><a href="{% url 'summaries:summary_detail' row.summary.pk %}">{{ row.request.dfa_number|default:row.summary.pk }}</a></td>
                             <td>{{ row.request.client_name }}</td>
-                            <td>{{ row.branch }}</td>
+                            <td>{{ row.branch|branch_badge }}</td>
                             <td class="text-nowrap">{{ row.kind }}</td>
                             <td class="text-nowrap">{% if row.won %}<span class="cc-result-won">выиграла</span>{% else %}<span class="cc-result-lost">→ {{ row.winner|insurer:'sm' }}</span>{% endif %}</td>
                             <td class="num">{{ row.own_total|money_short }}</td>

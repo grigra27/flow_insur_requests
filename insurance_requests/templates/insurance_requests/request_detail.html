@@ -18,7 +18,7 @@
             {% endif %}
         </div>
         <div class="rq-head__sub">
-            <b>{{ request.client_name }}</b>{% if request.inn %} · ИНН {{ request.inn }}{% endif %}{% if request.branch %} · {{ request.branch }}{% endif %}
+            <b>{{ request.client_name }}</b>{% if request.inn %} · ИНН {{ request.inn }}{% endif %}{% if request.branch %} · {{ request.branch|branch_badge }}{% endif %}
         </div>
     </div>
     <div class="rq-head__actions">
@@ -114,7 +114,7 @@
                     <div><dt>Клиент</dt><dd>{{ request.client_name }}</dd></div>
                     <div><dt>ИНН</dt><dd>{{ request.inn|default:"—" }}</dd></div>
                     <div><dt>ДФА</dt><dd>{{ request.dfa_number|default:"—" }}</dd></div>
-                    <div><dt>Филиал</dt><dd>{{ request.branch|default:"Не указан" }}</dd></div>
+                    <div><dt>Филиал</dt><dd>{% if request.branch %}{{ request.branch|branch_badge }}{% else %}Не указан{% endif %}</dd></div>
                     <div><dt>Статус сделки</dt><dd>{{ request.get_deal_status_display }}</dd></div>
                     <div><dt>Менеджер Альянса</dt><dd>{{ request.manager_name|default:"Не указано" }}</dd></div>
                     <div>

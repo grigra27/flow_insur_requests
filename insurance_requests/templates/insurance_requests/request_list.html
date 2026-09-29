@@ -438,7 +438,7 @@
                                 {% endif %}
                             </div>
                             <div class="sl-meta">
-                                {{ request.branch|default:"Филиал не указан" }}{% if request.short_type_label %} · {{ request.short_type_label }}{% endif %}
+                                {% if request.branch %}{{ request.branch|branch_badge }}{% else %}Филиал не указан{% endif %}{% if request.short_type_label %} · {{ request.short_type_label }}{% endif %}
                             </div>
                         </td>
                         <td>

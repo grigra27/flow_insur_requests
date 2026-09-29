@@ -18,7 +18,7 @@
             {% endif %}
         </div>
         <div class="ds-head__sub">
-            {% if request_number %}<b>{{ request_number }}</b>{% endif %}{% if branch %} · {{ branch }}{% endif %}{% if client_inn %} · ИНН {{ client_inn }}{% endif %}
+            {% if request_number %}<b>{{ request_number }}</b>{% endif %}{% if branch %} · {{ branch|branch_badge }}{% endif %}{% if client_inn %} · ИНН {{ client_inn }}{% endif %}
         </div>
     </div>
     <div class="ds-head__links">

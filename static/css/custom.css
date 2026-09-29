@@ -2032,3 +2032,46 @@ a.app-crumbs__item:hover {
 .ins-logo--mono.ins-logo--lg {
     font-size: 13px;
 }
+
+/* ─── Значок филиала (summary_extras: |branch): буквы из ДФА + код региона в цвете филиала ─── */
+.brb-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    white-space: nowrap;
+}
+
+.brb {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    flex: none;
+    height: 1.25rem;
+    padding: 0 2px 0 6px;
+    border-radius: 6px;
+    background: var(--brb);
+    font-family: 'Space Grotesk', 'Trebuchet MS', sans-serif;
+    font-style: normal;
+    line-height: 1;
+    vertical-align: middle;
+}
+
+.brb b {
+    color: #ffffff;
+    font-size: 0.69rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+}
+
+.brb i {
+    display: inline-grid;
+    place-items: center;
+    height: 1rem;
+    padding: 0 4px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.92);
+    color: var(--brb);
+    font-style: normal;
+    font-size: 0.66rem;
+    font-weight: 700;
+}

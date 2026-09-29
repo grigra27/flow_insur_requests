@@ -734,7 +734,7 @@ class RequestListRedesignTest(TestCase):
         self.assertContains(response, 'rl-path--uploaded')
         self.assertContains(response, 'rl-path--email_generated')
         self.assertContains(response, 'rl-path--emails_sent')
-        self.assertContains(response, 'Казань · Спецтехника')
+        self.assertContains(response, '<b>КЗ</b><i>16</i></span>Казань</span> · Спецтехника')
 
 
 class RequestListBatchGroupingTest(TestCase):
