@@ -94,11 +94,6 @@
 
 /* Правая колонка */
 .rf-side { position: sticky; top: 1rem; }
-.rf-steps { display: flex; gap: 0.35rem; margin-bottom: 0.9rem; }
-.rf-step { flex: 1; padding: 0.45rem 0.5rem; border-radius: 10px; background: var(--rf-soft); text-align: center; font-size: 0.72rem; font-weight: 700; color: var(--rf-muted-2); }
-.rf-step b { display: block; font-size: 0.95rem; }
-.rf-step--done { background: #e6f3f1; color: #0b6b66; }
-.rf-step--current { background: var(--app-primary); color: #fff; }
 .rf-meter { height: 6px; border-radius: 3px; background: #e5eaf0; overflow: hidden; }
 .rf-meter span { display: block; height: 100%; background: var(--app-primary); }
 .rf-file { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.9rem; font-size: 0.85rem; font-weight: 600; color: var(--rf-ink); overflow-wrap: anywhere; }
@@ -123,6 +118,19 @@ a.rf-warnitem:hover { border-color: var(--rf-warn); }
 .rf-flash { animation: rf-flash 1.6s ease; border-radius: 12px; }
 @keyframes rf-flash { 0%, 60% { box-shadow: 0 0 0 4px rgba(240, 169, 59, 0.45); } 100% { box-shadow: 0 0 0 4px rgba(240, 169, 59, 0); } }
 @media (prefers-reduced-motion: reduce) { .rf-flash { animation: none; } }
+
+/* Шаги загрузки заявки (загрузка файла и проверка) */
+.up-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.5rem; margin-bottom: 1rem; }
+.up-step { display: flex; align-items: center; gap: 0.7rem; padding: 0.7rem 0.9rem; border-radius: 14px; background: #fff; border: 1px solid var(--rf-border); }
+.up-step__num { flex-shrink: 0; display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--rf-soft); color: var(--rf-muted-2); font-weight: 800; }
+.up-step b { display: block; font-size: 0.9rem; color: var(--rf-ink); }
+.up-step small { font-size: 0.76rem; color: var(--rf-muted); }
+.up-step--current { border-color: var(--app-primary); box-shadow: 0 6px 18px -10px rgba(11, 122, 117, 0.6); }
+.up-step--current .up-step__num { background: var(--app-primary); color: #fff; }
+
+.up-step--done { border-color: #cfe7e3; }
+.up-step--done .up-step__num { background: #e6f3f1; color: #0b6b66; }
+@media (max-width: 767.98px) { .up-steps { grid-template-columns: 1fr; } }
 
 /* Нижняя панель действий — всегда под рукой */
 .rf-actionbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 1030; padding: 0.7rem 0 calc(0.7rem + env(safe-area-inset-bottom, 0px)); background: rgba(255, 255, 255, 0.94); border-top: 1px solid var(--rf-border); box-shadow: 0 -8px 24px -16px rgba(16, 24, 40, 0.35); backdrop-filter: blur(6px); }

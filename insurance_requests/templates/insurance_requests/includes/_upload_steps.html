@@ -1,0 +1,6 @@
+{# Шаги загрузки заявки: step — текущий (1 файл, 2 проверка); is_batch — несколько заявок. #}
+<div class="up-steps">
+    <div class="up-step{% if step == 1 %} up-step--current{% else %} up-step--done{% endif %}"><span class="up-step__num">{% if step == 1 %}1{% else %}<i class="bi bi-check-lg"></i>{% endif %}</span><div><b>Файл</b><small>{% if original_filename %}{{ original_filename|truncatechars:48 }}{% else %}Excel-заявка лизингополучателя{% endif %}</small></div></div>
+    <div class="up-step{% if step == 2 %} up-step--current{% endif %}"><span class="up-step__num">2</span><div><b>Проверка</b><small>распознанные поля и объекты</small></div></div>
+    <div class="up-step"><span class="up-step__num">3</span><div><b>{% if is_batch %}Заявки{% else %}Заявка{% endif %}</b><small>{% if is_batch %}{{ batch_size }} заявок — по одной на объект{% else %}по заявке на каждый объект{% endif %}</small></div></div>
+</div>
