@@ -6,7 +6,7 @@
     --app-surface: #ffffff;
     --app-border: #d9e5ef;
     --app-text: #182235;
-    --app-muted: #465871;
+    --app-muted: #5b6d84;
     --app-primary: #0b7a75;
     --app-primary-dark: #075c58;
     --app-primary-soft: #e5f4f2;
@@ -49,42 +49,6 @@ body.app-body {
 .app-layout-full {
     width: 100%;
     max-width: 100% !important;
-}
-
-/* Читаемость (2026-09): вспомогательный текст Bootstrap темнее на всех экранах */
-.text-muted {
-    color: #56606b !important;
-}
-
-/* Большие мониторы: всё крупнее на ~6% (размеры в rem), основной текст плотнее,
-   акценты (заголовки, b/strong) на ступень жирнее, чтобы иерархия сохранилась. */
-@media (min-width: 1600px) {
-    html {
-        font-size: 17px;
-    }
-
-    body.app-body {
-        font-weight: 600;
-    }
-
-    body.app-body b,
-    body.app-body strong,
-    body.app-body h1,
-    body.app-body h2,
-    body.app-body h3,
-    body.app-body h4,
-    body.app-body h5,
-    body.app-body h6 {
-        font-weight: 800;
-    }
-
-    .app-layout-default {
-        max-width: 1300px !important;
-    }
-
-    .app-layout-wide {
-        max-width: 1620px !important;
-    }
 }
 
 h1,
