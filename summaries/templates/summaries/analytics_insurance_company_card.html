@@ -4,17 +4,16 @@
 {% block title %}{{ company }} · карточка СК - {{ block.super }}{% endblock %}
 
 {% block extra_css %}
+{% include "summaries/_analytics_styles.html" %}
 <style>
     .cc-card { border: 0; box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08); }
-    .cc-filter { background: linear-gradient(135deg, #f8fafc 0%, #e8f6f2 100%); }
-    .cc-kpi-label { font-size: .78rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: #64748b; }
-    .cc-kpi-value { font-size: 1.6rem; line-height: 1.15; font-weight: 700; color: #0f172a; }
     .cc-hint { font-size: .82rem; color: #64748b; }
     .cc-table th, .cc-table td { vertical-align: middle; }
     .cc-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
     .cc-table .share { color: #64748b; font-size: .82rem; margin-left: .35rem; }
     .cc-bar { height: 4px; border-radius: 2px; background: #e2e8f0; margin-top: 3px; overflow: hidden; }
     .cc-bar > span { display: block; height: 100%; background: var(--cc-color); }
+    .cc-page .cc-swatch { width: 10px; height: 10px; margin-left: 0.2rem; }
     .cc-chart-wrap { position: relative; height: 260px; }
     .cc-swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; background: var(--cc-color); margin-right: .4rem; vertical-align: -1px; }
     .cc-funnel { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .75rem; }
@@ -32,110 +31,67 @@
 {% endblock %}
 
 {% block content %}
-<div class="cc-page" style="--cc-color: {{ color }}">
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
-        <div>
-            <div class="cc-hint"><a href="{% url 'summaries:analytics_insurance_companies' %}?{{ request.GET.urlencode }}">Страховые компании</a> / карточка</div>
-            <h1 class="h3 mb-1">{{ company|insurer:'lg' }}<span class="cc-swatch ms-2"></span></h1>
-            <p class="text-muted mb-0">Сколько бизнеса ушло в компанию, что именно, почему выигрывает и где отказывает.</p>
+<div class="cc-page an-page" style="--cc-color: {{ color }}">
+    <div class="an-head">
+        <div class="an-head__main">
+            <div class="an-crumbs"><a href="{% url 'summaries:analytics' %}">Аналитика</a> / <a href="{% url 'summaries:analytics_insurance_companies' %}?{{ request.GET.urlencode }}">Страховые компании</a> / карточка</div>
+            <h1 class="an-title">{{ company|insurer:'lg' }}<span class="cc-swatch"></span></h1>
+            <p class="an-sub">Сколько бизнеса ушло в компанию, что именно, почему выигрывает и где отказывает.</p>
         </div>
-        <div class="d-flex flex-wrap gap-2 align-items-center">
+        <div class="an-head__actions">
             <select class="form-select w-auto" id="cc-company-switch" aria-label="Другая страховая компания">
                 {% for name in company_choices %}
                 <option value="{% url 'summaries:analytics_insurance_company_card' name %}" {% if name == company %}selected{% endif %}>{{ name }}</option>
                 {% endfor %}
             </select>
-            <a href="{% url 'summaries:export_analytics_insurance_company_card' company %}?{{ request.GET.urlencode }}" class="btn btn-outline-success">
-                <i class="bi bi-file-earmark-spreadsheet"></i> XLSX
-            </a>
+            <a href="{% url 'summaries:export_analytics_insurance_company_card' company %}?{{ request.GET.urlencode }}" class="an-btn an-btn--xlsx"><i class="bi bi-file-earmark-spreadsheet"></i> XLSX</a>
         </div>
     </div>
 
-    <div class="card cc-card cc-filter mb-4">
-        <div class="card-body">
-            <form method="get" class="row g-3 align-items-end">
-                <div class="col-12 col-xl-auto">
-                    <label class="form-label mb-1 d-block">Период</label>
-                    <div class="btn-group flex-wrap" role="group" aria-label="Быстрый период">
-                        {% for value, label in period_choices %}
-                        <a href="{% qs_replace period=value start_date='' end_date='' %}"
-                           class="btn btn-outline-secondary {% if filters.period == value %}active{% endif %}">{{ label }}</a>
-                        {% endfor %}
-                    </div>
-                </div>
-                <div class="col-6 col-md-3 col-xl-2">
-                    <label class="form-label mb-1" for="filter-start">С</label>
-                    <input type="date" class="form-control" id="filter-start" name="start_date" value="{{ filters.start_date }}">
-                </div>
-                <div class="col-6 col-md-3 col-xl-2">
-                    <label class="form-label mb-1" for="filter-end">По</label>
-                    <input type="date" class="form-control" id="filter-end" name="end_date" value="{{ filters.end_date }}">
-                </div>
-                <div class="col-12 col-md-3 col-xl-2">
-                    <label class="form-label mb-1" for="filter-branch">Филиал</label>
-                    <select class="form-select" id="filter-branch" name="branch">
-                        <option value="">Все филиалы</option>
-                        {% for branch in available_filters.branches %}
-                        <option value="{{ branch }}" {% if filters.branch == branch %}selected{% endif %}>{{ branch }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="col-12 col-md-3 col-xl-2">
-                    <label class="form-label mb-1" for="filter-type">Тип страхования</label>
-                    <select class="form-select" id="filter-type" name="insurance_type">
-                        <option value="">Все типы</option>
-                        {% for insurance_type in available_filters.insurance_types %}
-                        <option value="{{ insurance_type }}" {% if filters.insurance_type == insurance_type %}selected{% endif %}>{{ insurance_type }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="col-12 col-xl-auto d-flex gap-2">
-                    {% if filters.period != 'custom' %}<input type="hidden" name="period" value="{{ filters.period }}">{% endif %}
-                    <button type="submit" class="btn btn-primary"><i class="bi bi-funnel"></i> Применить</button>
-                    <a href="{% url 'summaries:analytics_insurance_company_card' company %}" class="btn btn-outline-secondary">Сбросить</a>
-                </div>
-            </form>
-            <div class="cc-hint mt-2">Сделка — акцептованный свод с выбранной СК. Период — по дате создания свода. Доли — от всех сделок периода с теми же фильтрами.</div>
+    <form method="get" class="an-filters">
+        <div class="an-field">
+            <span class="an-label">Период</span>
+            <div class="an-seg" role="group" aria-label="Быстрый период">
+                {% for value, label in period_choices %}
+                <a href="{% qs_replace period=value start_date='' end_date='' %}" class="{% if filters.period == value %}is-active{% endif %}">{{ label }}</a>
+                {% endfor %}
+            </div>
         </div>
-    </div>
+        <div class="an-field"><label for="filter-start">С</label><input type="date" class="form-control" id="filter-start" name="start_date" value="{{ filters.start_date }}"></div>
+        <div class="an-field"><label for="filter-end">По</label><input type="date" class="form-control" id="filter-end" name="end_date" value="{{ filters.end_date }}"></div>
+        <div class="an-field">
+            <label for="filter-branch">Филиал</label>
+            <select class="form-select" id="filter-branch" name="branch">
+                <option value="">Все филиалы</option>
+                {% for branch in available_filters.branches %}
+                <option value="{{ branch }}" {% if filters.branch == branch %}selected{% endif %}>{{ branch }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="an-field">
+            <label for="filter-type">Тип страхования</label>
+            <select class="form-select" id="filter-type" name="insurance_type">
+                <option value="">Все типы</option>
+                {% for insurance_type in available_filters.insurance_types %}
+                <option value="{{ insurance_type }}" {% if filters.insurance_type == insurance_type %}selected{% endif %}>{{ insurance_type }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="an-filters__actions">
+            {% if filters.period != 'custom' %}<input type="hidden" name="period" value="{{ filters.period }}">{% endif %}
+            <button type="submit" class="btn btn-primary"><i class="bi bi-funnel"></i> Применить</button>
+            <a href="{% url 'summaries:analytics_insurance_company_card' company %}" class="btn btn-outline-secondary">Сбросить</a>
+        </div>
+        <div class="an-filters__note">Сделка — акцептованный свод с выбранной СК. Период — по дате создания свода. Доли — от всех сделок периода с теми же фильтрами.</div>
+    </form>
 
     <!-- 3.1 Объём -->
-    <div class="row g-3 mb-4">
-        <div class="col-6 col-lg">
-            <div class="card cc-card h-100"><div class="card-body">
-                <div class="cc-kpi-label">Сделок</div>
-                <div class="cc-kpi-value">{{ kpi.deals }}</div>
-                <small class="text-muted">{% if kpi.deals_share_pct is not None %}{{ kpi.deals_share_pct|floatformat:0 }}% от {{ kpi.market_deals }}{% else %}сделок в периоде нет{% endif %}</small>
-            </div></div>
-        </div>
-        <div class="col-6 col-lg">
-            <div class="card cc-card h-100"><div class="card-body">
-                <div class="cc-kpi-label">Страховая сумма</div>
-                <div class="cc-kpi-value">{{ kpi.insured_sum|money_short }}</div>
-                <small class="text-muted">1-й год{% if kpi.insured_sum_share_pct is not None %} · {{ kpi.insured_sum_share_pct|floatformat:0 }}% рынка{% endif %}</small>
-            </div></div>
-        </div>
-        <div class="col-6 col-lg">
-            <div class="card cc-card h-100"><div class="card-body">
-                <div class="cc-kpi-label">Премия</div>
-                <div class="cc-kpi-value">{{ kpi.premium_total|money_short }}</div>
-                <small class="text-muted">все годы{% if kpi.premium_share_pct is not None %} · {{ kpi.premium_share_pct|floatformat:0 }}% рынка{% endif %}</small>
-            </div></div>
-        </div>
-        <div class="col-6 col-lg">
-            <div class="card cc-card h-100"><div class="card-body">
-                <div class="cc-kpi-label">Тариф</div>
-                <div class="cc-kpi-value">{% if kpi.tariff_pct is not None %}{{ kpi.tariff_pct|floatformat:2 }}%{% else %}—{% endif %}</div>
-                <small class="text-muted">премия / СС 1-го года</small>
-            </div></div>
-        </div>
-        <div class="col-12 col-lg">
-            <div class="card cc-card h-100"><div class="card-body">
-                <div class="cc-kpi-label">Участвовала → выиграла</div>
-                <div class="cc-kpi-value">{{ price.participated }} → {{ price.won }}</div>
-                <small class="text-muted">{% if price.win_rate_pct is not None %}{{ price.win_rate_pct|floatformat:0 }}% выигрышей{% else %}нет участий{% endif %}</small>
-            </div></div>
-        </div>
+    <div class="an-kpis">
+        <div class="an-kpi an-kpi--accent"><div class="an-kpi__label">Сделок</div><div class="an-kpi__value">{{ kpi.deals }}</div><div class="an-kpi__sub">{% if kpi.deals_share_pct is not None %}{{ kpi.deals_share_pct|floatformat:0 }}% от {{ kpi.market_deals }}{% else %}сделок в периоде нет{% endif %}</div></div>
+        <div class="an-kpi"><div class="an-kpi__label">Страховая сумма</div><div class="an-kpi__value">{{ kpi.insured_sum|money_short }}</div><div class="an-kpi__sub">1-й год{% if kpi.insured_sum_share_pct is not None %} · {{ kpi.insured_sum_share_pct|floatformat:0 }}% рынка{% endif %}</div></div>
+        <div class="an-kpi"><div class="an-kpi__label">Премия</div><div class="an-kpi__value">{{ kpi.premium_total|money_short }}</div><div class="an-kpi__sub">все годы{% if kpi.premium_share_pct is not None %} · {{ kpi.premium_share_pct|floatformat:0 }}% рынка{% endif %}</div></div>
+        <div class="an-kpi"><div class="an-kpi__label">Тариф</div><div class="an-kpi__value">{% if kpi.tariff_pct is not None %}{{ kpi.tariff_pct|floatformat:2 }}%{% else %}—{% endif %}</div><div class="an-kpi__sub">премия / СС 1-го года</div></div>
+        <div class="an-kpi"><div class="an-kpi__label">Участвовала → выиграла</div><div class="an-kpi__value">{{ price.participated }} → {{ price.won }}</div><div class="an-kpi__sub">{% if price.win_rate_pct is not None %}{{ price.win_rate_pct|floatformat:0 }}% выигрышей{% else %}нет участий{% endif %}</div></div>
     </div>
 
     {% if charts.labels %}
@@ -202,7 +158,7 @@
     </div>
 
     <!-- 3.2 Что пришло -->
-    <h2 class="h5 mb-2"><i class="bi bi-box-seam"></i> Что пришло в компанию</h2>
+    <div class="an-section-title">Что пришло в компанию</div>
     <p class="cc-hint mb-3">Выигранные сделки: число, доля от сделок СК и страховая сумма.</p>
     <div class="row g-3 mb-4">
         {% for title, rows in dimensions %}
@@ -266,45 +222,15 @@
     </div>
 
     <!-- 3.3 Цена -->
-    <h2 class="h5 mb-2"><i class="bi bi-tags"></i> Почему выигрывает и проигрывает</h2>
+    <div class="an-section-title">Почему выигрывает и проигрывает</div>
     <p class="cc-hint mb-3">Сделки, где у СК было предложение. Цены сравниваются за те же годы и по варианту франшизы, выбранному в сделке; «место по цене» 1 — самая дешёвая.</p>
-    <div class="row g-3 mb-3">
-        <div class="col-6 col-lg">
-            <div class="card cc-card h-100"><div class="card-body">
-                <div class="cc-kpi-label">Выиграла ценой</div>
-                <div class="cc-kpi-value">{{ price.won_cheapest }}</div>
-                <small class="text-muted">была самой дешёвой</small>
-            </div></div>
-        </div>
-        <div class="col-6 col-lg">
-            <div class="card cc-card h-100"><div class="card-body">
-                <div class="cc-kpi-label">Выиграла не ценой</div>
-                <div class="cc-kpi-value">{{ price.won_not_cheapest }}</div>
-                <small class="text-muted">дороже минимума{% if price.won_not_comparable %} · ещё {{ price.won_not_comparable }} без сравнения{% endif %}</small>
-            </div></div>
-        </div>
-        <div class="col-6 col-lg">
-            <div class="card cc-card h-100"><div class="card-body">
-                <div class="cc-kpi-label">Самая дешёвая, но проиграла</div>
-                <div class="cc-kpi-value">{{ price.cheapest_lost }}</div>
-                <small class="text-muted">из {{ price.lost }} проигрышей</small>
-            </div></div>
-        </div>
-        <div class="col-6 col-lg">
-            <div class="card cc-card h-100"><div class="card-body">
-                <div class="cc-kpi-label">Среднее место по цене</div>
-                <div class="cc-kpi-value">{% if price.avg_rank is not None %}{{ price.avg_rank|floatformat:1 }}{% else %}—{% endif %}</div>
-                <small class="text-muted">{{ price.comparable }} сопоставимых сделок</small>
-            </div></div>
-        </div>
-        <div class="col-12 col-lg">
-            <div class="card cc-card h-100"><div class="card-body">
-                <div class="cc-kpi-label">Отрыв от минимума</div>
-                <div class="cc-kpi-value">{% if price.avg_delta_pct is not None %}+{{ price.avg_delta_pct|floatformat:1 }}%{% else %}—{% endif %}</div>
-                <small class="text-muted">в среднем по сопоставимым</small>
-            </div></div>
-        </div>
-    </div>
+    <div class="an-kpis">
+    <div class="an-kpi"><div class="an-kpi__label">Выиграла ценой</div><div class="an-kpi__value">{{ price.won_cheapest }}</div><div class="an-kpi__sub">была самой дешёвой</div></div>
+    <div class="an-kpi"><div class="an-kpi__label">Выиграла не ценой</div><div class="an-kpi__value">{{ price.won_not_cheapest }}</div><div class="an-kpi__sub">дороже минимума{% if price.won_not_comparable %} · ещё {{ price.won_not_comparable }} без сравнения{% endif %}</div></div>
+    <div class="an-kpi"><div class="an-kpi__label">Самая дешёвая, но проиграла</div><div class="an-kpi__value">{{ price.cheapest_lost }}</div><div class="an-kpi__sub">из {{ price.lost }} проигрышей</div></div>
+    <div class="an-kpi"><div class="an-kpi__label">Среднее место по цене</div><div class="an-kpi__value">{% if price.avg_rank is not None %}{{ price.avg_rank|floatformat:1 }}{% else %}—{% endif %}</div><div class="an-kpi__sub">{{ price.comparable }} сопоставимых сделок</div></div>
+    <div class="an-kpi"><div class="an-kpi__label">Отрыв от минимума</div><div class="an-kpi__value">{% if price.avg_delta_pct is not None %}+{{ price.avg_delta_pct|floatformat:1 }}%{% else %}—{% endif %}</div><div class="an-kpi__sub">в среднем по сопоставимым</div></div>
+</div>
     <div class="row g-3 mb-4">
         <div class="col-12 col-md-6 col-xl-3">
             <div class="card cc-card h-100">
