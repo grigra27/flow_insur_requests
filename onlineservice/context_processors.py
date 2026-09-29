@@ -427,13 +427,21 @@ def navigation_context(request):
         if not breadcrumb_template:
             breadcrumb_template = [('Раздел', None)]
 
+    # В аналитике фильтры (период, филиал и т.п.) общие для страниц — крошки их сохраняют.
+    crumb_query = ''
+    if section_key == 'analytics' and getattr(request, 'GET', None):
+        crumb_query = request.GET.urlencode()
+
     breadcrumbs = []
     total = len(breadcrumb_template)
     for index, (label, route_name) in enumerate(breadcrumb_template, start=1):
         is_active = index == total
+        url = '' if is_active or not route_name else _safe_reverse(route_name)
+        if url and url != '#' and crumb_query:
+            url = f'{url}?{crumb_query}'
         breadcrumbs.append({
             'label': label,
-            'url': '' if is_active or not route_name else _safe_reverse(route_name),
+            'url': url,
             'active': is_active,
         })
 
@@ -463,4 +471,26 @@ def navigation_context(request):
             'mode': layout_mode,
             'container_class': layout_container_class,
         },
+        'app_user': _user_badge(getattr(request, 'user', None), user_has_admin_access),
     }
+
+
+def _user_badge(user, is_admin):
+    """Имя, инициалы и роль для блока пользователя в шапке."""
+    if not getattr(user, 'is_authenticated', False):
+        return {}
+    name = (user.get_full_name() or '').strip() or user.get_username()
+    words = [word for word in name.replace('.', ' ').split() if word]
+    if len(words) >= 2:
+        initials = words[0][0] + words[1][0]
+    else:
+        initials = name[:2]
+    if is_admin:
+        role = 'Администратор'
+    elif user.groups.filter(name='Пользователи').exists():
+        role = 'Пользователь'
+    elif user.is_superuser:
+        role = 'Суперпользователь'
+    else:
+        role = 'Без роли'
+    return {'name': name, 'initials': initials.upper(), 'role': role}

@@ -12,15 +12,16 @@
     <link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
     <style>
         body { margin: 0; min-height: 100vh; font-family: 'Onest', 'Manrope', 'Segoe UI', sans-serif; background: linear-gradient(180deg, #ebf4f2 0%, #f4f7fc 40%, #f7f9fd 100%); color: #0f1b2d; }
-        .st-brand { padding: 1rem 1.5rem; background: linear-gradient(120deg, #18345a 0%, #0b7a75 100%); color: #fff; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 1.15rem; }
-        .st-brand span { opacity: 0.6; }
+        .st-brand { display: flex; align-items: center; gap: 0.55rem; padding: 0.9rem 1.5rem; background: #fff; border-bottom: 1px solid #e3eaf0; font-family: 'Space Grotesk', sans-serif; font-size: 1.2rem; color: #0f1b2d; }
+        .st-brand__mark { display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 10px; background: linear-gradient(120deg, #18345a 0%, #0b7a75 100%); color: #fff; font-size: 0.9rem; font-weight: 700; letter-spacing: -0.06em; }
+        .st-brand b { font-weight: 700; } .st-brand i { font-style: normal; color: #0b7a75; }
         .btn-primary { background: #0b7a75; border-color: #0b7a75; }
         .btn-primary:hover { background: #075c58; border-color: #075c58; }
     </style>
     {% include "errors/_state_styles.html" %}
 </head>
 <body>
-    <div class="st-brand">флоу <span>//</span> заявки</div>
+    <div class="st-brand"><span class="st-brand__mark">ф//</span><span><b>флоу</b><i>//</i>заявки</span></div>
     <div class="container">
         <div class="st-page">
             <div class="st-card">

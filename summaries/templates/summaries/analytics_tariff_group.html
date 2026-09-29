@@ -9,7 +9,6 @@
 <div class="an-page">
 <div class="an-head">
     <div class="an-head__main">
-        <div class="an-crumbs"><a href="{% url 'summaries:analytics' %}">Аналитика</a> / <a href="{% url 'summaries:analytics_tariffs' %}?{{ request.GET.urlencode }}">Тарифы</a> / {% if dimension == 'kind' %}вид спецтехники{% else %}марка{% endif %}</div>
         <h1 class="an-title">{{ group }}</h1>
         <p class="an-sub">Какие страховые сколько берут{% if dimension == 'kind' %} за этот вид спецтехники{% else %} за эту марку{% endif %}.</p>
     </div>

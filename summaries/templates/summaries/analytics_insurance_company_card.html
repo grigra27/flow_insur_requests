@@ -34,7 +34,6 @@
 <div class="cc-page an-page" style="--cc-color: {{ color }}">
     <div class="an-head">
         <div class="an-head__main">
-            <div class="an-crumbs"><a href="{% url 'summaries:analytics' %}">Аналитика</a> / <a href="{% url 'summaries:analytics_insurance_companies' %}?{{ request.GET.urlencode }}">Страховые компании</a> / карточка</div>
             <h1 class="an-title">{{ company|insurer:'lg' }}<span class="cc-swatch"></span></h1>
             <p class="an-sub">Сколько бизнеса ушло в компанию, что именно, почему выигрывает и где отказывает.</p>
         </div>

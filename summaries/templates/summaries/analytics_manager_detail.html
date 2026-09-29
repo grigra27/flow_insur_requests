@@ -153,7 +153,6 @@
 {% else %}
 <div class="an-head">
     <div class="an-head__main">
-        <div class="an-crumbs"><a href="{% url 'summaries:analytics' %}">Аналитика</a> / <a href="{% url 'summaries:analytics_managers' %}{% qs_replace %}">Сотрудники</a> / карточка</div>
         <h1 class="an-title"><span class="emp-swatch" style="background: {{ load_row.color }}"></span>{{ name }}</h1>
         <p class="an-sub">@{{ employee.username }}{% if load_row.is_reader %} · только просмотр за период{% endif %}</p>
     </div>
