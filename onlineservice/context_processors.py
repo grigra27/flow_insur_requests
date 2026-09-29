@@ -86,9 +86,8 @@ SECTION_CONFIG = {
         'icon': 'bi-list-ul',
         'root': 'insurance_requests:request_list',
         'links': [
-            ('Все заявки', 'insurance_requests:request_list'),
-            ('Загрузить заявку', 'insurance_requests:upload_excel'),
-            ('Справка', 'insurance_requests:help'),
+            ('Список заявок', 'insurance_requests:request_list'),
+            ('Справка по заявкам', 'insurance_requests:help'),
         ],
     },
     'summaries': {
@@ -97,7 +96,7 @@ SECTION_CONFIG = {
         'root': 'summaries:summary_list',
         'links': [
             ('Список сводов', 'summaries:summary_list'),
-            ('Справка', 'summaries:help'),
+            ('Справка по сводам', 'summaries:help'),
         ],
     },
     'deals': {
