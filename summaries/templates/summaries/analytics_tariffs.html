@@ -102,7 +102,7 @@
         {% if heatmap.rows %}
         <div class="table-responsive">
             <table class="table table-sm mb-0 tf-table tf-heat">
-                <thead><tr><th>Марка / вид</th><th class="num">Медиана</th>{% for company in heatmap.columns %}<th class="col">{{ company }}</th>{% endfor %}</tr></thead>
+                <thead><tr><th>Марка / вид</th><th class="num">Медиана</th>{% for company in heatmap.columns %}<th class="col">{{ company|insurer:'sm' }}</th>{% endfor %}</tr></thead>
                 <tbody>
                 {% for row in heatmap.rows %}
                     <tr>

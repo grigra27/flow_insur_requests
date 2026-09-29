@@ -36,7 +36,7 @@
                 <tbody>
                 {% for row in company_rows %}
                     <tr class="{% if row.low_data %}tf-low{% endif %}">
-                        <td class="fw-semibold"><a href="{% url 'summaries:analytics_insurance_company_card' row.company %}">{{ row.company }}</a>{% if row.low_data %}<span class="tf-badge-low">мало данных</span>{% endif %}</td>
+                        <td class="fw-semibold"><a href="{% url 'summaries:analytics_insurance_company_card' row.company %}">{{ row.company|insurer:'sm' }}</a>{% if row.low_data %}<span class="tf-badge-low">мало данных</span>{% endif %}</td>
                         <td class="num">{{ row.offers }}</td>
                         <td class="num">{{ row.requests }}</td>
                         <td class="num fw-semibold">{{ row.median|floatformat:2 }}%</td>

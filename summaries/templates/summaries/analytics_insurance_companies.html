@@ -237,7 +237,7 @@
                         <thead><tr><th>Месяц</th><th class="num">Сделок</th><th class="num">Страховая сумма</th><th>Лидер по сделкам</th></tr></thead>
                         <tbody>
                             {% for row in monthly_rows %}
-                            <tr><td>{{ row.month_label }}</td><td class="num">{{ row.deals }}</td><td class="num">{{ row.insured_sum|money_short }}</td><td>{{ row.leader }}</td></tr>
+                            <tr><td>{{ row.month_label }}</td><td class="num">{{ row.deals }}</td><td class="num">{{ row.insured_sum|money_short }}</td><td>{{ row.leader|insurer:'sm' }}</td></tr>
                             {% endfor %}
                         </tbody>
                     </table>

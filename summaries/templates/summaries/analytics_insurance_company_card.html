@@ -238,7 +238,7 @@
                 <div class="card-body p-0">
                     <table class="table table-sm mb-0 cc-table"><tbody>
                     {% for name, count in lost_to %}
-                        <tr><td><a href="{% url 'summaries:analytics_insurance_company_card' name %}?{{ request.GET.urlencode }}">{{ name }}</a></td><td class="num">{{ count }}</td></tr>
+                        <tr><td><a href="{% url 'summaries:analytics_insurance_company_card' name %}?{{ request.GET.urlencode }}">{{ name|insurer:'sm' }}</a></td><td class="num">{{ count }}</td></tr>
                     {% empty %}<tr><td class="text-center text-muted py-3">Проигрышей нет.</td></tr>{% endfor %}
                     </tbody></table>
                 </div>
@@ -327,7 +327,7 @@
     <!-- 3.5 Сделки -->
     <div class="card cc-card mb-4">
         <div class="card-header">
-            <h2 class="h5 mb-0"><i class="bi bi-list-ul"></i> Сделки с участием {{ company }}</h2>
+            <h2 class="h5 mb-0"><i class="bi bi-list-ul"></i> Сделки с участием {{ company|insurer:'sm' }}</h2>
             <div class="cc-hint">{{ deal_rows|length }} акцептованных сводов, где у компании было предложение. Премии — за все годы по варианту франшизы сделки.</div>
         </div>
         <div class="card-body p-0">
@@ -342,7 +342,7 @@
                             <td>{{ row.request.client_name }}</td>
                             <td>{{ row.branch }}</td>
                             <td class="text-nowrap">{{ row.kind }}</td>
-                            <td class="text-nowrap">{% if row.won %}<span class="cc-result-won">выиграла</span>{% else %}<span class="cc-result-lost">→ {{ row.winner }}</span>{% endif %}</td>
+                            <td class="text-nowrap">{% if row.won %}<span class="cc-result-won">выиграла</span>{% else %}<span class="cc-result-lost">→ {{ row.winner|insurer:'sm' }}</span>{% endif %}</td>
                             <td class="num">{{ row.own_total|money_short }}</td>
                             <td class="num">{% if row.min_total is not None %}{{ row.min_total|money_short }}{% if row.delta_pct %}<span class="share">+{{ row.delta_pct|floatformat:0 }}%</span>{% endif %}{% else %}—{% endif %}</td>
                             <td class="num">{% if row.rank %}{% if row.is_cheapest and not row.won %}<span class="cc-cheapest">{{ row.rank }} из {{ row.compared }}</span>{% else %}{{ row.rank }} из {{ row.compared }}{% endif %}{% else %}—{% endif %}</td>
