@@ -6,33 +6,22 @@
 {% block extra_css %}{% include "summaries/_tariff_styles.html" %}{% endblock %}
 
 {% block content %}
-<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
-    <div>
-        <div class="tf-hint"><a href="{% url 'summaries:analytics_tariffs' %}?{{ request.GET.urlencode }}">Тарифы</a> / {% if dimension == 'kind' %}вид спецтехники{% else %}марка{% endif %}</div>
-        <h1 class="h3 mb-1"><i class="bi bi-percent"></i> {{ group }}</h1>
-        <p class="text-muted mb-0">Какие страховые сколько берут{% if dimension == 'kind' %} за этот вид спецтехники{% else %} за эту марку{% endif %}.</p>
+<div class="an-page">
+<div class="an-head">
+    <div class="an-head__main">
+        <div class="an-crumbs"><a href="{% url 'summaries:analytics' %}">Аналитика</a> / <a href="{% url 'summaries:analytics_tariffs' %}?{{ request.GET.urlencode }}">Тарифы</a> / {% if dimension == 'kind' %}вид спецтехники{% else %}марка{% endif %}</div>
+        <h1 class="an-title">{{ group }}</h1>
+        <p class="an-sub">Какие страховые сколько берут{% if dimension == 'kind' %} за этот вид спецтехники{% else %} за эту марку{% endif %}.</p>
     </div>
 </div>
 
 {% url 'summaries:analytics_tariff_group' dimension group as reset_url %}
 {% include "summaries/_tariff_filters.html" with show_class_filter=False reset_url=reset_url %}
 
-<div class="row g-3 mb-4">
-    <div class="col-6 col-lg"><div class="card tf-card h-100"><div class="card-body">
-        <div class="tf-kpi-label">Медиана тарифа</div>
-        <div class="tf-kpi-value">{% if kpi.median is not None %}{{ kpi.median|floatformat:2 }}%{% else %}—{% endif %}</div>
-        <small class="text-muted">{% if kpi.p25 is not None %}обычно {{ kpi.p25|floatformat:2 }}–{{ kpi.p75|floatformat:2 }}%{% endif %}</small>
-    </div></div></div>
-    <div class="col-6 col-lg"><div class="card tf-card h-100"><div class="card-body">
-        <div class="tf-kpi-label">Заявок</div>
-        <div class="tf-kpi-value">{{ kpi.requests }}</div>
-        <small class="text-muted">{{ kpi.offers }} предложений{% if kpi.low_data %} · мало данных{% endif %}</small>
-    </div></div></div>
-    <div class="col-12 col-lg"><div class="card tf-card h-100"><div class="card-body">
-        <div class="tf-kpi-label">Разброс</div>
-        <div class="tf-kpi-value">{% if kpi.min is not None %}{{ kpi.min|floatformat:2 }}–{{ kpi.max|floatformat:2 }}%{% else %}—{% endif %}</div>
-        <small class="text-muted">от самого дешёвого до самого дорогого предложения</small>
-    </div></div></div>
+<div class="an-kpis">
+    <div class="an-kpi"><div class="an-kpi__label">Медиана тарифа</div><div class="an-kpi__value">{% if kpi.median is not None %}{{ kpi.median|floatformat:2 }}%{% else %}—{% endif %}</div><div class="an-kpi__sub">{% if kpi.p25 is not None %}обычно {{ kpi.p25|floatformat:2 }}–{{ kpi.p75|floatformat:2 }}%{% endif %}</div></div>
+    <div class="an-kpi"><div class="an-kpi__label">Заявок</div><div class="an-kpi__value">{{ kpi.requests }}</div><div class="an-kpi__sub">{{ kpi.offers }} предложений{% if kpi.low_data %} · мало данных{% endif %}</div></div>
+    <div class="an-kpi"><div class="an-kpi__label">Разброс</div><div class="an-kpi__value">{% if kpi.min is not None %}{{ kpi.min|floatformat:2 }}–{{ kpi.max|floatformat:2 }}%{% else %}—{% endif %}</div><div class="an-kpi__sub">от самого дешёвого до самого дорогого предложения</div></div>
 </div>
 
 <div class="card tf-card mb-4">
@@ -132,5 +121,6 @@
             </table>
         </div>
     </div>
+</div>
 </div>
 {% endblock %}

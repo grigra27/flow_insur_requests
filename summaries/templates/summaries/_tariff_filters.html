@@ -1,81 +1,70 @@
 {% load summary_extras %}
-<div class="card tf-card tf-filter mb-4">
-    <div class="card-body">
-        <form method="get" class="row g-3 align-items-end">
-            <div class="col-12 col-xl-auto">
-                <label class="form-label mb-1 d-block">Период</label>
-                <div class="btn-group flex-wrap" role="group" aria-label="Быстрый период">
-                    {% for value, label in period_choices %}
-                    <a href="{% qs_replace period=value start_date='' end_date='' %}"
-                       class="btn btn-outline-secondary {% if filters.period == value %}active{% endif %}">{{ label }}</a>
-                    {% endfor %}
-                </div>
-            </div>
-            <div class="col-12 col-xl-auto">
-                <label class="form-label mb-1 d-block">Франшиза</label>
-                <div class="btn-group" role="group" aria-label="Режим франшизы">
-                    {% for value, label in mode_choices %}
-                    <a href="{% qs_replace mode=value %}" class="btn btn-outline-secondary {% if filters.mode == value %}active{% endif %}">{{ label }}</a>
-                    {% endfor %}
-                </div>
-            </div>
-            <div class="col-6 col-md-3 col-xl-2">
-                <label class="form-label mb-1" for="tf-start">С</label>
-                <input type="date" class="form-control" id="tf-start" name="start_date" value="{{ filters.start_date }}">
-            </div>
-            <div class="col-6 col-md-3 col-xl-2">
-                <label class="form-label mb-1" for="tf-end">По</label>
-                <input type="date" class="form-control" id="tf-end" name="end_date" value="{{ filters.end_date }}">
-            </div>
-            {% if show_class_filter %}
-            <div class="col-12 col-md-3 col-xl-2">
-                <label class="form-label mb-1" for="tf-class">Класс</label>
-                <select class="form-select" id="tf-class" name="object_class">
-                    <option value="">Все классы</option>
-                    {% for value, label in class_choices %}<option value="{{ value }}" {% if filters.object_class == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
-                </select>
-            </div>
-            {% endif %}
-            <div class="col-6 col-md-3 col-xl-2">
-                <label class="form-label mb-1" for="tf-condition">Состояние</label>
-                <select class="form-select" id="tf-condition" name="condition">
-                    <option value="">Новое и б/у</option>
-                    {% for value, label in condition_choices %}<option value="{{ value }}" {% if filters.condition == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
-                </select>
-            </div>
-            <div class="col-6 col-md-3 col-xl-2">
-                <label class="form-label mb-1" for="tf-sum">Страховая сумма</label>
-                <select class="form-select" id="tf-sum" name="sum_range">
-                    <option value="">Любая</option>
-                    {% for value, label in sum_range_choices %}<option value="{{ value }}" {% if filters.sum_range == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
-                </select>
-            </div>
-            <div class="col-6 col-md-3 col-xl-2">
-                <label class="form-label mb-1" for="tf-branch">Филиал</label>
-                <select class="form-select" id="tf-branch" name="branch">
-                    <option value="">Все филиалы</option>
-                    {% for branch in available_filters.branches %}<option value="{{ branch }}" {% if filters.branch == branch %}selected{% endif %}>{{ branch }}</option>{% endfor %}
-                </select>
-            </div>
-            <div class="col-6 col-md-3 col-xl-2">
-                <label class="form-label mb-1" for="tf-type">Тип страхования</label>
-                <select class="form-select" id="tf-type" name="insurance_type">
-                    <option value="">Все типы</option>
-                    {% for insurance_type in available_filters.insurance_types %}<option value="{{ insurance_type }}" {% if filters.insurance_type == insurance_type %}selected{% endif %}>{{ insurance_type }}</option>{% endfor %}
-                </select>
-            </div>
-            <div class="col-12 col-xl-auto d-flex gap-2">
-                {% if filters.period != 'custom' %}<input type="hidden" name="period" value="{{ filters.period }}">{% endif %}
-                <input type="hidden" name="mode" value="{{ filters.mode }}">
-                <button type="submit" class="btn btn-primary"><i class="bi bi-funnel"></i> Применить</button>
-                <a href="{{ reset_url }}" class="btn btn-outline-secondary">Сбросить</a>
-            </div>
-        </form>
-        <div class="tf-hint mt-2">
-            Тариф 1-го года = премия / страховая сумма, по всем предложениям страховых (не только выигравшим).
-            {% if filters.mode == 'no_franchise' %}Без франшизы — вариант с франшизой 0.{% else %}С франшизой — варианты с франшизой больше 0.{% endif %}
-            Медиана и обычный диапазон (половина предложений); меньше {{ min_requests }} заявок — «мало данных».
-            Это описание прошлого, а не прогноз цены.
+<form method="get" class="an-filters">
+    <div class="an-field">
+        <span class="an-label">Период</span>
+        <div class="an-seg" role="group" aria-label="Быстрый период">
+            {% for value, label in period_choices %}
+            <a href="{% qs_replace period=value start_date='' end_date='' %}" class="{% if filters.period == value %}is-active{% endif %}">{{ label }}</a>
+            {% endfor %}
         </div>
     </div>
-</div>
+    <div class="an-field">
+        <span class="an-label">Франшиза</span>
+        <div class="an-seg" role="group" aria-label="Режим франшизы">
+            {% for value, label in mode_choices %}
+            <a href="{% qs_replace mode=value %}" class="{% if filters.mode == value %}is-active{% endif %}">{{ label }}</a>
+            {% endfor %}
+        </div>
+    </div>
+    <div class="an-field"><label for="tf-start">С</label><input type="date" class="form-control" id="tf-start" name="start_date" value="{{ filters.start_date }}"></div>
+    <div class="an-field"><label for="tf-end">По</label><input type="date" class="form-control" id="tf-end" name="end_date" value="{{ filters.end_date }}"></div>
+    {% if show_class_filter %}
+    <div class="an-field">
+        <label for="tf-class">Класс</label>
+        <select class="form-select" id="tf-class" name="object_class">
+            <option value="">Все классы</option>
+            {% for value, label in class_choices %}<option value="{{ value }}" {% if filters.object_class == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+    </div>
+    {% endif %}
+    <div class="an-field">
+        <label for="tf-condition">Состояние</label>
+        <select class="form-select" id="tf-condition" name="condition">
+            <option value="">Новое и б/у</option>
+            {% for value, label in condition_choices %}<option value="{{ value }}" {% if filters.condition == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+    </div>
+    <div class="an-field">
+        <label for="tf-sum">Страховая сумма</label>
+        <select class="form-select" id="tf-sum" name="sum_range">
+            <option value="">Любая</option>
+            {% for value, label in sum_range_choices %}<option value="{{ value }}" {% if filters.sum_range == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+    </div>
+    <div class="an-field">
+        <label for="tf-branch">Филиал</label>
+        <select class="form-select" id="tf-branch" name="branch">
+            <option value="">Все филиалы</option>
+            {% for branch in available_filters.branches %}<option value="{{ branch }}" {% if filters.branch == branch %}selected{% endif %}>{{ branch }}</option>{% endfor %}
+        </select>
+    </div>
+    <div class="an-field">
+        <label for="tf-type">Тип страхования</label>
+        <select class="form-select" id="tf-type" name="insurance_type">
+            <option value="">Все типы</option>
+            {% for insurance_type in available_filters.insurance_types %}<option value="{{ insurance_type }}" {% if filters.insurance_type == insurance_type %}selected{% endif %}>{{ insurance_type }}</option>{% endfor %}
+        </select>
+    </div>
+    <div class="an-filters__actions">
+        {% if filters.period != 'custom' %}<input type="hidden" name="period" value="{{ filters.period }}">{% endif %}
+        <input type="hidden" name="mode" value="{{ filters.mode }}">
+        <button type="submit" class="btn btn-primary"><i class="bi bi-funnel"></i> Применить</button>
+        <a href="{{ reset_url }}" class="btn btn-outline-secondary">Сбросить</a>
+    </div>
+    <div class="an-filters__note">
+        Тариф 1-го года = премия / страховая сумма, по всем предложениям страховых (не только выигравшим).
+        {% if filters.mode == 'no_franchise' %}Без франшизы — вариант с франшизой 0.{% else %}С франшизой — варианты с франшизой больше 0.{% endif %}
+        Медиана и обычный диапазон (половина предложений); меньше {{ min_requests }} заявок — «мало данных».
+        Это описание прошлого, а не прогноз цены.
+    </div>
+</form>
