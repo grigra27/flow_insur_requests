@@ -4,14 +4,11 @@
 {% block title %}Сотрудники - {{ block.super }}{% endblock %}
 
 {% block extra_css %}
+{% include "summaries/_analytics_styles.html" %}
 <style>
     .emp-card {
         border: 0;
         box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
-    }
-
-    .emp-filter-card {
-        background: linear-gradient(135deg, #f8fafc 0%, #e8f6f2 100%);
     }
 
     .emp-kpi-label {
@@ -102,85 +99,46 @@
 {% endblock %}
 
 {% block content %}
-<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
-    <div>
-        <h1 class="h3 mb-1"><i class="bi bi-people"></i> Сотрудники</h1>
-        <p class="text-muted mb-0">Нагрузка, присутствие и скорость на своих этапах за период.</p>
+<div class="an-page">
+<div class="an-head">
+    <div class="an-head__main">
+        <div class="an-crumbs"><a href="{% url 'summaries:analytics' %}">Аналитика</a> / Сотрудники</div>
+        <h1 class="an-title">Сотрудники</h1>
+        <p class="an-sub">Нагрузка, присутствие и скорость на своих этапах за период.</p>
     </div>
-    <div class="d-flex gap-2">
-        <a href="{% url 'summaries:export_analytics_managers_widget' %}{% qs_replace %}" class="btn btn-outline-success"><i class="bi bi-file-earmark-spreadsheet"></i> XLSX</a>
-        <a href="{% url 'summaries:analytics' %}" class="btn btn-outline-primary"><i class="bi bi-arrow-left"></i> К аналитике</a>
-    </div>
-</div>
-
-<div class="card emp-card emp-filter-card mb-4">
-    <div class="card-body">
-        <form method="get" class="d-flex flex-wrap align-items-end gap-2">
-            <div>
-                <label class="form-label mb-1 d-block">Период</label>
-                <div class="btn-group" role="group" aria-label="Быстрый период">
-                    {% for value, label in period_choices %}
-                    <a href="{% qs_replace period=value start_date='' end_date='' %}"
-                       class="btn btn-outline-secondary {% if filters.period == value %}active{% endif %}">{{ label }}</a>
-                    {% endfor %}
-                </div>
-            </div>
-            <div>
-                <label class="form-label mb-1" for="emp-start">С</label>
-                <input type="date" class="form-control" id="emp-start" name="start_date" value="{{ filters.start_date }}">
-            </div>
-            <div>
-                <label class="form-label mb-1" for="emp-end">По</label>
-                <input type="date" class="form-control" id="emp-end" name="end_date" value="{{ filters.end_date }}">
-            </div>
-            <button type="submit" class="btn btn-primary">Показать</button>
-        </form>
+    <div class="an-head__actions">
+        <a href="{% url 'summaries:export_analytics_managers_widget' %}{% qs_replace %}" class="an-btn an-btn--xlsx"><i class="bi bi-file-earmark-spreadsheet"></i> XLSX</a>
+        <a href="{% url 'summaries:analytics' %}" class="an-btn"><i class="bi bi-arrow-left"></i> К аналитике</a>
     </div>
 </div>
 
-<h2 class="h4 emp-block-title"><i class="bi bi-briefcase"></i> Нагрузка за период</h2>
-
-<div class="row g-3 mb-3">
-    <div class="col-6 col-lg">
-        <div class="card emp-card h-100"><div class="card-body">
-            <div class="emp-kpi-label">Заявок загружено</div>
-            <div class="emp-kpi-value">{{ load.totals.requests }}</div>
-            <small class="text-muted">файлов: {{ load.totals.files }}</small>
-        </div></div>
+<form method="get" class="an-filters">
+    <div class="an-field">
+        <span class="an-label">Период</span>
+        <div class="an-seg" role="group" aria-label="Быстрый период">
+            {% for value, label in period_choices %}
+            <a href="{% qs_replace period=value start_date='' end_date='' %}" class="{% if filters.period == value %}is-active{% endif %}">{{ label }}</a>
+            {% endfor %}
+        </div>
     </div>
-    <div class="col-6 col-lg">
-        <div class="card emp-card h-100"><div class="card-body">
-            <div class="emp-kpi-label">В неделю</div>
-            <div class="emp-kpi-value">{% if load.totals.per_week is not None %}{{ load.totals.per_week|floatformat:1 }}{% else %}—{% endif %}</div>
-            <small class="text-muted">
+    <div class="an-field"><label for="emp-start">С</label><input type="date" class="form-control" id="emp-start" name="start_date" value="{{ filters.start_date }}"></div>
+    <div class="an-field"><label for="emp-end">По</label><input type="date" class="form-control" id="emp-end" name="end_date" value="{{ filters.end_date }}"></div>
+    <div class="an-filters__actions"><button type="submit" class="btn btn-primary">Показать</button></div>
+</form>
+
+<div class="an-section-title">Нагрузка за период</div>
+
+<div class="an-kpis">
+    <div class="an-kpi"><div class="an-kpi__label">Заявок загружено</div><div class="an-kpi__value">{{ load.totals.requests }}</div><div class="an-kpi__sub">файлов: {{ load.totals.files }}</div></div>
+    <div class="an-kpi"><div class="an-kpi__label">В неделю</div><div class="an-kpi__value">{% if load.totals.per_week is not None %}{{ load.totals.per_week|floatformat:1 }}{% else %}—{% endif %}</div><div class="an-kpi__sub">
                 к прошлому периоду:
                 {% if load.totals.change_pct is not None %}
                 <span class="{% if load.totals.change_pct >= 0 %}emp-delta-up{% else %}emp-delta-down{% endif %}">{% if load.totals.change_pct > 0 %}+{% endif %}{{ load.totals.change_pct|floatformat:0 }}%</span>
                 {% else %}—{% endif %}
-            </small>
-        </div></div>
-    </div>
-    <div class="col-6 col-lg">
-        <div class="card emp-card h-100"><div class="card-body">
-            <div class="emp-kpi-label">Предложений внесено</div>
-            <div class="emp-kpi-value">{{ load.totals.offers }}</div>
-            <small class="text-muted">по дате ввода</small>
-        </div></div>
-    </div>
-    <div class="col-6 col-lg">
-        <div class="card emp-card h-100"><div class="card-body">
-            <div class="emp-kpi-label">Отправлено клиенту</div>
-            <div class="emp-kpi-value">{{ load.totals.sent }}</div>
-            <small class="text-muted">собрано сводов: {{ load.totals.assembled }}</small>
-        </div></div>
-    </div>
-    <div class="col-12 col-lg">
-        <div class="card emp-card h-100"><div class="card-body">
-            <div class="emp-kpi-label">Закрыто сделок</div>
-            <div class="emp-kpi-value">{{ load.totals.accepted }}</div>
-            <small class="text-muted">«не будет» вручную: {{ load.totals.rejected }}</small>
-        </div></div>
-    </div>
+            </div></div>
+    <div class="an-kpi"><div class="an-kpi__label">Предложений внесено</div><div class="an-kpi__value">{{ load.totals.offers }}</div><div class="an-kpi__sub">по дате ввода</div></div>
+    <div class="an-kpi"><div class="an-kpi__label">Отправлено клиенту</div><div class="an-kpi__value">{{ load.totals.sent }}</div><div class="an-kpi__sub">собрано сводов: {{ load.totals.assembled }}</div></div>
+    <div class="an-kpi"><div class="an-kpi__label">Закрыто сделок</div><div class="an-kpi__value">{{ load.totals.accepted }}</div><div class="an-kpi__sub">«не будет» вручную: {{ load.totals.rejected }}</div></div>
 </div>
 
 <div class="card emp-card mb-3">
@@ -246,7 +204,7 @@
 </div>
 {% endif %}
 
-<h2 class="h4 emp-block-title"><i class="bi bi-clock-history"></i> Присутствие</h2>
+<div class="an-section-title">Присутствие</div>
 
 {% if presence.coverage_partial %}
 <div class="alert alert-info">
@@ -320,30 +278,12 @@
     </div>
 </div>
 
-<h2 class="h4 emp-block-title"><i class="bi bi-speedometer2"></i> Скорость на своих этапах</h2>
+<div class="an-section-title">Скорость на своих этапах</div>
 
-<div class="row g-3 mb-3">
-    <div class="col-12 col-md-4">
-        <div class="card emp-card h-100"><div class="card-body">
-            <div class="emp-kpi-label">Загрузка → письма в СК</div>
-            <div class="emp-kpi-value">{{ speed.team.upload_to_emails.median|default:'—' }}</div>
-            <small class="text-muted">медиана по команде · заявок {{ speed.team.upload_to_emails.count }}</small>
-        </div></div>
-    </div>
-    <div class="col-12 col-md-4">
-        <div class="card emp-card h-100"><div class="card-body">
-            <div class="emp-kpi-label">Последнее предложение → клиенту</div>
-            <div class="emp-kpi-value">{{ speed.team.offer_to_client.median|default:'—' }}</div>
-            <small class="text-muted">медиана по команде · сводов {{ speed.team.offer_to_client.count }}</small>
-        </div></div>
-    </div>
-    <div class="col-12 col-md-4">
-        <div class="card emp-card h-100"><div class="card-body">
-            <div class="emp-kpi-label">Ожидание клиента</div>
-            <div class="emp-kpi-value">{{ speed.team.client_wait.median|default:'—' }}</div>
-            <small class="text-muted">от отправки до акцепта · не оценка сотрудника</small>
-        </div></div>
-    </div>
+<div class="an-kpis">
+    <div class="an-kpi"><div class="an-kpi__label">Загрузка → письма в СК</div><div class="an-kpi__value">{{ speed.team.upload_to_emails.median|default:'—' }}</div><div class="an-kpi__sub">медиана по команде · заявок {{ speed.team.upload_to_emails.count }}</div></div>
+    <div class="an-kpi"><div class="an-kpi__label">Последнее предложение → клиенту</div><div class="an-kpi__value">{{ speed.team.offer_to_client.median|default:'—' }}</div><div class="an-kpi__sub">медиана по команде · сводов {{ speed.team.offer_to_client.count }}</div></div>
+    <div class="an-kpi"><div class="an-kpi__label">Ожидание клиента</div><div class="an-kpi__value">{{ speed.team.client_wait.median|default:'—' }}</div><div class="an-kpi__sub">от отправки до акцепта · не оценка сотрудника</div></div>
 </div>
 
 <div class="card emp-card mb-3">
@@ -410,6 +350,7 @@
 
 {{ presence.heatmap|json_script:"emp-heatmap-data" }}
 {{ load.chart|json_script:"emp-load-chart" }}
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -430,7 +371,7 @@
                     const alpha = max > 0 && value > 0 ? 0.12 + (value / max) * 0.78 : 0;
                     cell.textContent = value > 0 ? value : '';
                     cell.title = value + ' событий';
-                    cell.style.backgroundColor = alpha ? 'rgba(42, 120, 214, ' + alpha.toFixed(2) + ')' : '';
+                    cell.style.backgroundColor = alpha ? 'rgba(11, 122, 117, ' + alpha.toFixed(2) + ')' : '';
                     cell.style.color = alpha > 0.55 ? '#ffffff' : '#0f172a';
                 });
             };

@@ -1,30 +1,11 @@
 {# Вкладка «При загрузке» страницы «Служебное: качество распознавания» #}
 {# Главный показатель: доля заявок без правок и прогноз после исправлений этапа 6 #}
 {% if forecast.total %}
-<div class="card mb-4 border-success">
-    <div class="card-body">
-        <div class="row g-3 align-items-center">
-            <div class="col-md-4 col-6">
-                <div class="text-muted small">Заявок без правок сейчас</div>
-                <div class="display-6 fw-bold">{{ forecast.clean_now_percent }}%</div>
-                <div class="small text-muted">{{ forecast.clean_now }} из {{ forecast.total }} V2-заявок</div>
-            </div>
-            <div class="col-md-4 col-6">
-                <div class="text-muted small">После исправления известных ошибок парсера</div>
-                <div class="h3 mb-0 text-success">{{ forecast.clean_after_parser_percent }}%</div>
-                <div class="small text-muted">задачи 6.1–6.7</div>
-            </div>
-            <div class="col-md-4 col-6">
-                <div class="text-muted small">…и режима «Изъятое»</div>
-                <div class="h3 mb-0 text-success">{{ forecast.clean_after_all_percent }}%</div>
-                <div class="small text-muted">задача 6.8 · заявок «Изъятое»: {{ forecast.seized_requests }}</div>
-            </div>
-            <div class="col-md-3 col-6 small text-muted">
-                Прогноз: заявка станет «без правок», если все её правки — из известных причин.
-                Остаются правки «Прочее» (уточнения сотрудников и ещё не разобранные ошибки).
-            </div>
-        </div>
-    </div>
+<div class="an-kpis">
+    <div class="an-kpi an-kpi--accent"><div class="an-kpi__label">Заявок без правок сейчас</div><div class="an-kpi__value">{{ forecast.clean_now_percent }}%</div><div class="an-kpi__sub">{{ forecast.clean_now }} из {{ forecast.total }} V2-заявок</div></div>
+    <div class="an-kpi"><div class="an-kpi__label">После исправления известных ошибок парсера</div><div class="an-kpi__value text-success">{{ forecast.clean_after_parser_percent }}%</div><div class="an-kpi__sub">задачи 6.1–6.7</div></div>
+    <div class="an-kpi"><div class="an-kpi__label">…и режима «Изъятое»</div><div class="an-kpi__value text-success">{{ forecast.clean_after_all_percent }}%</div><div class="an-kpi__sub">задача 6.8 · заявок «Изъятое»: {{ forecast.seized_requests }}</div></div>
+    <div class="an-kpi"><div class="an-kpi__sub">Прогноз: заявка станет «без правок», если все её правки — из известных причин. Остаются правки «Прочее» (уточнения сотрудников и ещё не разобранные ошибки).</div></div>
 </div>
 
 <div class="card mb-4">
@@ -84,25 +65,10 @@
 </div>
 
 {# KPI #}
-<div class="row g-3 mb-4">
-    <div class="col-md-4 col-6">
-        <div class="card h-100"><div class="card-body">
-            <div class="text-muted small">V2-заявок за период</div>
-            <div class="h4 mb-0">{{ totals.total_v2 }}</div>
-        </div></div>
-    </div>
-    <div class="col-md-4 col-6">
-        <div class="card h-100"><div class="card-body">
-            <div class="text-muted small">С ручными правками</div>
-            <div class="h4 mb-0">{{ totals.requests_with_edits }} <small class="text-muted">({{ totals.edited_share_percent }}%)</small></div>
-        </div></div>
-    </div>
-    <div class="col-md-4 col-6">
-        <div class="card h-100"><div class="card-body">
-            <div class="text-muted small">Всего правок полей</div>
-            <div class="h4 mb-0">{{ totals.total_edits }} <small class="text-muted">~{{ totals.avg_edits_per_request }}/заявку</small></div>
-        </div></div>
-    </div>
+<div class="an-kpis">
+    <div class="an-kpi"><div class="an-kpi__label">V2-заявок за период</div><div class="an-kpi__value">{{ totals.total_v2 }}</div></div>
+    <div class="an-kpi"><div class="an-kpi__label">С ручными правками</div><div class="an-kpi__value">{{ totals.requests_with_edits }} <small class="text-muted">({{ totals.edited_share_percent }}%)</small></div></div>
+    <div class="an-kpi"><div class="an-kpi__label">Всего правок полей</div><div class="an-kpi__value">{{ totals.total_edits }} <small class="text-muted">~{{ totals.avg_edits_per_request }}/заявку</small></div></div>
 </div>
 
 {% if totals.total_edits == 0 %}

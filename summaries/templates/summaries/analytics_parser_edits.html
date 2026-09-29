@@ -2,42 +2,50 @@
 
 {% block title %}Качество распознавания - {{ block.super }}{% endblock %}
 
+{% block extra_css %}
+{% include "summaries/_analytics_styles.html" %}
+<style>
+.an-tabs { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 1rem; }
+.an-tabs a { display: inline-flex; align-items: baseline; gap: 0.35rem; padding: 0.5rem 0.9rem; border: 1px solid var(--an-border); border-radius: 12px; background: #fff; font-size: 0.88rem; font-weight: 700; color: var(--an-ink-2); text-decoration: none; }
+.an-tabs a small { font-size: 0.76rem; font-weight: 500; color: var(--an-muted); }
+.an-tabs a.is-active { background: var(--an-ink); border-color: var(--an-ink); color: #fff; }
+.an-tabs a.is-active small { color: rgba(255, 255, 255, 0.7); }
+.an-kpi--warn { background: #fffaf1; }
+.an-page .card.border-danger { border-color: #efc2c0 !important; box-shadow: inset 4px 0 0 #b4342d, 0 12px 32px -12px rgba(16, 24, 40, 0.1) !important; }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-    <div>
-        <h1 class="h3 mb-1"><i class="bi bi-tools"></i> Служебное: качество распознавания</h1>
-        <p class="text-muted mb-0">
-            Насколько точно парсер V2 распознаёт Excel-заявки — за последние {{ filters.days }} дн.
-        </p>
+<div class="an-page">
+<div class="an-head">
+    <div class="an-head__main">
+        <div class="an-crumbs"><a href="{% url 'summaries:analytics' %}">Аналитика</a> / Служебное</div>
+        <h1 class="an-title">Служебное: качество распознавания</h1>
+        <p class="an-sub">Насколько точно парсер V2 распознаёт Excel-заявки — за последние {{ filters.days }} дн.</p>
     </div>
-    <div class="d-flex align-items-center gap-2">
-        <form method="get" class="d-flex align-items-center gap-2">
-            <input type="hidden" name="tab" value="{{ tab }}">
-            <label for="days" class="form-label mb-0 small text-muted">Период, дней:</label>
-            <input type="number" min="1" max="3650" name="days" id="days"
-                   value="{{ filters.days }}" class="form-control form-control-sm" style="width: 100px;">
-            <button type="submit" class="btn btn-sm btn-primary">Применить</button>
-        </form>
-        <a href="{% url 'summaries:analytics' %}" class="btn btn-sm btn-secondary">К аналитике</a>
+    <div class="an-head__actions">
+        <a href="{% url 'summaries:analytics' %}" class="an-btn"><i class="bi bi-arrow-left"></i> К аналитике</a>
     </div>
 </div>
 
-<ul class="nav nav-tabs mb-4">
-    <li class="nav-item">
-        <a class="nav-link {% if tab == 'intake' %}active{% endif %}" href="?tab=intake&days={{ filters.days }}">
-            При загрузке <span class="small text-muted">— что правят на превью</span>
-        </a>
-    </li>
-    <li class="nav-item">
-        <a class="nav-link {% if tab == 'post' %}active{% endif %}" href="?tab=post&days={{ filters.days }}">
-            После создания <span class="small text-muted">— что меняют в сохранённой заявке</span>
-        </a>
-    </li>
-</ul>
+<form method="get" class="an-filters">
+    <input type="hidden" name="tab" value="{{ tab }}">
+    <div class="an-field">
+        <label for="days">Период, дней:</label>
+        <input type="number" min="1" max="3650" name="days" id="days" value="{{ filters.days }}" class="form-control" style="width: 120px;">
+    </div>
+    <div class="an-filters__actions" style="margin-left: 0;"><button type="submit" class="btn btn-primary">Применить</button></div>
+</form>
+
+<nav class="an-tabs" aria-label="Разделы качества распознавания">
+    <a class="{% if tab == 'intake' %}is-active{% endif %}" href="?tab=intake&days={{ filters.days }}">При загрузке <small>— что правят на превью</small></a>
+    <a class="{% if tab == 'post' %}is-active{% endif %}" href="?tab=post&days={{ filters.days }}">После создания <small>— что меняют в сохранённой заявке</small></a>
+</nav>
 
 {% if tab == 'post' %}
     {% include 'summaries/_recognition_post.html' %}
 {% else %}
     {% include 'summaries/_recognition_intake.html' %}
 {% endif %}
+</div>
 {% endblock %}

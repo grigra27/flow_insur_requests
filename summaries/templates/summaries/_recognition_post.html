@@ -1,24 +1,9 @@
 {# Вкладка «После создания» страницы «Служебное: качество распознавания» #}
 {# KPI #}
-<div class="row g-3 mb-4">
-    <div class="col-md-4 col-6">
-        <div class="card h-100"><div class="card-body">
-            <div class="text-muted small">Заявок правили после создания</div>
-            <div class="h4 mb-0">{{ totals.requests_with_post_edits }}</div>
-        </div></div>
-    </div>
-    <div class="col-md-4 col-6">
-        <div class="card h-100"><div class="card-body">
-            <div class="text-muted small">Всего поздних правок полей</div>
-            <div class="h4 mb-0">{{ totals.total_post_edits }}</div>
-        </div></div>
-    </div>
-    <div class="col-md-4 col-6">
-        <div class="card h-100 border-warning"><div class="card-body">
-            <div class="text-muted small">Подозрений на пропущенную ошибку</div>
-            <div class="h4 mb-0">{{ totals.suspected_count }}</div>
-        </div></div>
-    </div>
+<div class="an-kpis">
+    <div class="an-kpi"><div class="an-kpi__label">Заявок правили после создания</div><div class="an-kpi__value">{{ totals.requests_with_post_edits }}</div></div>
+    <div class="an-kpi"><div class="an-kpi__label">Всего поздних правок полей</div><div class="an-kpi__value">{{ totals.total_post_edits }}</div></div>
+    <div class="an-kpi an-kpi--warn"><div class="an-kpi__label">Подозрений на пропущенную ошибку</div><div class="an-kpi__value">{{ totals.suspected_count }}</div></div>
 </div>
 
 
