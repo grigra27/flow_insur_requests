@@ -505,7 +505,51 @@ class SummaryStatusVerificationTests(ExcelExportIntegrationTestCase):
     Тесты проверки статуса свода при генерации Excel
     Требования: 1.1
     """
-    
+
+    def _superuser_client(self):
+        from django.test import Client
+        superuser = User.objects.create_superuser(username='root_excel', password='test_password')
+        superuser.groups.add(self.admin_group)
+        client = Client()
+        client.login(username='root_excel', password='test_password')
+        return client
+
+    @patch('summaries.services.excel_services.settings')
+    def test_superuser_downloads_excel_in_any_status(self, mock_settings):
+        """Суперпользователь выгружает полный и клиентский Excel не только в «Готов к отправке»"""
+        mock_settings.SUMMARY_TEMPLATE_PATH = self.template_path
+        self.ready_summary.status = 'sent'
+        self.ready_summary.save()
+        client = self._superuser_client()
+
+        for name in ('summaries:generate_summary_file', 'summaries:generate_client_summary_file'):
+            response = client.get(reverse(name, args=[self.ready_summary.pk]))
+            self.assertEqual(response.status_code, 200, name)
+            self.assertIn('spreadsheet', response['Content-Type'])
+
+        # Остальным пользователям — по-прежнему только в статусе «Готов к отправке».
+        self.client.login(username='admin_test', password='test_password')
+        response = self.client.get(reverse('summaries:generate_client_summary_file', args=[self.ready_summary.pk]))
+        self.assertEqual(response.status_code, 400)
+
+    def test_excel_buttons_in_summary_header(self):
+        """Кнопки Excel в шапке карточки: всем — в «Готов к отправке», суперпользователю — всегда"""
+        url = reverse('summaries:summary_detail', args=[self.ready_summary.pk])
+        self.client.login(username='admin_test', password='test_password')
+        response = self.client.get(url)
+        self.assertContains(response, 'Скачать полный Excel')
+        self.assertContains(response, 'Скачать клиентский Excel')
+
+        self.ready_summary.status = 'collecting'
+        self.ready_summary.save()
+        response = self.client.get(url)
+        self.assertNotContains(response, 'Скачать полный Excel')
+        self.assertNotContains(response, 'Скачать клиентский Excel')
+
+        response = self._superuser_client().get(url)
+        self.assertContains(response, 'Скачать полный Excel')
+        self.assertContains(response, 'Скачать клиентский Excel')
+
     def test_excel_generation_only_for_ready_status(self):
         """Тест генерации Excel только для сводов со статусом 'ready'"""
         # Авторизуемся

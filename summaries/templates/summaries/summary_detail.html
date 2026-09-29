@@ -18,11 +18,27 @@
             <b>{{ summary.request.client_name }}</b>{% with object_summary=summary.request.object_summary_without_source_count %}{% if object_summary %} · {{ object_summary }}{% endif %}{% endwith %}
         </div>
     </div>
-    {% if summary.status == 'collecting' %}
-        <a href="{% url 'summaries:add_offer' summary.pk %}" class="btn btn-success sd-head__action">
-            <i class="bi bi-plus-circle"></i> Добавить предложение вручную
-        </a>
-    {% endif %}
+    <div class="sd-head__actions">
+        {% if summary.status == 'collecting' %}
+            <a href="{% url 'summaries:add_offer' summary.pk %}" class="btn btn-success sd-head__action">
+                <i class="bi bi-plus-circle"></i> Добавить предложение вручную
+            </a>
+        {% endif %}
+        {% if summary.status == 'ready' or user.is_superuser %}
+            <!-- Excel-свод: в том же стиле, что «Скачать заявку (PDF)» в карточке заявки.
+                 Всем — в статусе «Готов к отправке», суперпользователю — в любом статусе. -->
+            <button type="button" class="sd-xls-btn sd-xls-btn--outline" onclick="generateClientSummaryFile({{ summary.id }})"
+                    title="Клиентская версия содержит только данные предложений без технического листа">
+                <i class="bi bi-person-lines-fill"></i>
+                <span><b>Скачать клиентский Excel</b><small>для клиента · без технического листа</small></span>
+            </button>
+            <button type="button" class="sd-xls-btn" onclick="generateSummaryFile({{ summary.id }})"
+                    title="Полный свод с техническим листом{% if summary.status != 'ready' %} · суперпользователь: доступно в любом статусе{% endif %}">
+                <i class="bi bi-file-earmark-excel-fill"></i>
+                <span><b>Скачать полный Excel</b><small>для работы · с техническим листом</small></span>
+            </button>
+        {% endif %}
+    </div>
 </div>
 
 <!-- Прогресс-бар статусов -->
@@ -418,19 +434,6 @@
                         </p>
                     {% endif %}
                 
-                    {% if summary.status == 'ready' %}
-                        <div class="d-grid gap-2">
-                            <button class="btn btn-success" onclick="generateSummaryFile({{ summary.id }})">
-                                <i class="bi bi-file-earmark-excel"></i> Сгенерировать полный Excel
-                            </button>
-                            <button class="btn btn-outline-success" onclick="generateClientSummaryFile({{ summary.id }})">
-                                <i class="bi bi-file-earmark-excel-fill"></i> Сгенерировать клиентский Excel
-                            </button>
-                        </div>
-                        <div class="form-text mt-2">
-                            <small><i class="bi bi-info-circle"></i> Клиентская версия содержит только данные предложений без технического листа</small>
-                        </div>
-                    {% endif %}
                 </div>
             </div>
 
@@ -1308,6 +1311,19 @@
 .sd-head__sub { margin-top: 0.35rem; font-size: 0.93rem; color: var(--sd-muted); }
 .sd-head__sub b { font-weight: 600; color: var(--sd-ink-2); }
 .sd-head__action { flex-shrink: 0; }
+.sd-head__actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 0.5rem; flex-shrink: 0; }
+
+/* Кнопки Excel-свода: фирменный красный, как «Скачать заявку (PDF)» в карточке заявки */
+.sd-xls-btn { display: inline-flex; align-items: center; gap: 0.55rem; padding: 0.42rem 0.9rem 0.42rem 0.7rem; border: 1px solid #ba122b; border-radius: 12px; background: #ba122b; color: #fff; text-align: left; box-shadow: 0 6px 16px -6px rgba(186, 18, 43, 0.55); transition: background-color 0.15s ease, transform 0.15s ease; }
+.sd-xls-btn:hover, .sd-xls-btn:focus-visible { background: #9e0f24; border-color: #9e0f24; color: #fff; transform: translateY(-1px); }
+.sd-xls-btn > .bi { font-size: 1.3rem; line-height: 1; }
+.sd-xls-btn span { display: flex; flex-direction: column; line-height: 1.15; }
+.sd-xls-btn b { font-size: 0.88rem; font-weight: 700; white-space: nowrap; }
+.sd-xls-btn small { font-size: 0.68rem; color: #f5c9d0; white-space: nowrap; }
+.sd-xls-btn--outline { background: #fff; color: #ba122b; box-shadow: none; }
+.sd-xls-btn--outline small { color: #c46a78; }
+.sd-xls-btn--outline:hover, .sd-xls-btn--outline:focus-visible { background: #fdf1f3; color: #9e0f24; }
+.sd-xls-btn:disabled { opacity: 0.7; transform: none; }
 
 /* Статус свода: мягкий бейдж с точкой, как в списке сводов */
 .sd-status { display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.3rem 0.75rem 0.3rem 0.62rem; border-radius: 999px; font-size: 0.8rem; font-weight: 600; line-height: 1.3; white-space: nowrap; background: #f1f4f8; color: #4a5a70; }
@@ -2565,7 +2581,7 @@ function deleteOffer(offerId, trigger) {
 
 function generateSummaryFile(summaryId) {
     // Получаем кнопку и сохраняем исходное состояние
-    const button = event.target;
+    const button = event.target.closest('button');
     const originalContent = button.innerHTML;
     const originalDisabled = button.disabled;
     
@@ -2687,7 +2703,7 @@ function generateSummaryFile(summaryId) {
 
 function generateClientSummaryFile(summaryId) {
     // Получаем кнопку и сохраняем исходное состояние
-    const button = event.target;
+    const button = event.target.closest('button');
     const originalContent = button.innerHTML;
     const originalDisabled = button.disabled;
     

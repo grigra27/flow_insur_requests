@@ -1369,8 +1369,8 @@ def generate_summary_file(request, summary_id):
     
     summary = get_object_or_404(InsuranceSummary.objects.select_related('request'), pk=summary_id)
     
-    # Проверка статуса свода - требование 1.1
-    if summary.status != 'ready':
+    # Проверка статуса свода - требование 1.1. Суперпользователь выгружает в любом статусе.
+    if summary.status != 'ready' and not request.user.is_superuser:
         logger.warning(f"Attempt to generate Excel for summary {summary_id} with status '{summary.status}'")
         return JsonResponse({
             'error': 'Файл можно генерировать только для сводов в статусе "Готов к отправке"'
@@ -1439,8 +1439,8 @@ def generate_client_summary_file(request, summary_id):
     
     summary = get_object_or_404(InsuranceSummary.objects.select_related('request'), pk=summary_id)
     
-    # Проверка статуса свода
-    if summary.status != 'ready':
+    # Проверка статуса свода. Суперпользователь выгружает в любом статусе.
+    if summary.status != 'ready' and not request.user.is_superuser:
         logger.warning(f"Attempt to generate client Excel for summary {summary_id} with status '{summary.status}'")
         return JsonResponse({
             'error': 'Файл можно генерировать только для сводов в статусе "Готов к отправке"'
