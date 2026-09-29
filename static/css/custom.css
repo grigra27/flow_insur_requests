@@ -2056,10 +2056,12 @@ a.app-crumbs__item:hover {
     vertical-align: middle;
 }
 
+/* !important: заголовки карточек задают свой стиль для <b> (.rq-head__sub b и т.п.) — значок не должен его наследовать */
 .brb b {
-    color: #ffffff;
-    font-size: 0.69rem;
-    font-weight: 700;
+    color: #ffffff !important;
+    font-family: 'Space Grotesk', 'Trebuchet MS', sans-serif !important;
+    font-size: 0.69rem !important;
+    font-weight: 700 !important;
     letter-spacing: 0.03em;
 }
 
@@ -2070,8 +2072,8 @@ a.app-crumbs__item:hover {
     padding: 0 4px;
     border-radius: 4px;
     background: rgba(255, 255, 255, 0.92);
-    color: var(--brb);
+    color: var(--brb) !important;
     font-style: normal;
-    font-size: 0.66rem;
-    font-weight: 700;
+    font-size: 0.66rem !important;
+    font-weight: 700 !important;
 }
