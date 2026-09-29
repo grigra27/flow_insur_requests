@@ -88,6 +88,7 @@ SECTION_CONFIG = {
         'links': [
             ('Все заявки', 'insurance_requests:request_list'),
             ('Загрузить заявку', 'insurance_requests:upload_excel'),
+            ('Справка', 'insurance_requests:help'),
         ],
     },
     'summaries': {
@@ -154,6 +155,7 @@ PAGE_LABELS = {
     ('insurance_requests', 'edit_request'): 'Редактирование заявки',
     ('insurance_requests', 'preview_email'): 'Предпросмотр письма',
     ('insurance_requests', 'access_denied'): 'Недостаточно прав',
+    ('insurance_requests', 'help'): 'Справка',
     ('summaries', 'summary_list'): 'Список сводов',
     ('summaries', 'deal_list'): 'Список сделок',
     ('summaries', 'summary_detail'): 'Карточка свода',
@@ -202,6 +204,10 @@ BREADCRUMB_TEMPLATES = {
         ('Заявки', 'insurance_requests:request_list'),
         ('Карточка заявки', None),
         ('Предпросмотр письма', None),
+    ],
+    ('insurance_requests', 'help'): [
+        ('Заявки', 'insurance_requests:request_list'),
+        ('Справка', None),
     ],
     ('summaries', 'summary_list'): [('Своды', None)],
     ('summaries', 'deal_list'): [('Сделки', None)],

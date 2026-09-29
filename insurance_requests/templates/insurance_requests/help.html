@@ -1,0 +1,354 @@
+{% extends 'base.html' %}
+
+{% block title %}Справка по работе с заявками - {{ block.super }}{% endblock %}
+
+{% block extra_css %}
+{% include "help/_help_styles.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="hp-page">
+    <div class="hp-head">
+        <div>
+            <h1 class="hp-title">Справка по работе с заявками</h1>
+            <p class="hp-sub">Как загрузить заявку из Excel, проверить распознанное, подготовить письмо и PDF для страховых и передать заявку в свод.</p>
+        </div>
+        <a href="{% url 'insurance_requests:request_list' %}" class="hp-btn"><i class="bi bi-arrow-left"></i> К заявкам</a>
+    </div>
+
+    <!-- Путь заявки: статусы по порядку -->
+    <div class="hp-track" aria-label="Путь заявки">
+        <div class="hp-track__step hp-track__step--start">
+            <div class="hp-track__num">Старт</div>
+            <div class="hp-track__name">Excel от лизинговой компании</div>
+            <div class="hp-track__hint">«Загрузить заявку» → проверка → создание</div>
+        </div>
+        <div class="hp-track__step">
+            <div class="hp-track__num">Шаг 1</div>
+            <div class="hp-track__name">Загружено</div>
+            <div class="hp-track__hint">заявка создана, письма ещё нет</div>
+        </div>
+        <div class="hp-track__step">
+            <div class="hp-track__num">Шаг 2</div>
+            <div class="hp-track__name">Письмо сгенерировано</div>
+            <div class="hp-track__hint">текст готов, можно поправить</div>
+        </div>
+        <div class="hp-track__step">
+            <div class="hp-track__num">Шаг 3</div>
+            <div class="hp-track__name">Письма отправлены</div>
+            <div class="hp-track__hint">письма ушли страховщикам из почты</div>
+        </div>
+        <div class="hp-track__step">
+            <div class="hp-track__num">Дальше</div>
+            <div class="hp-track__name">Свод предложений</div>
+            <div class="hp-track__hint">кнопка «Создать свод» в карточке заявки</div>
+        </div>
+    </div>
+
+    <div class="hp-layout">
+        <!-- Быстрая навигация -->
+        <nav class="hp-nav" aria-label="Разделы справки">
+            <div class="hp-nav__label">Разделы справки</div>
+            <ul class="hp-nav__list">
+                <li><a class="hp-nav__link active" href="#overview"><i class="bi bi-inbox"></i> Как устроены заявки</a></li>
+                <li><a class="hp-nav__link" href="#request-list"><i class="bi bi-list-ul"></i> Список заявок</a></li>
+                <li><a class="hp-nav__link" href="#upload"><i class="bi bi-upload"></i> Загрузка Excel</a></li>
+                <li><a class="hp-nav__link" href="#check"><i class="bi bi-ui-checks-grid"></i> Проверка перед созданием</a></li>
+                <li><a class="hp-nav__link" href="#batch"><i class="bi bi-collection"></i> Партии объектов</a></li>
+                <li><a class="hp-nav__link" href="#card"><i class="bi bi-card-text"></i> Карточка заявки</a></li>
+                <li><a class="hp-nav__link" href="#email"><i class="bi bi-envelope"></i> Письмо и PDF</a></li>
+                <li><a class="hp-nav__link" href="#statuses"><i class="bi bi-arrow-repeat"></i> Статусы и свод</a></li>
+                <li><a class="hp-nav__link" href="#edit"><i class="bi bi-pencil-square"></i> Редактирование</a></li>
+                <li><a class="hp-nav__link" href="#troubleshooting"><i class="bi bi-exclamation-triangle"></i> Частые вопросы</a></li>
+            </ul>
+        </nav>
+
+        <div class="hp-content">
+            <section id="overview" class="hp-section">
+                <div class="hp-section__head">
+                    <span class="hp-section__icon"><i class="bi bi-inbox"></i></span>
+                    <h2 class="hp-section__title">Как устроены заявки</h2>
+                </div>
+                <div class="hp-section__body">
+                    <div class="hp-callout hp-callout--info">
+                        <i class="bi bi-info-circle"></i>
+                        <div><strong>Ключевое:</strong> одна заявка — один объект страхования. Если в Excel несколько объектов, система создаёт партию: отдельную заявку на каждый объект, со своим письмом, PDF и сводом.</div>
+                    </div>
+
+                    <h3 class="hp-h">Что происходит с заявкой</h3>
+                    <ul class="hp-list">
+                        <li>Заявка создаётся из Excel-файла лизинговой компании через «Загрузить заявку»: сначала файл разбирается, затем вы проверяете распознанное и только после этого заявка сохраняется.</li>
+                        <li>По данным заявки система готовит текст письма страховщикам и PDF «Заявка для страховой».</li>
+                        <li>Письма система <strong>не отправляет</strong>: отправьте их из своей почты и поставьте статус <strong>«Письма отправлены»</strong>.</li>
+                        <li>После этого в карточке заявки становится доступна кнопка «Создать свод» — дальше работа идёт в разделе «Своды».</li>
+                    </ul>
+
+                    <h3 class="hp-h">Кто имеет доступ</h3>
+                    <ul class="hp-list">
+                        <li>Заявки, загрузка и эта справка доступны пользователям групп <strong>«Администраторы»</strong> и <strong>«Пользователи»</strong>.</li>
+                        <li>Служебный блок разбора в карточке заявки (уверенность, источники полей, сравнение с Excel, выгрузка карточки) виден только суперпользователю.</li>
+                    </ul>
+                </div>
+            </section>
+
+            <section id="request-list" class="hp-section">
+                <div class="hp-section__head">
+                    <span class="hp-section__icon"><i class="bi bi-list-ul"></i></span>
+                    <h2 class="hp-section__title">Список заявок</h2>
+                </div>
+                <div class="hp-section__body">
+                    <h3 class="hp-h">Что есть на странице</h3>
+                    <ul class="hp-list">
+                        <li>Вкладки филиалов: «Все» и филиалы из заявок, у каждой вкладки — число заявок с учётом остальных фильтров.</li>
+                        <li>Блок «Фильтры заявок»: номер ДФА (можно часть номера), месяц и год создания.</li>
+                        <li>По 30, 50 или 100 заявок на странице — выбор над таблицей.</li>
+                        <li>Сначала идут новые заявки; заявки одной партии стоят подряд, по порядку объектов.</li>
+                        <li>Нажмите на строку, чтобы открыть карточку заявки.</li>
+                    </ul>
+
+                    <h3 class="hp-h">Колонки</h3>
+                    <div class="hp-table-wrap">
+                        <table class="hp-table">
+                            <thead>
+                                <tr><th>Колонка</th><th>Что показывает</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td>Заявка</td><td>Номер ДФА, филиал и тип страхования. Метка «Партия 1/N» у первой заявки партии и «K/N» у остальных; метка вида «3 штуки», если заявка представляет несколько одинаковых строк файла.</td></tr>
+                                <tr><td>Клиент и объект</td><td>Название клиента и объект: марка и модель, год выпуска, состояние, стоимость.</td></tr>
+                                <tr><td>Путь заявки</td><td>Три деления: «Загружена · ждёт письма», «Письмо сгенерировано», «Письма отправлены».</td></tr>
+                                <tr><td>Создана</td><td>Дата и время создания по Москве.</td></tr>
+                                <tr><td>Условия</td><td>Особенности заявки: <strong>Франшиза</strong>, частота уплаты премии или <strong>Рассрочка</strong>, <strong>Автозапуск</strong>, <strong>КАСКО кат. C/E</strong>, <strong>Перевозка</strong>, <strong>СМР</strong>. Если ничего нет — «Без особенностей».</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <section id="upload" class="hp-section">
+                <div class="hp-section__head">
+                    <span class="hp-section__icon"><i class="bi bi-upload"></i></span>
+                    <h2 class="hp-section__title">Загрузка заявки из Excel</h2>
+                </div>
+                <div class="hp-section__body">
+                    <div class="hp-callout hp-callout--info">
+                        <i class="bi bi-info-circle"></i>
+                        <div><strong>Три шага:</strong> «Файл» → «Проверка» → «Заявка». На первом шаге файл только разбирается — заявка появится после проверки.</div>
+                    </div>
+
+                    <h3 class="hp-h">Какой файл подходит</h3>
+                    <ul class="hp-list">
+                        <li>Форматы <strong>.xls</strong>, <strong>.xlsx</strong> и <strong>.xltx</strong>, размер до <strong>10 МБ</strong>.</li>
+                        <li>Файл можно перетащить в зону загрузки или выбрать кнопкой, затем нажать «Разобрать файл».</li>
+                        <li>Формат бланка (КАСКО и спецтехника или имущество) и тип клиента (юрлицо или ИП) определяются автоматически.</li>
+                    </ul>
+
+                    <h3 class="hp-h">Что система делает сама</h3>
+                    <ul class="hp-list">
+                        <li>Распознаёт клиента, объект и условия страхования и запоминает, из каких ячеек Excel взято каждое значение.</li>
+                        <li>Если в бланке нет филиала, подставляет его по истории заявок менеджера из бланка.</li>
+                        <li>Сомнительные значения отмечает предупреждениями на шаге проверки.</li>
+                    </ul>
+
+                    <h3 class="hp-h">Изъятое имущество</h3>
+                    <p>Галочка «Изъятое имущество (страхует лизингодатель)» заполняет заявку по готовому сценарию: клиент — ЗАО «Альянс-Лизинг», тип — имущество, срок — 1 год, менеджер — Овдина Е.М.; реквизиты бывшего лизингополучателя очищаются. На шаге проверки нужно указать территорию страхования (адрес стоянки). Если в имени файла есть «изъят», система сама предложит заполнить заявку как «Изъятое».</p>
+                </div>
+            </section>
+
+            <section id="check" class="hp-section">
+                <div class="hp-section__head">
+                    <span class="hp-section__icon"><i class="bi bi-ui-checks-grid"></i></span>
+                    <h2 class="hp-section__title">Предварительная проверка</h2>
+                </div>
+                <div class="hp-section__body">
+                    <div class="hp-callout hp-callout--warn">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        <div><strong>Важно:</strong> всё, что указано на странице проверки, попадёт в заявку, письмо страховщикам и PDF для страховой. Исправляйте ошибки распознавания здесь.</div>
+                    </div>
+
+                    <ul class="hp-list">
+                        <li>Поля сгруппированы как в карточке: заявка и клиент, объект страхования, условия, КАСКО и спецтехника, имущество, реквизиты страхователя, примечание.</li>
+                        <li>Справа — имя файла, уверенность разбора (от 0 до 1) и список предупреждений. Нажмите на предупреждение, чтобы перейти к полю.</li>
+                        <li>Кнопка «Создать заявку» (для партии — «Создать партию из N заявок») сохраняет заявку и открывает её карточку.</li>
+                        <li>«Отмена» или «Загрузить другой файл» — вернуться к загрузке без создания заявки.</li>
+                    </ul>
+                </div>
+            </section>
+
+            <section id="batch" class="hp-section">
+                <div class="hp-section__head">
+                    <span class="hp-section__icon"><i class="bi bi-collection"></i></span>
+                    <h2 class="hp-section__title">Партии объектов</h2>
+                </div>
+                <div class="hp-section__body">
+                    <p>Если в файле несколько объектов, на странице проверки появится блок «Партия объектов (N)», а после создания — N заявок-«сестёр».</p>
+                    <ul class="hp-list">
+                        <li>Общие данные (клиент, ИНН, филиал, ДФА, франшиза, срок, менеджер) одинаковы у всех заявок партии, данные объекта — свои у каждой.</li>
+                        <li>Любой объект можно отметить «Не создавать», чтобы исключить его из партии. Если исключить все объекты, создавать будет нечего.</li>
+                        <li>Полностью одинаковые строки файла объединяются в одну заявку; их количество видно в поле «Одинаковых строк» и меткой вида «3 штуки» в списке.</li>
+                        <li>Статус, письмо, PDF и свод у каждой заявки партии свои: N заявок — N писем страховщикам.</li>
+                        <li>В карточке заявки из партии есть навигатор: стрелки к соседним объектам, плитки всех объектов и общая стоимость партии.</li>
+                    </ul>
+                </div>
+            </section>
+
+            <section id="card" class="hp-section">
+                <div class="hp-section__head">
+                    <span class="hp-section__icon"><i class="bi bi-card-text"></i></span>
+                    <h2 class="hp-section__title">Карточка заявки</h2>
+                </div>
+                <div class="hp-section__body">
+                    <h3 class="hp-h">Что есть в карточке</h3>
+                    <ul class="hp-list">
+                        <li>В шапке — номер, статус, метка партии, кнопки «Редактировать» и «Скачать заявку (PDF)».</li>
+                        <li>Шкала этапов показывает, где заявка сейчас, включая этапы свода, если он создан.</li>
+                        <li>Ключевые цифры: вид страхования и срок, объект, стоимость приобретения и срок ответа страховщиков.</li>
+                        <li>Блоки данных: «Заявка и клиент», «Параметры страхования» (объект, условия, КАСКО и спецтехника, имущество, примечание).</li>
+                        <li>Справа: «Сгенерированное письмо», «Управление статусом», «Свод предложений» и «Вложения» — исходный Excel-файл, его можно скачать.</li>
+                    </ul>
+
+                    <div class="hp-callout hp-callout--info">
+                        <i class="bi bi-clock"></i>
+                        <div><strong>Срок ответа</strong> по умолчанию — через 3 часа после создания заявки по Москве. Его можно поменять на шаге проверки или при редактировании заявки.</div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="email" class="hp-section">
+                <div class="hp-section__head">
+                    <span class="hp-section__icon"><i class="bi bi-envelope"></i></span>
+                    <h2 class="hp-section__title">Письмо страховщикам и PDF</h2>
+                </div>
+                <div class="hp-section__body">
+                    <h3 class="hp-h">Письмо</h3>
+                    <ul class="hp-list">
+                        <li>Кнопка «Сгенерировать» в блоке «Сгенерированное письмо» собирает тему и текст письма из данных заявки и переводит заявку в статус «Письмо сгенерировано».</li>
+                        <li>Кнопка «Изменить» открывает страницу редактирования письма: тему и текст можно поправить, рядом — данные заявки для сверки.</li>
+                        <li>Письмо хранится отдельно: если после генерации поменять данные заявки, готовый текст сам не обновится — поправьте его вручную.</li>
+                        <li>Система письма не отправляет. Скопируйте текст в почту, приложите PDF и отправьте страховщикам.</li>
+                    </ul>
+
+                    <h3 class="hp-h">Заявка для страховой (PDF)</h3>
+                    <ul class="hp-list">
+                        <li>Кнопка «Скачать заявку (PDF)» в шапке карточки: одна страница A4 со всеми данными заявки — её прикладывают к письму.</li>
+                        <li>PDF всегда собирается из текущих данных заявки, поэтому после редактирования достаточно скачать его заново.</li>
+                    </ul>
+                </div>
+            </section>
+
+            <section id="statuses" class="hp-section">
+                <div class="hp-section__head">
+                    <span class="hp-section__icon"><i class="bi bi-arrow-repeat"></i></span>
+                    <h2 class="hp-section__title">Статусы заявки и переход к своду</h2>
+                </div>
+                <div class="hp-section__body">
+                    <div class="hp-table-wrap">
+                        <table class="hp-table">
+                            <thead>
+                                <tr><th>Статус</th><th>Что это значит</th><th>Как попасть</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td>Загружено</td><td>Заявка создана, письма ещё нет</td><td>Сразу после создания</td></tr>
+                                <tr><td>Письмо сгенерировано</td><td>Текст письма готов, его можно поправить</td><td>Кнопка «Сгенерировать»</td></tr>
+                                <tr><td>Письма отправлены</td><td>Письма ушли страховщикам, можно создавать свод</td><td>Вручную в блоке «Управление статусом»</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <ul class="hp-list">
+                        <li>В блоке «Управление статусом» статус можно выбрать вручную и нажать «Применить» — в том числе вернуть заявку на предыдущий шаг.</li>
+                        <li>Кнопка «Создать свод» в блоке «Свод предложений» активна только в статусе <strong>«Письма отправлены»</strong>. До этого в блоке показаны оставшиеся шаги.</li>
+                        <li>Если свод уже создан, в блоке есть кнопка «Открыть свод».</li>
+                    </ul>
+
+                    <p>Как собирать предложения страховщиков и закрывать сделку — в <a href="{% url 'summaries:help' %}">справке по сводам</a>.</p>
+                </div>
+            </section>
+
+            <section id="edit" class="hp-section">
+                <div class="hp-section__head">
+                    <span class="hp-section__icon"><i class="bi bi-pencil-square"></i></span>
+                    <h2 class="hp-section__title">Редактирование заявки</h2>
+                </div>
+                <div class="hp-section__body">
+                    <ul class="hp-list">
+                        <li>Кнопка «Редактировать» в шапке карточки открывает форму с теми же разделами, что и на шаге проверки.</li>
+                        <li>Изменения сохраняются только в этой заявке — другие заявки партии не меняются.</li>
+                        <li>Изменённые поля подсвечиваются, внизу виден счётчик «Изменено полей».</li>
+                        <li>Поля со значком конверта <i class="bi bi-envelope"></i> попадают в текст письма страховщикам; все поля выводятся в PDF «Заявка для страховой».</li>
+                    </ul>
+                </div>
+            </section>
+
+            <section id="troubleshooting" class="hp-section">
+                <div class="hp-section__head">
+                    <span class="hp-section__icon"><i class="bi bi-exclamation-triangle"></i></span>
+                    <h2 class="hp-section__title">Частые вопросы</h2>
+                </div>
+                <div class="hp-section__body">
+                    <ol class="hp-faq">
+                        <li>
+                            <span class="hp-faq__num">1</span>
+                            <div>
+                                <h3 class="hp-faq__q">«Неподдерживаемый формат файла» или «Размер файла слишком большой»</h3>
+                                <p class="hp-faq__a">Загружать можно только .xls, .xlsx и .xltx размером до 10 МБ. Сохраните бланк в одном из этих форматов.</p>
+                            </div>
+                        </li>
+                        <li>
+                            <span class="hp-faq__num">2</span>
+                            <div>
+                                <h3 class="hp-faq__q">«Черновик загрузки не найден. Загрузите файл еще раз.»</h3>
+                                <p class="hp-faq__a">Разобранный файл хранится до создания заявки в рамках вашей сессии. Если вы вышли из системы или сессия истекла, загрузите файл заново.</p>
+                            </div>
+                        </li>
+                        <li>
+                            <span class="hp-faq__num">3</span>
+                            <div>
+                                <h3 class="hp-faq__q">Данные распознались с ошибкой</h3>
+                                <p class="hp-faq__a">Исправьте значение на шаге проверки до создания заявки. Если заявка уже создана — через «Редактировать»; если письмо уже сгенерировано, поправьте и его.</p>
+                            </div>
+                        </li>
+                        <li>
+                            <span class="hp-faq__num">4</span>
+                            <div>
+                                <h3 class="hp-faq__q">Кнопка «Создать свод» неактивна</h3>
+                                <p class="hp-faq__a">Свод создаётся только для заявки в статусе <strong>«Письма отправлены»</strong>. Сгенерируйте письмо, отправьте его страховщикам и поставьте этот статус.</p>
+                            </div>
+                        </li>
+                        <li>
+                            <span class="hp-faq__num">5</span>
+                            <div>
+                                <h3 class="hp-faq__q">Нет кнопки «Сгенерировать» или «Изменить» у письма</h3>
+                                <p class="hp-faq__a">«Сгенерировать» есть в статусе «Загружено», «Изменить» — в статусе «Письмо сгенерировано». Если статус уже «Письма отправлены», верните его на шаг назад в «Управлении статусом».</p>
+                            </div>
+                        </li>
+                        <li>
+                            <span class="hp-faq__num">6</span>
+                            <div>
+                                <h3 class="hp-faq__q">Из одного файла получилось несколько заявок</h3>
+                                <p class="hp-faq__a">Так и задумано: в файле было несколько объектов, и на каждый создана своя заявка партии. Ненужные объекты можно было исключить на шаге проверки галочкой «Не создавать».</p>
+                            </div>
+                        </li>
+                    </ol>
+                </div>
+            </section>
+
+            <div class="hp-footer">
+                <div>
+                    <p class="hp-footer__title"><i class="bi bi-lightbulb"></i> Нужна дополнительная помощь?</p>
+                    <p class="hp-footer__text">Если у вас остались вопросы по работе с заявками, обратитесь к Григорию. Про предложения страховщиков и сделки — в справке по сводам.</p>
+                </div>
+                <div class="hp-footer__actions">
+                    <a href="{% url 'summaries:help' %}" class="hp-btn"><i class="bi bi-question-circle"></i> Справка по сводам</a>
+                    <a href="{% url 'insurance_requests:request_list' %}" class="btn btn-primary">
+                        <i class="bi bi-arrow-left"></i> Вернуться к заявкам
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% include "help/_help_nav_js.html" %}
+{% endblock %}

@@ -1632,3 +1632,9 @@ def change_request_status(request, pk):
         'success': False,
         'error': 'Недопустимый статус'
     })
+
+
+@user_required
+def help_page(request):
+    """Справка по разделу «Заявки»: загрузка Excel, проверка, письмо и PDF, статусы."""
+    return render(request, 'insurance_requests/help.html')

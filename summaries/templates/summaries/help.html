@@ -3,139 +3,7 @@
 {% block title %}Справка по работе со сводами - {{ block.super }}{% endblock %}
 
 {% block extra_css %}
-{# Справка по сводам (редизайн 2026-09): тот же язык, что у списков, карточки свода и аналитики. #}
-<style>
-.hp-page {
-    --hp-ink: #0f1b2d;
-    --hp-ink-2: #1f2b3d;
-    --hp-muted: #4f5e74;
-    --hp-muted-2: #768398;
-    --hp-line: #edf1f5;
-    --hp-border: #e6ecf1;
-    --hp-soft: #f7f9fb;
-    --hp-teal: var(--app-primary);
-    --hp-teal-soft: #e6f3f1;
-    --hp-amber: #b7791f;
-    --hp-amber-soft: #fff7e8;
-    --hp-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 12px 32px -12px rgba(16, 24, 40, 0.1);
-    color: var(--hp-ink-2);
-}
-
-/* Шапка */
-.hp-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; margin: 0.25rem 0 1.1rem; }
-.hp-crumbs { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.45rem; font-size: 0.8125rem; font-weight: 600; color: var(--hp-muted); }
-.hp-crumbs a { color: var(--hp-muted); text-decoration: none; }
-.hp-crumbs a:hover { color: var(--hp-teal); }
-.hp-title { margin: 0; font-family: 'Space Grotesk', 'Manrope', sans-serif; font-size: 1.85rem; font-weight: 700; letter-spacing: -0.02em; color: var(--hp-ink); text-wrap: balance; }
-.hp-sub { margin: 0.35rem 0 0; font-size: 0.93rem; color: var(--hp-muted); }
-.hp-btn { display: inline-flex; align-items: center; gap: 0.4rem; height: 36px; padding: 0 0.85rem; border: 1px solid var(--hp-border); border-radius: 10px; background: #fff; font-size: 0.82rem; font-weight: 700; color: var(--hp-ink-2); text-decoration: none; white-space: nowrap; }
-.hp-btn:hover { border-color: #c9dcd9; color: var(--hp-teal); }
-.hp-btn--wrap { height: auto; min-height: 36px; padding-block: 0.4rem; white-space: normal; }
-
-/* Путь свода: статусы по порядку */
-.hp-track { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(0, 1.25fr); margin-bottom: 1.25rem; border: 1px solid var(--hp-border); border-radius: 18px; overflow: hidden; background: #fff; box-shadow: var(--hp-shadow); }
-.hp-track__step { position: relative; min-width: 0; padding: 0.85rem 1.1rem; border-right: 1px solid var(--hp-line); }
-.hp-track__step:last-child { border-right: 0; }
-.hp-track__num { font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--hp-muted-2); }
-.hp-track__name { margin-top: 0.15rem; font-size: 0.9rem; font-weight: 800; line-height: 1.25; color: var(--hp-ink); }
-.hp-track__name small { display: block; font-weight: 700; }
-.hp-track__hint { margin-top: 0.2rem; font-size: 0.76rem; line-height: 1.35; color: var(--hp-muted); }
-.hp-track__step--start { background: #f6faf9; }
-.hp-track__step--start .hp-track__num { color: var(--hp-teal); }
-.hp-track__ok { color: #1d7047; }
-.hp-track__no { color: #b42318; }
-
-/* Раскладка: навигация + содержание */
-.hp-layout { display: grid; grid-template-columns: 236px minmax(0, 1fr); gap: 1.25rem; align-items: start; }
-.hp-nav { position: sticky; top: 1rem; padding: 0.6rem; border: 1px solid var(--hp-border); border-radius: 18px; background: #fff; box-shadow: var(--hp-shadow); }
-.hp-nav__label { padding: 0.35rem 0.6rem 0.5rem; font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--hp-muted-2); }
-.hp-nav__list { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
-.hp-nav__link { display: flex; align-items: center; gap: 0.55rem; padding: 0.45rem 0.6rem; border-radius: 10px; font-size: 0.86rem; font-weight: 600; color: #35455b; text-decoration: none; }
-.hp-nav__link .bi { width: 1rem; color: var(--hp-muted-2); }
-.hp-nav__link:hover { background: var(--hp-soft); color: var(--hp-ink); }
-.hp-nav__link.active { background: var(--hp-teal-soft); color: var(--hp-teal); }
-.hp-nav__link.active .bi { color: var(--hp-teal); }
-
-.hp-content { display: grid; gap: 1rem; min-width: 0; }
-
-/* Раздел — карточка */
-.hp-section { scroll-margin-top: 1rem; border: 1px solid var(--hp-border); border-radius: 18px; background: #fff; box-shadow: var(--hp-shadow); }
-.hp-section__head { display: flex; align-items: center; gap: 0.7rem; padding: 0.95rem 1.35rem; border-bottom: 1px solid var(--hp-line); }
-.hp-section__icon { display: inline-grid; flex-shrink: 0; place-items: center; width: 34px; height: 34px; border-radius: 10px; background: var(--hp-teal-soft); color: var(--hp-teal); font-size: 1rem; }
-.hp-section__title { margin: 0; font-size: 1.05rem; font-weight: 800; letter-spacing: -0.01em; color: var(--hp-ink); }
-.hp-section__body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.9rem; padding: 1.1rem 1.35rem 1.25rem; font-size: 0.9rem; line-height: 1.55; }
-.hp-section__body > * { margin: 0; }
-.hp-h { margin: 0.25rem 0 -0.35rem; font-size: 0.72rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--hp-teal); }
-.hp-list { display: grid; gap: 0.4rem; margin: 0; padding: 0; list-style: none; max-width: 72ch; }
-.hp-list li { position: relative; padding-left: 1.05rem; }
-.hp-list li::before { content: ''; position: absolute; left: 0.1rem; top: 0.62em; width: 5px; height: 5px; border-radius: 50%; background: #b9cbc8; }
-.hp-page strong { color: var(--hp-ink); font-weight: 700; }
-.hp-page code { padding: 0.05rem 0.35rem; border-radius: 6px; background: var(--hp-soft); font-size: 0.82em; color: var(--hp-ink-2); }
-
-/* Выноски */
-.hp-callout { display: flex; gap: 0.65rem; padding: 0.75rem 0.95rem; border-radius: 12px; font-size: 0.87rem; line-height: 1.5; }
-.hp-callout > .bi { flex-shrink: 0; margin-top: 0.1rem; }
-.hp-callout--info { background: var(--hp-teal-soft); color: #0d4f4b; }
-.hp-callout--info > .bi { color: var(--hp-teal); }
-.hp-callout--warn { background: var(--hp-amber-soft); color: #6b4a12; }
-.hp-callout--warn > .bi { color: var(--hp-amber); }
-.hp-callout strong { color: inherit; }
-
-/* Статусы страховых — чипы */
-.hp-chips { display: grid; gap: 0.45rem; }
-.hp-chip-row { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 0.75rem; align-items: baseline; }
-.hp-chip-group { display: flex; flex-wrap: wrap; gap: 0.3rem; }
-.hp-chip { justify-self: start; padding: 0.2rem 0.6rem; border-radius: 999px; font-size: 0.78rem; font-weight: 700; white-space: nowrap; }
-.hp-chip--undefined { background: #f1f4f7; color: #4f5e74; }
-.hp-chip--manual { background: #eef2ff; color: #3b4a9c; }
-.hp-chip--offered { background: #e3f4ea; color: #1d7047; }
-
-/* Таблицы */
-.hp-table-wrap { overflow-x: auto; border: 1px solid var(--hp-line); border-radius: 12px; }
-.hp-table { width: 100%; margin: 0; border-collapse: collapse; font-size: 0.85rem; }
-.hp-table th { padding: 0.55rem 0.8rem; background: #fafbfc; border-bottom: 1px solid var(--hp-line); font-size: 0.66rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--hp-muted-2); text-align: left; white-space: nowrap; }
-.hp-table td { padding: 0.55rem 0.8rem; border-bottom: 1px solid var(--hp-line); vertical-align: top; }
-.hp-table tr:last-child td { border-bottom: 0; }
-.hp-table td:first-child { color: var(--hp-ink); font-weight: 700; }
-.hp-cell { display: inline-block; padding: 0.1rem 0.45rem; border: 1px solid #cfe3e0; border-radius: 6px; background: #f6faf9; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.8rem; font-weight: 600; color: var(--hp-teal); white-space: nowrap; }
-
-/* Имена файлов */
-.hp-files { display: grid; gap: 0.4rem; }
-.hp-file { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: baseline; padding: 0.55rem 0.8rem; border-radius: 10px; background: var(--hp-soft); font-size: 0.85rem; }
-.hp-file span { min-width: 90px; color: var(--hp-muted); }
-.hp-file b { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.8rem; color: var(--hp-ink); word-break: break-all; }
-
-/* Частые ошибки */
-.hp-faq { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
-.hp-faq li { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 0.75rem; padding: 0.85rem 0; border-top: 1px solid var(--hp-line); }
-.hp-faq li:first-child { border-top: 0; padding-top: 0.1rem; }
-.hp-faq__num { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; background: var(--hp-soft); font-size: 0.8rem; font-weight: 800; color: var(--hp-muted); }
-.hp-faq__q { margin: 0 0 0.25rem; font-size: 0.9rem; font-weight: 700; color: var(--hp-ink); }
-.hp-faq__a { margin: 0; max-width: 72ch; }
-
-/* Подвал */
-.hp-footer { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.75rem 1rem; padding: 1rem 1.35rem; border: 1px dashed #cfe3e0; border-radius: 18px; background: #f6faf9; }
-.hp-footer__title { margin: 0 0 0.15rem; font-size: 0.92rem; font-weight: 800; color: var(--hp-ink); }
-.hp-footer__text { margin: 0; font-size: 0.85rem; color: var(--hp-muted); }
-
-@media (max-width: 991.98px) {
-    .hp-layout { grid-template-columns: minmax(0, 1fr); }
-    .hp-nav { position: static; min-width: 0; padding: 0.4rem; overflow-x: auto; }
-    .hp-nav__label { display: none; }
-    .hp-nav__list { display: flex; gap: 0.25rem; width: max-content; }
-    .hp-nav__link { white-space: nowrap; }
-    .hp-track { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .hp-track__step { border-bottom: 1px solid var(--hp-line); }
-    .hp-track__step:nth-child(2n) { border-right: 0; }
-    .hp-track__step:last-child { grid-column: 1 / -1; border-bottom: 0; }
-}
-@media (max-width: 575.98px) {
-    .hp-head { flex-direction: column; align-items: flex-start; }
-    .hp-title { font-size: 1.5rem; }
-    .hp-section__head, .hp-section__body { padding-left: 1rem; padding-right: 1rem; }
-    .hp-chip-row { grid-template-columns: minmax(0, 1fr); gap: 0.2rem; }
-}
-</style>
+{% include "help/_help_styles.html" %}
 {% endblock %}
 
 {% block content %}
@@ -523,11 +391,14 @@
             <div class="hp-footer">
                 <div>
                     <p class="hp-footer__title"><i class="bi bi-lightbulb"></i> Нужна дополнительная помощь?</p>
-                    <p class="hp-footer__text">Если у вас остались вопросы по работе со сводами, обратитесь к Григорию.</p>
+                    <p class="hp-footer__text">Если у вас остались вопросы по работе со сводами, обратитесь к Григорию. Как загрузить заявку и отправить письма страховщикам — в справке по заявкам.</p>
                 </div>
-                <a href="{% url 'summaries:summary_list' %}" class="btn btn-primary">
-                    <i class="bi bi-arrow-left"></i> Вернуться к сводам
-                </a>
+                <div class="hp-footer__actions">
+                    <a href="{% url 'insurance_requests:help' %}" class="hp-btn"><i class="bi bi-question-circle"></i> Справка по заявкам</a>
+                    <a href="{% url 'summaries:summary_list' %}" class="btn btn-primary">
+                        <i class="bi bi-arrow-left"></i> Вернуться к сводам
+                    </a>
+                </div>
             </div>
         </div>
     </div>
@@ -535,34 +406,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const navLinks = document.querySelectorAll('.hp-nav__link');
-    const sections = document.querySelectorAll('.hp-section');
-
-    function setActive(id) {
-        navLinks.forEach(function(link) {
-            link.classList.toggle('active', link.getAttribute('href') === '#' + id);
-        });
-    }
-
-    navLinks.forEach(function(link) {
-        link.addEventListener('click', function(e) {
-            const target = document.getElementById(this.getAttribute('href').substring(1));
-            if (!target) return;
-            e.preventDefault();
-            setActive(target.id);
-            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        });
-    });
-
-    const observer = new IntersectionObserver(function(entries) {
-        entries.forEach(function(entry) {
-            if (entry.isIntersecting) setActive(entry.target.id);
-        });
-    }, { rootMargin: '0px 0px -60% 0px' });
-
-    sections.forEach(function(section) { observer.observe(section); });
-});
-</script>
+{% include "help/_help_nav_js.html" %}
 {% endblock %}

@@ -10,6 +10,7 @@ urlpatterns = [
     # Main application URLs
     path('', views.request_list, name='request_list'),
     path('upload/', views.upload_excel_v2, name='upload_excel'),
+    path('help/', views.help_page, name='help'),
     path('upload-old/', views.upload_excel, name='upload_excel_legacy'),
     path('upload-v2/', views.upload_excel_v2, name='upload_excel_v2'),
     path('<int:pk>/', views.request_detail, name='request_detail'),
