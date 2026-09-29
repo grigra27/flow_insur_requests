@@ -1903,3 +1903,21 @@ class ParserV2UploadTests(TestCase):
         self.assertEqual(created_request.client_name, 'Клиент не указан')
         self.assertEqual(created_request.dfa_number, 'Номер ДФА не указан')
         self.assertTrue(created_request.additional_data['parser_v2']['warnings'])
+
+
+class ParserV2NotesTest(TestCase):
+    """Автопримечание парсера пишется только когда есть что проверить."""
+
+    def test_no_note_without_warnings_to_check(self):
+        parser = ExcelRequestParserV2()
+        self.assertEqual(parser._build_notes([]), '')
+        # Одни информационные предупреждения — тоже без примечания.
+        self.assertEqual(parser._build_notes([{'level': 'info', 'message': 'Найдено объектов: 6.'}]), '')
+
+    def test_note_lists_warnings_to_check(self):
+        parser = ExcelRequestParserV2()
+        notes = parser._build_notes([
+            {'level': 'info', 'message': 'Найдено объектов: 2.'},
+            {'level': 'manual_required', 'message': 'Филиал не распознан.'},
+        ])
+        self.assertEqual(notes, 'Создано через Parser V2. Проверьте предупреждения разбора:\n- Филиал не распознан.')

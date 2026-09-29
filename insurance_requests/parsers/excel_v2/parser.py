@@ -2441,11 +2441,14 @@ class ExcelRequestParserV2:
         return warnings
 
     def _build_notes(self, warnings: List[Dict[str, str]]) -> str:
-        if not warnings:
-            return "Создано через Parser V2. Данные распознаны без критичных предупреждений."
+        # Примечание — только когда есть что проверить; «всё хорошо» и заголовок
+        # без пунктов (одни info-предупреждения) не пишем, чтобы не засорять заявку.
+        messages = [warning["message"] for warning in warnings if warning.get("level") != "info"]
+        if not messages:
+            return ""
         lines = ["Создано через Parser V2. Проверьте предупреждения разбора:"]
-        lines.extend(f"- {warning['message']}" for warning in warnings if warning.get("level") != "info")
-        return "\n".join(lines).strip()
+        lines.extend(f"- {message}" for message in messages)
+        return "\n".join(lines)
 
     def _calculate_confidence(self, data: Dict[str, Any], insured_objects: List[Dict[str, str]]) -> float:
         checks = [
