@@ -62,8 +62,12 @@
 .an-page .table > tbody td, .an-page .table > tbody th { padding: 0.55rem 0.75rem; border-color: var(--an-line); vertical-align: middle; }
 .an-page .table > tbody tr:hover > * { background: #f7fbfa; }
 .an-page .table > tfoot td, .an-page .table > tfoot th { padding: 0.6rem 0.75rem; background: #fafbfc; font-weight: 700; color: var(--an-ink); }
-.an-page .table a { color: var(--an-ink); font-weight: 600; text-decoration: none; }
-.an-page .table a:hover { color: var(--app-primary); text-decoration: underline; }
+/* Ссылки в таблицах видны сразу: бирюзовое название с тонким подчёркиванием; строка со ссылкой кликабельна целиком (скрипт ниже) */
+.an-page .table a { color: var(--app-primary); font-weight: 700; text-decoration: underline; text-decoration-color: rgba(11, 122, 117, 0.35); text-decoration-thickness: 1.5px; text-underline-offset: 3px; }
+.an-page .table a:hover { color: var(--app-primary-dark); text-decoration-color: currentColor; }
+.an-page .table > tbody tr.an-row-link { cursor: pointer; }
+.an-page .table > tbody tr.an-row-link:hover > * { background: #eef7f5; }
+.an-page .table > tbody tr.an-row-link:hover a { text-decoration-color: currentColor; }
 .an-page .card > .table-responsive > .table > :not(caption) > * > *:first-child,
 .an-page .card > .table > :not(caption) > * > *:first-child { padding-left: 1.25rem; }
 .an-page .card > .table-responsive > .table > :not(caption) > * > *:last-child,
@@ -92,3 +96,22 @@
     .an-kpi { border-right: 0; border-bottom: 1px solid var(--an-line); }
 }
 </style>
+<script>
+/* Строка таблицы аналитики, в которой есть ссылка, открывает первую ссылку строки по клику в любом месте. */
+document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('.an-page .table > tbody > tr').forEach(function (row) {
+        var link = row.querySelector('td a[href], th a[href]');
+        if (!link) return;
+        row.classList.add('an-row-link');
+        row.addEventListener('click', function (event) {
+            if (event.target.closest('a, button, input, select, textarea, label, [data-bs-toggle]')) return;
+            if (window.getSelection && String(window.getSelection())) return;
+            if (event.ctrlKey || event.metaKey) {
+                window.open(link.href, '_blank');
+            } else {
+                window.location.href = link.href;
+            }
+        });
+    });
+});
+</script>
