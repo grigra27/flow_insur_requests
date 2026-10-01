@@ -165,12 +165,16 @@ def _terms_rows(r):
 
 def _risk_items(r):
     """Плитки параметров: флаги (Да/Нет) и короткие справочные значения."""
+    from .seized import is_seized_request
+
+    # У изъятого «охрана и хранение» — условия прежнего клиента; хранение описывается в письме.
+    guard = None if is_seized_request(r) else r.guard_conditions
     if r.insurance_type == PROPERTY_TYPE:
         items = [
             _flag('Перевозка', r.has_transportation),
             _flag('Строительно-монтажные работы', r.has_construction_work),
             _info('Цели использования', r.usage_purposes),
-            _info('Охрана и хранение', r.guard_conditions),
+            _info('Охрана и хранение', guard),
         ]
     else:
         items = [
@@ -182,7 +186,7 @@ def _risk_items(r):
             _info('ПТС / ПСМ', r.pts_psm),
             _info('Телематика', r.telematics_complex),
             _info('Цели использования', r.usage_purposes),
-            _info('Охрана и хранение', r.guard_conditions),
+            _info('Охрана и хранение', guard),
         ]
     return [item for item in items if item]
 

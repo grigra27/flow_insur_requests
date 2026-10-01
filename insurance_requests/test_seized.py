@@ -31,7 +31,7 @@ class SeizedPresetTests(SimpleTestCase):
             'insurance_type': 'страхование спецтехники', 'insurance_period': 'на весь срок лизинга',
             'manager_name': 'Иванов Иван', 'dfa_number': 'ТС-20555-ЛТ-СТ',
             'legal_address': 'г. Казань', 'postal_address': 'г. Казань', 'business_activity': 'стройка',
-            'birth_date': '1961-02-20', 'insurance_territory': '',
+            'birth_date': '1961-02-20', 'insurance_territory': '', 'guard_conditions': 'без ограничений',
         }, warnings=[])
 
         apply_seized_preset(result)
@@ -43,9 +43,31 @@ class SeizedPresetTests(SimpleTestCase):
         self.assertEqual(result.data['insurance_period'], '1 год')
         self.assertEqual(result.data['manager_name'], 'Овдина Е.М.')
         self.assertEqual(result.data['dfa_number'], 'ТС-20555-ЛТ-СТ Изъятое')
-        for field in ('legal_address', 'postal_address', 'business_activity', 'birth_date'):
+        for field in ('legal_address', 'postal_address', 'business_activity', 'birth_date', 'guard_conditions'):
             self.assertEqual(result.data[field], '')
         self.assertEqual(result.warnings[-1]['field'], 'seized')
+
+
+class SeizedApplicationPdfTests(SimpleTestCase):
+    """PDF изъятого: без «Охраны и хранения» прежнего клиента (отзыв сотрудника 2026-10-01)."""
+
+    def tiles(self, dfa_number):
+        from .application_export import _risk_items
+        from .models import InsuranceRequest
+
+        request = InsuranceRequest(
+            dfa_number=dfa_number, insurance_type='страхование имущества',
+            guard_conditions='без ограничений', usage_purposes='не эксплуатируется',
+        )
+        return {item['label']: item['value'] for item in _risk_items(request)}
+
+    def test_seized_request_hides_guard_conditions(self):
+        tiles = self.tiles('ТС-20371-ЛТ-КР- Изъятое')
+        self.assertNotIn('Охрана и хранение', tiles)
+        self.assertEqual(tiles['Цели использования'], 'не эксплуатируется')
+
+    def test_regular_request_keeps_guard_conditions(self):
+        self.assertEqual(self.tiles('ТС-20371-ЛТ-КР')['Охрана и хранение'], 'без ограничений')
 
 
 class SeizedUploadTests(TestCase):

@@ -27,12 +27,18 @@ PRESET: Dict[str, Any] = {
     'insurance_period': '1 год',
     'manager_name': 'Овдина Е.М.',
 }
-# Реквизиты бывшего лизингополучателя — к страхованию изъятого не относятся.
-CLEARED_FIELDS = ('legal_address', 'postal_address', 'business_activity', 'birth_date')
+# Реквизиты и условия бывшего лизингополучателя — к страхованию изъятого не относятся
+# (условия охраны прежнего клиента; адрес стоянки и хранение сотрудник пишет в письме).
+CLEARED_FIELDS = ('legal_address', 'postal_address', 'business_activity', 'birth_date', 'guard_conditions')
 
 
 def is_seized_filename(file_name: str) -> bool:
     return SEIZED_MARKER in (file_name or '').lower()
+
+
+def is_seized_request(insurance_request) -> bool:
+    """Заявка на изъятое: предзаполнение дописывает «Изъятое» к номеру ДФА."""
+    return SEIZED_MARKER in (getattr(insurance_request, 'dfa_number', '') or '').lower()
 
 
 def seized_dfa_number(dfa_number: str) -> str:
