@@ -83,7 +83,7 @@ class InsuranceRequestAdmin(admin.ModelAdmin):
         }),
         ('Параметры', {
             'fields': (
-                'franchise_type', 'franchise_amount', 'franchise_unit', 'has_installment', 'has_autostart',
+                'franchise_type', 'franchise_amounts', 'franchise_unit', 'has_installment', 'has_autostart',
                 'has_casco_ce', 'has_transportation', 'has_construction_work',
                 'response_deadline'
             )

@@ -259,7 +259,7 @@ class RequestApplicationPdfExportTest(TestCase):
             dfa_number='ДФА-APP-001',
             branch='Московский филиал',
             franchise_type='both_variants',
-            franchise_amount=Decimal('30000'),
+            franchise_amounts=['30000'],
             has_autostart=True,
             has_transportation=True,
             transportation_departure='Москва',

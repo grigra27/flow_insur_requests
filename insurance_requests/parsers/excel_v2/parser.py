@@ -16,6 +16,7 @@ from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter
 
 from core.excel_utils import AVAILABLE_BRANCHES, map_branch_name
+from insurance_requests.franchise import parse_amounts as parse_franchise_amounts
 
 logger = logging.getLogger(__name__)
 
@@ -245,18 +246,6 @@ def parse_cost_value(value: Any) -> Optional[Decimal]:
         return Decimal(text)
     except (InvalidOperation, ValueError):
         return None
-
-
-def parse_franchise_amount(value: Any) -> Optional[Decimal]:
-    """Размер франшизы из ячейки варианта: «30000», «30 000 руб.», «1,5%». Отметка «Х» — не размер."""
-    text = clean_value(value)
-    if not text:
-        return None
-    text = re.sub(r"(?i)(рубл\w*|руб\.?|р\.|%)", "", text)
-    amount = parse_cost_value(text)
-    if amount is None or amount <= 0:
-        return None
-    return amount
 
 
 def classify_equipment_or_power(value: Any) -> Tuple[Optional[str], Optional[str]]:
@@ -796,10 +785,10 @@ class ExcelRequestParserV2:
         data["franchise_type"] = franchise_type
         if franchise_details.get("source"):
             source_map["franchise_type"] = franchise_details["source"]
-        if franchise_details.get("amount") is not None:
-            data["franchise_amount"] = franchise_details["amount"]
+        if franchise_details.get("amounts"):
+            data["franchise_amounts"] = franchise_details["amounts"]
             data["franchise_unit"] = franchise_details["unit"]
-            source_map["franchise_amount"] = franchise_details["amount_source"]
+            source_map["franchise_amounts"] = franchise_details["amount_source"]
         data["has_autostart"] = self._extract_autostart(cells, rows)
         has_casco_ce, casco_ce_source = self._extract_casco_ce_from_objects(insured_objects)
         data["has_casco_ce"] = has_casco_ce
@@ -1818,13 +1807,14 @@ class ExcelRequestParserV2:
             [item["label"] for item in selected_columns]
         )
 
-        # Размер франшизы — число в отмеченной колонке «Абсолютная сумма» (приоритет) или «% от СС».
-        amount, unit, amount_source = None, None, None
+        # Размеры франшизы — числа в отмеченной колонке «Абсолютная сумма» (приоритет) или «% от СС»;
+        # «30 000, 50 000» — два варианта.
+        amounts, unit, amount_source = [], None, None
         for variant, variant_unit in (("absolute_franchise", "rub"), ("percent_franchise", "percent")):
             item = next((item for item in selected_columns if item["variant"] == variant), None)
-            parsed = parse_franchise_amount(item["value"]) if item else None
-            if parsed is not None:
-                amount, unit, amount_source = parsed, variant_unit, item["value_coordinate"]
+            parsed = parse_franchise_amounts(item["value"]) if item else []
+            if parsed:
+                amounts, unit, amount_source = parsed, variant_unit, item["value_coordinate"]
                 break
 
         if has_without and has_with:
@@ -1845,7 +1835,8 @@ class ExcelRequestParserV2:
             "label_row": label_row,
             "selected_columns": selected_columns,
             "franchise_type": franchise_type,
-            "amount": str(amount) if amount is not None else None,  # строкой: payload уходит в сессию (JSON)
+            # строками: payload уходит в сессию (JSON)
+            "amounts": [format(amount.normalize(), "f") for amount in amounts],
             "unit": unit,
             "amount_source": amount_source,
             "source": "; ".join(source_parts),

@@ -330,6 +330,37 @@ class ParserV2ExcelUploadForm(forms.Form):
         return file
 
 
+class FranchiseAmountsField(forms.CharField):
+    """Размеры франшизы: в форме — текст «30000; 50000», в данных — список строк-чисел."""
+
+    def __init__(self, **kwargs):
+        kwargs.setdefault('label', 'Размер франшизы')
+        kwargs.setdefault('required', False)
+        kwargs.setdefault('help_text', 'Несколько вариантов — через «;»')
+        kwargs.setdefault('widget', forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'например, 30000; 50000'}))
+        super().__init__(**kwargs)
+
+    def prepare_value(self, value):
+        from .franchise import amounts_to_text
+
+        if isinstance(value, (list, tuple)):
+            return amounts_to_text(value)
+        return value
+
+    def to_python(self, value):
+        from .franchise import parse_amounts
+
+        if isinstance(value, (list, tuple)):
+            return [str(item) for item in value]
+        text = super().to_python(value)
+        if not text:
+            return []
+        amounts = parse_amounts(text)
+        if not amounts:
+            raise ValidationError('Укажите размер франшизы числом, несколько вариантов — через «;»')
+        return [format(amount.normalize(), 'f') for amount in amounts]
+
+
 class ParserV2PreviewForm(forms.Form):
     """Editable best-effort preview before creating a request from Parser V2."""
 
@@ -374,14 +405,7 @@ class ParserV2PreviewForm(forms.Form):
         choices=InsuranceRequest.FRANCHISE_TYPE_CHOICES,
         widget=forms.Select(attrs={'class': 'form-control'})
     )
-    franchise_amount = forms.DecimalField(
-        label='Размер франшизы',
-        required=False,
-        min_value=0,
-        max_digits=14,
-        decimal_places=2,
-        widget=forms.NumberInput(attrs={'class': 'form-control', 'step': 'any', 'placeholder': 'например, 30000'})
-    )
+    franchise_amounts = FranchiseAmountsField()
     franchise_unit = forms.ChoiceField(
         label='Единица франшизы',
         required=False,
@@ -524,7 +548,7 @@ class ParserV2PreviewForm(forms.Form):
             'deal_status': deal_status,
             'franchise_type': franchise_type,
             # Размер франшизы имеет смысл только когда франшиза есть.
-            'franchise_amount': cleaned.get('franchise_amount') if franchise_type != 'none' else None,
+            'franchise_amounts': (cleaned.get('franchise_amounts') or []) if franchise_type != 'none' else [],
             'franchise_unit': (cleaned.get('franchise_unit') or 'rub') if franchise_type != 'none' else 'rub',
             'has_installment': bool(cleaned.get('has_installment')),
             'has_autostart': bool(cleaned.get('has_autostart')),
@@ -764,12 +788,14 @@ class InsuranceRequestForm(forms.ModelForm):
         widget=forms.Select(attrs={'class': 'form-control'})
     )
     
+    franchise_amounts = FranchiseAmountsField()
+
     class Meta:
         model = InsuranceRequest
         fields = [
             'client_name', 'inn', 'insurance_type', 'insurance_period',
             'vehicle_info', 'dfa_number', 'branch', 'manager_name', 'deal_status', 'franchise_type',
-            'franchise_amount', 'franchise_unit',
+            'franchise_amounts', 'franchise_unit',
             'has_installment', 'has_autostart', 'has_casco_ce', 'has_transportation',
             'transportation_departure', 'transportation_destination', 'transportation_days',
             'has_construction_work', 'manufacturing_year', 'asset_status', 'response_deadline', 'notes',
@@ -809,9 +835,6 @@ class InsuranceRequestForm(forms.ModelForm):
                 choices=InsuranceRequest.FRANCHISE_TYPE_CHOICES,
                 attrs={'class': 'form-control'}
             ),
-            'franchise_amount': forms.NumberInput(attrs={
-                'class': 'form-control', 'step': 'any', 'min': '0', 'placeholder': 'например, 30000'
-            }),
             'franchise_unit': forms.Select(
                 choices=InsuranceRequest.FRANCHISE_UNIT_CHOICES,
                 attrs={'class': 'form-control'}
@@ -1202,7 +1225,7 @@ class InsuranceRequestForm(forms.ModelForm):
         cleaned_data = super().clean()
         # Размер франшизы хранится, только когда франшиза есть.
         if cleaned_data.get('franchise_type') == 'none':
-            cleaned_data['franchise_amount'] = None
+            cleaned_data['franchise_amounts'] = []
         if not cleaned_data.get('franchise_unit'):
             cleaned_data['franchise_unit'] = 'rub'
         return cleaned_data

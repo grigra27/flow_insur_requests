@@ -281,7 +281,7 @@ def _build_common_request_kwargs(request_fields, additional_data, user):
         'manager_name': request_fields['manager_name'],
         'deal_status': request_fields['deal_status'],
         'franchise_type': request_fields['franchise_type'],
-        'franchise_amount': request_fields.get('franchise_amount'),
+        'franchise_amounts': request_fields.get('franchise_amounts') or [],
         'franchise_unit': request_fields.get('franchise_unit') or 'rub',
         'has_installment': request_fields['has_installment'],
         'has_autostart': request_fields['has_autostart'],

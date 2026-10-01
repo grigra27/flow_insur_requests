@@ -112,6 +112,9 @@ def _canonical(field_name: str, value: Any, meta: Dict[str, Dict[str, Any]]) -> 
         return '1' if value else '0'
     if value is None:
         return ''
+    if isinstance(value, (list, tuple)):
+        # Списки (размеры франшизы): [] == «нет значения», элементы — как числа.
+        return '; '.join(_numeric_canonical(str(item)) for item in value)
     text = _WHITESPACE_RE.sub(' ', str(value).strip())
     if field_meta.get('is_numeric') and text:
         return _numeric_canonical(text)

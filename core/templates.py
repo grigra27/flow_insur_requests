@@ -165,17 +165,20 @@ ${franshiza_text}${installment_text}${avtozapusk_text}${transportation_text}${co
         
         # Условные блоки текста
         franchise_type = data.get('franchise_type', 'none')
-        franchise_amount = (data.get('franchise_amount') or '').strip()  # «30 000 руб.» из to_dict
-        if franchise_type == 'both_variants' and franchise_amount:
-            template_data['franshiza_text'] = (
-                'Обратите внимание, требуется два варианта тарифа:\n'
-                '1) без франшизы;\n'
-                f'2) с франшизой = {franchise_amount}\n'
-            )
-        elif franchise_type == 'with_franchise' and franchise_amount:
-            template_data['franshiza_text'] = (
-                f'Обратите внимание, требуется тариф с франшизой = {franchise_amount}\n'
-            )
+        # Варианты из to_dict: [«без франшизы», «с франшизой 30 000 руб.», …]; размер известен,
+        # если хотя бы один вариант «с франшизой» содержит число.
+        variants = [v for v in (data.get('franchise_variants') or []) if v]
+        with_amounts = [v for v in variants if v.startswith('с франшизой ')]
+        if franchise_type in ('both_variants', 'with_franchise') and with_amounts:
+            lines = [v.replace('с франшизой ', 'с франшизой = ', 1) for v in variants]
+            if len(lines) == 1:
+                template_data['franshiza_text'] = f'Обратите внимание, требуется тариф {lines[0]}\n'
+            else:
+                numbered = ';\n'.join(f'{i}) {line}' for i, line in enumerate(lines, 1))
+                template_data['franshiza_text'] = (
+                    f'Обратите внимание, требуется {len(lines)} {"варианта" if len(lines) < 5 else "вариантов"} тарифа:\n'
+                    f'{numbered}\n'
+                )
         elif franchise_type == 'both_variants':
             template_data['franshiza_text'] = self._get_franchise_text('both_variants')
         elif franchise_type == 'with_franchise':

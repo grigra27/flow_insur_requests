@@ -121,13 +121,12 @@ class InsuranceRequest(models.Model):
         default='none',
         verbose_name='Тип франшизы'
     )
-    franchise_amount = models.DecimalField(
-        max_digits=14,
-        decimal_places=2,
-        null=True,
+    franchise_amounts = models.JSONField(
+        default=list,
         blank=True,
-        verbose_name='Размер франшизы',
-        help_text='Сумма в рублях или процент от страховой суммы — см. «Единица франшизы»',
+        verbose_name='Размеры франшизы',
+        help_text='Варианты размера франшизы (числа строками, например ["30000", "50000"]); '
+                  'единица — см. «Единица франшизы»',
     )
     franchise_unit = models.CharField(
         max_length=10,
@@ -776,28 +775,43 @@ class InsuranceRequest(models.Model):
         return ''
 
     @property
+    def franchise_amount_labels(self):
+        """[«30 000 руб.», «50 000 руб.»] — варианты размера франшизы; пусто, если не указаны."""
+        from .franchise import format_amount
+
+        labels = []
+        for amount in self.franchise_amounts or []:
+            try:
+                labels.append(format_amount(amount, self.franchise_unit))
+            except (InvalidOperation, TypeError, ValueError):
+                continue
+        return labels
+
+    @property
     def franchise_amount_display(self):
-        """«30 000 руб.» или «1,5 % от страховой суммы»; пусто, если размер не указан."""
-        if self.franchise_amount is None:
-            return ''
-        value = Decimal(str(self.franchise_amount))
-        if value == value.to_integral_value():
-            amount = f"{value:,.0f}".replace(",", " ")
-        else:
-            amount = f"{value:,.2f}".replace(",", " ").rstrip('0').replace('.', ',')
-        if self.franchise_unit == 'percent':
-            return f"{amount} % от страховой суммы"
-        return f"{amount} руб."
+        """«30 000 руб.» или «30 000 руб. / 50 000 руб.»; пусто, если размер не указан."""
+        return ' / '.join(self.franchise_amount_labels)
+
+    @property
+    def franchise_variants(self):
+        """Варианты расчёта по франшизе: [«без франшизы», «с франшизой 30 000 руб.», …]."""
+        labels = self.franchise_amount_labels
+        variants = ['без франшизы'] if self.franchise_type in ('none', 'both_variants') else []
+        if self.franchise_type in ('with_franchise', 'both_variants'):
+            variants += [f'с франшизой {label}' for label in labels] or ['с франшизой']
+        return variants
 
     @property
     def franchise_display(self):
         """Франшиза одной строкой для карточки, PDF и выгрузок (без просьб к страховщику)."""
-        amount = self.franchise_amount_display
+        variants = self.franchise_variants
+        if self.franchise_type == 'none':
+            return 'Без франшизы'
+        if len(variants) > 2 or (self.franchise_type == 'with_franchise' and len(variants) > 1):
+            return 'Варианты: ' + '; '.join(variants)
         if self.franchise_type == 'both_variants':
-            return f"Оба варианта: без франшизы и с франшизой {amount}" if amount else "Оба варианта: без франшизы и с франшизой"
-        if self.franchise_type == 'with_franchise':
-            return f"С франшизой {amount}" if amount else "С франшизой"
-        return "Без франшизы"
+            return 'Оба варианта: ' + ' и '.join(variants)
+        return variants[0][:1].upper() + variants[0][1:]
 
     @property
     def acquisition_cost_display(self):
@@ -882,7 +896,7 @@ class InsuranceRequest(models.Model):
             'dfa_number': self.dfa_number,
             'branch': self.branch,
             'franchise_type': self.franchise_type,
-            'franchise_amount': self.franchise_amount_display,
+            'franchise_variants': self.franchise_variants,
             'has_installment': self.has_installment,
             'has_autostart': self.has_autostart,
             'has_casco_ce': self.has_casco_ce,

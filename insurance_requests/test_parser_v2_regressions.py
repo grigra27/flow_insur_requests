@@ -371,9 +371,10 @@ class BusinessActivityRegressionTests(SimpleTestCase):
 
 
 class FranchiseAmountRegressionTests(SimpleTestCase):
-    """Размер франшизы: число в отмеченной колонке «Абсолютная сумма» / «% от страховой суммы».
+    """Размеры франшизы: числа в отмеченной колонке «Абсолютная сумма» / «% от страховой суммы».
 
-    Отзыв сотрудника 2026-10-01: в PDF было только «с франшизой», без суммы из бланка.
+    Отзывы сотрудника 2026-10-01: в PDF было только «с франшизой», без сумм из бланка
+    (в том числе «30 000, 50 000» — два варианта).
     """
 
     def build(self, without='', percent='', absolute=''):
@@ -391,75 +392,102 @@ class FranchiseAmountRegressionTests(SimpleTestCase):
     def test_both_variants_with_absolute_amount(self):
         result = parse_result(self.build(without=MARK, absolute=30000))
         self.assertEqual(result.data['franchise_type'], 'both_variants')
-        self.assertEqual(result.data['franchise_amount'], '30000')
+        self.assertEqual(result.data['franchise_amounts'], ['30000'])
         self.assertEqual(result.data['franchise_unit'], 'rub')
-        self.assertEqual(result.source_map['franchise_amount'], 'F29')
+        self.assertEqual(result.source_map['franchise_amounts'], 'F29')
+
+    def test_two_amounts_are_two_variants(self):
+        # Реальный случай (Псков, ИП Курников): «без франшизы» + «30 000, 50 000».
+        data = parse(self.build(without=MARK, absolute='30 000, 50 000'))
+        self.assertEqual(data['franchise_type'], 'both_variants')
+        self.assertEqual(data['franchise_amounts'], ['30000', '50000'])
 
     def test_amount_written_as_text_with_currency(self):
         data = parse(self.build(absolute='150 000 руб.'))
         self.assertEqual(data['franchise_type'], 'with_franchise')
-        self.assertEqual(data['franchise_amount'], '150000')
+        self.assertEqual(data['franchise_amounts'], ['150000'])
 
     def test_percent_amount(self):
         data = parse(self.build(percent='1,5%'))
-        self.assertEqual(data['franchise_amount'], '1.5')
+        self.assertEqual(data['franchise_amounts'], ['1.5'])
         self.assertEqual(data['franchise_unit'], 'percent')
 
     def test_mark_without_amount(self):
         data = parse(self.build(without=MARK, absolute=MARK))
         self.assertEqual(data['franchise_type'], 'both_variants')
-        self.assertNotIn('franchise_amount', data)
+        self.assertNotIn('franchise_amounts', data)
+
+
+class FranchiseAmountsParsingTests(SimpleTestCase):
+    """Разбор размеров франшизы из текста (ячейка бланка, поле формы)."""
+
+    def test_parse_amounts(self):
+        from .franchise import parse_amounts
+
+        cases = {
+            '30 000, 50 000': ['30000', '50000'],
+            '30 000,50 000': ['30000', '50000'],
+            '30000/50000': ['30000', '50000'],
+            '30 000 и 50 000': ['30000', '50000'],
+            '30 000 руб.': ['30000'],
+            '30 000,00': ['30000'],
+            '1,5%': ['1.5'],
+            'Х': [],
+            'не знаю': [],
+        }
+        for text, expected in cases.items():
+            self.assertEqual([format(a.normalize(), 'f') for a in parse_amounts(text)], expected, text)
 
 
 class FranchiseDisplayTests(SimpleTestCase):
     """Франшиза одной строкой и в письме."""
 
-    def make(self, franchise_type, amount=None, unit='rub'):
-        from decimal import Decimal
-
+    def make(self, franchise_type, amounts=(), unit='rub'):
         from .models import InsuranceRequest
 
-        return InsuranceRequest(
-            franchise_type=franchise_type,
-            franchise_amount=Decimal(amount) if amount is not None else None,
-            franchise_unit=unit,
-        )
+        return InsuranceRequest(franchise_type=franchise_type, franchise_amounts=list(amounts), franchise_unit=unit)
 
     def test_display(self):
-        self.assertEqual(self.make('both_variants', '30000').franchise_display,
+        self.assertEqual(self.make('both_variants', ['30000']).franchise_display,
                          'Оба варианта: без франшизы и с франшизой 30 000 руб.')
-        self.assertEqual(self.make('with_franchise', '1.5', 'percent').franchise_display,
+        self.assertEqual(self.make('both_variants', ['30000', '50000']).franchise_display,
+                         'Варианты: без франшизы; с франшизой 30 000 руб.; с франшизой 50 000 руб.')
+        self.assertEqual(self.make('with_franchise', ['1.5'], 'percent').franchise_display,
                          'С франшизой 1,5 % от страховой суммы')
         self.assertEqual(self.make('both_variants').franchise_display,
                          'Оба варианта: без франшизы и с франшизой')
-        self.assertEqual(self.make('none', '30000').franchise_display, 'Без франшизы')
+        self.assertEqual(self.make('none', ['30000']).franchise_display, 'Без франшизы')
 
-    def test_email_text_contains_amount(self):
+    def email_text(self, request):
         from core.templates import EmailTemplateGenerator
 
-        data = EmailTemplateGenerator()._prepare_template_data(
-            {'franchise_type': 'both_variants', 'franchise_amount': '30 000 руб.', 'insurance_type': 'КАСКО'}
-        )
-        self.assertIn('1) без франшизы;', data['franshiza_text'])
-        self.assertIn('2) с франшизой = 30 000 руб.', data['franshiza_text'])
-        no_amount = EmailTemplateGenerator()._prepare_template_data(
-            {'franchise_type': 'both_variants', 'insurance_type': 'КАСКО'}
-        )
-        self.assertIn('тариф с франшизой и без франшизы', no_amount['franshiza_text'])
+        data = request.to_dict() if hasattr(request, 'pk') and request.pk else {
+            'franchise_type': request.franchise_type, 'franchise_variants': request.franchise_variants,
+            'insurance_type': 'КАСКО',
+        }
+        return EmailTemplateGenerator()._prepare_template_data(data)['franshiza_text']
+
+    def test_email_text_lists_variants(self):
+        text = self.email_text(self.make('both_variants', ['30000', '50000']))
+        self.assertIn('требуется 3 варианта тарифа', text)
+        self.assertIn('1) без франшизы;', text)
+        self.assertIn('2) с франшизой = 30 000 руб.;', text)
+        self.assertIn('3) с франшизой = 50 000 руб.', text)
+        self.assertIn('2) с франшизой = 30 000 руб.', self.email_text(self.make('both_variants', ['30000'])))
+        self.assertIn('тариф с франшизой = 30 000 руб.', self.email_text(self.make('with_franchise', ['30000'])))
+        self.assertIn('тариф с франшизой и без франшизы', self.email_text(self.make('both_variants')))
 
 
 class FranchiseBackfillMigrationTests(SimpleTestCase):
-    """Миграция 0047: размер франшизы из служебной записи source_map уже загруженных заявок."""
+    """Миграция 0047: размеры франшизы из служебной записи source_map уже загруженных заявок."""
 
-    def test_amount_from_source(self):
+    def test_amounts_from_source(self):
         import importlib
-        from decimal import Decimal
 
-        migration = importlib.import_module('insurance_requests.migrations.0047_backfill_franchise_amount')
-        parse = migration.amount_from_source
-        self.assertEqual(parse('D29=Х (D28: Нет франшизы); F29=30000 (F28: Абсолютная сумма)'),
-                         (Decimal('30000'), 'rub'))
-        self.assertEqual(parse('E29=1,5% (E28: % от страховой суммы)'), (Decimal('1.5'), 'percent'))
-        self.assertEqual(parse('D29=Х (D28: Нет франшизы)'), (None, None))
-        self.assertEqual(parse('F29=Х (F28: Абсолютная сумма)'), (None, None))
-        self.assertEqual(parse(''), (None, None))
+        migration = importlib.import_module('insurance_requests.migrations.0047_backfill_franchise_amounts')
+        parse = migration.amounts_from_source
+        self.assertEqual(parse('D29=Х (D28: Нет франшизы); F29=30000 (F28: Абсолютная сумма)'), (['30000'], 'rub'))
+        self.assertEqual(parse('F29=30 000, 50 000 (F28: Абсолютная сумма)'), (['30000', '50000'], 'rub'))
+        self.assertEqual(parse('E29=1,5% (E28: % от страховой суммы)'), (['1.5'], 'percent'))
+        self.assertEqual(parse('D29=Х (D28: Нет франшизы)'), ([], None))
+        self.assertEqual(parse(''), ([], None))
