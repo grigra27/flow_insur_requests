@@ -917,6 +917,7 @@ class RequestDetailBatchPanelTest(TestCase):
         self.assertEqual(response.context['batch_next'], self.siblings[2])
         self.assertEqual(response.context['batch_total'], '6 500 000 RUB')
         self.assertContains(response, 'Все объекты партии')
+
         self.assertContains(response, 'вы здесь')
         self.assertContains(response, 'общая стоимость 6 500 000 RUB')
         # По PDF на каждый объект партии плюс главная кнопка в шапке.
@@ -925,6 +926,16 @@ class RequestDetailBatchPanelTest(TestCase):
                 response,
                 reverse('insurance_requests:export_request_application', kwargs={'pk': request_obj.pk}),
             )
+
+        # Одинаковые строки файла: стоимость умножается на количество, как в PDF партии
+        # (ТС-20722: на карточке было 39,4 млн вместо 60 млн).
+        self.siblings[0].source_object_count = 3
+        self.siblings[0].save()
+        response = self.client.get(
+            reverse('insurance_requests:request_detail', kwargs={'pk': middle.pk})
+        )
+        self.assertEqual(response.context['batch_total'], '8 500 000 RUB')
+        self.assertContains(response, 'общая стоимость 8 500 000 RUB')
 
     def test_batch_navigator_edges_and_mixed_currency(self):
         self.siblings[0].acquisition_cost_value = 100

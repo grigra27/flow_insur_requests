@@ -1299,15 +1299,19 @@ def request_detail(request, pk):
 def _batch_total_display(batch_requests):
     """Сумма стоимостей объектов партии в формате acquisition_cost_display.
 
-    Пусто, если у какого-то объекта нет стоимости или валюты различаются —
-    тогда сумма ничего не говорит.
+    Стоимость объекта умножается на количество одинаковых строк файла
+    (source_object_count): «3 штуки по 7,2 млн» — это 21,6 млн. Так же считает
+    PDF на всю партию. Пусто, если у какого-то объекта нет стоимости или валюты
+    различаются — тогда сумма ничего не говорит.
     """
     values = [r.acquisition_cost_value for r in batch_requests]
     currencies = {r.acquisition_cost_currency or '' for r in batch_requests}
     if not values or any(v is None for v in values) or len(currencies) > 1:
         return ''
     total = InsuranceRequest(
-        acquisition_cost_value=sum(values),
+        acquisition_cost_value=sum(
+            r.acquisition_cost_value * max(r.source_object_count or 1, 1) for r in batch_requests
+        ),
         acquisition_cost_currency=currencies.pop() or None,
     )
     return total.acquisition_cost_display
