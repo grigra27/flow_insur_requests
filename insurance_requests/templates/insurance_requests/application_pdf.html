@@ -62,7 +62,6 @@
     .cost-k { font-size: 7pt; color: #5b6b6c; }
     .cost-v { font-size: 16pt; font-weight: bold; color: #495e5f; line-height: 1.05; }
     .qty { font-size: 8pt; font-weight: bold; color: #ba122b; }
-    .source { font-size: 7.2pt; color: #6d7a7b; padding-top: 3pt; }
 
     /* Параметры и риски */
     .flags td.f { padding: 4pt 7pt 4pt 7pt; border: 1.5pt solid #ffffff; }
@@ -152,9 +151,6 @@
                         {% endif %}
                     </tr>
                 </table>
-                {% if source_text %}
-                <div class="source">Строка из заявки лизингополучателя: «{{ source_text }}»</div>
-                {% endif %}
             </td></tr></table>
         </td>
         <td style="width: 31%; padding-left: 5mm;">

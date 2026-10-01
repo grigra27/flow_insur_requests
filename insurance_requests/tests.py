@@ -259,6 +259,7 @@ class RequestApplicationPdfExportTest(TestCase):
             dfa_number='ДФА-APP-001',
             branch='Московский филиал',
             franchise_type='both_variants',
+            franchise_amount=Decimal('30000'),
             has_autostart=True,
             has_transportation=True,
             transportation_departure='Москва',
@@ -312,8 +313,9 @@ class RequestApplicationPdfExportTest(TestCase):
         self.assertIn('КАМАЗ', text)
         self.assertIn('Автозапуск', text)
         self.assertIn('Москва', text)  # маршрут перевозки
-        # both_variants → явная просьба о двух расчётах.
-        self.assertIn('оба варианта', text)
+        # both_variants с размером — нейтрально, без просьбы к страховщику.
+        self.assertIn('Оба варианта: без франшизы и с франшизой 30 000 руб.', ' '.join(text.split()))
+        self.assertNotIn('просьба', text)
 
     def test_application_is_a_data_sheet_without_asks_or_deadline(self):
         # Вариант А (отзыв сотрудников 2026-10-01): вопросы и срок ответа — только в письме.
@@ -325,6 +327,16 @@ class RequestApplicationPdfExportTest(TestCase):
         self.assertNotIn('ОТВЕТ СТРАХОВЩИКА', text)
         self.assertIn('ПРИЛОЖЕНИЕ К ЗАПРОСУ', text)
         self.assertIn('по данным лизингополучателя', text)
+
+    def test_power_tile_kept_but_raw_source_line_dropped(self):
+        # Отзыв сотрудников 2026-10-01: сырая строка объекта склеивала мощность с ценой.
+        from .application_export import build_application_context
+
+        self.request.object_description = '1 Автомобиль LADA NIVA 2026 новое 89,73 1832000 руб'
+        self.request.power_or_capacity = '89,73'
+        context = build_application_context(self.request)
+        self.assertNotIn('source_text', context)
+        self.assertIn(('Мощность / производ.', '89,73'), context['facts'])
 
     def test_deal_manager_is_our_employee_not_lessor_manager(self):
         from .application_export import build_application_context

@@ -165,7 +165,18 @@ ${franshiza_text}${installment_text}${avtozapusk_text}${transportation_text}${co
         
         # Условные блоки текста
         franchise_type = data.get('franchise_type', 'none')
-        if franchise_type == 'both_variants':
+        franchise_amount = (data.get('franchise_amount') or '').strip()  # «30 000 руб.» из to_dict
+        if franchise_type == 'both_variants' and franchise_amount:
+            template_data['franshiza_text'] = (
+                'Обратите внимание, требуется два варианта тарифа:\n'
+                '1) без франшизы;\n'
+                f'2) с франшизой = {franchise_amount}\n'
+            )
+        elif franchise_type == 'with_franchise' and franchise_amount:
+            template_data['franshiza_text'] = (
+                f'Обратите внимание, требуется тариф с франшизой = {franchise_amount}\n'
+            )
+        elif franchise_type == 'both_variants':
             template_data['franshiza_text'] = self._get_franchise_text('both_variants')
         elif franchise_type == 'with_franchise':
             template_data['franshiza_text'] = self._get_franchise_text('with_franchise')

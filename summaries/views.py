@@ -1048,7 +1048,7 @@ def deal_summary(request, summary_id):
         'creditor_bank': insurance_request.creditor_bank,
         'usage_purposes': insurance_request.usage_purposes,
         'franchise_required': insurance_request.franchise_type != 'none',
-        'franchise_type_display': insurance_request.get_franchise_type_display(),
+        'franchise_type_display': insurance_request.franchise_display,
         'has_installment': insurance_request.has_installment,
         'has_casco_ce': insurance_request.has_casco_ce if is_casco_type else None,
         'deal_status_display': insurance_request.get_deal_status_display() if hasattr(insurance_request, 'get_deal_status_display') else '',

@@ -45,6 +45,11 @@ class InsuranceRequest(models.Model):
         ('with_franchise', 'Только с франшизой'),
         ('both_variants', 'Оба варианта'),
     ]
+
+    FRANCHISE_UNIT_CHOICES = [
+        ('rub', 'руб.'),
+        ('percent', '% от страховой суммы'),
+    ]
     
     DEAL_STATUS_CHOICES = [
         ('new', 'Новая сделка'),
@@ -115,6 +120,21 @@ class InsuranceRequest(models.Model):
         choices=FRANCHISE_TYPE_CHOICES,
         default='none',
         verbose_name='Тип франшизы'
+    )
+    franchise_amount = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name='Размер франшизы',
+        help_text='Сумма в рублях или процент от страховой суммы — см. «Единица франшизы»',
+    )
+    franchise_unit = models.CharField(
+        max_length=10,
+        choices=FRANCHISE_UNIT_CHOICES,
+        default='rub',
+        blank=True,
+        verbose_name='Единица франшизы',
     )
     has_installment = models.BooleanField(default=False, verbose_name='Требуется рассрочка')
     has_autostart = models.BooleanField(default=False, verbose_name='Есть автозапуск')
@@ -756,6 +776,30 @@ class InsuranceRequest(models.Model):
         return ''
 
     @property
+    def franchise_amount_display(self):
+        """«30 000 руб.» или «1,5 % от страховой суммы»; пусто, если размер не указан."""
+        if self.franchise_amount is None:
+            return ''
+        value = Decimal(str(self.franchise_amount))
+        if value == value.to_integral_value():
+            amount = f"{value:,.0f}".replace(",", " ")
+        else:
+            amount = f"{value:,.2f}".replace(",", " ").rstrip('0').replace('.', ',')
+        if self.franchise_unit == 'percent':
+            return f"{amount} % от страховой суммы"
+        return f"{amount} руб."
+
+    @property
+    def franchise_display(self):
+        """Франшиза одной строкой для карточки, PDF и выгрузок (без просьб к страховщику)."""
+        amount = self.franchise_amount_display
+        if self.franchise_type == 'both_variants':
+            return f"Оба варианта: без франшизы и с франшизой {amount}" if amount else "Оба варианта: без франшизы и с франшизой"
+        if self.franchise_type == 'with_franchise':
+            return f"С франшизой {amount}" if amount else "С франшизой"
+        return "Без франшизы"
+
+    @property
     def acquisition_cost_display(self):
         if self.acquisition_cost_value is None:
             return ''
@@ -838,6 +882,7 @@ class InsuranceRequest(models.Model):
             'dfa_number': self.dfa_number,
             'branch': self.branch,
             'franchise_type': self.franchise_type,
+            'franchise_amount': self.franchise_amount_display,
             'has_installment': self.has_installment,
             'has_autostart': self.has_autostart,
             'has_casco_ce': self.has_casco_ce,

@@ -18,6 +18,7 @@ import os
 import tempfile
 import logging
 import uuid
+from decimal import Decimal
 
 from .models import InsuranceRequest, RequestAttachment, RequestFieldEdit
 from .forms import (
@@ -151,6 +152,8 @@ def _parser_v2_initial_data(draft_id, parse_result):
 def _json_safe_value(value):
     if hasattr(value, 'isoformat'):
         return value.isoformat()
+    if isinstance(value, Decimal):
+        return str(value)
     if isinstance(value, dict):
         return {key: _json_safe_value(item) for key, item in value.items()}
     if isinstance(value, list):
@@ -278,6 +281,8 @@ def _build_common_request_kwargs(request_fields, additional_data, user):
         'manager_name': request_fields['manager_name'],
         'deal_status': request_fields['deal_status'],
         'franchise_type': request_fields['franchise_type'],
+        'franchise_amount': request_fields.get('franchise_amount'),
+        'franchise_unit': request_fields.get('franchise_unit') or 'rub',
         'has_installment': request_fields['has_installment'],
         'has_autostart': request_fields['has_autostart'],
         'has_casco_ce': request_fields['has_casco_ce'],

@@ -374,6 +374,20 @@ class ParserV2PreviewForm(forms.Form):
         choices=InsuranceRequest.FRANCHISE_TYPE_CHOICES,
         widget=forms.Select(attrs={'class': 'form-control'})
     )
+    franchise_amount = forms.DecimalField(
+        label='Размер франшизы',
+        required=False,
+        min_value=0,
+        max_digits=14,
+        decimal_places=2,
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'step': 'any', 'placeholder': 'например, 30000'})
+    )
+    franchise_unit = forms.ChoiceField(
+        label='Единица франшизы',
+        required=False,
+        choices=InsuranceRequest.FRANCHISE_UNIT_CHOICES,
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
     has_installment = forms.BooleanField(label='Требуется рассрочка', required=False, widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}))
     has_autostart = forms.BooleanField(label='Есть автозапуск', required=False, widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}))
     has_casco_ce = forms.BooleanField(label='КАСКО кат. C/E', required=False, widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}))
@@ -509,6 +523,9 @@ class ParserV2PreviewForm(forms.Form):
             'manager_name': self._limit(cleaned.get('manager_name') or '', 255),
             'deal_status': deal_status,
             'franchise_type': franchise_type,
+            # Размер франшизы имеет смысл только когда франшиза есть.
+            'franchise_amount': cleaned.get('franchise_amount') if franchise_type != 'none' else None,
+            'franchise_unit': (cleaned.get('franchise_unit') or 'rub') if franchise_type != 'none' else 'rub',
             'has_installment': bool(cleaned.get('has_installment')),
             'has_autostart': bool(cleaned.get('has_autostart')),
             'has_casco_ce': bool(cleaned.get('has_casco_ce')),
@@ -752,6 +769,7 @@ class InsuranceRequestForm(forms.ModelForm):
         fields = [
             'client_name', 'inn', 'insurance_type', 'insurance_period',
             'vehicle_info', 'dfa_number', 'branch', 'manager_name', 'deal_status', 'franchise_type',
+            'franchise_amount', 'franchise_unit',
             'has_installment', 'has_autostart', 'has_casco_ce', 'has_transportation',
             'transportation_departure', 'transportation_destination', 'transportation_days',
             'has_construction_work', 'manufacturing_year', 'asset_status', 'response_deadline', 'notes',
@@ -789,6 +807,13 @@ class InsuranceRequestForm(forms.ModelForm):
             ),
             'franchise_type': forms.Select(
                 choices=InsuranceRequest.FRANCHISE_TYPE_CHOICES,
+                attrs={'class': 'form-control'}
+            ),
+            'franchise_amount': forms.NumberInput(attrs={
+                'class': 'form-control', 'step': 'any', 'min': '0', 'placeholder': 'например, 30000'
+            }),
+            'franchise_unit': forms.Select(
+                choices=InsuranceRequest.FRANCHISE_UNIT_CHOICES,
                 attrs={'class': 'form-control'}
             ),
             'manufacturing_year': forms.TextInput(attrs={
@@ -1175,6 +1200,11 @@ class InsuranceRequestForm(forms.ModelForm):
     def clean(self):
         """Общая валидация формы"""
         cleaned_data = super().clean()
+        # Размер франшизы хранится, только когда франшиза есть.
+        if cleaned_data.get('franchise_type') == 'none':
+            cleaned_data['franchise_amount'] = None
+        if not cleaned_data.get('franchise_unit'):
+            cleaned_data['franchise_unit'] = 'rub'
         return cleaned_data
     
     def save(self, commit=True):

@@ -69,13 +69,10 @@ def _date(value) -> Optional[str]:
 
 
 def _franchise(insurance_request) -> Optional[str]:
-    """Франшиза; для both_variants просим явно два расчёта."""
-    label = _display(insurance_request, 'franchise_type')
-    if not label:
+    """Франшиза с размером, без просьб к страховщику: «Оба варианта: без франшизы и с франшизой 30 000 руб.»."""
+    if not _text(insurance_request.franchise_type):
         return None
-    if insurance_request.franchise_type == 'both_variants':
-        return f'{label} (просьба рассчитать оба варианта — с франшизой и без)'
-    return label
+    return insurance_request.franchise_display
 
 
 # --- состав документа ---------------------------------------------------------
@@ -205,9 +202,6 @@ def build_application_context(insurance_request) -> dict:
     """Готовит контекст фирменного PDF-шаблона заявки для страховой."""
     r = insurance_request
     title = _capitalize(_text(r.object_display_name)) or 'Объект не указан'
-    source_text = _text(r.object_description)
-    if source_text and source_text.lower() == title.lower():
-        source_text = None
 
     kind = [part for part in (
         _text(r.machine_kind),
@@ -256,7 +250,6 @@ def build_application_context(insurance_request) -> dict:
             f'× {r.source_object_count} одинаковых объекта'
             if (r.source_object_count or 0) > 1 else None
         ),
-        'source_text': source_text,
         'terms_rows': _terms_rows(r),
         'tile_rows': tile_rows,
         'long_rows': long_rows,

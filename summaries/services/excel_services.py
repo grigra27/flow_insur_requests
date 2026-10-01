@@ -705,6 +705,8 @@ class ExcelExportService:
             
             # Заполняем информацию о франшизе (B15)
             franchise_text = self._get_franchise_text_for_tech_info(request.franchise_type or 'none')
+            if request.franchise_type != 'none' and request.franchise_amount_display:
+                franchise_text = f'{franchise_text}; размер франшизы: {request.franchise_amount_display}'
             self._fill_tech_cell(tech_sheet, self.TECH_INFO_CELLS['franchise_info'], 
                                franchise_text, 'информация о франшизе')
             

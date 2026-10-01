@@ -368,3 +368,98 @@ class BusinessActivityRegressionTests(SimpleTestCase):
 
     def test_short_answer(self):
         self.assertEqual(parse(self.build('Разработка карьера'))['business_activity'], 'Разработка карьера')
+
+
+class FranchiseAmountRegressionTests(SimpleTestCase):
+    """Размер франшизы: число в отмеченной колонке «Абсолютная сумма» / «% от страховой суммы».
+
+    Отзыв сотрудника 2026-10-01: в PDF было только «с франшизой», без суммы из бланка.
+    """
+
+    def build(self, without='', percent='', absolute=''):
+        wb = build_casco_application()
+        sheet = wb.active
+        sheet['B27'] = 'Франшиза (отметьте знаком "Х" или укажите значение)'
+        sheet['D28'] = 'Нет франшизы'
+        sheet['E28'] = '% от страховой суммы'
+        sheet['F28'] = 'Абсолютная сумма'
+        for cell, value in (('D29', without), ('E29', percent), ('F29', absolute)):
+            if value != '':
+                sheet[cell] = value
+        return wb
+
+    def test_both_variants_with_absolute_amount(self):
+        result = parse_result(self.build(without=MARK, absolute=30000))
+        self.assertEqual(result.data['franchise_type'], 'both_variants')
+        self.assertEqual(result.data['franchise_amount'], '30000')
+        self.assertEqual(result.data['franchise_unit'], 'rub')
+        self.assertEqual(result.source_map['franchise_amount'], 'F29')
+
+    def test_amount_written_as_text_with_currency(self):
+        data = parse(self.build(absolute='150 000 руб.'))
+        self.assertEqual(data['franchise_type'], 'with_franchise')
+        self.assertEqual(data['franchise_amount'], '150000')
+
+    def test_percent_amount(self):
+        data = parse(self.build(percent='1,5%'))
+        self.assertEqual(data['franchise_amount'], '1.5')
+        self.assertEqual(data['franchise_unit'], 'percent')
+
+    def test_mark_without_amount(self):
+        data = parse(self.build(without=MARK, absolute=MARK))
+        self.assertEqual(data['franchise_type'], 'both_variants')
+        self.assertNotIn('franchise_amount', data)
+
+
+class FranchiseDisplayTests(SimpleTestCase):
+    """Франшиза одной строкой и в письме."""
+
+    def make(self, franchise_type, amount=None, unit='rub'):
+        from decimal import Decimal
+
+        from .models import InsuranceRequest
+
+        return InsuranceRequest(
+            franchise_type=franchise_type,
+            franchise_amount=Decimal(amount) if amount is not None else None,
+            franchise_unit=unit,
+        )
+
+    def test_display(self):
+        self.assertEqual(self.make('both_variants', '30000').franchise_display,
+                         'Оба варианта: без франшизы и с франшизой 30 000 руб.')
+        self.assertEqual(self.make('with_franchise', '1.5', 'percent').franchise_display,
+                         'С франшизой 1,5 % от страховой суммы')
+        self.assertEqual(self.make('both_variants').franchise_display,
+                         'Оба варианта: без франшизы и с франшизой')
+        self.assertEqual(self.make('none', '30000').franchise_display, 'Без франшизы')
+
+    def test_email_text_contains_amount(self):
+        from core.templates import EmailTemplateGenerator
+
+        data = EmailTemplateGenerator()._prepare_template_data(
+            {'franchise_type': 'both_variants', 'franchise_amount': '30 000 руб.', 'insurance_type': 'КАСКО'}
+        )
+        self.assertIn('1) без франшизы;', data['franshiza_text'])
+        self.assertIn('2) с франшизой = 30 000 руб.', data['franshiza_text'])
+        no_amount = EmailTemplateGenerator()._prepare_template_data(
+            {'franchise_type': 'both_variants', 'insurance_type': 'КАСКО'}
+        )
+        self.assertIn('тариф с франшизой и без франшизы', no_amount['franshiza_text'])
+
+
+class FranchiseBackfillMigrationTests(SimpleTestCase):
+    """Миграция 0047: размер франшизы из служебной записи source_map уже загруженных заявок."""
+
+    def test_amount_from_source(self):
+        import importlib
+        from decimal import Decimal
+
+        migration = importlib.import_module('insurance_requests.migrations.0047_backfill_franchise_amount')
+        parse = migration.amount_from_source
+        self.assertEqual(parse('D29=Х (D28: Нет франшизы); F29=30000 (F28: Абсолютная сумма)'),
+                         (Decimal('30000'), 'rub'))
+        self.assertEqual(parse('E29=1,5% (E28: % от страховой суммы)'), (Decimal('1.5'), 'percent'))
+        self.assertEqual(parse('D29=Х (D28: Нет франшизы)'), (None, None))
+        self.assertEqual(parse('F29=Х (F28: Абсолютная сумма)'), (None, None))
+        self.assertEqual(parse(''), (None, None))

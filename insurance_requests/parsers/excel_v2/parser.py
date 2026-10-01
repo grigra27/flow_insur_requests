@@ -247,6 +247,18 @@ def parse_cost_value(value: Any) -> Optional[Decimal]:
         return None
 
 
+def parse_franchise_amount(value: Any) -> Optional[Decimal]:
+    """Размер франшизы из ячейки варианта: «30000», «30 000 руб.», «1,5%». Отметка «Х» — не размер."""
+    text = clean_value(value)
+    if not text:
+        return None
+    text = re.sub(r"(?i)(рубл\w*|руб\.?|р\.|%)", "", text)
+    amount = parse_cost_value(text)
+    if amount is None or amount <= 0:
+        return None
+    return amount
+
+
 def classify_equipment_or_power(value: Any) -> Tuple[Optional[str], Optional[str]]:
     """
     Column L in the canonical layout is overloaded: it can hold engine power
@@ -784,6 +796,10 @@ class ExcelRequestParserV2:
         data["franchise_type"] = franchise_type
         if franchise_details.get("source"):
             source_map["franchise_type"] = franchise_details["source"]
+        if franchise_details.get("amount") is not None:
+            data["franchise_amount"] = franchise_details["amount"]
+            data["franchise_unit"] = franchise_details["unit"]
+            source_map["franchise_amount"] = franchise_details["amount_source"]
         data["has_autostart"] = self._extract_autostart(cells, rows)
         has_casco_ce, casco_ce_source = self._extract_casco_ce_from_objects(insured_objects)
         data["has_casco_ce"] = has_casco_ce
@@ -1802,6 +1818,15 @@ class ExcelRequestParserV2:
             [item["label"] for item in selected_columns]
         )
 
+        # Размер франшизы — число в отмеченной колонке «Абсолютная сумма» (приоритет) или «% от СС».
+        amount, unit, amount_source = None, None, None
+        for variant, variant_unit in (("absolute_franchise", "rub"), ("percent_franchise", "percent")):
+            item = next((item for item in selected_columns if item["variant"] == variant), None)
+            parsed = parse_franchise_amount(item["value"]) if item else None
+            if parsed is not None:
+                amount, unit, amount_source = parsed, variant_unit, item["value_coordinate"]
+                break
+
         if has_without and has_with:
             franchise_type = "both_variants"
         elif has_with:
@@ -1820,6 +1845,9 @@ class ExcelRequestParserV2:
             "label_row": label_row,
             "selected_columns": selected_columns,
             "franchise_type": franchise_type,
+            "amount": str(amount) if amount is not None else None,  # строкой: payload уходит в сессию (JSON)
+            "unit": unit,
+            "amount_source": amount_source,
             "source": "; ".join(source_parts),
             "selection_row_looks_like_header": selection_row_looks_like_header,
             "label_row_looks_like_franchise_options": label_row_looks_like_franchise_options,

@@ -190,7 +190,7 @@
                         </div>
                         {% if request.insured_party %}<div><dt>Страхователь</dt><dd>{{ request.get_insured_party_display }}</dd></div>{% endif %}
                         {% if request.insured_sum_type %}<div><dt>Тип страховой суммы</dt><dd>{{ request.get_insured_sum_type_display }}</dd></div>{% endif %}
-                        <div><dt>Франшиза</dt><dd>{{ request.get_franchise_type_display }}</dd></div>
+                        <div><dt>Франшиза</dt><dd>{{ request.franchise_display }}</dd></div>
                         <div><dt>Банк-кредитор</dt><dd>{{ request.creditor_bank|default:"Не указано" }}</dd></div>
                     </dl>
                     <!-- Дополнительные параметры: те же цвета, что в колонке «Условия» списка заявок -->

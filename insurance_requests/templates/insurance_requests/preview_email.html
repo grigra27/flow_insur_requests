@@ -80,7 +80,7 @@
                         <div class="em-facts">
                             <div class="em-fact"><span>Тип страхования</span><b>{{ request.insurance_type }}</b></div>
                             <div class="em-fact"><span>Срок</span><b>{{ request.insurance_period|default:"не указан" }}</b></div>
-                            <div class="em-fact"><span>Франшиза</span><b>{{ request.get_franchise_type_display }}</b></div>
+                            <div class="em-fact"><span>Франшиза</span><b>{{ request.franchise_display }}</b></div>
                             <div class="em-fact"><span>Уплата премии</span><b>{% if request.premium_frequency %}{{ request.get_premium_frequency_display }}{% elif request.has_installment %}Рассрочка{% else %}не указано{% endif %}</b></div>
                             {% if request.has_transportation %}<div class="em-fact"><span>Перевозка</span><b>{{ request.transportation_departure|default:"—" }} → {{ request.transportation_destination|default:"—" }}{% if request.transportation_days %} · {{ request.transportation_days }} дн.{% endif %}</b></div>{% endif %}
                             <div class="em-fact"><span>Срок ответа</span><b>{% if request.response_deadline %}{% timezone "Europe/Moscow" %}{{ request.response_deadline|date:"d.m.Y H:i" }}{% endtimezone %} МСК{% else %}не указан{% endif %}</b></div>
