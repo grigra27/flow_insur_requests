@@ -61,7 +61,8 @@
     .facts .v { font-size: 9.6pt; font-weight: bold; color: #1e2a2b; }
     .cost-k { font-size: 7pt; color: #5b6b6c; }
     .cost-v { font-size: 16pt; font-weight: bold; color: #495e5f; line-height: 1.05; }
-    .qty { font-size: 8pt; font-weight: bold; color: #ba122b; }
+    .qty-pill { background-color: #ba122b; color: #ffffff; font-size: 12pt; font-weight: bold; }
+    td.qty-band { background-color: #ba122b; color: #ffffff; font-size: 10pt; font-weight: bold; padding: 4pt 7pt 4pt 7pt; }
     .cost-none { font-size: 10pt; font-weight: bold; color: #838280; padding-top: 2pt; }
     .legacy { font-size: 7.2pt; color: #8a5a00; padding-top: 4pt; }
 
@@ -89,7 +90,7 @@
         </td>
         <td style="vertical-align: middle; padding-left: 4mm; border-left: 0.6pt solid #d9dfdf;">
             <div class="eyebrow">ЗАЯВКА НА РАСЧЁТ СТРАХОВАНИЯ · {{ type_label|upper }}</div>
-            <div class="doc-title">{{ object_title|truncatechars:90 }}</div>
+            <div class="doc-title">{{ object_title|truncatechars:90 }}{% if quantity_count %} <span class="qty-pill">&nbsp;× {{ quantity_count }} ед.&nbsp;</span>{% endif %}</div>
             <div class="doc-sub">{{ client_name }}{% if batch_label %} · {{ batch_label }}{% endif %}</div>
         </td>
         <td style="width: 62mm; vertical-align: middle;">
@@ -133,6 +134,10 @@
             {% block object_column %}
             <div class="sec">ОБЪЕКТ СТРАХОВАНИЯ</div>
             <table><tr><td class="obj">
+                {% if quantity_count %}
+                <table><tr><td class="qty-band">КОЛИЧЕСТВО: {{ quantity_label|upper }}</td></tr></table>
+                <div style="height: 5pt;"></div>
+                {% endif %}
                 <div class="obj-name">{{ object_title }}</div>
                 {% if object_kind %}<div class="obj-kind">{{ object_kind }}</div>{% endif %}
                 <div style="height: 5pt;"></div>
@@ -147,11 +152,14 @@
                 <table>
                     <tr>
                         <td>
-                            <div class="cost-k">СТОИМОСТЬ ПРИОБРЕТЕНИЯ</div>
+                            <div class="cost-k">{% if quantity_count %}СТОИМОСТЬ ЗА 1 ЕД.{% else %}СТОИМОСТЬ ПРИОБРЕТЕНИЯ{% endif %}</div>
                             <div class="{% if cost_known %}cost-v{% else %}cost-none{% endif %}">{{ cost }}</div>
                         </td>
-                        {% if quantity %}
-                        <td style="text-align: right; vertical-align: bottom;"><div class="qty">{{ quantity }}</div></td>
+                        {% if cost_total %}
+                        <td style="text-align: right;">
+                            <div class="cost-k" style="color: #ba122b;">ИТОГО ЗА {{ quantity_count }} ЕД.</div>
+                            <div class="cost-v" style="color: #ba122b;">{{ cost_total }}</div>
+                        </td>
                         {% endif %}
                     </tr>
                 </table>

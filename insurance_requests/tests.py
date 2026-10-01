@@ -354,6 +354,32 @@ class RequestApplicationPdfExportTest(TestCase):
         self.assertEqual(context['cost'], 'не указана')
         self.assertIsNone(context['legacy_note'])
 
+    def test_several_identical_units_are_prominent(self):
+        # ТС-20862-ЛА-АР: 6 одинаковых Great Wall — количество и итог должны бросаться в глаза.
+        from .application_export import build_application_context
+
+        self.request.source_object_count = 6
+        self.request.acquisition_cost_value = Decimal('3840000')
+        self.request.acquisition_cost_currency = 'RUB'
+        context = build_application_context(self.request)
+        self.assertEqual(context['quantity_count'], 6)
+        self.assertEqual(context['quantity_label'], '6 единиц')
+        self.assertEqual(context['cost'], '3 840 000 руб.')
+        self.assertEqual(context['cost_total'], '23 040 000 руб.')
+        self.request.save()
+        text = ' '.join(self._extract_text(self.superuser_client.get(
+            reverse('insurance_requests:export_request_application', kwargs={'pk': self.request.pk})
+        ).content).split())
+        self.assertIn('КОЛИЧЕСТВО: 6 ЕДИНИЦ', text)
+        self.assertIn('ИТОГО ЗА 6 ЕД.', text)
+
+    def test_single_unit_has_no_quantity_marks(self):
+        from .application_export import build_application_context
+
+        context = build_application_context(self.request)
+        self.assertIsNone(context['quantity_count'])
+        self.assertIsNone(context['cost_total'])
+
     def test_deal_manager_is_our_employee_not_lessor_manager(self):
         from .application_export import build_application_context
 

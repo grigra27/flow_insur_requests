@@ -162,6 +162,17 @@ def power_label(insurance_request) -> str:
     return POWER_LABELS.get(kind, 'Мощность / производ.')
 
 
+def _units_label(count: int) -> str:
+    """6 → «6 единиц», 2 → «2 единицы», 21 → «21 единица»."""
+    if count % 10 == 1 and count % 100 != 11:
+        word = 'единица'
+    elif 2 <= count % 10 <= 4 and not 12 <= count % 100 <= 14:
+        word = 'единицы'
+    else:
+        word = 'единиц'
+    return f'{count} {word}'
+
+
 def _object_facts(r):
     return _rows([
         ('Год выпуска', _text(r.manufacturing_year)),
@@ -249,6 +260,7 @@ def build_application_context(insurance_request) -> dict:
         long_rows.append(transport)
 
     facts = _object_facts(r)
+    quantity = max(r.source_object_count or 1, 1)
     # Старый загрузчик (до июня 2026) не разбирал стоимость и характеристики объекта —
     # честно говорим об этом вместо «не указана» (решение по отзыву сотрудников 2026-10-01).
     legacy = not r.is_parser_v2
@@ -284,9 +296,13 @@ def build_application_context(insurance_request) -> dict:
             'Заявка загружена старым загрузчиком: стоимость и характеристики объекта не разбирались — '
             'сверяйте с исходным Excel лизингополучателя.'
         ) if legacy else None,
-        'quantity': (
-            f'× {r.source_object_count} одинаковых объекта'
-            if (r.source_object_count or 0) > 1 else None
+        # Несколько одинаковых единиц (одна строка ×N в бланке) — выделяем ярко: страховщик
+        # должен сразу видеть, что считает N единиц, а цена указана за одну (2026-10-01).
+        'quantity_count': quantity if quantity > 1 else None,
+        'quantity_label': _units_label(quantity) if quantity > 1 else None,
+        'cost_total': (
+            _money(Decimal(str(r.acquisition_cost_value)) * quantity, r.acquisition_cost_currency)
+            if quantity > 1 and r.acquisition_cost_value is not None else None
         ),
         'terms_rows': _terms_rows(r),
         'tile_rows': tile_rows,
@@ -362,6 +378,10 @@ def build_batch_application_context(insurance_request) -> dict:
             if total_known and len(currencies) <= 1 else None
         ),
         'legacy_note': None,
+        # Количество одной позиции — в таблице партии, не в шапке.
+        'quantity_count': None,
+        'quantity_label': None,
+        'cost_total': None,
     })
     return context
 
