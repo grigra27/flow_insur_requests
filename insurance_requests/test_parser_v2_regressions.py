@@ -338,3 +338,33 @@ class ObjectRegressionTests(SimpleTestCase):
 
     def test_passenger_car_is_not_casco_ce(self):
         self.assertFalse(parse(build_casco_application())['has_casco_ce'])
+
+
+class BusinessActivityRegressionTests(SimpleTestCase):
+    """Вид деятельности: ответ, который сам начинается словами «Основным видом деятельности…».
+
+    Реальный случай (ОБ-20852-ЛО-АР, отзыв сотрудника 30.09.2026): значение в D11 парсер принял
+    за подпись, а затем взял заголовок варианта «ЛизингоДАТЕЛЬ» из D14.
+    """
+
+    def build(self, activity):
+        wb = build_casco_application()
+        sheet = wb.active
+        sheet['B11'] = 'Основной вид деятельности:'
+        sheet['D11'] = activity
+        sheet['B12'] = 'ПАРАМЕТРЫ СТРАХОВОЙ СДЕЛКИ'
+        sheet['B14'] = 'Страхователь'
+        sheet['D14'] = 'ЛизингоДАТЕЛЬ'
+        sheet['E14'] = 'ЛизингоПОЛУЧАТЕЛЬ'
+        sheet['E15'] = MARK
+        return wb
+
+    def test_answer_starting_with_label_words(self):
+        activity = ('Основным видом деятельности ООО «Тестовая компания» является производство '
+                    'металлоконструкций и монтаж оборудования')
+        result = parse_result(self.build(activity))
+        self.assertEqual(result.data['business_activity'], activity)
+        self.assertEqual(result.source_map['business_activity'], 'D11')
+
+    def test_short_answer(self):
+        self.assertEqual(parse(self.build('Разработка карьера'))['business_activity'], 'Разработка карьера')

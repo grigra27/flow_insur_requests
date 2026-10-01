@@ -40,6 +40,8 @@ MISSING_DFA = "Номер ДФА не указан"
 MISSING_VEHICLE = "Предмет лизинга не указан"
 CLIENT_COORDINATES = ("D7", "D8")
 CLIENT_MAX_LABEL_ROW = 10
+# Подписи полей в бланках короткие; более длинный текст считается значением.
+LABEL_MAX_LENGTH = 60
 # Multi-word labels of *neighbouring* fields. The right-scan stops when it
 # reaches one of these, so an empty field (e.g. «Банк-кредитор» before the
 # creditor is known) is reported as empty instead of borrowing the next
@@ -1052,6 +1054,10 @@ class ExcelRequestParserV2:
 
         for cell in cells:
             if not self._matches_any_group(cell.normalized, label_groups):
+                continue
+            # Длинный текст со словами подписи — это ответ («Основным видом деятельности
+            # … является …»), а не подпись: искать значение рядом с ним нельзя.
+            if self._looks_like_answer_text(cell.value):
                 continue
 
             inline = self._inline_value_after_label(cell.value)
@@ -2515,6 +2521,12 @@ class ExcelRequestParserV2:
         row_norm = normalize_text(self._row_text(row_cells))
         return any(label in row_norm for label in labels)
 
+    def _looks_like_answer_text(self, value: str) -> bool:
+        """Длинная фраза без «подпись:» в начале — значение поля, а не его подпись."""
+        if len(normalize_text(value)) <= LABEL_MAX_LENGTH:
+            return False
+        return not self._inline_value_after_label(value)
+
     def _inline_value_after_label(self, value: str) -> str:
         if ":" not in value:
             return ""
@@ -2535,7 +2547,7 @@ class ExcelRequestParserV2:
             # A present cell that is itself another field's label means the
             # value column is empty. Stop here instead of skipping the label
             # and borrowing the neighbouring field's text.
-            if self._matches_any_group(candidate.normalized, FIELD_LABEL_GROUPS):
+            if self._matches_any_group(candidate.normalized, FIELD_LABEL_GROUPS) and not self._looks_like_answer_text(candidate.value):
                 return None
             if not self._looks_like_empty_or_label(candidate.value):
                 return candidate
@@ -2555,6 +2567,7 @@ class ExcelRequestParserV2:
         label_words = [
             "страхователь",
             "лизингополучатель",
+            "лизингодатель",
             "менеджер",
             "инн",
             "филиал",
