@@ -338,6 +338,22 @@ class RequestApplicationPdfExportTest(TestCase):
         self.assertNotIn('source_text', context)
         self.assertIn(('Мощность / производ.', '89,73'), context['facts'])
 
+    def test_legacy_request_says_object_was_not_parsed(self):
+        # Старый загрузчик не разбирал стоимость: вместо «не указана» — честная пометка.
+        from .application_export import build_application_context
+
+        context = build_application_context(self.request)  # в фикстуре нет данных Parser V2
+        self.assertEqual(context['cost'], 'не разбиралась — см. исходный Excel')
+        self.assertIn('старым загрузчиком', context['legacy_note'])
+        self.request.franchise_amounts = []
+        terms = dict(build_application_context(self.request)['terms_rows'])
+        self.assertIn('размер — в исходном Excel', terms['Франшиза'])
+
+        self.request.additional_data = {'parser_version': 'v2', 'parser_v2': {'warnings': []}}
+        context = build_application_context(self.request)
+        self.assertEqual(context['cost'], 'не указана')
+        self.assertIsNone(context['legacy_note'])
+
     def test_deal_manager_is_our_employee_not_lessor_manager(self):
         from .application_export import build_application_context
 

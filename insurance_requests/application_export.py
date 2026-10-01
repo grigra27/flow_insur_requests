@@ -72,7 +72,11 @@ def _franchise(insurance_request) -> Optional[str]:
     """Франшиза с размером, без просьб к страховщику: «Оба варианта: без франшизы и с франшизой 30 000 руб.»."""
     if not _text(insurance_request.franchise_type):
         return None
-    return insurance_request.franchise_display
+    text = insurance_request.franchise_display
+    if (insurance_request.franchise_type != 'none' and not insurance_request.franchise_amounts
+            and not insurance_request.is_parser_v2):
+        text = f'{text} (размер — в исходном Excel)'
+    return text
 
 
 # --- состав документа ---------------------------------------------------------
@@ -227,6 +231,13 @@ def build_application_context(insurance_request) -> dict:
         long_rows.append(transport)
 
     facts = _object_facts(r)
+    # Старый загрузчик (до июня 2026) не разбирал стоимость и характеристики объекта —
+    # честно говорим об этом вместо «не указана» (решение по отзыву сотрудников 2026-10-01).
+    legacy = not r.is_parser_v2
+    cost = _money(r.acquisition_cost_value, r.acquisition_cost_currency)
+    cost_known = bool(cost)
+    if not cost:
+        cost = 'не разбиралась — см. исходный Excel' if legacy else 'не указана'
     author = (r.created_by.get_full_name() or r.created_by.username) if r.created_by_id else None
     generated_at = timezone.localtime(timezone.now(), MOSCOW_TZ).strftime('%d.%m.%Y %H:%M')
     return {
@@ -249,7 +260,12 @@ def build_application_context(insurance_request) -> dict:
         'insured_rows': _insured_rows(r),
         'facts': facts,
         'facts_width': 100 // max(len(facts), 1),
-        'cost': _money(r.acquisition_cost_value, r.acquisition_cost_currency),
+        'cost': cost,
+        'cost_known': cost_known,
+        'legacy_note': (
+            'Заявка загружена старым загрузчиком: стоимость и характеристики объекта не разбирались — '
+            'сверяйте с исходным Excel лизингополучателя.'
+        ) if legacy else None,
         'quantity': (
             f'× {r.source_object_count} одинаковых объекта'
             if (r.source_object_count or 0) > 1 else None
