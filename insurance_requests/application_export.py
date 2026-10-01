@@ -10,6 +10,11 @@
 живут в ``build_application_context`` и его помощниках, а шаблон только
 раскладывает готовые блоки. Пустые и нерелевантные текущему типу страхования
 поля в документ не попадают.
+
+Роль документа (решение 2026-10-01 по отзыву сотрудников): это анкета по данным
+лизингополучателя — замена исходного Excel. Вопросы к страховщику, просьбы и срок
+ответа живут только в сопроводительном письме, поэтому в PDF их нет: иначе документ
+дублирует письмо и расходится с ним (срок ответа, территория, период).
 """
 from __future__ import annotations
 
@@ -59,11 +64,6 @@ def _yes(value) -> Optional[str]:
     return 'Да' if value else None
 
 
-def _deadline(insurance_request) -> Optional[str]:
-    moscow = insurance_request.response_deadline_moscow
-    return moscow.strftime('%H:%M %d.%m.%Y') if moscow else None
-
-
 def _date(value) -> Optional[str]:
     return value.strftime('%d.%m.%Y') if value else None
 
@@ -80,10 +80,10 @@ def _franchise(insurance_request) -> Optional[str]:
 
 # --- состав документа ---------------------------------------------------------
 # Документ — одна альбомная страница A4 в фирменном стиле «ОН-ЛАЙН брокер»:
-# шапка с логотипом и сроком ответа, полоса реквизитов сделки, три колонки
-# (лизингополучатель / объект / условия), плитки параметров и рисков и блок
-# «Ответ страховщика». Каждая строка показывается, только если её значение
-# непустое; флаги рисков выводятся явно — и «Да», и «Нет».
+# шапка с логотипом и пометкой «приложение к запросу», полоса реквизитов сделки,
+# три колонки (лизингополучатель / объект / условия) и плитки параметров и рисков
+# на всю ширину. Каждая строка показывается, только если её значение непустое;
+# флаги рисков выводятся явно — и «Да», и «Нет».
 
 PROPERTY_TYPE = 'страхование имущества'
 
@@ -91,11 +91,8 @@ PROPERTY_TYPE = 'страхование имущества'
 # отдельной строкой на всю ширину под плитками.
 LONG_VALUE_THRESHOLD = 45
 
-FRANCHISE_ASKS = {
-    'none': 'Расчёт <b>без франшизы</b>',
-    'with_franchise': 'Расчёт <b>с франшизой</b> — укажите её размер',
-    'both_variants': 'Расчёт в двух вариантах: <b>с франшизой и без</b>',
-}
+# Плиток параметров в одном ряду (блок на всю ширину страницы).
+TILES_PER_ROW = 6
 
 
 def _rows(pairs):
@@ -204,22 +201,9 @@ def _transport_row(r):
     return ('Маршрут перевозки', route) if route else None
 
 
-def _asks(r):
-    premium = _premium(r)
-    asks = [
-        'Страховую сумму, тариф и премию <b>по каждому году</b> срока страхования'
-        ' — в прилагаемой таблице Excel',
-        FRANCHISE_ASKS.get(r.franchise_type),
-        f'Премию с учётом порядка уплаты: <b>{premium.lower()}</b>' if premium else None,
-        'Условия, исключения и срок действия предложения',
-    ]
-    return [ask for ask in asks if ask]
-
-
 def build_application_context(insurance_request) -> dict:
     """Готовит контекст фирменного PDF-шаблона заявки для страховой."""
     r = insurance_request
-    deadline = r.response_deadline_moscow
     title = _capitalize(_text(r.object_display_name)) or 'Объект не указан'
     source_text = _text(r.object_description)
     if source_text and source_text.lower() == title.lower():
@@ -237,9 +221,9 @@ def build_application_context(insurance_request) -> dict:
     ]
     tiles = [item for item in risk_items
              if not (item['state'] == 'info' and len(item['value']) > LONG_VALUE_THRESHOLD)]
-    tile_rows = [tiles[i:i + 4] for i in range(0, len(tiles), 4)]
-    if tile_rows and len(tile_rows[-1]) < 4:
-        tile_rows[-1] = tile_rows[-1] + [None] * (4 - len(tile_rows[-1]))
+    tile_rows = [tiles[i:i + TILES_PER_ROW] for i in range(0, len(tiles), TILES_PER_ROW)]
+    if tile_rows and len(tile_rows[-1]) < TILES_PER_ROW:
+        tile_rows[-1] = tile_rows[-1] + [None] * (TILES_PER_ROW - len(tile_rows[-1]))
     transport = _transport_row(r)
     if transport:
         long_rows.append(transport)
@@ -255,9 +239,6 @@ def build_application_context(insurance_request) -> dict:
         'object_kind': ' · '.join(kind),
         'client_name': _text(r.client_name),
         'batch_label': f'объект {r.item_no} из {r.item_count} по ДФА' if (r.item_count or 0) > 1 else None,
-        'deadline': _deadline(r),
-        'deadline_time': deadline.strftime('%H:%M') if deadline else None,
-        'deadline_date': deadline.strftime('%d.%m.%Y') if deadline else None,
         'strip': _rows([
             ('Номер ДФА', _text(r.dfa_number)),
             ('Филиал', _text(r.branch)),
@@ -277,7 +258,6 @@ def build_application_context(insurance_request) -> dict:
         'terms_rows': _terms_rows(r),
         'tile_rows': tile_rows,
         'long_rows': long_rows,
-        'asks': _asks(r),
         'author': author,
         'generated_at': generated_at,
     }

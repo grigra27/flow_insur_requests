@@ -315,6 +315,18 @@ class RequestApplicationPdfExportTest(TestCase):
         # both_variants → явная просьба о двух расчётах.
         self.assertIn('оба варианта', text)
 
+    def test_application_is_a_data_sheet_without_asks_or_deadline(self):
+        # Вариант А (отзыв сотрудников 2026-10-01): вопросы и срок ответа — только в письме.
+        response = self.superuser_client.get(
+            reverse('insurance_requests:export_request_application', kwargs={'pk': self.request.pk})
+        )
+        text = self._extract_text(response.content)
+        self.assertNotIn('ПРОСИМ', text)
+        self.assertNotIn('ОТВЕТ СТРАХОВЩИКА', text)
+        self.assertIn('ПРИЛОЖЕНИЕ К ЗАПРОСУ', text)
+        self.assertIn('по данным лизингополучателя', text)
+        self.assertIn('подготовил(а) appuser', text)
+
     def test_export_application_excludes_internal_fields(self):
         response = self.superuser_client.get(
             reverse('insurance_requests:export_request_application', kwargs={'pk': self.request.pk})
