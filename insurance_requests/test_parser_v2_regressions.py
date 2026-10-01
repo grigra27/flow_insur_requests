@@ -491,3 +491,74 @@ class FranchiseBackfillMigrationTests(SimpleTestCase):
         self.assertEqual(parse('E29=1,5% (E28: % от страховой суммы)'), (['1.5'], 'percent'))
         self.assertEqual(parse('D29=Х (D28: Нет франшизы)'), ([], None))
         self.assertEqual(parse(''), ([], None))
+
+
+class ObjectCategoryColumnLRegressionTests(SimpleTestCase):
+    """Колонка L и разделы категорий (отзыв сотрудника 2026-10-01).
+
+    Реальные случаи: автобус «53+1+1» (ТС-20826-2-ГА-КЗ) уходил в «Тип / категория» без категории D;
+    «г/п 7,5 т.» (ТС-20838-ГА-МН) — так же; полуприцепы под разделом «Прицепы» получали категорию D.
+    """
+
+    def build(self, object_row, section_row=None, section_text=None, description='1 автобус Yutong ZK6128H',
+              column_l=''):
+        wb = build_casco_application()
+        sheet = wb.active
+        for cell in ('C43', 'J43', 'K43', 'M43', 'N43'):
+            sheet[cell] = None
+        sheet['L41'] = 'Мощность двигателя л.с. (для кат.B) Грузоподъемность (для кат.С) Кол-во мест (для кат.D)'
+        sheet['B42'] = 'Транспортные средства категории B'
+        sheet['B44'] = 'Транспортные средства категории C'
+        sheet['B46'] = 'Транспортные средства категории D'
+        if section_row:
+            sheet[f'B{section_row}'] = section_text
+        sheet[f'B{object_row}'] = 1
+        sheet[f'C{object_row}'] = description
+        sheet[f'J{object_row}'] = 2026
+        sheet[f'K{object_row}'] = 'новое'
+        if column_l:
+            sheet[f'L{object_row}'] = column_l
+        sheet[f'M{object_row}'] = 17000000
+        sheet[f'N{object_row}'] = 'руб'
+        return wb
+
+    def obj(self, wb):
+        return parse(wb)['parser_v2_payload']['insured_objects'][0]
+
+    def test_bus_seats_go_to_column_l_value_and_category_d_kept(self):
+        obj = self.obj(self.build(object_row=47, section_row=48, section_text='Специальная техника',
+                                  column_l='53+1+1'))
+        self.assertEqual(obj['power_or_capacity'], '53+1+1')
+        self.assertEqual(obj['equipment_type'], 'Категория D')
+
+    def test_load_capacity_with_units(self):
+        obj = self.obj(self.build(object_row=45, description='1 Бортовой КАМАЗ-43118-48 с КМУ',
+                                  column_l='г/п 7,5 т.'))
+        self.assertEqual(obj['power_or_capacity'], 'г/п 7,5 т.')
+        self.assertEqual(obj['equipment_type'], 'Категория C')
+
+    def test_trailers_section_is_its_own_category(self):
+        obj = self.obj(self.build(object_row=49, section_row=48, section_text='Прицепы',
+                                  description='1 полуприцеп-цистерна СЕСПЕЛЬ'))
+        self.assertEqual(obj['equipment_type'], 'Прицепы')
+
+    def test_crawler_kind_still_kind(self):
+        obj = self.obj(self.build(object_row=49, section_row=48, section_text='Специальная техника',
+                                  description='1 экскаватор HYUNDAI R260LC-9S', column_l='гусеничная'))
+        self.assertEqual(obj['equipment_type'], 'гусеничная')
+        self.assertIsNone(obj.get('power_or_capacity'))
+
+
+class PowerLabelTests(SimpleTestCase):
+    """Подпись колонки L в PDF зависит от категории."""
+
+    def test_labels(self):
+        from .application_export import power_label
+        from .models import InsuranceRequest
+
+        cases = {
+            'Категория B': 'Мощность, л.с.', 'Категория C': 'Грузоподъёмность', 'Категория D': 'Количество мест',
+            'Прицепы': 'Грузоподъёмность', 'гусеничная': 'Мощность / производ.', '': 'Мощность / производ.',
+        }
+        for kind, label in cases.items():
+            self.assertEqual(power_label(InsuranceRequest(equipment_type=kind)), label, kind)

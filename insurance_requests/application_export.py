@@ -145,12 +145,29 @@ def _insured_rows(r):
     ])
 
 
+# Колонка L бланка общая: мощность (кат. B), грузоподъёмность (кат. C, прицепы),
+# количество мест (кат. D), мощность/производительность (спецтехника) — подписываем по категории.
+POWER_LABELS = {
+    'категория b': 'Мощность, л.с.',
+    'категория c': 'Грузоподъёмность',
+    'категория е': 'Грузоподъёмность',  # кириллическая «Е», как в бланках
+    'категория e': 'Грузоподъёмность',
+    'прицепы': 'Грузоподъёмность',
+    'категория d': 'Количество мест',
+}
+
+
+def power_label(insurance_request) -> str:
+    kind = (_text(insurance_request.equipment_type) or '').lower()
+    return POWER_LABELS.get(kind, 'Мощность / производ.')
+
+
 def _object_facts(r):
     return _rows([
         ('Год выпуска', _text(r.manufacturing_year)),
         ('Состояние', _text(r.condition_label)),
         ('Тип / категория', _text(r.equipment_type)),
-        ('Мощность / производ.', _text(r.power_or_capacity)),
+        (power_label(r), _text(r.power_or_capacity)),
     ])
 
 
@@ -318,7 +335,10 @@ def build_batch_application_context(insurance_request) -> dict:
             'year': _text(member.manufacturing_year),
             'condition': _text(member.condition_label),
             'kind': _text(member.equipment_type),
-            'power': _text(member.power_or_capacity),
+            'power': (
+                f'{power_label(member).split(",")[0].lower()}: {member.power_or_capacity}'
+                if _text(member.power_or_capacity) else None
+            ),
             'qty': qty,
             'cost': _money(cost, currency) or '—',
             'sum': _money(Decimal(str(cost)) * qty, currency) if cost is not None else '—',

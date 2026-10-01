@@ -248,6 +248,16 @@ def parse_cost_value(value: Any) -> Optional[Decimal]:
         return None
 
 
+_CAPACITY_OR_SEATS_RE = re.compile(
+    r"^\d+(?:\s*\+\s*\d+)+$"                      # места: «53+1+1»
+    r"|г\s*/\s*п|грузопод"                         # грузоподъёмность: «г/п 7,5 т.»
+    r"|^\d+(?:[.,]\d+)?\s*(?:т|тн|тонн\w*|кг)\.?$"  # «10 т», «7,5 тн», «5 тонн»
+    r"|\d\s*(?:мест|пасс)"                         # «22 места», «18 пасс.»
+    r"|\d\s*л\.?\s*с\.?$",                         # «150 л.с.»
+    re.IGNORECASE,
+)
+
+
 def classify_equipment_or_power(value: Any) -> Tuple[Optional[str], Optional[str]]:
     """
     Column L in the canonical layout is overloaded: it can hold engine power
@@ -264,6 +274,10 @@ def classify_equipment_or_power(value: Any) -> Tuple[Optional[str], Optional[str
     # Strip spaces, normalize decimal mark before the numeric test.
     no_spaces = re.sub(r"[\s ]", "", text).replace(",", ".")
     if _NUMERIC_RE.match(no_spaces):
+        return None, text
+    # Колонка L для кат. C/D — грузоподъёмность и количество мест: «53+1+1», «г/п 7,5 т.»,
+    # «22 места», «10 т» — это значение колонки, а не вид техники (отзыв сотрудника 2026-10-01).
+    if _CAPACITY_OR_SEATS_RE.search(text):
         return None, text
     return text, None
 
@@ -1637,6 +1651,10 @@ class ExcelRequestParserV2:
             return "D"
         if "специальная техника" in row_norm:
             return "special_equipment"
+        # Раздел «Прицепы» — только заголовок целиком: строка объекта «1 полуприцеп-цистерна …»
+        # тоже содержит «прицеп». Без этого полуприцепы наследовали категорию D от раздела выше.
+        if re.fullmatch(r"(?:полу)?прицепы(?: и (?:полу)?прицепы)?", row_norm.strip()):
+            return "trailer"
         return None
 
     def _equipment_type_from_category(self, category: Optional[str]) -> Optional[str]:
@@ -1645,6 +1663,7 @@ class ExcelRequestParserV2:
             "C": "Категория C",
             "D": "Категория D",
             "special_equipment": "Спецтехника",
+            "trailer": "Прицепы",
         }.get(category or "")
 
     def _extract_casco_ce_from_objects(self, insured_objects: List[Dict[str, Any]]) -> Tuple[bool, str]:
