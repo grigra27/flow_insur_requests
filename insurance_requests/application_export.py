@@ -229,7 +229,7 @@ def build_application_context(insurance_request) -> dict:
         long_rows.append(transport)
 
     facts = _object_facts(r)
-    author = r.created_by.get_full_name() or r.created_by.username if r.created_by_id else None
+    author = (r.created_by.get_full_name() or r.created_by.username) if r.created_by_id else None
     generated_at = timezone.localtime(timezone.now(), MOSCOW_TZ).strftime('%d.%m.%Y %H:%M')
     return {
         'request': r,
@@ -244,7 +244,9 @@ def build_application_context(insurance_request) -> dict:
             ('Филиал', _text(r.branch)),
             ('Сделка', _display(r, 'deal_status')),
             ('Дата подачи', _date(r.submission_date)),
-            ('Менеджер сделки', _text(r.manager_name)),
+            # Менеджер сделки — наш сотрудник, загрузивший заявку (кому отвечать),
+            # а не менеджер лизинговой компании из бланка.
+            ('Менеджер сделки', author),
         ]),
         'insured_rows': _insured_rows(r),
         'facts': facts,

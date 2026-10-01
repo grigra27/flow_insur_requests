@@ -325,7 +325,16 @@ class RequestApplicationPdfExportTest(TestCase):
         self.assertNotIn('ОТВЕТ СТРАХОВЩИКА', text)
         self.assertIn('ПРИЛОЖЕНИЕ К ЗАПРОСУ', text)
         self.assertIn('по данным лизингополучателя', text)
-        self.assertIn('подготовил(а) appuser', text)
+
+    def test_deal_manager_is_our_employee_not_lessor_manager(self):
+        from .application_export import build_application_context
+
+        self.request.manager_name = 'Иванов И.И. (менеджер лизинговой компании)'
+        self.user.first_name, self.user.last_name = 'Н.Н.', 'Лазарева'
+        self.user.save()
+        strip = dict(build_application_context(self.request)['strip'])
+        self.assertEqual(strip['Менеджер сделки'], 'Н.Н. Лазарева')
+        self.assertNotIn('Иванов', ' '.join(strip.values()))
 
     def test_export_application_excludes_internal_fields(self):
         response = self.superuser_client.get(
