@@ -1240,3 +1240,55 @@ class RequestListEditBadgesTest(TestCase):
         self.assertNotContains(response, 'request-list-badge--review')
         self.assertNotContains(response, 'Parser V2: предупреждений разбора')
         self.assertNotContains(response, 'Проверить')
+
+
+class BatchApplicationPdfTest(TestCase):
+    """PDF «на всю партию» (отзыв сотрудников 2026-10-01: 8 единиц → 5 заявок и 5 PDF)."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username='batchpdf', password='pwd')
+        self.user.groups.add(Group.objects.get_or_create(name='Пользователи')[0])
+        self.client = Client()
+        self.client.login(username='batchpdf', password='pwd')
+        batch_id = uuid.uuid4()
+        common = dict(client_name='ООО Карьер', inn='7707083893', insurance_type='страхование спецтехники',
+                      dfa_number='ТС-20722', branch='Мурманск', source_batch_id=batch_id, item_count=3,
+                      created_by=self.user)
+        self.first = InsuranceRequest.objects.create(
+            item_no=1, brand='HYUNDAI', model='R260LC-9S', manufacturing_year='2022', condition='used',
+            acquisition_cost_value=Decimal('7200000'), acquisition_cost_currency='RUB', source_object_count=3,
+            **common)
+        InsuranceRequest.objects.create(
+            item_no=2, brand='Volvo', model='EC220DL', manufacturing_year='2019', condition='used',
+            acquisition_cost_value=Decimal('6000000'), acquisition_cost_currency='RUB', has_casco_ce=True, **common)
+        InsuranceRequest.objects.create(
+            item_no=3, brand='JCB', model='4CXK14H2WM', manufacturing_year='2020', condition='used',
+            acquisition_cost_value=Decimal('10000000'), acquisition_cost_currency='RUB', **common)
+
+    def test_context_lists_all_objects_with_quantity_total(self):
+        from .application_export import build_batch_application_context
+
+        context = build_batch_application_context(self.first)
+        self.assertEqual(context['batch_positions'], 3)
+        self.assertEqual(context['batch_units'], 5)
+        self.assertEqual([row['qty'] for row in context['batch_rows']], [3, 1, 1])
+        self.assertEqual(context['batch_rows'][0]['sum'], '21 600 000 руб.')
+        self.assertEqual(context['batch_total'], '37 600 000 руб.')
+        tiles = {t['label']: t['value'] for line in context['tile_rows'] for t in line if t}
+        self.assertEqual(tiles['КАСКО кат. C/E'], 'Да')  # есть у одного из объектов
+
+    def test_download_and_button(self):
+        detail = self.client.get(reverse('insurance_requests:request_detail', args=[self.first.pk]))
+        url = reverse('insurance_requests:export_batch_application', args=[self.first.pk])
+        self.assertContains(detail, url)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'application/pdf')
+        self.assertIn('application_batch_', str(make_header(decode_header(response['Content-Disposition']))))
+
+    def test_single_request_redirects_to_regular_pdf(self):
+        single = InsuranceRequest.objects.create(client_name='ООО Один', inn='7707083893', insurance_type='КАСКО',
+                                                 dfa_number='ТС-1', created_by=self.user)
+        response = self.client.get(reverse('insurance_requests:export_batch_application', args=[single.pk]))
+        self.assertRedirects(response, reverse('insurance_requests:export_request_application', args=[single.pk]),
+                             fetch_redirect_response=False)

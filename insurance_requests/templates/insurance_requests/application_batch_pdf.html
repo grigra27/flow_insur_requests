@@ -1,0 +1,64 @@
+{% extends "insurance_requests/application_pdf.html" %}
+{% comment %}
+«Заявка для страховой» на всю партию (один файл → несколько заявок-объектов): общие данные
+как в обычной заявке, вместо одного объекта — сводка и таблица всех объектов партии.
+Контекст — application_export.build_batch_application_context.
+{% endcomment %}
+
+{% block extra_style %}
+    /* Только вертикальные отступы: горизонтальные ломают раскладку колонок в xhtml2pdf. */
+    .bt td { font-size: 8.4pt; padding-top: 3pt; padding-bottom: 2.5pt; border-bottom: 0.5pt solid #e1e6e6; }
+    .bt tr.head td { background-color: #495e5f; color: #ffffff; font-size: 7pt; font-weight: bold; }
+    .bt td.num { text-align: right; }
+    .bt tr.total td { font-weight: bold; background-color: #eef2f2; border-bottom: 0; }
+{% endblock %}
+
+{% block object_column %}
+<div class="sec">ОБЪЕКТЫ ПАРТИИ</div>
+<table><tr><td class="obj">
+    <div class="obj-name">{{ batch_positions }} поз. · {{ batch_units }} ед.</div>
+    <div class="obj-kind">одна заявка лизингополучателя, все объекты — в таблице ниже</div>
+    <div style="height: 6pt;"></div>
+    <div class="cost-k">ОБЩАЯ СТОИМОСТЬ ПРИОБРЕТЕНИЯ</div>
+    <div class="{% if batch_total %}cost-v{% else %}cost-none{% endif %}">{{ batch_total|default:"не у всех объектов указана стоимость" }}</div>
+</td></tr></table>
+{% endblock %}
+
+{% block after_columns %}
+<div style="height: 8pt;"></div>
+<div class="sec">ОБЪЕКТЫ СТРАХОВАНИЯ <span class="sec-note">· по данным лизингополучателя</span></div>
+<table class="bt" style="width: 262mm;">
+    <tr class="head">
+        <td style="width: 8mm;">№</td>
+        <td style="width: 80mm;">Наименование</td>
+        <td style="width: 14mm;">Год</td>
+        <td style="width: 20mm;">Состояние</td>
+        <td style="width: 30mm;">Тип / категория</td>
+        <td style="width: 22mm;">Мощность</td>
+        <td style="width: 15mm;" class="num">Кол-во</td>
+        <td style="width: 36mm;" class="num">Цена за ед.</td>
+        <td style="width: 37mm;" class="num">Сумма</td>
+    </tr>
+    {% for row in batch_rows %}
+    <tr>
+        <td>{{ forloop.counter }}</td>
+        <td><b>{{ row.name }}</b></td>
+        <td>{{ row.year|default:"—" }}</td>
+        <td>{{ row.condition|default:"—" }}</td>
+        <td>{{ row.kind|default:"—" }}</td>
+        <td>{{ row.power|default:"—" }}</td>
+        <td class="num">{{ row.qty }}</td>
+        <td class="num">{{ row.cost }}</td>
+        <td class="num">{{ row.sum }}</td>
+    </tr>
+    {% endfor %}
+    <tr class="total">
+        <td></td>
+        <td>Итого</td>
+        <td></td><td></td><td></td><td></td>
+        <td class="num">{{ batch_units }}</td>
+        <td></td>
+        <td class="num">{{ batch_total|default:"—" }}</td>
+    </tr>
+</table>
+{% endblock %}

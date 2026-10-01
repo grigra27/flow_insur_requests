@@ -76,6 +76,7 @@
     .flags .v { font-size: 9pt; font-weight: bold; }
 
     #pageFooter { font-size: 6.8pt; color: #9aa3a3; }
+    {% block extra_style %}{% endblock %}
 </style>
 </head>
 <body>
@@ -129,6 +130,7 @@
             </table>
         </td>
         <td style="width: 38%;">
+            {% block object_column %}
             <div class="sec">ОБЪЕКТ СТРАХОВАНИЯ</div>
             <table><tr><td class="obj">
                 <div class="obj-name">{{ object_title }}</div>
@@ -155,6 +157,7 @@
                 </table>
                 {% if legacy_note %}<div class="legacy">{{ legacy_note }}</div>{% endif %}
             </td></tr></table>
+            {% endblock %}
         </td>
         <td style="width: 31%; padding-left: 5mm;">
             <div class="sec">УСЛОВИЯ СТРАХОВАНИЯ <span class="sec-note">· по данным лизингополучателя</span></div>
@@ -166,6 +169,8 @@
         </td>
     </tr>
 </table>
+
+{% block after_columns %}{% endblock %}
 
 <div style="height: 10pt;"></div>
 

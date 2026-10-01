@@ -82,7 +82,7 @@ Invalid values fall back to `legal_entity` / `casco_equipment` with a warning. B
 
 Sibling rows that come from the same upload are linked by `source_batch_id` (UUID assigned per upload) and ordered via `item_no` / `item_count` (1-based). Display name uses the form **"ДФА X / объект K из N"** when `item_count > 1`; single-object requests display as before.
 
-The lifecycle is per-request, not per-batch: each row gets its own status, its own `InsuranceSummary`, its own selected insurer, its own outgoing PDF/JSON. **Outbound email is one-per-request** — N requests in a batch produce N letters to insurers, one PDF/JSON attachment each.
+The lifecycle is per-request, not per-batch: each row gets its own status, its own `InsuranceSummary`, its own selected insurer, its own outgoing PDF/JSON. For sending, staff may use either the per-request PDF or the batch PDF (`export_batch_application`, decided 2026-10-01): one insurer document with the common data and a table of every object in the batch, so one letter can cover the whole batch while offers are still entered per object.
 
 V1 (`core.excel_utils.ExcelReader`) keeps its historical **"1 file → 1 request"** behaviour with all objects slipped into `vehicle_info`. We do not split historical V1 requests; they display as before. Splitting applies only to **new** uploads through the V2 flow.
 

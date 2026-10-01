@@ -19,6 +19,7 @@
 from __future__ import annotations
 
 import os
+from decimal import Decimal
 from io import BytesIO
 from typing import Optional
 
@@ -278,12 +279,80 @@ def build_application_context(insurance_request) -> dict:
     }
 
 
-def build_application_filename(insurance_request) -> str:
+def batch_members(insurance_request) -> list:
+    """Все заявки-объекты партии по порядку; для одиночной заявки — она сама."""
+    from .models import InsuranceRequest
+
+    if not insurance_request.source_batch_id or (insurance_request.item_count or 0) <= 1:
+        return [insurance_request]
+    members = list(
+        InsuranceRequest.objects.filter(source_batch_id=insurance_request.source_batch_id)
+        .select_related('created_by').order_by('item_no')
+    )
+    return members or [insurance_request]
+
+
+def build_batch_application_context(insurance_request) -> dict:
+    """Контекст PDF «на всю партию»: общие данные — как у обычной заявки, объекты — таблицей.
+
+    Решение 2026-10-01 по отзыву сотрудников: одна заявка лизингополучателя на 8 единиц техники
+    превращалась в 5 заявок и 5 PDF; страховщику удобнее один документ. Заявки и своды
+    по-прежнему отдельные на каждый объект.
+    """
+    members = batch_members(insurance_request)
+    context = build_application_context(insurance_request)
+
+    rows, units, total, currencies, total_known = [], 0, Decimal('0'), set(), True
+    for member in members:
+        qty = max(member.source_object_count or 1, 1)
+        units += qty
+        cost = member.acquisition_cost_value
+        currency = member.acquisition_cost_currency
+        if cost is None:
+            total_known = False
+        else:
+            total += Decimal(str(cost)) * qty
+            currencies.add(currency or 'RUB')
+        rows.append({
+            'name': _capitalize(_text(member.object_display_name)) or 'Объект не указан',
+            'year': _text(member.manufacturing_year),
+            'condition': _text(member.condition_label),
+            'kind': _text(member.equipment_type),
+            'power': _text(member.power_or_capacity),
+            'qty': qty,
+            'cost': _money(cost, currency) or '—',
+            'sum': _money(Decimal(str(cost)) * qty, currency) if cost is not None else '—',
+        })
+
+    # КАСКО C/E — флаг объекта: в партии он «Да», если он есть хотя бы у одного объекта.
+    if any(member.has_casco_ce for member in members):
+        for line in context['tile_rows']:
+            for tile in line:
+                if tile and tile['label'] == 'КАСКО кат. C/E':
+                    tile.update(value='Да', state='on')
+
+    context.update({
+        'object_title': f'Партия: {len(members)} поз. · {units} ед.',
+        'batch_label': None,
+        'batch_rows': rows,
+        'batch_positions': len(members),
+        'batch_units': units,
+        'batch_total': (
+            _money(total, currencies.pop() if currencies else 'RUB')
+            if total_known and len(currencies) <= 1 else None
+        ),
+        'legacy_note': None,
+    })
+    return context
+
+
+def build_application_filename(insurance_request, batch: bool = False) -> str:
     base_name = insurance_request.dfa_number or f'request_{insurance_request.pk}'
     safe_name = get_valid_filename(base_name) or f'request_{insurance_request.pk}'
     safe_name = safe_name[:80]
     timestamp = timezone.localtime(timezone.now(), MOSCOW_TZ).strftime('%Y%m%d_%H%M')
-    return f'application_{safe_name}_{timestamp}.pdf'
+    prefix = 'application_batch' if batch else 'application'
+    return f'{prefix}_{safe_name}_{timestamp}.pdf'
 
 
 def _link_callback(uri: str, rel: str) -> str:
@@ -296,13 +365,17 @@ def _link_callback(uri: str, rel: str) -> str:
     return uri
 
 
-def render_application_pdf(insurance_request) -> bytes:
-    """Рендерит заявку для страховой в PDF (bytes)."""
+def render_application_pdf(insurance_request, batch: bool = False) -> bytes:
+    """Рендерит заявку для страховой в PDF (bytes); batch=True — один документ на всю партию."""
     # Импорт внутри функции, чтобы отсутствие пакета не ломало импорт views.
     from xhtml2pdf import pisa
 
-    context = build_application_context(insurance_request)
-    html = render_to_string('insurance_requests/application_pdf.html', context)
+    if batch:
+        context = build_batch_application_context(insurance_request)
+        html = render_to_string('insurance_requests/application_batch_pdf.html', context)
+    else:
+        context = build_application_context(insurance_request)
+        html = render_to_string('insurance_requests/application_pdf.html', context)
 
     buffer = BytesIO()
     status = pisa.CreatePDF(

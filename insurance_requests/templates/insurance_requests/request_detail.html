@@ -47,6 +47,10 @@
             </div>
         </div>
         <div class="rq-batchnav__arrows">
+            <a class="rq-batchnav__pdf" href="{% url 'insurance_requests:export_batch_application' request.pk %}"
+               title="Один документ для страховой: общие данные и таблица всех объектов партии">
+                <i class="bi bi-file-earmark-pdf-fill"></i> PDF на всю партию
+            </a>
             {% if batch_prev %}
             <a class="rq-batchnav__arrow" href="{% url 'insurance_requests:request_detail' batch_prev.pk %}"><i class="bi bi-chevron-left"></i> Объект {{ batch_prev.item_no }}</a>
             {% endif %}
@@ -531,7 +535,9 @@
 .rq-batchnav__title > .bi { font-size: 1.5rem; color: var(--rq-batch); }
 .rq-batchnav__title b { font-size: 1rem; }
 .rq-batchnav__meta { display: block; font-size: 0.8rem; color: #3f6b50; }
-.rq-batchnav__arrows { display: flex; gap: 0.4rem; flex-shrink: 0; }
+.rq-batchnav__arrows { display: flex; flex-wrap: wrap; gap: 0.4rem; flex-shrink: 0; }
+.rq-batchnav__pdf { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.35rem 0.75rem; border-radius: 10px; background: #fff; border: 1px solid rgba(186, 18, 43, 0.35); font-size: 0.8rem; font-weight: 700; color: #ba122b; text-decoration: none; }
+.rq-batchnav__pdf:hover { background: #fdf1f3; color: #8f0d20; }
 .rq-batchnav__arrow { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.35rem 0.75rem; border-radius: 10px; background: #fff; border: 1px solid rgba(22, 163, 74, 0.3); font-size: 0.8rem; font-weight: 700; color: #166534; text-decoration: none; }
 .rq-batchnav__arrow:hover { background: #e3f4e8; color: #14532d; }
 .rq-batchnav__caption { margin: 0.8rem 0 0.45rem; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #5d8a6c; }

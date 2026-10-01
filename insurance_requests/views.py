@@ -1314,6 +1314,30 @@ def _batch_total_display(batch_requests):
 
 
 @user_required
+def export_batch_application(request, pk):
+    """Одна «Заявка для страховой» в PDF на всю партию: общие данные и таблица всех объектов."""
+    insurance_request = get_object_or_404(InsuranceRequest.objects.select_related('created_by'), pk=pk)
+    if not insurance_request.source_batch_id or (insurance_request.item_count or 0) <= 1:
+        return redirect('insurance_requests:export_request_application', pk=pk)
+
+    try:
+        pdf_bytes = render_application_pdf(insurance_request, batch=True)
+        filename = build_application_filename(insurance_request, batch=True)
+    except Exception as exc:
+        logger.error(
+            "Batch application PDF export failed for request %s by user %s: %s",
+            pk, request.user.username, exc, exc_info=True,
+        )
+        messages.error(request, 'Не удалось сформировать PDF на всю партию.')
+        return redirect('insurance_requests:request_detail', pk=pk)
+
+    response = HttpResponse(pdf_bytes, content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    logger.info("Batch application PDF generated for request %s by user %s: %s", pk, request.user.username, filename)
+    return response
+
+
+@user_required
 def request_comparison(request, pk):
     """Страница сравнения «распознано из Excel / итог оператора» (фаза 2).
 
