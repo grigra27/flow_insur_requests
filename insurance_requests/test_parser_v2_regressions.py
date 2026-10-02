@@ -609,7 +609,10 @@ class LeaseTermDisplayTests(SimpleTestCase):
     def test_display(self):
         self.assertEqual(self.make((2024, 9, 20), (2028, 12, 20)).lease_term_display,
                          '20.09.2024 — 20.12.2028 (4 г. 3 мес.)')
-        self.assertEqual(self.make((2026, 1, 15), (2026, 12, 14)).lease_duration_label, '10 мес.')
+        self.assertEqual(self.make((2026, 1, 15), (2026, 12, 14)).lease_duration_label, '11 мес.')
+        # ТС-19854-ЛТ: 04.10.2026 — 03.10.2027 — полный год (дата окончания включительно).
+        self.assertEqual(self.make((2026, 10, 4), (2027, 10, 3)).lease_duration_label, '1 г.')
+        self.assertEqual(self.make((2025, 3, 1), (2028, 2, 29)).lease_duration_label, '3 г.')
         self.assertEqual(self.make((2026, 1, 15), (2029, 1, 15)).lease_duration_label, '3 г.')
         self.assertEqual(self.make((2024, 9, 20)).lease_term_display, 'с 20.09.2024')
         self.assertEqual(self.make().lease_term_display, '')

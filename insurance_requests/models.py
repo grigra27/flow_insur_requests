@@ -790,10 +790,12 @@ class InsuranceRequest(models.Model):
 
     @property
     def lease_duration_label(self):
-        """Длительность договора лизинга: «4 г. 3 мес.», «11 мес.»; пусто без обеих дат."""
+        """Длительность договора лизинга: «4 г. 3 мес.», «1 г.»; пусто без обеих дат. Дата окончания — включительно."""
         start, end = self.lease_start_date, self.lease_end_date
         if not start or not end or end <= start:
             return ''
+        # Дата окончания входит в срок: 04.10.2026 — 03.10.2027 — это полный год, а не 11 мес.
+        end = end + timedelta(days=1)
         months = (end.year - start.year) * 12 + (end.month - start.month)
         if end.day < start.day:
             months -= 1
