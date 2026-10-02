@@ -282,7 +282,9 @@ def build_application_context(insurance_request) -> dict:
         'strip': _rows([
             ('Номер ДФА', _text(r.dfa_number)),
             ('Филиал', _text(r.branch)),
-            ('Сделка', _display(r, 'deal_status')),
+            # «Новая сделка / пролонгация» страховщику не нужна (решение 2026-10-02); на её месте —
+            # срок договора лизинга: именно на него считается «на весь срок лизинга».
+            ('Срок лизинга', _text(r.lease_duration_label) or _text(r.lease_term_display)),
             ('Дата подачи', _date(r.submission_date)),
             # Менеджер сделки — наш сотрудник, загрузивший заявку (кому отвечать),
             # а не менеджер лизинговой компании из бланка.
