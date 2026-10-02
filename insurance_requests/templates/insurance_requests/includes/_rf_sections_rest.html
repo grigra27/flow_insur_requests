@@ -6,6 +6,8 @@
         <div class="rf-grid">
             {% include "insurance_requests/includes/_rf_field.html" with f=form.insurance_type email=True %}
             {% include "insurance_requests/includes/_rf_field.html" with f=form.insurance_period email=True show_help=True %}
+            {% include "insurance_requests/includes/_rf_field.html" with f=form.lease_start_date email=True %}
+            {% include "insurance_requests/includes/_rf_field.html" with f=form.lease_end_date email=True %}
             {% include "insurance_requests/includes/_rf_field.html" with f=form.franchise_type email=True %}
             {% include "insurance_requests/includes/_rf_field.html" with f=form.franchise_amounts email=True show_help=True %}
             {% include "insurance_requests/includes/_rf_field.html" with f=form.franchise_unit email=True %}

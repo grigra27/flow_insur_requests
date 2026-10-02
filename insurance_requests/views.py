@@ -306,6 +306,8 @@ def _build_common_request_kwargs(request_fields, additional_data, user):
         'business_activity': request_fields.get('business_activity'),
         'birth_date': request_fields.get('birth_date'),
         'submission_date': request_fields.get('submission_date'),
+        'lease_start_date': request_fields.get('lease_start_date'),
+        'lease_end_date': request_fields.get('lease_end_date'),
         # Stage 2.3 — deal / insurance parameters
         'insured_party': request_fields.get('insured_party'),
         'insured_sum_type': request_fields.get('insured_sum_type'),

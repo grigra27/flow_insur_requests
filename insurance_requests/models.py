@@ -347,6 +347,14 @@ class InsuranceRequest(models.Model):
     submission_date = models.DateField(
         blank=True, null=True, verbose_name='Дата подачи заявки'
     )
+    # Срок договора лизинга из блока бланка «Сроки действия договора лизинга» (2026-10-02):
+    # страховщику нужно понимать, на сколько лет считать «на весь срок лизинга».
+    lease_start_date = models.DateField(
+        blank=True, null=True, verbose_name='Дата начала договора лизинга'
+    )
+    lease_end_date = models.DateField(
+        blank=True, null=True, verbose_name='Дата окончания договора лизинга'
+    )
 
     # Параметры сделки и страхования (для V2; V1 их не заполняет).
     # Поля contract_*, period_*, indemnity_basis из исходного плана не добавлены:
@@ -775,6 +783,39 @@ class InsuranceRequest(models.Model):
         return ''
 
     @property
+    def lease_duration_label(self):
+        """Длительность договора лизинга: «4 г. 3 мес.», «11 мес.»; пусто без обеих дат."""
+        start, end = self.lease_start_date, self.lease_end_date
+        if not start or not end or end <= start:
+            return ''
+        months = (end.year - start.year) * 12 + (end.month - start.month)
+        if end.day < start.day:
+            months -= 1
+        if months <= 0:
+            return ''
+        years, rest = divmod(months, 12)
+        parts = []
+        if years:
+            parts.append(f'{years} г.')
+        if rest:
+            parts.append(f'{rest} мес.')
+        return ' '.join(parts)
+
+    @property
+    def lease_term_display(self):
+        """«20.09.2024 — 20.12.2028 (4 г. 3 мес.)»; «с 20.09.2024» / «по 20.12.2028», если известна одна дата."""
+        start, end = self.lease_start_date, self.lease_end_date
+        if start and end:
+            duration = self.lease_duration_label
+            text = f"{start:%d.%m.%Y} — {end:%d.%m.%Y}"
+            return f"{text} ({duration})" if duration else text
+        if start:
+            return f"с {start:%d.%m.%Y}"
+        if end:
+            return f"по {end:%d.%m.%Y}"
+        return ''
+
+    @property
     def franchise_amount_labels(self):
         """[«30 000 руб.», «50 000 руб.»] — варианты размера франшизы; пусто, если не указаны."""
         from .franchise import format_amount
@@ -897,6 +938,9 @@ class InsuranceRequest(models.Model):
             'branch': self.branch,
             'franchise_type': self.franchise_type,
             'franchise_variants': self.franchise_variants,
+            'lease_start_date': self.lease_start_date.strftime('%d.%m.%Y') if self.lease_start_date else '',
+            'lease_end_date': self.lease_end_date.strftime('%d.%m.%Y') if self.lease_end_date else '',
+            'lease_duration': self.lease_duration_label,
             'has_installment': self.has_installment,
             'has_autostart': self.has_autostart,
             'has_casco_ce': self.has_casco_ce,

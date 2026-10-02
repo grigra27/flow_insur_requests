@@ -380,6 +380,15 @@ class RequestApplicationPdfExportTest(TestCase):
         self.assertIsNone(context['quantity_count'])
         self.assertIsNone(context['cost_total'])
 
+    def test_lease_term_row(self):
+        from datetime import date
+        from .application_export import build_application_context
+
+        self.request.lease_start_date = date(2024, 9, 20)
+        self.request.lease_end_date = date(2028, 12, 20)
+        terms = dict(build_application_context(self.request)['terms_rows'])
+        self.assertEqual(terms['Договор лизинга'], '20.09.2024 — 20.12.2028 (4 г. 3 мес.)')
+
     def test_deal_manager_is_our_employee_not_lessor_manager(self):
         from .application_export import build_application_context
 

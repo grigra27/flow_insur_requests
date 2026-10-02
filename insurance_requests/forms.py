@@ -468,6 +468,14 @@ class ParserV2PreviewForm(forms.Form):
         label='Дата подачи заявки', required=False,
         widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'})
     )
+    lease_start_date = forms.DateField(
+        label='Договор лизинга: начало', required=False,
+        widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'})
+    )
+    lease_end_date = forms.DateField(
+        label='Договор лизинга: окончание', required=False,
+        widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'})
+    )
     insured_party = forms.ChoiceField(
         label='Страхователь', required=False,
         choices=[('', '-- Не указан --')] + InsuranceRequest.INSURED_PARTY_CHOICES,
@@ -574,6 +582,8 @@ class ParserV2PreviewForm(forms.Form):
             'business_activity': cleaned.get('business_activity') or None,
             'birth_date': cleaned.get('birth_date') or None,
             'submission_date': cleaned.get('submission_date') or None,
+            'lease_start_date': cleaned.get('lease_start_date') or None,
+            'lease_end_date': cleaned.get('lease_end_date') or None,
             # Stage 2.3 — deal / insurance parameters
             'insured_party': insured_party,
             'insured_sum_type': insured_sum_type,
@@ -804,6 +814,7 @@ class InsuranceRequestForm(forms.ModelForm):
             'acquisition_cost_value', 'acquisition_cost_currency', 'source_object_count',
             # Реквизиты страхователя Parser V2
             'legal_address', 'postal_address', 'business_activity', 'birth_date', 'submission_date',
+            'lease_start_date', 'lease_end_date',
             # Параметры сделки и страхования Parser V2
             'insured_party', 'insured_sum_type', 'guard_conditions',
             'property_location_right_holder', 'premium_frequency',
@@ -937,6 +948,8 @@ class InsuranceRequestForm(forms.ModelForm):
                 'class': 'form-control',
                 'type': 'date'
             }),
+            'lease_start_date': forms.DateInput(format='%Y-%m-%d', attrs={'class': 'form-control', 'type': 'date'}),
+            'lease_end_date': forms.DateInput(format='%Y-%m-%d', attrs={'class': 'form-control', 'type': 'date'}),
             'insured_party': forms.Select(
                 choices=[('', '-- Не указано --')] + InsuranceRequest.INSURED_PARTY_CHOICES,
                 attrs={'class': 'form-control'}

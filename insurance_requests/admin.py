@@ -72,7 +72,7 @@ class InsuranceRequestAdmin(admin.ModelAdmin):
         }),
         ('Страхование', {
             'fields': (
-                'insurance_type', 'insurance_period',
+                'insurance_type', 'insurance_period', 'lease_start_date', 'lease_end_date',
                 'brand', 'model', 'condition', 'equipment_type',
                 'power_or_capacity', 'acquisition_cost_value',
                 'acquisition_cost_currency', 'manufacturing_year',

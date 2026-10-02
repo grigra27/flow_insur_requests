@@ -562,3 +562,110 @@ class PowerLabelTests(SimpleTestCase):
         }
         for kind, label in cases.items():
             self.assertEqual(power_label(InsuranceRequest(equipment_type=kind)), label, kind)
+
+
+def build_lease_application(start, end, shift=0):
+    """Бланк с блоком «Сроки действия договора лизинга» (I14, подзаголовки M14/N14, даты M15/N15)."""
+    wb = build_casco_application()
+    sheet = wb.active
+    row = 14 + shift
+    sheet[f'I{row}'] = 'Сроки действия договора лизинга'
+    sheet[f'M{row}'] = 'Дата начала'
+    sheet[f'N{row}'] = 'Дата окончания'
+    sheet[f'M{row + 1}'] = start
+    sheet[f'N{row + 1}'] = end
+    return wb
+
+
+class LeaseDatesRegressionTests(SimpleTestCase):
+    """«Сроки действия договора лизинга» (отзыв сотрудника 2026-10-02: в PDF не было дат договора)."""
+
+    def build(self, start, end, shift=0):
+        return build_lease_application(start, end, shift)
+
+    def test_text_dates(self):
+        result = parse_result(self.build('20.09.2024', '20.12.2028'))
+        self.assertEqual(result.data['lease_start_date'], '2024-09-20')
+        self.assertEqual(result.data['lease_end_date'], '2028-12-20')
+        self.assertEqual(result.source_map['lease_start_date'], 'M15')
+
+    def test_excel_serial_dates_and_ip_shift(self):
+        data = parse(self.build('46299', '47394.0', shift=1))
+        self.assertEqual(data['lease_start_date'], '2026-10-04')
+        self.assertEqual(data['lease_end_date'], '2029-10-03')
+
+    def test_no_block_no_dates(self):
+        self.assertNotIn('lease_start_date', parse(build_casco_application()))
+
+
+class LeaseTermDisplayTests(SimpleTestCase):
+    def make(self, start=None, end=None):
+        from datetime import date as d
+
+        from .models import InsuranceRequest
+
+        return InsuranceRequest(lease_start_date=d(*start) if start else None, lease_end_date=d(*end) if end else None)
+
+    def test_display(self):
+        self.assertEqual(self.make((2024, 9, 20), (2028, 12, 20)).lease_term_display,
+                         '20.09.2024 — 20.12.2028 (4 г. 3 мес.)')
+        self.assertEqual(self.make((2026, 1, 15), (2026, 12, 14)).lease_duration_label, '10 мес.')
+        self.assertEqual(self.make((2026, 1, 15), (2029, 1, 15)).lease_duration_label, '3 г.')
+        self.assertEqual(self.make((2024, 9, 20)).lease_term_display, 'с 20.09.2024')
+        self.assertEqual(self.make().lease_term_display, '')
+
+    def test_email_line(self):
+        from core.templates import EmailTemplateGenerator
+
+        generator = EmailTemplateGenerator()
+        self.assertEqual(
+            generator._format_lease_term_text(
+                {'lease_start_date': '20.09.2024', 'lease_end_date': '20.12.2028', 'lease_duration': '4 г. 3 мес.'}),
+            'Срок договора лизинга: с 20.09.2024 по 20.12.2028 (4 г. 3 мес.).\n')
+        self.assertEqual(generator._format_lease_term_text({}), '')
+
+
+class BackfillLeaseDatesCommandTests(TestCase):
+    """Команда backfill_lease_dates: даты из исходного Excel, только в пустые поля."""
+
+    def setUp(self):
+        self.media = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.media, ignore_errors=True)
+
+    def make_request(self, **extra):
+        from django.core.files.base import ContentFile
+
+        from .models import InsuranceRequest, RequestAttachment
+
+        wb = build_lease_application('20.09.2024', '20.12.2028')
+        handle = tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx')
+        handle.close()
+        wb.save(handle.name)
+        with open(handle.name, 'rb') as source:
+            content = source.read()
+        os.unlink(handle.name)
+        request = InsuranceRequest.objects.create(
+            client_name='ООО Тест', inn='7707083893', insurance_type='КАСКО', dfa_number='ТС-1',
+            additional_data={'parser_v2': {'warnings': []}}, **extra)
+        attachment = RequestAttachment(request=request, original_filename='Заявка ТС 1.xlsx', file_type='.xlsx')
+        attachment.file.save('Заявка ТС 1.xlsx', ContentFile(content), save=True)
+        return request
+
+    def test_dry_run_then_write(self):
+        from io import StringIO
+
+        from django.core.management import call_command
+        from django.test.utils import override_settings
+
+        with override_settings(MEDIA_ROOT=self.media):
+            request = self.make_request()
+            out = StringIO()
+            call_command('backfill_lease_dates', '--dry-run', stdout=out)
+            request.refresh_from_db()
+            self.assertIsNone(request.lease_start_date)
+            self.assertIn('заполнено: 1 (DRY-RUN', out.getvalue())
+
+            call_command('backfill_lease_dates', stdout=StringIO())
+            request.refresh_from_db()
+            self.assertEqual(str(request.lease_start_date), '2024-09-20')
+            self.assertEqual(str(request.lease_end_date), '2028-12-20')

@@ -501,6 +501,10 @@ def parse_date_value(value: Any) -> Optional[date]:
     text = clean_value(value)
     if not text:
         return None
+    # .xls отдаёт дату числом Excel («46299.0» = 04.10.2026): берём только правдоподобный диапазон.
+    serial = re.fullmatch(r"(\d{5})(?:\.0+)?", text)
+    if serial and 20000 <= int(serial.group(1)) <= 80000:
+        return date(1899, 12, 30) + timedelta(days=int(serial.group(1)))
     # Excel sometimes hands us "1982-12-12 00:00:00" (timestamp string).
     for fmt in _DATE_FORMATS:
         try:
@@ -902,6 +906,11 @@ class ExcelRequestParserV2:
             data["submission_date"] = submission_value.isoformat()
             source_map["submission_date"] = submission_source
 
+        # Срок договора лизинга (блок «Сроки действия договора лизинга», 2026-10-02).
+        for field_name, (value, source) in self._extract_lease_dates(cells, rows).items():
+            data[field_name] = value.isoformat()
+            source_map[field_name] = source
+
         # Stage 3.3 — deal / insurance parameters.
         party_value, party_source = self._extract_insured_party(cells, rows)
         if party_value:
@@ -1060,6 +1069,30 @@ class ExcelRequestParserV2:
         for row_cells in rows.values():
             row_cells.sort(key=lambda item: item.col)
         return rows
+
+    def _extract_lease_dates(self, cells: List[GridCell], rows: Dict[int, List[GridCell]]) -> Dict[str, Tuple[date, str]]:
+        """«Сроки действия договора лизинга»: подзаголовки «Дата начала» / «Дата окончания» в той же
+        строке (M14 / N14 у юрлица, на строку ниже у ИП), даты — под ними (M15 / N15)."""
+        found: Dict[str, Tuple[date, str]] = {}
+        for cell in cells:
+            if not all(word in cell.normalized for word in ("срок", "действ", "лизинг")):
+                continue
+            for header in rows.get(cell.row, []):
+                if "дата начала" in header.normalized:
+                    field_name = "lease_start_date"
+                elif "дата окончания" in header.normalized:
+                    field_name = "lease_end_date"
+                else:
+                    continue
+                for row_number in (cell.row + 1, cell.row + 2):
+                    value_cell = next((item for item in rows.get(row_number, []) if item.col == header.col), None)
+                    parsed = parse_date_value(value_cell.value) if value_cell else None
+                    if parsed:
+                        found[field_name] = (parsed, value_cell.coordinate)
+                        break
+            if found:
+                break
+        return found
 
     def _extract_labeled_value(
         self,

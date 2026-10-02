@@ -186,6 +186,7 @@ def _terms_rows(r):
     return _rows([
         ('Тип страхования', _capitalize(_text(r.insurance_type))),
         ('Срок страхования', _capitalize(_text(r.insurance_period))),
+        ('Договор лизинга', _text(r.lease_term_display)),
         ('Территория', _text(r.insurance_territory)),
         ('Франшиза', _franchise(r)),
         ('Уплата премии', _premium(r)),

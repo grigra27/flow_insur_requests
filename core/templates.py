@@ -56,7 +56,7 @@ class EmailTemplateGenerator:
 Высылаем заявку на расчет тарифов ${ins_type}${casco_type_ce}
 ${franshiza_text}${installment_text}${avtozapusk_text}${transportation_text}${construction_work_text}
 Необходимый период страхования: ${insurance_period_text}.
-
+${lease_term_text}
 Просим указать в предложении территорию действия страхового покрытия и имеющиеся территориальные ограничения.
 
 ИНН клиента – ${inn}.
@@ -160,6 +160,7 @@ ${franshiza_text}${installment_text}${avtozapusk_text}${transportation_text}${co
             'ins_type': insurance_description,
             'inn': data.get('inn', '[ИНН не указан]'),
             'insurance_period_text': insurance_period_text,
+            'lease_term_text': self._format_lease_term_text(data),
             'response_time': response_time,
         }
         
@@ -236,6 +237,16 @@ ${franshiza_text}${installment_text}${avtozapusk_text}${transportation_text}${co
         
         return template_data
     
+    def _format_lease_term_text(self, data: Dict[str, Any]) -> str:
+        """«Срок договора лизинга: с 20.09.2024 по 20.12.2028 (4 г. 3 мес.).» или пусто."""
+        start = (data.get('lease_start_date') or '').strip()
+        end = (data.get('lease_end_date') or '').strip()
+        if not start and not end:
+            return ''
+        span = ' '.join(part for part in (f'с {start}' if start else '', f'по {end}' if end else '') if part)
+        duration = (data.get('lease_duration') or '').strip()
+        return f"Срок договора лизинга: {span}{f' ({duration})' if duration else ''}.\n"
+
     def _format_insurance_period_text(self, data: Dict[str, Any]) -> str:
         """
         Форматирует период страхования для использования в email.

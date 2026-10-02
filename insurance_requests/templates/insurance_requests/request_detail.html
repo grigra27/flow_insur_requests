@@ -86,7 +86,7 @@
     <div class="rq-kpi">
         <div class="rq-label">Страхование</div>
         <div class="rq-kpi__value">{{ request.insurance_type }}</div>
-        <div class="rq-kpi__sub">{{ request.insurance_period|default:"Период не указан" }}</div>
+        <div class="rq-kpi__sub">{{ request.insurance_period|default:"Период не указан" }}{% if request.lease_duration_label %} · договор лизинга {{ request.lease_duration_label }}{% endif %}</div>
     </div>
     <div class="rq-kpi">
         <div class="rq-label">Объект</div>
@@ -188,6 +188,7 @@
                     <dl class="rq-kv">
                         <div><dt>Тип страхования</dt><dd>{{ request.insurance_type }}</dd></div>
                         <div><dt>Срок страхования</dt><dd>{{ request.insurance_period|default:"Период не указан" }}</dd></div>
+                        <div><dt>Договор лизинга</dt><dd>{{ request.lease_term_display|default:"Сроки не указаны" }}</dd></div>
                         <div>
                             <dt>Порядок оплаты премии</dt>
                             <dd>{% if request.premium_frequency %}{{ request.get_premium_frequency_display }}{% elif request.has_installment %}Рассрочка{% else %}Не указано{% endif %}</dd>
