@@ -297,6 +297,7 @@ def _build_common_request_kwargs(request_fields, additional_data, user):
         'creditor_bank': request_fields['creditor_bank'],
         'usage_purposes': request_fields['usage_purposes'],
         'telematics_complex': request_fields['telematics_complex'],
+        'anti_theft_systems': request_fields.get('anti_theft_systems') or '',
         'insurance_territory': request_fields['insurance_territory'],
         'response_deadline': request_fields['response_deadline'],
         'notes': request_fields['notes'],

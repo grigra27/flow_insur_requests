@@ -238,6 +238,7 @@
                         <div><dt>ПТС/ПСМ</dt><dd>{{ request.pts_psm|default:"Не указано" }}</dd></div>
                         <div><dt>Комплектность ключей</dt><dd>{{ request.key_completeness|default:"Не указано" }}</dd></div>
                         <div><dt>Телематический комплекс</dt><dd>{{ request.telematics_complex|default:"Не указано" }}</dd></div>
+                        <div><dt>Противоугонные системы</dt><dd>{{ request.anti_theft_systems|default:"Не указано" }}</dd></div>
                         <div><dt>Автозапуск</dt><dd>{% if request.has_autostart %}Да{% else %}Нет{% endif %}</dd></div>
                         <div><dt>КАСКО кат. C/E</dt><dd>{% if request.has_casco_ce %}Да{% else %}Нет{% endif %}</dd></div>
                     </dl>

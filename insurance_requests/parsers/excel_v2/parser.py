@@ -871,6 +871,11 @@ class ExcelRequestParserV2:
             data["telematics_complex"] = telematics_value
             source_map["telematics_complex"] = telematics_source
 
+        anti_theft_value, anti_theft_source = self._extract_anti_theft_systems(cells, rows)
+        if anti_theft_value:
+            data["anti_theft_systems"] = anti_theft_value
+            source_map["anti_theft_systems"] = anti_theft_source
+
         # Stage 3.2 — customer details. The audit found these labels at fixed
         # anchors (R8/R10/R11 for юр.лицо), but we still go through the
         # label-based extractor so IP templates with a +1 row shift work too.
@@ -2030,6 +2035,96 @@ class ExcelRequestParserV2:
         if parts:
             return " ".join(parts), ", ".join(coords)
         return "", ""
+
+    _ANTI_THEFT_MARK_RE = re.compile(r"^(х|x|\+|v|✓|✔|да)$", re.IGNORECASE)
+
+    def _extract_anti_theft_systems(
+        self,
+        cells: List[GridCell],
+        rows: Dict[int, List[GridCell]],
+    ) -> Tuple[str, str]:
+        """Блок «Противоугонные системы и оборудование» одной строкой (2026-10-02).
+
+        Раскладка бланка: заголовок блока с колонками «Штатная» (D) / «Установленная дополнительно» (E) /
+        «название, модель» (F); строки «Сигнализация» и «Иммобилайзер» — отметка «Х» в D или E, модель в F;
+        «Механические противоугонные устройства» — варианты «Капот / рычаг КПП / Прочее» в D, отметка правее;
+        «Спутниковая противоугонная система» — подзаголовки «Марка / Модель / Конфигурация», значения ниже.
+        Результат: «Сигнализация: установлена доп., StarLine A93; иммобилайзер: штатный».
+        """
+        header = next((cell for cell in cells if "противоугонные системы" in cell.normalized), None)
+        if not header:
+            return "", ""
+        header_row = rows.get(header.row, [])
+        col_std = next((c.col for c in header_row if "штатн" in c.normalized), None)
+        col_extra = next((c.col for c in header_row if "дополнительн" in c.normalized), None)
+        col_model = next((c.col for c in header_row if "назван" in c.normalized or "модель" in c.normalized), None)
+
+        def at(row_number: int, col: Optional[int]) -> Optional[GridCell]:
+            if col is None:
+                return None
+            return next((c for c in rows.get(row_number, []) if c.col == col), None)
+
+        def is_mark(cell: Optional[GridCell]) -> bool:
+            return bool(cell and clean_value(cell.value) and self._ANTI_THEFT_MARK_RE.match(clean_value(cell.value)))
+
+        parts: List[str] = []
+        sources: List[str] = []
+        for row_number in range(header.row + 1, header.row + 14):
+            row_cells = rows.get(row_number, [])
+            label = next((c for c in row_cells if c.col <= header.col + 1 and c.normalized), None)
+            if not label:
+                continue
+            name = label.normalized
+            if "телемат" in name:
+                break
+            if "сигнализац" in name or "иммобил" in name:
+                is_alarm = "сигнализац" in name
+                kind = None
+                if is_mark(at(row_number, col_std)):
+                    kind = "штатная" if is_alarm else "штатный"
+                elif is_mark(at(row_number, col_extra)):
+                    kind = "установлена доп." if is_alarm else "установлен доп."
+                model_cell = next(
+                    (c for c in row_cells if col_model is not None and col_model <= c.col <= col_model + 3
+                     and clean_value(c.value) and not is_mark(c)),
+                    None,
+                )
+                model = clean_value(model_cell.value) if model_cell else ""
+                details = ", ".join(part for part in (kind, model) if part)
+                if details:
+                    parts.append(f"{'Сигнализация' if is_alarm else 'Иммобилайзер'}: {details}")
+                    sources.append(label.coordinate)
+            elif "механические" in name:
+                chosen = []
+                for offset in range(0, 4):
+                    option_row = rows.get(row_number + offset, [])
+                    option = next((c for c in option_row if col_std is not None and c.col == col_std and c.normalized), None)
+                    if not option:
+                        continue
+                    marks = [c for c in option_row if c.col > option.col and clean_value(c.value)]
+                    if not marks:
+                        continue
+                    value = clean_value(marks[0].value)
+                    chosen.append(clean_value(option.value).lower() if is_mark(marks[0]) else value)
+                if chosen:
+                    parts.append("Механические: " + ", ".join(chosen))
+                    sources.append(label.coordinate)
+            elif "спутников" in name:
+                sub_cols = [c.col for c in row_cells if c.col > label.col and c.normalized in ("марка", "модель", "конфигурация")]
+                values = []
+                for value_row in (row_number + 1, row_number + 2):
+                    values = [clean_value(c.value) for c in rows.get(value_row, [])
+                              if c.col in sub_cols and clean_value(c.value)]
+                    if values:
+                        break
+                if values:
+                    parts.append("Спутниковая: " + " ".join(values))
+                    sources.append(label.coordinate)
+
+        if not parts:
+            return "", ""
+        text = "; ".join(parts)
+        return text[:1].upper() + text[1:], ", ".join(sources)
 
     def _extract_telematics_complex(
         self,

@@ -436,6 +436,7 @@ class ParserV2PreviewForm(forms.Form):
     creditor_bank = forms.CharField(label='Банк-кредитор', required=False, widget=forms.TextInput(attrs={'class': 'form-control'}))
     usage_purposes = forms.CharField(label='Цели использования', required=False, widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 2}))
     telematics_complex = forms.CharField(label='Телематический комплекс', required=False, widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 2}))
+    anti_theft_systems = forms.CharField(label='Противоугонные системы', required=False, widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 2}))
     insurance_territory = forms.CharField(label='Территория страхования', required=False, widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 2}))
     response_deadline = forms.CharField(
         label='Срок ответа',
@@ -573,6 +574,7 @@ class ParserV2PreviewForm(forms.Form):
             'creditor_bank': self._limit(cleaned.get('creditor_bank') or '', 255),
             'usage_purposes': cleaned.get('usage_purposes') or '',
             'telematics_complex': cleaned.get('telematics_complex') or '',
+            'anti_theft_systems': cleaned.get('anti_theft_systems') or '',
             'insurance_territory': cleaned.get('insurance_territory') or '',
             'notes': cleaned.get('notes') or '',
             'response_deadline': self._parse_response_deadline(cleaned.get('response_deadline')),
@@ -820,6 +822,7 @@ class InsuranceRequestForm(forms.ModelForm):
             'property_location_right_holder', 'premium_frequency',
             # Дополнительные параметры КАСКО/спецтехника
             'key_completeness', 'pts_psm', 'creditor_bank', 'usage_purposes', 'telematics_complex',
+            'anti_theft_systems',
             # Дополнительные параметры для страхования имущества
             'insurance_territory'
         ]
@@ -996,6 +999,11 @@ class InsuranceRequestForm(forms.ModelForm):
                 'class': 'form-control',
                 'rows': 2,
                 'placeholder': 'Телематический комплекс'
+            }),
+            'anti_theft_systems': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 2,
+                'placeholder': 'Например: сигнализация: штатная, StarLine A93; иммобилайзер: штатный'
             }),
             # Дополнительные параметры для страхования имущества
             'insurance_territory': forms.Textarea(attrs={

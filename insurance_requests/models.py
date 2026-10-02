@@ -212,6 +212,12 @@ class InsuranceRequest(models.Model):
         blank=True, 
         verbose_name='Телематический комплекс'
     )
+    anti_theft_systems = models.TextField(
+        blank=True,
+        verbose_name='Противоугонные системы',
+        help_text='Сигнализация, иммобилайзер, механические и спутниковые системы — из блока бланка '
+                  '«Противоугонные системы и оборудование»',
+    )
     
     # Дополнительные параметры для страхования имущества
     insurance_territory = models.TextField(
@@ -957,6 +963,7 @@ class InsuranceRequest(models.Model):
             'creditor_bank': self.creditor_bank or 'не указано',
             'usage_purposes': self.usage_purposes or 'не указано',
             'telematics_complex': self.telematics_complex or 'не указано',
+            'anti_theft_systems': self.anti_theft_systems or '',
             # Дополнительные параметры для страхования имущества
             'insurance_territory': self.insurance_territory or 'не указано',
             # Год выпуска предмета лизинга

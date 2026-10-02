@@ -669,3 +669,57 @@ class BackfillLeaseDatesCommandTests(TestCase):
             request.refresh_from_db()
             self.assertEqual(str(request.lease_start_date), '2024-09-20')
             self.assertEqual(str(request.lease_end_date), '2028-12-20')
+
+
+def build_anti_theft_application(alarm=None, immobilizer=None, mechanical=None, satellite=None, telematics=None):
+    """Блок «Противоугонные системы и оборудование» как в реальных бланках (строки 51–63)."""
+    wb = build_casco_application()
+    sheet = wb.active
+    sheet['B51'] = 'Противоугонные системы и оборудование (отметьте знаком "Х")'
+    sheet['D51'] = 'Штатная'
+    sheet['E51'] = 'Установленная дополнительно'
+    sheet['F51'] = 'название, модель'
+    sheet['B52'] = 'Сигнализация'
+    sheet['B53'] = 'Иммобилайзер'
+    for row, values in ((52, alarm), (53, immobilizer)):
+        for column, value in (values or {}).items():
+            sheet[f'{column}{row}'] = value
+    sheet['B55'] = 'Механические противоугонные устройства'
+    sheet['D55'] = 'Капот'
+    sheet['D56'] = 'рычаг КПП'
+    sheet['D57'] = 'Прочее'
+    for cell, value in (mechanical or {}).items():
+        sheet[cell] = value
+    sheet['B59'] = 'Спутниковая противоугонная система'
+    sheet['D59'] = 'Марка'
+    sheet['E59'] = 'Модель'
+    sheet['F59'] = 'Конфигурация'
+    for cell, value in (satellite or {}).items():
+        sheet[cell] = value
+    sheet['C62'] = 'Телематический комплекс'
+    sheet['D62'] = 'Наименование'
+    if telematics:
+        sheet['D63'] = telematics
+    return wb
+
+
+class AntiTheftRegressionTests(SimpleTestCase):
+    """Противоугонные системы (2026-10-02): раньше блок не распознавался вовсе."""
+
+    def test_alarm_added_with_model_and_standard_immobilizer(self):
+        # Реальные случаи: ТС-20914-ЛА-МН (E52=Х, F52=StarLine A93), ТС-20857-ЛА-МСК (D53=Х).
+        result = parse_result(build_anti_theft_application(
+            alarm={'E': 'Х', 'F': 'StarLine A93'}, immobilizer={'D': 'Х'}, telematics='АВО Pharos'))
+        self.assertEqual(result.data['anti_theft_systems'],
+                         'Сигнализация: установлена доп., StarLine A93; Иммобилайзер: штатный')
+        self.assertEqual(result.data['telematics_complex'], 'АВО Pharos')
+
+    def test_mechanical_and_satellite(self):
+        data = parse(build_anti_theft_application(
+            mechanical={'E56': 'Х', 'E57': 'блокиратор руля'},
+            satellite={'D60': 'Цезарь Сателлит', 'E60': 'Pandora DX-91', 'F60': 'GSM/GPS'}))
+        self.assertEqual(data['anti_theft_systems'],
+                         'Механические: рычаг кпп, блокиратор руля; Спутниковая: Цезарь Сателлит Pandora DX-91 GSM/GPS')
+
+    def test_empty_block(self):
+        self.assertNotIn('anti_theft_systems', parse(build_anti_theft_application()))

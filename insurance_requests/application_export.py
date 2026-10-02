@@ -219,6 +219,7 @@ def _risk_items(r):
             _info('Комплектов ключей', r.key_completeness),
             _info('ПТС / ПСМ', r.pts_psm),
             _info('Телематика', r.telematics_complex),
+            _info('Противоугонные системы', r.anti_theft_systems),
             _info('Цели использования', r.usage_purposes),
             _info('Охрана и хранение', guard),
         ]

@@ -98,7 +98,7 @@ class InsuranceRequestAdmin(admin.ModelAdmin):
         ('Параметры КАСКО/Спецтехника', {
             'fields': (
                 'key_completeness', 'pts_psm', 'creditor_bank', 
-                'usage_purposes', 'telematics_complex'
+                'usage_purposes', 'telematics_complex', 'anti_theft_systems'
             ),
             'classes': ('collapse',)
         }),
