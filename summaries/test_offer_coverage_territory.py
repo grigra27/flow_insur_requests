@@ -312,9 +312,9 @@ class OfferCoverageTerritoryInterfaceAndTemplateTests(TestCase):
         ))
         self.assertIn('flow_answer_template.xlsx', response['Content-Disposition'])
         workbook = load_workbook(BytesIO(b''.join(response.streaming_content)))
-        sheet = workbook['1']
+        sheet = workbook.active
         self.assertEqual(sheet['A3'].value, 'Территория страхования')
-        self.assertIn('B3:C3', {str(cell_range) for cell_range in sheet.merged_cells.ranges})
+        self.assertIn('B3:J3', {str(cell_range) for cell_range in sheet.merged_cells.ranges})
 
     def test_response_template_download_requires_authentication(self):
         response = self.client.get(
@@ -342,7 +342,7 @@ class OfferCoverageTerritoryInterfaceAndTemplateTests(TestCase):
         workbook = load_workbook(
             Path(settings.BASE_DIR) / 'templates' / 'flow_answer_template.xlsx'
         )
-        sheet = workbook['1']
+        sheet = workbook.active
         sheet['B2'] = 'Абсолют'
         sheet['B3'] = territory
         sheet['A6'] = year
@@ -438,9 +438,9 @@ class OfferCoverageTerritoryInterfaceAndTemplateTests(TestCase):
     def test_real_templates_have_new_cells_and_safe_rate_formulas(self):
         templates_dir = Path(settings.BASE_DIR) / 'templates'
         response_template = load_workbook(templates_dir / 'flow_answer_template.xlsx')
-        response_sheet = response_template['1']
+        response_sheet = response_template.active
         self.assertEqual(response_sheet['A3'].value, 'Территория страхования')
-        self.assertIn('B3:C3', {str(cell_range) for cell_range in response_sheet.merged_cells.ranges})
+        self.assertIn('B3:J3', {str(cell_range) for cell_range in response_sheet.merged_cells.ranges})
         self.assertIsNone(response_sheet['B3'].value)
 
         expected = (

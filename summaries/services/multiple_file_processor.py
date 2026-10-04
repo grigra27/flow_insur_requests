@@ -10,7 +10,7 @@ from django.db import transaction, OperationalError
 
 from ..models import InsuranceSummary, InsuranceOffer
 from ..exceptions import ExcelProcessingError, DuplicateOfferError, InvalidFileFormatError
-from .excel_services import get_excel_response_processor
+from .excel_services import ExcelResponseProcessor, get_excel_response_processor
 
 
 class MultipleFileProcessor:
@@ -505,14 +505,21 @@ class MultipleFileProcessor:
             # Пытаемся найти годы страхования (обычно в строках с данными)
             years = []
             
-            # Проверяем строки с 6 по 15 (типичное расположение данных)
-            for row_num in range(6, 16):
+            # Те же строки, что читает ExcelResponseProcessor. Номера лет в шаблоне
+            # проставлены заранее, поэтому год считается заявленным, только если
+            # в строке есть страховая сумма или премия-1 (иначе — ложные дубликаты).
+            for row_num in range(ExcelResponseProcessor.MIN_YEAR_ROW, ExcelResponseProcessor.MAX_YEAR_ROW + 1):
                 try:
                     year_cell = worksheet.cell(row=row_num, column=1)  # Колонка A
-                    if year_cell.value and str(year_cell.value).strip().isdigit():
-                        year = int(year_cell.value)
-                        if 1 <= year <= 10:  # Годы страхования обычно от 1 до 10
-                            years.append(year)
+                    if not (year_cell.value and str(year_cell.value).strip().isdigit()):
+                        continue
+                    has_data = any(
+                        not self.excel_processor._is_empty_or_zero(worksheet.cell(row=row_num, column=col).value)
+                        for col in (2, 4)  # B — страховая сумма, D — премия-1
+                    )
+                    year = int(year_cell.value)
+                    if has_data and 1 <= year <= 10:
+                        years.append(year)
                 except (ValueError, TypeError):
                     continue
             

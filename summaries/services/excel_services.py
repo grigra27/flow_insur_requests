@@ -7,6 +7,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 from decimal import Decimal, InvalidOperation
+import re
 import unicodedata
 
 from copy import copy
@@ -18,6 +19,7 @@ from openpyxl.workbook import Workbook
 from django.conf import settings
 from django.db import transaction
 from django.core.exceptions import ValidationError
+from django.core.files.base import ContentFile
 
 from ..models import InsuranceSummary, InsuranceOffer
 from ..exceptions import (
@@ -32,6 +34,10 @@ from insurance_requests.models import InsuranceRequest
 
 
 logger = logging.getLogger(__name__)
+
+# Суффикс валюты, который страховщики дописывают к суммам: «руб.», «рублей», «р.», «₽», «RUB».
+# Применяется к строке без пробелов, поэтому «4 342 000 руб.» сюда приходит как «4342000руб.».
+CURRENCY_SUFFIX_RE = re.compile(r'(?:руб(?:лей|ля|ль)?|р|₽|rub|rur)\.?$', re.IGNORECASE)
 
 
 class ExcelExportServiceError(Exception):
@@ -2939,6 +2945,9 @@ class ExcelResponseProcessor:
     
     # Допустимые значения рассрочки
     VALID_INSTALLMENT_VALUES = [1, 2, 3, 4, 6, 12]
+
+    # Текст-заглушка в B2 из шаблонов разных лет (сравнение без учёта регистра)
+    COMPANY_PLACEHOLDERS = {'название ск', 'выберите компанию', 'выберите компанию из списка'}
     
     def __init__(self):
         """Инициализация процессора"""
@@ -3154,7 +3163,8 @@ class ExcelResponseProcessor:
             # Создаем предложения
             self.logger.info("Этап 4: Создание предложений в базе данных")
             created_offers = self.create_offers(company_data, summary)
-            
+            self._attach_source_file(file, created_offers)
+
             result = {
                 'success': True,
                 'company_name': company_data['company_name'],
@@ -3270,6 +3280,13 @@ class ExcelResponseProcessor:
             
             # Сопоставляем название компании с закрытым списком
             raw_name_str = str(raw_company_name).strip()
+            if raw_name_str.lower() in self.COMPANY_PLACEHOLDERS:
+                # Заглушка старого шаблона: без этой проверки ушла бы в «другое» молча
+                self.logger.error(f"В ячейке B2 осталась заглушка шаблона: '{raw_name_str}'")
+                raise MissingDataError(message=(
+                    f"Страховая компания не выбрана: в ячейке B2 осталось «{raw_name_str}». "
+                    f"Выберите компанию из списка и загрузите файл снова."
+                ))
             self.logger.info(f"Исходное название компании: '{raw_name_str}'")
             
             standardized_name = self.company_matcher.match_company_name(raw_name_str)
@@ -3583,8 +3600,10 @@ class ExcelResponseProcessor:
         - "382171.80" -> "382171.80"
         - "1.234,56" -> "1234.56"
         - "1,234.56" -> "1234.56"
+        - "4 342 000 руб." / "138 758,17 ₽" -> "4342000" / "138758.17"
+        - "247499.99999999996" -> "247499.99999999996" (float, вставленный как текст)
         """
-        normalized = self._sanitize_numeric_string(value_str)
+        normalized = CURRENCY_SUFFIX_RE.sub('', self._sanitize_numeric_string(value_str))
 
         if ',' not in normalized and '.' not in normalized:
             return normalized
@@ -3604,8 +3623,9 @@ class ExcelResponseProcessor:
             comma_pos = normalized.rfind(',')
             fractional = normalized[comma_pos + 1:]
 
-            # 1-2 знака после запятой считаем десятичной частью
-            if fractional.isdigit() and 1 <= len(fractional) <= 2:
+            # 1-2 знака после запятой считаем десятичной частью; больше трёх —
+            # тоже (разделитель тысяч отделяет ровно три цифры)
+            if fractional.isdigit() and normalized.count(',') == 1 and len(fractional) != 3:
                 return normalized.replace(',', '.')
 
             # Иначе считаем запятую разделителем тысяч
@@ -3616,8 +3636,9 @@ class ExcelResponseProcessor:
             dot_pos = normalized.rfind('.')
             fractional = normalized[dot_pos + 1:]
 
-            # 1-2 знака после точки считаем десятичной частью
-            if fractional.isdigit() and 1 <= len(fractional) <= 2:
+            # 1-2 знака после точки считаем десятичной частью; больше трёх —
+            # тоже (разделитель тысяч отделяет ровно три цифры)
+            if fractional.isdigit() and normalized.count('.') == 1 and len(fractional) != 3:
                 return normalized
 
             # Иначе считаем точку разделителем тысяч
@@ -3726,6 +3747,16 @@ class ExcelResponseProcessor:
             
             raise RowProcessingError(row_number, field_name, f'некорректное значение "{value}", ожидается числовое значение', cell_address)
     
+    def _to_installment_int(self, value) -> int:
+        """Число платежей: принимает 4, 4.0, «4,0»; дробное значение — ValueError."""
+        try:
+            number = Decimal(self._normalize_decimal_input(value))
+        except InvalidOperation as exc:
+            raise ValueError(value) from exc
+        if not number.is_finite() or number != number.to_integral_value():
+            raise ValueError(value)
+        return int(number)
+
     def _parse_installment(self, value, cell_address: str) -> int:
         """
         Парсит значение рассрочки (устаревший метод для обратной совместимости)
@@ -3744,7 +3775,7 @@ class ExcelResponseProcessor:
             if value is None or value == '':
                 return 1  # По умолчанию - единовременная оплата
             
-            installment = int(value)
+            installment = self._to_installment_int(value)
             
             if installment not in self.VALID_INSTALLMENT_VALUES:
                 raise InvalidDataError(
@@ -3784,7 +3815,7 @@ class ExcelResponseProcessor:
                     return None
                 return 1  # По умолчанию - единовременная оплата
             
-            installment = int(value)
+            installment = self._to_installment_int(value)
             
             if installment not in self.VALID_INSTALLMENT_VALUES:
                 valid_values = ", ".join(map(str, self.VALID_INSTALLMENT_VALUES))
@@ -3856,6 +3887,28 @@ class ExcelResponseProcessor:
                 f'не больше страховой суммы ({year_data["insurance_sum"]})'
             )
     
+    def _attach_source_file(self, file, offers: List[InsuranceOffer]) -> None:
+        """
+        Сохраняет загруженный файл страховщика и привязывает его ко всем созданным
+        предложениям (одна копия на диске на загрузку). Ошибка сохранения не отменяет
+        импорт — предложения уже созданы, файл нужен только для разбора спорных случаев.
+        """
+        if not offers:
+            return
+        try:
+            file.seek(0)
+            content = ContentFile(file.read())
+            first = offers[0]
+            first.attachment_file.save(Path(file.name).name, content, save=False)
+            InsuranceOffer.objects.filter(pk__in=[offer.pk for offer in offers]).update(
+                attachment_file=first.attachment_file.name
+            )
+            for offer in offers:
+                offer.attachment_file.name = first.attachment_file.name
+            self.logger.info(f"Исходный файл сохранён: {first.attachment_file.name}")
+        except Exception as e:
+            self.logger.warning(f"Не удалось сохранить исходный файл '{getattr(file, 'name', '')}': {e}")
+
     def create_offers(self, data: Dict[str, Any], summary: InsuranceSummary) -> List[InsuranceOffer]:
         """
         Создает записи предложений в базе данных

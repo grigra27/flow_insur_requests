@@ -135,6 +135,10 @@ STORAGES = {
 # Media files
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+if RUNNING_TESTS:
+    # Импорт ответов СК сохраняет исходные файлы — в тестах они не должны попадать в media/
+    import tempfile
+    MEDIA_ROOT = Path(tempfile.mkdtemp(prefix='insflow-test-media-'))
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
