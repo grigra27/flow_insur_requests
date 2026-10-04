@@ -113,16 +113,18 @@ class SummaryExportV2ContentTests(SummaryExportV2Base):
 
     def test_selection_fields_are_manual_yellow_with_lists_and_highlight(self):
         ws = self._workbook()['Свод']
-        self.assertEqual(ws['A7'].value, 'Выбрана СК:')
-        self.assertIsNone(ws['C7'].value)
-        self.assertIsNone(ws['H7'].value)
-        self.assertEqual(ws['C7'].fill.fgColor.rgb, '00FFF2B3')
+        self.assertEqual(ws['N2'].value, 'Выбрана СК:')
+        self.assertEqual(ws['N4'].value, 'Выбрано предложение:')
+        self.assertIsNone(ws['O2'].value)
+        self.assertIsNone(ws['O4'].value)
+        self.assertEqual(ws['O2'].fill.fgColor.rgb, '00FFF2B3')
+        self.assertIsNone(ws['A7'].value)  # отдельной строки выбора нет
         lists = {str(dv.sqref): dv.formula1 for dv in ws.data_validations.dataValidation}
-        self.assertEqual(lists['C7'], '"Альфа,Зетта,ВСК"')
-        self.assertEqual(lists['H7'], '"Предложение 1,Предложение 2"')
+        self.assertEqual(lists['O2'], '"Альфа,Зетта,ВСК"')
+        self.assertEqual(lists['O4'], '"Предложение 1,Предложение 2"')
         rules = [rule.formula[0] for rng in ws.conditional_formatting for rule in rng.rules]
-        self.assertIn('$C$7="Альфа"', rules)
-        self.assertIn('AND($C$7="Альфа",$H$7="Предложение 2")', rules)
+        self.assertIn('$O$2="Альфа"', rules)
+        self.assertIn('AND($O$2="Альфа",$O$4="Предложение 2")', rules)
 
     def test_white_label(self):
         wb = self._workbook()
@@ -151,7 +153,7 @@ class SummaryExportV2ContentTests(SummaryExportV2Base):
         self.assertEqual(ws['I8'].value, 'Территория страхования')
         self.assertEqual(ws['J8'].value, 'Комментарии')
         lists = {str(dv.sqref): dv.formula1 for dv in ws.data_validations.dataValidation}
-        self.assertEqual(lists['H7'], '"Предложение 1"')
+        self.assertEqual(lists['J4'], '"Предложение 1"')
 
 
 class SummaryExportV2PrintTests(SummaryExportV2Base):

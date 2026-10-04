@@ -64,7 +64,6 @@ MONEY = '#,##0'  # копейки хранятся в ячейке, на экр�
 RATE = '0.00%'
 
 FIRST_DATA_ROW = 10
-SELECTION_ROW = 7
 LINE_HEIGHT = 12.5  # pt на строку текста шрифтом 9
 MIN_ROW_HEIGHT = 18
 
@@ -187,12 +186,13 @@ class SummaryExportV2Service(ExcelExportService):
 
     @staticmethod
     def selection_cells(cols) -> Tuple[str, str]:
-        """Ручные жёлтые поля «Выбрана СК» и «Выбрано предложение» — на первой печатной странице."""
-        return f'C{SELECTION_ROW}', f'{cols["total_1"]}{SELECTION_ROW}'
+        """Ручные жёлтые поля «Выбрана СК» и «Выбрано предложение» — справа, для менеджера
+        (при печати попадают на страницу с территорией и комментариями)."""
+        return f'{cols["notes"]}2', f'{cols["notes"]}4'
 
     def _build_header(self, ws, summary, cols, company_names, has_variant_2) -> None:
         request = summary.request
-        value_end = cols['numbers_last']
+        value_end = cols['total_1']
 
         ws.merge_cells(f'A1:{value_end}1')
         cell = ws['A1']
@@ -227,28 +227,18 @@ class SummaryExportV2Service(ExcelExportService):
             ws[f'C{r}'].alignment = Alignment(vertical='top', wrap_text=True)
             ws.row_dimensions[r].height = max(16, _text_lines(ws[f'C{r}'].value, chars) * 14)
 
-        # Строка выбора: «Выбрана СК: [C:D]   Выбрано предложение: [ИТОГО-1]»
+        # Ручные поля выбора справа: подпись в колонке территории, жёлтое поле — в комментариях
         company_cell, variant_cell = self.selection_cells(cols)
-        ws.row_dimensions[SELECTION_ROW].height = 22
-        variant_label_end = get_column_letter(ws[variant_cell].column - 1)
-        for label_range, label, input_range in (
-            (f'A{SELECTION_ROW}:B{SELECTION_ROW}', 'Выбрана СК:', f'C{SELECTION_ROW}:D{SELECTION_ROW}'),
-            (f'E{SELECTION_ROW}:{variant_label_end}{SELECTION_ROW}', 'Выбрано предложение:', variant_cell),
-        ):
-            ws.merge_cells(label_range)
-            label_cell = ws[label_range.split(':')[0]]
+        for coord, label in ((company_cell, 'Выбрана СК:'), (variant_cell, 'Выбрано предложение:')):
+            row = ws[coord].row
+            label_cell = ws[f'{cols["territory"]}{row}']
             label_cell.value = label
             label_cell.font = _font(10, bold=True)
             label_cell.alignment = Alignment(horizontal='right', vertical='center')
-            if ':' in input_range:
-                ws.merge_cells(input_range)
-                input_cells = [c for row_cells in ws[input_range] for c in row_cells]
-            else:
-                input_cells = [ws[input_range]]
-            for c in input_cells:
-                c.fill, c.border = INPUT_FILL, CELL_BORDER
-            input_cells[0].font = _font(11, bold=True)
-            input_cells[0].alignment = Alignment(vertical='center', shrink_to_fit=True)
+            target = ws[coord]
+            target.fill, target.border = INPUT_FILL, CELL_BORDER
+            target.font = _font(11, bold=True)
+            target.alignment = Alignment(vertical='center')
 
         variants = ['Предложение 1'] + (['Предложение 2'] if has_variant_2 else [])
         for coord, options, prompt in (
