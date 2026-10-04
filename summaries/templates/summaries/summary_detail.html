@@ -307,6 +307,27 @@
 
     <div class="col-lg-4">
         <div class="sd-aside">
+            {% if user.is_superuser %}
+            <!-- Свод V2 (бета): разработка нового формата Excel-свода, пока только суперпользователю.
+                 Текущие кнопки «Скачать клиентский/полный Excel» не меняются. -->
+            <div class="card mb-4 sd-v2-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0"><i class="bi bi-file-earmark-spreadsheet"></i> Свод V2</h6>
+                    <span class="badge text-bg-warning">бета</span>
+                </div>
+                <div class="card-body d-grid gap-2">
+                    <a class="sd-xls-btn sd-xls-btn--outline" href="{% url 'summaries:generate_summary_file_v2' summary.pk 'client' %}">
+                        <i class="bi bi-person-lines-fill"></i>
+                        <span><b>Клиентский свод V2</b><small>лист «Свод» · печать на A4</small></span>
+                    </a>
+                    <a class="sd-xls-btn" href="{% url 'summaries:generate_summary_file_v2' summary.pk 'full' %}">
+                        <i class="bi bi-file-earmark-excel-fill"></i>
+                        <span><b>Полный свод V2</b><small>+ лист «Параметры запроса»</small></span>
+                    </a>
+                    <small class="text-muted">Видно только суперпользователю, в любом статусе.</small>
+                </div>
+            </div>
+            {% endif %}
             <!-- Сводная информация -->
             <div class="card mb-4">
                 <div class="card-header d-flex justify-content-between align-items-center">
@@ -1316,6 +1337,7 @@
 .sd-xls-btn { display: inline-flex; align-items: center; gap: 0.55rem; padding: 0.42rem 0.9rem 0.42rem 0.7rem; border: 1px solid #ba122b; border-radius: 12px; background: #ba122b; color: #fff; text-align: left; box-shadow: 0 6px 16px -6px rgba(186, 18, 43, 0.55); transition: background-color 0.15s ease, transform 0.15s ease; }
 .sd-xls-btn:hover, .sd-xls-btn:focus-visible { background: #9e0f24; border-color: #9e0f24; color: #fff; transform: translateY(-1px); }
 .sd-xls-btn > .bi { font-size: 1.3rem; line-height: 1; }
+.sd-v2-card .sd-xls-btn { text-decoration: none; }
 .sd-xls-btn span { display: flex; flex-direction: column; line-height: 1.15; }
 .sd-xls-btn b { font-size: 0.88rem; font-weight: 700; white-space: nowrap; }
 .sd-xls-btn small { font-size: 0.68rem; color: #f5c9d0; white-space: nowrap; }

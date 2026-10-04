@@ -22,7 +22,7 @@ from pathlib import Path
 
 from .models import InsuranceSummary, InsuranceOffer, SummaryCompanyStatus, SummaryTemplate
 from insurance_requests.models import InsuranceRequest
-from insurance_requests.decorators import admin_required, user_required
+from insurance_requests.decorators import admin_required, superuser_required, user_required
 from .forms import OfferForm, SummaryForm, AddOfferToSummaryForm, DealListFilterForm
 from .exceptions import DuplicateOfferError
 from .services.analytics_insurance_companies import (
@@ -1426,6 +1426,34 @@ def generate_summary_file(request, summary_id):
         return JsonResponse({
             'error': 'Произошла неожиданная ошибка при генерации файла. Обратитесь к администратору.'
         }, status=500)
+
+
+@superuser_required
+def generate_summary_file_v2(request, summary_id, version):
+    """Свод V2 (бета): клиентский (только лист «Свод») или полный (+ «Параметры запроса»).
+    Пока только суперпользователю, в любом статусе свода."""
+    from .services.summary_export_v2 import SummaryExportV2Service, build_filename
+    from .services import ExcelExportServiceError
+
+    if version not in ('client', 'full'):
+        raise Http404('Неизвестная версия свода')
+
+    summary = get_object_or_404(InsuranceSummary.objects.select_related('request'), pk=summary_id)
+    is_client_version = version == 'client'
+    try:
+        excel_file = SummaryExportV2Service().generate(summary, is_client_version=is_client_version)
+    except ExcelExportServiceError as e:
+        logger.error(f"Summary V2 export error for summary {summary_id}: {e}")
+        messages.error(request, f'Не удалось сформировать свод V2: {e}')
+        return redirect('summaries:summary_detail', pk=summary_id)
+
+    filename = build_filename(summary, is_client_version)
+    response = HttpResponse(excel_file.getvalue(), content_type=(
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    ))
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    logger.info(f"Summary V2 ({version}) generated for summary {summary_id}: {filename}")
+    return response
 
 
 @user_required
