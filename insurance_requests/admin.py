@@ -1,9 +1,10 @@
+from django.conf import settings
 from django.contrib import admin
 from django.utils.html import format_html, format_html_join
 from django.urls import reverse
 from django.utils import timezone
-from datetime import timedelta
-import pytz
+from core.business_time import response_deadline
+
 from .models import InsuranceRequest, RequestAttachment, RequestFieldEdit
 
 
@@ -201,12 +202,13 @@ class InsuranceRequestAdmin(admin.ModelAdmin):
     # Массовые операции для управления статусами и сроками ответа
     
     def reset_response_deadline(self, request, queryset):
-        """Массовая операция: сбросить срок ответа (+3 часа от текущего времени)"""
-        moscow_tz = pytz.timezone('Europe/Moscow')
-        new_deadline = timezone.now().astimezone(moscow_tz) + timedelta(hours=3)
+        """Массовая операция: сбросить срок ответа (N рабочих часов от текущего момента)"""
+        new_deadline = response_deadline()
         updated = queryset.update(response_deadline=new_deadline)
         self.message_user(request, f'Срок ответа обновлен для {updated} заявок.')
-    reset_response_deadline.short_description = 'Сбросить срок ответа (+3 часа)'
+    reset_response_deadline.short_description = (
+        f'Сбросить срок ответа (+{settings.RESPONSE_DEADLINE_WORK_HOURS:g} раб. ч)'
+    )
 
 
 @admin.register(RequestAttachment)

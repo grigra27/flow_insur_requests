@@ -135,6 +135,19 @@ STORAGES = {
 # Media files
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+# Срок ответа страховщика: N рабочих часов от загрузки заявки (core.business_time).
+# Рабочее время по Москве: начало дня и конец по дням недели (Пн=0); в сокращённый
+# предпраздничный день конец на час раньше. Суббота/воскресенье работают только
+# как рабочие дни по переносу из производственного календаря.
+RESPONSE_DEADLINE_WORK_HOURS = config('RESPONSE_DEADLINE_WORK_HOURS', default=4, cast=float)
+WORKDAY_START_HOUR = 10
+WORKDAY_END_HOURS = {0: 18, 1: 18, 2: 18, 3: 18, 4: 17, 5: 18, 6: 18}
+# Производственный календарь РФ; в тестах без сети — считаем по неделе и праздникам ТК
+PRODUCTION_CALENDAR_URL = '' if RUNNING_TESTS else config(
+    'PRODUCTION_CALENDAR_URL', default='https://isdayoff.ru/api/getdata?year={year}&pre=1'
+)
+
 if RUNNING_TESTS:
     # Импорт ответов СК сохраняет исходные файлы — в тестах они не должны попадать в media/
     import tempfile

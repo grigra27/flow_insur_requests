@@ -108,6 +108,8 @@ A summary can only be created after the request is in `emails_sent` (see `Insura
 
 Server runs `Europe/Moscow`. Models persist UTC, but many methods (`*_moscow` properties, `to_dict`, `response_deadline` default) explicitly convert via `pytz`. Use the `*_moscow` accessors when rendering deadlines and creation times.
 
+The default `response_deadline` is N working hours from upload (`core.business_time.response_deadline`, N = `RESPONSE_DEADLINE_WORK_HOURS`, default 4): Mon–Thu 10–18, Fri 10–17, pre-holiday days one hour shorter, days off from the isdayoff.ru production calendar (cached per year; unpublished year or outage → weekends + Labour Code art. 112 holidays). Tests never hit the network (`PRODUCTION_CALENDAR_URL` is empty under `manage.py test`).
+
 ### HTTPS / security
 
 `ENABLE_HTTPS` env flag toggles the whole HTTPS stack: HSTS, secure cookies, `SECURE_SSL_REDIRECT`, `SECURE_PROXY_SSL_HEADER`, and *renames* session/CSRF cookies to `sessionid_secure` / `csrftoken_secure`. CSRF trusted origins are auto-derived from `ALLOWED_HOSTS` if not set explicitly. `HTTPSSecurityMiddleware` adds the response headers.

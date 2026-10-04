@@ -15,6 +15,7 @@ from django.utils import timezone
 from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter
 
+from core.business_time import response_deadline
 from core.excel_utils import AVAILABLE_BRANCHES, map_branch_name
 from insurance_requests.franchise import parse_amounts as parse_franchise_amounts
 
@@ -1034,7 +1035,7 @@ class ExcelRequestParserV2:
         }
 
     def _default_data(self) -> Dict[str, Any]:
-        deadline = timezone.localtime(timezone.now() + timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M")
+        deadline = response_deadline().strftime("%Y-%m-%dT%H:%M")
         return {
             "client_name": MISSING_CLIENT,
             "inn": "",

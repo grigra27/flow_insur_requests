@@ -8,6 +8,8 @@ from typing import Dict, Any
 import json
 import pytz
 
+from core.business_time import response_deadline
+
 from .object_catalog import OBJECT_CLASSES, classify_request
 
 
@@ -902,10 +904,8 @@ class InsuranceRequest(models.Model):
             self.refresh_object_catalog()
             kwargs['update_fields'] = set(update_fields) | set(self.OBJECT_CATALOG_FIELDS)
         if not self.response_deadline:
-            # Получаем текущее время в московском часовом поясе
-            moscow_tz = pytz.timezone('Europe/Moscow')
-            moscow_now = timezone.now().astimezone(moscow_tz)
-            self.response_deadline = moscow_now + timedelta(hours=3)
+            # N рабочих часов по производственному календарю (core.business_time)
+            self.response_deadline = response_deadline()
         
         super().save(*args, **kwargs)
     

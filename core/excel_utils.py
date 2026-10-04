@@ -4,8 +4,9 @@
 from typing import Dict, Any, Optional
 import pandas as pd
 from openpyxl import load_workbook
-from datetime import timedelta
 from django.utils import timezone
+
+from core.business_time import response_deadline as business_response_deadline
 import logging
 
 logger = logging.getLogger(__name__)
@@ -306,8 +307,8 @@ class ExcelReader:
         # Определяем период страхования по новой логике N17/N18 (одинаково для всех форматов)
         insurance_period = self._determine_insurance_period_openpyxl(sheet)
         
-        # Определяем срок ответа (текущее время + 3 часа) (одинаково для всех форматов)
-        response_deadline = timezone.now() + timedelta(hours=3)
+        # Срок ответа: N рабочих часов от загрузки (одинаково для всех форматов)
+        response_deadline = business_response_deadline()
         
         # Определяем тип франшизы на основе анализа ячеек D29/D30, E29/E30, F29/F30
         logger.info(f"Starting franchise type determination (openpyxl) ({detailed_context}) | {format_context}")
@@ -450,8 +451,8 @@ class ExcelReader:
         # Определяем период страхования по новой логике N17/N18 (одинаково для всех форматов)
         insurance_period = self._determine_insurance_period_pandas(df)
         
-        # Определяем срок ответа (текущее время + 3 часа) (одинаково для всех форматов)
-        response_deadline = timezone.now() + timedelta(hours=3)
+        # Срок ответа: N рабочих часов от загрузки (одинаково для всех форматов)
+        response_deadline = business_response_deadline()
         
         # Определяем тип франшизы на основе анализа ячеек D29/D30, E29/E30, F29/F30
         logger.info(f"Starting franchise type determination (pandas) ({detailed_context}) | {format_context}")
@@ -996,7 +997,7 @@ class ExcelReader:
             'has_construction_work': False,
             'manufacturing_year': '',
             'asset_status': '',
-            'response_deadline': timezone.now() + timedelta(hours=3),
+            'response_deadline': business_response_deadline(),
             'application_type': self.application_type,
             'application_format': self.application_format,
             'additional_data': {
