@@ -126,13 +126,32 @@ class SummaryExportV2ContentTests(SummaryExportV2Base):
         self.assertIn('$O$2="Альфа"', rules)
         self.assertIn('AND($O$2="Альфа",$O$4="Предложение 2")', rules)
 
-    def test_navy_palette_header_and_totals(self):
+    def test_navy_style_banner_company_band_and_total_badges(self):
         ws = self._workbook()['Свод']
+        self.assertEqual(ws['A1'].fill.fgColor.rgb, '001B3A6B')  # заголовок-баннер
+        self.assertEqual(ws['A1'].font.color.rgb, '00FFFFFF')
         self.assertEqual(ws['D8'].fill.fgColor.rgb, '001B3A6B')  # шапка предложения 1
         self.assertEqual(ws['I8'].fill.fgColor.rgb, '002E5C99')  # предложение 2 — другой оттенок
-        self.assertEqual(ws['H10'].fill.fgColor.rgb, '00E6EFFB')  # колонка «ИТОГО»
-        self.assertEqual(ws['H10'].font.color.rgb, '001B3A6B')
+        self.assertEqual(ws['H10'].fill.fgColor.rgb, '001B3A6B')  # «ИТОГО» — синяя плашка
+        self.assertEqual(ws['M10'].fill.fgColor.rgb, '002E5C99')
+        self.assertEqual(ws['H10'].font.color.rgb, '00FFFFFF')
+        self.assertEqual(ws['H10'].font.sz, 13)
+        self.assertEqual(ws['A10'].fill.fgColor.rgb, '00DCE6F2')  # СК — плашкой с полосой слева
+        self.assertEqual(ws['A10'].border.left.style, 'thick')
+        self.assertEqual(ws['A10'].font.sz, 12)
+        self.assertEqual(ws['E10'].font.sz, 10)
+        self.assertFalse(ws['E10'].border.left and ws['E10'].border.left.style)  # только горизонтальные линии
         self.assertEqual(ws['O2'].fill.fgColor.rgb, '00FFF2B3')  # поля менеджера — жёлтые
+
+    def test_insurer_logo_above_name_when_logo_code_known(self):
+        InsuranceCompany.objects.exclude(name='Альфа').update(logo_code='')
+        InsuranceCompany.objects.filter(name='Альфа').update(logo_code='alfa')
+        ws = self._workbook()['Свод']
+        self.assertEqual(len(ws._images), 1)
+        anchor = ws._images[0].anchor._from
+        self.assertEqual((anchor.col, anchor.row), (0, 9))  # A10 — блок Альфы
+        self.assertEqual(ws['A10'].alignment.vertical, 'bottom')
+        self.assertGreaterEqual(ws.row_dimensions[10].height + ws.row_dimensions[11].height, 40)
 
     def test_white_label(self):
         wb = self._workbook()
@@ -140,7 +159,9 @@ class SummaryExportV2ContentTests(SummaryExportV2Base):
         text = _all_text(wb['Свод']).lower()
         for brand in ('онлайн', 'брокер', 'insflow'):
             self.assertNotIn(brand, text)
-        self.assertFalse(wb['Свод']._images)
+        # картинки — только логотипы предложивших СК из справочника, своего бренда нет
+        with_logo = InsuranceCompany.objects.filter(name__in=['Альфа', 'ВСК', 'Зетта']).exclude(logo_code='')
+        self.assertEqual(len(wb['Свод']._images), with_logo.count())
 
     def test_request_parameters_sheet_has_v1_fields_and_new_ones(self):
         ws = self._workbook(client=False)['Параметры запроса']

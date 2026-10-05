@@ -51,14 +51,14 @@ MUTED = '6B7280'
 INPUT_FILL = PatternFill('solid', fgColor='FFF2B3')  # ручные поля менеджера — всегда жёлтые
 
 # Палитра white label (без фирменных цветов брокера), выбор владельца 2026-10-05 — «деловой синий».
-# header/header_2 — шапки предложений 1/2, sub/sub_2 — их подзаголовки, total_* — выделение
-# колонок «ИТОГО», accent — линия под заголовком. Другие варианты (графит, изумруд, синий
+# header/header_2 — шапки предложений 1/2 (и плашки «ИТОГО» под ними, и баннер заголовка),
+# sub/sub_2 — подзаголовки, sub — ещё и плашка СК, accent — полоса слева у плашки СК. Другие варианты (графит, изумруд, синий
 # с золотом) рассматривались и отклонены; новую палитру достаточно добавить сюда.
 PALETTES = {
     'navy': {
         'title': '1B3A6B', 'accent': '2E6BC6', 'header': '1B3A6B', 'header_2': '2E5C99',
         'sub': 'DCE6F2', 'sub_2': 'E2EBF6', 'band': 'F5F8FC', 'hair': 'D5DEEA', 'block': '8FA9CC',
-        'company': '1B3A6B', 'total_fill': 'E6EFFB', 'total_text': '1B3A6B',
+        'company': '1B3A6B',
         'chosen': 'DCEBFB', 'chosen_variant': 'BCD5F5', 'section': 'E8EEF6',
     },
 }
@@ -68,8 +68,12 @@ MONEY = '#,##0'  # копейки хранятся в ячейке, на экр�
 RATE = '0.00%'
 
 FIRST_DATA_ROW = 10
-LINE_HEIGHT = 12.5  # pt на строку текста шрифтом 9
-MIN_ROW_HEIGHT = 18
+# Размеры шрифтов (pt) — «крупный» вид, выбор владельца 2026-10-05
+FONT_SIZES = {'data': 10, 'header': 10, 'company': 12, 'total': 13, 'title': 16}
+LINE_HEIGHT = 14  # pt на строку текста шрифтом 10
+MIN_ROW_HEIGHT = 22
+LOGO_SIZE = 18  # px, логотип СК над названием
+LOGO_BLOCK_MIN_HEIGHT = 40  # pt, место под логотип и название в блоке СК
 
 # Печать: A4 (pt), поля в дюймах
 A4_SHORT, A4_LONG = 595.3, 841.9
@@ -99,10 +103,11 @@ class SummaryExportV2Service(ExcelExportService):
 
     LEGACY_TERRITORY_V2 = '—'
 
-    WIDTHS = {'company': 20, 'year': 8, 'sum': 15, 'rate': 9, 'premium': 13, 'franchise': 12,
-              'payments': 10, 'total': 14, 'territory': 32, 'notes': 64}
+    WIDTHS = {'company': 22.5, 'year': 9, 'sum': 17, 'rate': 10, 'premium': 14.5, 'franchise': 13.5,
+              'payments': 11, 'total': 15.5, 'territory': 36, 'notes': 72}
 
     def __init__(self, palette: str = DEFAULT_PALETTE):
+        self.fs = FONT_SIZES
         self.palette = PALETTES[palette]
         self.hair = Side(style='thin', color=self.palette['hair'])
         self.block_line = Side(style='medium', color=self.palette['block'])
@@ -209,13 +214,12 @@ class SummaryExportV2Service(ExcelExportService):
         ws.merge_cells(f'A1:{value_end}1')
         cell = ws['A1']
         cell.value = f'Свод котировок и условий от {timezone.localdate():%d.%m.%Y}'
-        cell.font = _font(14, bold=True, color=self.palette['title'])
-        cell.alignment = Alignment(vertical='center')
-        ws.row_dimensions[1].height = 26
-        if self.palette['accent']:
-            accent = Side(style='thick', color=self.palette['accent'])
-            for idx in range(1, ws[f'{value_end}1'].column + 1):
-                ws.cell(row=1, column=idx).border = Border(bottom=accent)
+        # Заголовок — белым по синей полосе (баннер)
+        cell.font = _font(self.fs['title'], bold=True, color='FFFFFF')
+        cell.alignment = Alignment(vertical='center', indent=1)
+        ws.row_dimensions[1].height = 36
+        for idx in range(1, ws[f'{value_end}1'].column + 1):
+            ws.cell(row=1, column=idx).fill = self._fill('header')
 
         object_text = request.object_summary or ''
         year = (request.manufacturing_year or '').strip()
@@ -235,11 +239,11 @@ class SummaryExportV2Service(ExcelExportService):
             r = 2 + offset
             ws.merge_cells(f'A{r}:B{r}')
             ws[f'A{r}'].value = label
-            ws[f'A{r}'].font = _font(9, color=MUTED)
+            ws[f'A{r}'].font = _font(self.fs['data'], color=MUTED)
             ws[f'A{r}'].alignment = Alignment(vertical='top')
             ws.merge_cells(f'C{r}:{value_end}{r}')
             ws[f'C{r}'].value = self._sanitize_excel_text(value)
-            ws[f'C{r}'].font = _font(10, bold=label in ('Заявка №', 'Объект страхования'))
+            ws[f'C{r}'].font = _font(self.fs['data'] + 1, bold=label in ('Заявка №', 'Объект страхования'))
             ws[f'C{r}'].alignment = Alignment(vertical='top', wrap_text=True)
             ws.row_dimensions[r].height = max(16, _text_lines(ws[f'C{r}'].value, chars) * 14)
 
@@ -290,7 +294,7 @@ class SummaryExportV2Service(ExcelExportService):
         top, sub = FIRST_DATA_ROW - 2, FIRST_DATA_ROW - 1
         ws.row_dimensions[top].height = 20
         ws.row_dimensions[sub].height = 26
-        white = _font(9, bold=True, color='FFFFFF')
+        white = _font(self.fs['header'], bold=True, color='FFFFFF')
         center = Alignment(horizontal='center', vertical='center', wrap_text=True)
 
         def style(letter, row, fill, font):
@@ -316,7 +320,7 @@ class SummaryExportV2Service(ExcelExportService):
                                ('payments', 'Платежей в год'), ('total', 'ИТОГО за срок')):
                 letter = cols[f'{key}_{v}']
                 style(letter, sub, self._fill('sub' if v == 1 else 'sub_2'),
-                      _font(9, bold=True, color=self.palette['title']))
+                      _font(self.fs['header'], bold=True, color=self.palette['title']))
                 ws[f'{letter}{sub}'].value = title
 
     def _write_company_block(self, ws, start, name, offers, cols, has_variant_2, asset_note, banded) -> int:
@@ -352,29 +356,30 @@ class SummaryExportV2Service(ExcelExportService):
                 ws[f'{cols[f"payments_{v}"]}{r}'].alignment = center
 
         # Объединённые по блоку: компания, ИТОГО, территория, комментарии
+        has_logo = self._insert_logo(ws, cols['company'], start, name)
         self._merge_block(ws, cols['company'], start, end, name,
-                          _font(10, bold=True, color=self.palette['company']),
-                          Alignment(vertical='center', wrap_text=True))
+                          _font(self.fs['company'], bold=True, color=self.palette['company']),
+                          Alignment(vertical='bottom' if has_logo else 'center', wrap_text=True, indent=1))
         for v in variants:
             p_col = cols[f'premium_{v}']
             value = f'=SUM({p_col}{start}:{p_col}{end})' if any(p is not None for p in premiums[v]) else None
             self._merge_block(ws, cols[f'total_{v}'], start, end, value,
-                              _font(11, bold=True, color=self.palette['total_text']), right, MONEY)
+                              _font(self.fs['total'], bold=True, color='FFFFFF'), right, MONEY)
 
         territories = self._block_territories(offers)
         if len(territories) == 1:
-            self._merge_block(ws, cols['territory'], start, end, territories[0], _font(9),
+            self._merge_block(ws, cols['territory'], start, end, territories[0], _font(self.fs['data']),
                               Alignment(vertical='top', wrap_text=True))
         else:  # разные территории по годам — построчно, чтобы различия не потерялись
             for i, text in enumerate(territories):
                 c = ws[f'{cols["territory"]}{start + i}']
-                c.value, c.font, c.alignment = text, _font(9), Alignment(vertical='top', wrap_text=True)
+                c.value, c.font, c.alignment = text, _font(self.fs['data']), Alignment(vertical='top', wrap_text=True)
 
         additional = self._combine_additional_notes(
             asset_note, self._get_franchise_approval_note_for_company(offers, name)
         )
         notes = self._consolidate_notes(offers, additional) or ''
-        self._merge_block(ws, cols['notes'], start, end, notes, _font(9),
+        self._merge_block(ws, cols['notes'], start, end, notes, _font(self.fs['data']),
                           Alignment(vertical='top', wrap_text=True))
 
         last_idx = ws[f'{cols["last"]}1'].column
@@ -382,22 +387,32 @@ class SummaryExportV2Service(ExcelExportService):
             for c_idx in range(1, last_idx + 1):
                 c = ws.cell(row=r, column=c_idx)
                 if c.font is None or c.font.name != FONT:
-                    c.font = _font(9)
-                c.border = Border(left=self.hair, right=self.hair, top=self.hair,
+                    c.font = _font(self.fs['data'])
+                # «больше воздуха»: внутри таблицы только горизонтальные линии
+                vertical = self.hair if c_idx == 1 else None
+                c.border = Border(left=vertical, right=vertical, top=self.hair,
                                   bottom=self.block_line if r == end else self.hair)
                 if banded:
                     c.fill = self._fill('band')
-        if self.palette['total_fill']:
-            for v in variants:
-                for r in range(start, end + 1):
-                    ws[f'{cols[f"total_{v}"]}{r}'].fill = self._fill('total_fill')
+        # «ИТОГО» — белым по синей плашке в цвет шапки своего предложения
+        for v in variants:
+            for r in range(start, end + 1):
+                ws[f'{cols[f"total_{v}"]}{r}'].fill = self._fill('header' if v == 1 else 'header_2')
+        # Компания — плашкой с синей полосой слева
+        accent = Side(style='thick', color=self.palette['accent'])
+        for r in range(start, end + 1):
+            c = ws[f'{cols["company"]}{r}']
+            c.fill = self._fill('sub')
+            c.border = Border(left=accent, right=self.hair, top=self.hair,
+                              bottom=self.block_line if r == end else self.hair)
 
         # Высота строк: чтобы текст территории и комментариев не обрезался
         needed_lines = max(
-            _text_lines(notes, int(self._width('notes') * 1.15)),
-            max((_text_lines(t, int(self._width('territory') * 1.15)) for t in territories), default=0),
+            _text_lines(notes, int(self._width('notes'))),
+            max((_text_lines(t, int(self._width('territory'))) for t in territories), default=0),
         )
-        per_row = max(MIN_ROW_HEIGHT, needed_lines * LINE_HEIGHT / len(offers) + 2)
+        min_block = LOGO_BLOCK_MIN_HEIGHT if has_logo else 0
+        per_row = max(MIN_ROW_HEIGHT, needed_lines * LINE_HEIGHT / len(offers) + 2, min_block / len(offers))
         for r in range(start, end + 1):
             ws.row_dimensions[r].height = per_row
 
@@ -430,6 +445,28 @@ class SummaryExportV2Service(ExcelExportService):
             return [self.MISSING_COVERAGE_TERRITORY]
         return [self.LEGACY_TERRITORY_V2]
 
+    def _insert_logo(self, ws, letter, row, name) -> bool:
+        """Логотип СК (static/img/insurers/<logo_code>.png) в левом верхнем углу ячейки компании."""
+        from openpyxl.drawing.image import Image as XLImage
+        from openpyxl.drawing.spreadsheet_drawing import AnchorMarker, OneCellAnchor
+        from openpyxl.drawing.xdr import XDRPositiveSize2D
+        from openpyxl.utils.units import pixels_to_EMU
+        from ..models import InsuranceCompany
+
+        code = InsuranceCompany.objects.filter(name=name).values_list('logo_code', flat=True).first()
+        path = settings.BASE_DIR / 'static' / 'img' / 'insurers' / f'{code}.png'
+        if not code or not path.is_file():
+            return False
+        image = XLImage(str(path))
+        size = LOGO_SIZE
+        image.anchor = OneCellAnchor(
+            _from=AnchorMarker(col=ws[f'{letter}1'].column - 1, colOff=pixels_to_EMU(6),
+                               row=row - 1, rowOff=pixels_to_EMU(4)),
+            ext=XDRPositiveSize2D(pixels_to_EMU(size), pixels_to_EMU(size)),
+        )
+        ws.add_image(image)
+        return True
+
     def _merge_block(self, ws, letter, start, end, value, font, alignment, number_format=None) -> None:
         if end > start:
             ws.merge_cells(f'{letter}{start}:{letter}{end}')
@@ -441,13 +478,13 @@ class SummaryExportV2Service(ExcelExportService):
             cell.number_format = number_format
 
     def _write_declined_row(self, ws, row, name, cols) -> None:
-        muted = _font(9, italic=True, color=MUTED)
+        muted = _font(self.fs['data'], italic=True, color=MUTED)
         for c_idx in range(1, ws[f'{cols["last"]}1'].column + 1):
             c = ws.cell(row=row, column=c_idx)
             c.border = Border(left=self.hair, right=self.hair, top=self.hair, bottom=self.block_line)
             c.font = muted
         ws[f'A{row}'] = name
-        ws[f'A{row}'].font = _font(10, bold=True, color=MUTED)
+        ws[f'A{row}'].font = _font(self.fs['company'] - 1, bold=True, color=MUTED)
         ws.merge_cells(f'{cols["year"]}{row}:{cols["numbers_last"]}{row}')
         ws[f'{cols["year"]}{row}'] = self.DECLINED_TEXT
         ws[f'{cols["year"]}{row}'].alignment = Alignment(horizontal='center', vertical='center')
@@ -584,10 +621,10 @@ class SummaryExportV2Service(ExcelExportService):
             for label, value in items:
                 text = self._sanitize_excel_text(value) or '—'
                 ws[f'A{row}'] = label
-                ws[f'A{row}'].font = _font(9, color=MUTED)
+                ws[f'A{row}'].font = _font(self.fs['data'], color=MUTED)
                 ws[f'A{row}'].alignment = Alignment(vertical='top', wrap_text=True)
                 ws[f'B{row}'] = text
-                ws[f'B{row}'].font = _font(9)
+                ws[f'B{row}'].font = _font(self.fs['data'])
                 ws[f'B{row}'].alignment = Alignment(vertical='top', wrap_text=True)
                 for col in 'AB':
                     ws[f'{col}{row}'].border = Border(bottom=self.hair)
