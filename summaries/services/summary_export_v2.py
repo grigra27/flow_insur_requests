@@ -4,7 +4,7 @@
 лист «Свод» уходит клиенту, полная версия добавляет лист «Параметры запроса» для коллег
 из лизинговой компании. Отличия — только в подаче (решения владельца 2026-10-04):
 
-- white label: ни бренда, ни контактов, ни аналитики; нейтральное оформление;
+- white label: ни бренда, ни контактов, ни аналитики; палитра «деловой синий»;
 - СК отсортированы по ИТОГО предложения 1, строки по годам как раньше;
 - «Выбрана СК» / «Выбрано предложение» — ручные жёлтые поля, но с выпадающими списками;
   выбранная СК подсвечивается условным форматированием;
@@ -48,17 +48,21 @@ logger = logging.getLogger(__name__)
 FONT = 'Arial'
 INK = '1F2328'
 MUTED = '6B7280'
-HEADER_FILL = PatternFill('solid', fgColor='3A3F44')
-SUBHEADER_FILL = PatternFill('solid', fgColor='E5E7EB')
-BAND_FILL = PatternFill('solid', fgColor='F6F7F8')
-INPUT_FILL = PatternFill('solid', fgColor='FFF2B3')
-CHOSEN_FILL = PatternFill('solid', fgColor='E3F1DF')
-CHOSEN_VARIANT_FILL = PatternFill('solid', fgColor='C8E6C0')
-SECTION_FILL = PatternFill('solid', fgColor='EEF0F2')
+INPUT_FILL = PatternFill('solid', fgColor='FFF2B3')  # ручные поля менеджера — всегда жёлтые
 
-HAIR = Side(style='thin', color='D1D5DB')
-BLOCK = Side(style='medium', color='9CA3AF')
-CELL_BORDER = Border(left=HAIR, right=HAIR, top=HAIR, bottom=HAIR)
+# Палитра white label (без фирменных цветов брокера), выбор владельца 2026-10-05 — «деловой синий».
+# header/header_2 — шапки предложений 1/2, sub/sub_2 — их подзаголовки, total_* — выделение
+# колонок «ИТОГО», accent — линия под заголовком. Другие варианты (графит, изумруд, синий
+# с золотом) рассматривались и отклонены; новую палитру достаточно добавить сюда.
+PALETTES = {
+    'navy': {
+        'title': '1B3A6B', 'accent': '2E6BC6', 'header': '1B3A6B', 'header_2': '2E5C99',
+        'sub': 'DCE6F2', 'sub_2': 'E2EBF6', 'band': 'F5F8FC', 'hair': 'D5DEEA', 'block': '8FA9CC',
+        'company': '1B3A6B', 'total_fill': 'E6EFFB', 'total_text': '1B3A6B',
+        'chosen': 'DCEBFB', 'chosen_variant': 'BCD5F5', 'section': 'E8EEF6',
+    },
+}
+DEFAULT_PALETTE = 'navy'
 
 MONEY = '#,##0'  # копейки хранятся в ячейке, на экране — целые рубли, как в своде V1
 RATE = '0.00%'
@@ -98,7 +102,11 @@ class SummaryExportV2Service(ExcelExportService):
     WIDTHS = {'company': 20, 'year': 8, 'sum': 15, 'rate': 9, 'premium': 13, 'franchise': 12,
               'payments': 10, 'total': 14, 'territory': 32, 'notes': 64}
 
-    def __init__(self):
+    def __init__(self, palette: str = DEFAULT_PALETTE):
+        self.palette = PALETTES[palette]
+        self.hair = Side(style='thin', color=self.palette['hair'])
+        self.block_line = Side(style='medium', color=self.palette['block'])
+        self.cell_border = Border(left=self.hair, right=self.hair, top=self.hair, bottom=self.hair)
         # Шаблон V1 не нужен, но базовый __init__ проверяет путь — передаём существующий
         super().__init__(str(settings.BASE_DIR / 'templates' / 'summary_template.xlsx'))
 
@@ -140,6 +148,10 @@ class SummaryExportV2Service(ExcelExportService):
         cols['territory'] = get_column_letter(len(keys) + 1)
         cols['notes'] = cols['last'] = get_column_letter(len(keys) + 2)
         return cols
+
+    def _fill(self, key: str):
+        color = self.palette[key]
+        return PatternFill('solid', fgColor=color) if color else None
 
     def _width(self, key: str) -> float:
         return self.WIDTHS[re.sub(r'_\d$', '', key)]
@@ -197,9 +209,13 @@ class SummaryExportV2Service(ExcelExportService):
         ws.merge_cells(f'A1:{value_end}1')
         cell = ws['A1']
         cell.value = f'Свод котировок и условий от {timezone.localdate():%d.%m.%Y}'
-        cell.font = _font(14, bold=True)
+        cell.font = _font(14, bold=True, color=self.palette['title'])
         cell.alignment = Alignment(vertical='center')
         ws.row_dimensions[1].height = 26
+        if self.palette['accent']:
+            accent = Side(style='thick', color=self.palette['accent'])
+            for idx in range(1, ws[f'{value_end}1'].column + 1):
+                ws.cell(row=1, column=idx).border = Border(bottom=accent)
 
         object_text = request.object_summary or ''
         year = (request.manufacturing_year or '').strip()
@@ -236,7 +252,7 @@ class SummaryExportV2Service(ExcelExportService):
             label_cell.font = _font(10, bold=True)
             label_cell.alignment = Alignment(horizontal='right', vertical='center')
             target = ws[coord]
-            target.fill, target.border = INPUT_FILL, CELL_BORDER
+            target.fill, target.border = INPUT_FILL, self.cell_border
             target.font = _font(11, bold=True)
             target.alignment = Alignment(vertical='center')
 
@@ -279,27 +295,28 @@ class SummaryExportV2Service(ExcelExportService):
 
         def style(letter, row, fill, font):
             c = ws[f'{letter}{row}']
-            c.fill, c.font, c.alignment, c.border = fill, font, center, CELL_BORDER
+            c.fill, c.font, c.alignment, c.border = fill, font, center, self.cell_border
 
         for key, title in (('company', 'Страховая компания'), ('year', 'Год'),
                            ('sum', 'Страховая сумма'), ('territory', 'Территория страхования'),
                            ('notes', 'Комментарии')):
             letter = cols[key]
             ws.merge_cells(f'{letter}{top}:{letter}{sub}')
-            style(letter, top, HEADER_FILL, white)
-            style(letter, sub, HEADER_FILL, white)
+            style(letter, top, self._fill('header'), white)
+            style(letter, sub, self._fill('header'), white)
             ws[f'{letter}{top}'].value = title
 
         for v in ([1, 2] if has_variant_2 else [1]):
             first, last = cols[f'rate_{v}'], cols[f'total_{v}']
             ws.merge_cells(f'{first}{top}:{last}{top}')
             for idx in range(ws[f'{first}{top}'].column, ws[f'{last}{top}'].column + 1):
-                style(get_column_letter(idx), top, HEADER_FILL, white)
+                style(get_column_letter(idx), top, self._fill('header' if v == 1 else 'header_2'), white)
             ws[f'{first}{top}'].value = self._variant_caption(companies, v)
             for key, title in (('rate', 'Тариф'), ('premium', 'Премия'), ('franchise', 'Франшиза'),
                                ('payments', 'Платежей в год'), ('total', 'ИТОГО за срок')):
                 letter = cols[f'{key}_{v}']
-                style(letter, sub, SUBHEADER_FILL, _font(9, bold=True))
+                style(letter, sub, self._fill('sub' if v == 1 else 'sub_2'),
+                      _font(9, bold=True, color=self.palette['title']))
                 ws[f'{letter}{sub}'].value = title
 
     def _write_company_block(self, ws, start, name, offers, cols, has_variant_2, asset_note, banded) -> int:
@@ -335,12 +352,14 @@ class SummaryExportV2Service(ExcelExportService):
                 ws[f'{cols[f"payments_{v}"]}{r}'].alignment = center
 
         # Объединённые по блоку: компания, ИТОГО, территория, комментарии
-        self._merge_block(ws, cols['company'], start, end, name, _font(10, bold=True),
+        self._merge_block(ws, cols['company'], start, end, name,
+                          _font(10, bold=True, color=self.palette['company']),
                           Alignment(vertical='center', wrap_text=True))
         for v in variants:
             p_col = cols[f'premium_{v}']
             value = f'=SUM({p_col}{start}:{p_col}{end})' if any(p is not None for p in premiums[v]) else None
-            self._merge_block(ws, cols[f'total_{v}'], start, end, value, _font(10, bold=True), right, MONEY)
+            self._merge_block(ws, cols[f'total_{v}'], start, end, value,
+                              _font(11, bold=True, color=self.palette['total_text']), right, MONEY)
 
         territories = self._block_territories(offers)
         if len(territories) == 1:
@@ -364,9 +383,14 @@ class SummaryExportV2Service(ExcelExportService):
                 c = ws.cell(row=r, column=c_idx)
                 if c.font is None or c.font.name != FONT:
                     c.font = _font(9)
-                c.border = Border(left=HAIR, right=HAIR, top=HAIR, bottom=BLOCK if r == end else HAIR)
+                c.border = Border(left=self.hair, right=self.hair, top=self.hair,
+                                  bottom=self.block_line if r == end else self.hair)
                 if banded:
-                    c.fill = BAND_FILL
+                    c.fill = self._fill('band')
+        if self.palette['total_fill']:
+            for v in variants:
+                for r in range(start, end + 1):
+                    ws[f'{cols[f"total_{v}"]}{r}'].fill = self._fill('total_fill')
 
         # Высота строк: чтобы текст территории и комментариев не обрезался
         needed_lines = max(
@@ -383,12 +407,12 @@ class SummaryExportV2Service(ExcelExportService):
         variant_ref = '$' + re.sub(r'(\d+)', r'$\1', variant_cell)
         quoted = name.replace('"', '""')
         ws.conditional_formatting.add(f'A{start}:{cols["last"]}{end}',
-                                      FormulaRule(formula=[f'{company_ref}="{quoted}"'], fill=CHOSEN_FILL))
+                                      FormulaRule(formula=[f'{company_ref}="{quoted}"'], fill=self._fill('chosen')))
         for v in variants:
             ws.conditional_formatting.add(
                 f'{cols[f"rate_{v}"]}{start}:{cols[f"total_{v}"]}{end}',
                 FormulaRule(formula=[f'AND({company_ref}="{quoted}",{variant_ref}="Предложение {v}")'],
-                            fill=CHOSEN_VARIANT_FILL, stopIfTrue=True))
+                            fill=self._fill('chosen_variant'), stopIfTrue=True))
         return end
 
     def _block_territories(self, offers) -> List[str]:
@@ -420,7 +444,7 @@ class SummaryExportV2Service(ExcelExportService):
         muted = _font(9, italic=True, color=MUTED)
         for c_idx in range(1, ws[f'{cols["last"]}1'].column + 1):
             c = ws.cell(row=row, column=c_idx)
-            c.border = Border(left=HAIR, right=HAIR, top=HAIR, bottom=BLOCK)
+            c.border = Border(left=self.hair, right=self.hair, top=self.hair, bottom=self.block_line)
             c.font = muted
         ws[f'A{row}'] = name
         ws[f'A{row}'].font = _font(10, bold=True, color=MUTED)
@@ -544,17 +568,17 @@ class SummaryExportV2Service(ExcelExportService):
         ws.column_dimensions['B'].width = 80
         ws.merge_cells('A1:B1')
         ws['A1'] = 'Параметры, по которым делался запрос'
-        ws['A1'].font = _font(13, bold=True)
+        ws['A1'].font = _font(13, bold=True, color=self.palette['title'])
         ws.row_dimensions[1].height = 24
 
         row = 3
         for title, items in self._request_sections(request):
             ws.merge_cells(f'A{row}:B{row}')
             ws[f'A{row}'] = title
-            ws[f'A{row}'].font = _font(10, bold=True)
+            ws[f'A{row}'].font = _font(10, bold=True, color=self.palette['title'])
             for col in 'AB':
-                ws[f'{col}{row}'].fill = SECTION_FILL
-                ws[f'{col}{row}'].border = Border(bottom=BLOCK)
+                ws[f'{col}{row}'].fill = self._fill('section')
+                ws[f'{col}{row}'].border = Border(bottom=self.block_line)
             ws.row_dimensions[row].height = 20
             row += 1
             for label, value in items:
@@ -566,7 +590,7 @@ class SummaryExportV2Service(ExcelExportService):
                 ws[f'B{row}'].font = _font(9)
                 ws[f'B{row}'].alignment = Alignment(vertical='top', wrap_text=True)
                 for col in 'AB':
-                    ws[f'{col}{row}'].border = Border(bottom=HAIR)
+                    ws[f'{col}{row}'].border = Border(bottom=self.hair)
                 ws.row_dimensions[row].height = max(16, _text_lines(text, 90) * LINE_HEIGHT + 3)
                 row += 1
             row += 1

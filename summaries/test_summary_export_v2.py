@@ -126,6 +126,14 @@ class SummaryExportV2ContentTests(SummaryExportV2Base):
         self.assertIn('$O$2="Альфа"', rules)
         self.assertIn('AND($O$2="Альфа",$O$4="Предложение 2")', rules)
 
+    def test_navy_palette_header_and_totals(self):
+        ws = self._workbook()['Свод']
+        self.assertEqual(ws['D8'].fill.fgColor.rgb, '001B3A6B')  # шапка предложения 1
+        self.assertEqual(ws['I8'].fill.fgColor.rgb, '002E5C99')  # предложение 2 — другой оттенок
+        self.assertEqual(ws['H10'].fill.fgColor.rgb, '00E6EFFB')  # колонка «ИТОГО»
+        self.assertEqual(ws['H10'].font.color.rgb, '001B3A6B')
+        self.assertEqual(ws['O2'].fill.fgColor.rgb, '00FFF2B3')  # поля менеджера — жёлтые
+
     def test_white_label(self):
         wb = self._workbook()
         self.assertFalse(wb.properties.creator)
