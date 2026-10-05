@@ -224,8 +224,8 @@ class SummaryExportV2AccessTests(SummaryExportV2Base):
     def test_v2_card_visible_only_to_superuser(self):
         detail = reverse('summaries:summary_detail', args=[self.summary.pk])
         self.client.force_login(self.superuser)
-        self.assertContains(self.client.get(detail), 'Клиентский свод V2')
+        self.assertContains(self.client.get(detail), 'ТЕСТ · Свод V2')
         self.client.force_login(self.admin)
         response = self.client.get(detail)
         self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, 'Клиентский свод V2')
+        self.assertNotContains(response, 'Свод V2')

@@ -308,24 +308,33 @@
     <div class="col-lg-4">
         <div class="sd-aside">
             {% if user.is_superuser %}
-            <!-- Свод V2 (бета): разработка нового формата Excel-свода, пока только суперпользователю.
-                 Текущие кнопки «Скачать клиентский/полный Excel» не меняются. -->
-            <div class="card mb-4 sd-v2-card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h6 class="mb-0"><i class="bi bi-file-earmark-spreadsheet"></i> Свод V2</h6>
-                    <span class="badge text-bg-warning">бета</span>
+            <!-- Свод V2 — ТЕСТОВАЯ версия нового формата Excel-свода (пока только суперпользователю).
+                 Оформлена как «опасная зона», чтобы её не перепутали с рабочими кнопками
+                 «Скачать клиентский/полный Excel» и не отправили клиенту. -->
+            <div class="card mb-4 sd-v2-test" role="note" aria-label="Тестовая версия свода, не для отправки">
+                <div class="sd-v2-test__stripe" aria-hidden="true"></div>
+                <div class="sd-v2-test__head">
+                    <i class="bi bi-exclamation-triangle-fill"></i>
+                    <div>
+                        <b>ТЕСТ · Свод V2</b>
+                        <small>тестовый вид свода, в разработке</small>
+                    </div>
                 </div>
-                <div class="card-body d-grid gap-2">
-                    <a class="sd-xls-btn sd-xls-btn--outline" href="{% url 'summaries:generate_summary_file_v2' summary.pk 'client' %}">
-                        <i class="bi bi-person-lines-fill"></i>
-                        <span><b>Клиентский свод V2</b><small>лист «Свод» · печать на A4</small></span>
+                <div class="sd-v2-test__body">
+                    <div class="sd-v2-test__warn">
+                        Только для проверки. <b>Не отправлять</b> клиенту и коллегам из лизинга.
+                        Рабочий свод — кнопки «Скачать клиентский / полный Excel» вверху страницы.
+                    </div>
+                    <a class="sd-v2-test__btn" href="{% url 'summaries:generate_summary_file_v2' summary.pk 'client' %}">
+                        <i class="bi bi-cone-striped"></i>
+                        <span><b>Тест: клиентский свод V2</b><small>лист «Свод»</small></span>
                     </a>
-                    <a class="sd-xls-btn" href="{% url 'summaries:generate_summary_file_v2' summary.pk 'full' %}">
-                        <i class="bi bi-file-earmark-excel-fill"></i>
-                        <span><b>Полный свод V2</b><small>+ лист «Параметры запроса»</small></span>
+                    <a class="sd-v2-test__btn" href="{% url 'summaries:generate_summary_file_v2' summary.pk 'full' %}">
+                        <i class="bi bi-cone-striped"></i>
+                        <span><b>Тест: полный свод V2</b><small>+ лист «Параметры запроса»</small></span>
                     </a>
-                    <small class="text-muted">Видно только суперпользователю, в любом статусе.</small>
                 </div>
+                <div class="sd-v2-test__stripe" aria-hidden="true"></div>
             </div>
             {% endif %}
             <!-- Сводная информация -->
@@ -1337,7 +1346,21 @@
 .sd-xls-btn { display: inline-flex; align-items: center; gap: 0.55rem; padding: 0.42rem 0.9rem 0.42rem 0.7rem; border: 1px solid #ba122b; border-radius: 12px; background: #ba122b; color: #fff; text-align: left; box-shadow: 0 6px 16px -6px rgba(186, 18, 43, 0.55); transition: background-color 0.15s ease, transform 0.15s ease; }
 .sd-xls-btn:hover, .sd-xls-btn:focus-visible { background: #9e0f24; border-color: #9e0f24; color: #fff; transform: translateY(-1px); }
 .sd-xls-btn > .bi { font-size: 1.3rem; line-height: 1; }
-.sd-v2-card .sd-xls-btn { text-decoration: none; }
+.sd-v2-test { border: 2px solid #111; border-radius: 10px; overflow: hidden; background: #fff8d6; }
+.sd-v2-test__stripe { height: 12px; background: repeating-linear-gradient(-45deg, #ffc400 0 12px, #111 12px 24px); }
+.sd-v2-test__head { display: flex; align-items: center; gap: 0.6rem; padding: 0.6rem 0.9rem; background: #ffc400; color: #111; border-bottom: 2px solid #111; }
+.sd-v2-test__head > .bi { font-size: 1.5rem; line-height: 1; }
+.sd-v2-test__head b { display: block; font-size: 1rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; }
+.sd-v2-test__head small { display: block; font-size: 0.78rem; font-weight: 600; }
+.sd-v2-test__body { display: grid; gap: 0.5rem; padding: 0.75rem 0.9rem; }
+.sd-v2-test__warn { font-size: 0.82rem; line-height: 1.35; color: #3d2f00; }
+.sd-v2-test__warn b { color: #b42318; text-transform: uppercase; }
+.sd-v2-test__btn { display: flex; align-items: center; gap: 0.55rem; padding: 0.42rem 0.8rem; border: 2px dashed #111; border-radius: 10px; background: #fff; color: #111; text-decoration: none; }
+.sd-v2-test__btn:hover, .sd-v2-test__btn:focus-visible { background: #111; color: #ffc400; border-style: solid; }
+.sd-v2-test__btn > .bi { font-size: 1.2rem; line-height: 1; }
+.sd-v2-test__btn span { display: flex; flex-direction: column; line-height: 1.15; }
+.sd-v2-test__btn b { font-size: 0.86rem; font-weight: 700; }
+.sd-v2-test__btn small { font-size: 0.72rem; opacity: 0.75; }
 .sd-xls-btn span { display: flex; flex-direction: column; line-height: 1.15; }
 .sd-xls-btn b { font-size: 0.88rem; font-weight: 700; white-space: nowrap; }
 .sd-xls-btn small { font-size: 0.68rem; color: #f5c9d0; white-space: nowrap; }
