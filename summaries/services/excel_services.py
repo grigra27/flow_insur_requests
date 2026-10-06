@@ -2946,6 +2946,12 @@ class ExcelResponseProcessor:
     # Допустимые значения рассрочки
     VALID_INSTALLMENT_VALUES = [1, 2, 3, 4, 6, 12]
 
+    MISSING_TERRITORY_MESSAGE = (
+        'Ответ СК «{company}» не загружен: не заполнена территория страхования (ячейка {cell}). '
+        'Запросите у страховой компании корректное предложение с заполненной территорией '
+        'страхования и территориальными ограничениями и загрузите файл снова.'
+    )
+
     # Текст-заглушка в B2 из шаблонов разных лет (сравнение без учёта регистра)
     COMPANY_PLACEHOLDERS = {'название ск', 'выберите компанию', 'выберите компанию из списка'}
     
@@ -3175,7 +3181,6 @@ class ExcelResponseProcessor:
                 'company_matching_info': company_data.get('company_matching_info', {}),
                 'processing_errors': processing_info.get('processing_errors', []),
                 'coverage_territory': company_data.get('coverage_territory', ''),
-                'coverage_territory_missing': not bool(company_data.get('coverage_territory'))
             }
             
             self.logger.info(f"=== ОБРАБОТКА ЗАВЕРШЕНА УСПЕШНО ===")
@@ -3310,17 +3315,21 @@ class ExcelResponseProcessor:
                 if raw_coverage_territory is not None
                 else ''
             )
+            # Территория обязательна (решение владельца 2026-10-06): ответ без неё не загружается.
+            # Прочерк или пробелы без букв и цифр — тоже «не заполнено».
+            if not any(char.isalnum() for char in coverage_territory):
+                self.logger.error(
+                    f"Ответ СК '{standardized_name}': не заполнена территория страхования "
+                    f"в ячейке {self.CELL_MAPPING['coverage_territory']} ('{coverage_territory}')"
+                )
+                raise MissingDataError(message=self.MISSING_TERRITORY_MESSAGE.format(
+                    company=standardized_name, cell=self.CELL_MAPPING['coverage_territory'],
+                ))
             data['coverage_territory'] = coverage_territory
-            if coverage_territory:
-                self.logger.info(
-                    "Найдена территория страхования, подтвержденная страховщиком: "
-                    f"{coverage_territory[:100]}"
-                )
-            else:
-                self.logger.warning(
-                    "Страховщик не указал территорию страхования в ячейке "
-                    f"{self.CELL_MAPPING['coverage_territory']}; импорт продолжается"
-                )
+            self.logger.info(
+                "Найдена территория страхования, подтвержденная страховщиком: "
+                f"{coverage_territory[:100]}"
+            )
             
             # Логируем процесс сопоставления
             if standardized_name == 'другое' and raw_name_str.lower() != 'другое':

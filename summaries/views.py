@@ -1933,12 +1933,6 @@ def upload_company_response(request, summary_id):
                 f'Название компании автоматически сопоставлено: "{matching_info["original_name"]}" → "{matching_info["standardized_name"]}"'
             )
 
-        if result.get('coverage_territory_missing'):
-            additional_messages.append(
-                'Внимание: страховщик не указал территорию страхования. '
-                'Предложения загружены, но поле нужно проверить и при необходимости заполнить вручную.'
-            )
-        
         # Возврат JSON ответов с результатами обработки (требование 5.2, 5.4)
         return JsonResponse({
             'success': True,
@@ -1952,7 +1946,6 @@ def upload_company_response(request, summary_id):
                 'skipped_rows': skipped_rows,
                 'matching_info': matching_info,
                 'coverage_territory': result.get('coverage_territory', ''),
-                'coverage_territory_missing': result.get('coverage_territory_missing', False)
             }
         })
         

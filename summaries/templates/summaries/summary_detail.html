@@ -2414,8 +2414,7 @@ function showMultipleUploadSuccess(data) {
         data.results.forEach(result => {
             if (result.success) {
                 const hasRowWarnings = Array.isArray(result.row_warnings) && result.row_warnings.length > 0;
-                const territoryMissing = result.coverage_territory_missing === true;
-                const hasWarnings = hasRowWarnings || territoryMissing;
+                const hasWarnings = hasRowWarnings;
                 const alertClass = hasWarnings ? 'alert-warning' : 'alert-success';
                 const icon = hasWarnings ? 'bi-exclamation-triangle' : 'bi-check-circle';
                 let warningsBlock = '';
@@ -2428,9 +2427,7 @@ function showMultipleUploadSuccess(data) {
                         </div>
                     `;
                 }
-                const territoryBlock = territoryMissing
-                    ? `<div class="mt-2"><strong>Внимание:</strong> страховщик не указал территорию страхования в ячейке B3. Предложения импортированы, но поле нужно проверить вручную.</div>`
-                    : `<br>Территория: ${escapeHtml(result.coverage_territory || '')}`;
+                const territoryBlock = `<br>Территория: ${escapeHtml(result.coverage_territory || '')}`;
                 content += `
                     <div class="alert ${alertClass}">
                         <i class="bi ${icon}"></i>

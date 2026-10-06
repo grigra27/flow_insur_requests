@@ -188,6 +188,7 @@ class ComprehensiveIntegrationTest(TestCase):
             def __init__(self):
                 self.cells = {
                     'B2': MockCell('Абсолют'),  # Известная компания
+                    'B3': MockCell('Российская Федерация'),
                     'A6': MockCell(1),
                     'B6': MockCell(1000000),
                     'D6': MockCell(50000),

@@ -14,6 +14,7 @@ from openpyxl import load_workbook
 from insurance_requests.models import InsuranceRequest
 from summaries.forms import AddOfferToSummaryForm, OfferForm
 from summaries.models import InsuranceCompany, InsuranceOffer, InsuranceSummary
+from summaries.exceptions import MissingDataError
 from summaries.services.excel_services import ExcelExportService, ExcelResponseProcessor
 
 
@@ -79,14 +80,17 @@ class OfferCoverageTerritoryImportTests(TestCase):
             {'Российская Федерация, кроме новых территорий'},
         )
 
-    def test_old_response_without_territory_remains_supported(self):
+    def test_response_without_territory_is_rejected(self):
         processor = ExcelResponseProcessor()
-
-        data = processor.extract_company_data(self._worksheet())
-
-        self.assertEqual(data['coverage_territory'], '')
-        offers = processor.create_offers(data, self.summary)
-        self.assertTrue(all(offer.coverage_territory == '' for offer in offers))
+        for territory in (None, '', '   ', '-', '—'):
+            with self.subTest(territory=territory):
+                with self.assertRaises(MissingDataError) as ctx:
+                    processor.extract_company_data(self._worksheet(territory))
+                message = str(ctx.exception)
+                self.assertIn('не заполнена территория страхования (ячейка B3)', message)
+                self.assertIn('Абсолют', message)
+                self.assertIn('Запросите у страховой компании корректное предложение', message)
+        self.assertFalse(InsuranceOffer.objects.filter(summary=self.summary).exists())
 
 
 class OfferCoverageTerritoryExportTests(TestCase):
@@ -413,7 +417,7 @@ class OfferCoverageTerritoryInterfaceAndTemplateTests(TestCase):
         result = json.loads(response.content)['results'][0]
         self.assertTrue(result['success'])
         self.assertEqual(result['coverage_territory'], 'Российская Федерация')
-        self.assertFalse(result['coverage_territory_missing'])
+        self.assertNotIn('coverage_territory_missing', result)
         self.assertEqual(
             InsuranceOffer.objects.get(
                 summary=self.summary,
@@ -431,9 +435,11 @@ class OfferCoverageTerritoryInterfaceAndTemplateTests(TestCase):
             {'excel_files': [self._response_file(5, None)]},
         )
         missing_result = json.loads(missing_response.content)['results'][0]
-        self.assertTrue(missing_result['success'])
-        self.assertTrue(missing_result['coverage_territory_missing'])
-        self.assertEqual(missing_result['coverage_territory'], '')
+        self.assertFalse(missing_result['success'])
+        self.assertIn('не заполнена территория страхования', missing_result['error_message'])
+        self.assertFalse(InsuranceOffer.objects.filter(
+            summary=self.summary, company_name='Абсолют', insurance_year=5,
+        ).exists())
 
     def test_real_templates_have_new_cells_and_safe_rate_formulas(self):
         templates_dir = Path(settings.BASE_DIR) / 'templates'

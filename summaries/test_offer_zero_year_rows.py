@@ -55,7 +55,7 @@ class ZeroYearRowTests(TestCase):
         cls.summary = InsuranceSummary.objects.create(request=request, status='collecting')
 
     def _worksheet(self, *rows):
-        values = {'B2': 'Ингосстрах'}
+        values = {'B2': 'Ингосстрах', 'B3': 'Российская Федерация'}
         for row in rows:
             values.update(row)
         return MockWorksheet(values)
