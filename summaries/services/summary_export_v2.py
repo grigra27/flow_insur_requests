@@ -72,8 +72,6 @@ FIRST_DATA_ROW = 10
 FONT_SIZES = {'data': 10, 'header': 10, 'company': 12, 'total': 13, 'title': 16}
 LINE_HEIGHT = 14  # pt на строку текста шрифтом 10
 MIN_ROW_HEIGHT = 22
-LOGO_SIZE = 18  # px, логотип СК над названием
-LOGO_BLOCK_MIN_HEIGHT = 40  # pt, место под логотип и название в блоке СК
 
 # Печать: A4 (pt), поля в дюймах
 A4_SHORT, A4_LONG = 595.3, 841.9
@@ -356,10 +354,9 @@ class SummaryExportV2Service(ExcelExportService):
                 ws[f'{cols[f"payments_{v}"]}{r}'].alignment = center
 
         # Объединённые по блоку: компания, ИТОГО, территория, комментарии
-        has_logo = self._insert_logo(ws, cols['company'], start, name)
         self._merge_block(ws, cols['company'], start, end, name,
                           _font(self.fs['company'], bold=True, color=self.palette['company']),
-                          Alignment(vertical='bottom' if has_logo else 'center', wrap_text=True, indent=1))
+                          Alignment(vertical='center', wrap_text=True, indent=1))
         for v in variants:
             p_col = cols[f'premium_{v}']
             value = f'=SUM({p_col}{start}:{p_col}{end})' if any(p is not None for p in premiums[v]) else None
@@ -411,8 +408,7 @@ class SummaryExportV2Service(ExcelExportService):
             _text_lines(notes, int(self._width('notes'))),
             max((_text_lines(t, int(self._width('territory'))) for t in territories), default=0),
         )
-        min_block = LOGO_BLOCK_MIN_HEIGHT if has_logo else 0
-        per_row = max(MIN_ROW_HEIGHT, needed_lines * LINE_HEIGHT / len(offers) + 2, min_block / len(offers))
+        per_row = max(MIN_ROW_HEIGHT, needed_lines * LINE_HEIGHT / len(offers) + 2)
         for r in range(start, end + 1):
             ws.row_dimensions[r].height = per_row
 
@@ -444,28 +440,6 @@ class SummaryExportV2Service(ExcelExportService):
         if self.MISSING_COVERAGE_TERRITORY in values:
             return [self.MISSING_COVERAGE_TERRITORY]
         return [self.LEGACY_TERRITORY_V2]
-
-    def _insert_logo(self, ws, letter, row, name) -> bool:
-        """Логотип СК (static/img/insurers/<logo_code>.png) в левом верхнем углу ячейки компании."""
-        from openpyxl.drawing.image import Image as XLImage
-        from openpyxl.drawing.spreadsheet_drawing import AnchorMarker, OneCellAnchor
-        from openpyxl.drawing.xdr import XDRPositiveSize2D
-        from openpyxl.utils.units import pixels_to_EMU
-        from ..models import InsuranceCompany
-
-        code = InsuranceCompany.objects.filter(name=name).values_list('logo_code', flat=True).first()
-        path = settings.BASE_DIR / 'static' / 'img' / 'insurers' / f'{code}.png'
-        if not code or not path.is_file():
-            return False
-        image = XLImage(str(path))
-        size = LOGO_SIZE
-        image.anchor = OneCellAnchor(
-            _from=AnchorMarker(col=ws[f'{letter}1'].column - 1, colOff=pixels_to_EMU(6),
-                               row=row - 1, rowOff=pixels_to_EMU(4)),
-            ext=XDRPositiveSize2D(pixels_to_EMU(size), pixels_to_EMU(size)),
-        )
-        ws.add_image(image)
-        return True
 
     def _merge_block(self, ws, letter, start, end, value, font, alignment, number_format=None) -> None:
         if end > start:
