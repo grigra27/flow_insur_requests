@@ -88,6 +88,16 @@ class ResponseSectionsTests(SimpleTestCase):
         self.assertEqual(required_sections(_request()), [INSPECTION])  # осмотр — в любом ответе
         self.assertTrue(INSPECTION.is_required(None))
 
+    def test_inspection_labels_from_old_templates_still_match(self):
+        field = INSPECTION.fields[0]
+        self.assertEqual(field.match_choice('Требуется осмотр (возможен по фотографиям)'), 'photo')
+        # подпись до 2026-10-07 и её «половинки» из списка, порезанного по запятой
+        self.assertEqual(field.match_choice('Требуется осмотр, возможен осмотр по фотографиям'), 'photo')
+        self.assertEqual(field.match_choice(' возможен осмотр по фотографиям'), 'photo')
+        self.assertEqual(field.match_choice('Требуется осмотр'), 'required')
+        self.assertTrue(all(',' not in label for section in SECTIONS for f in section.fields
+                            for label in f.choice_labels))
+
     def test_transport_route(self):
         request = _request(transportation_departure='Москва', transportation_destination='Армавир',
                            transportation_days=3)
@@ -147,9 +157,9 @@ class V2TemplateTests(SimpleTestCase):
         self.assertLess(row, self._block_pill(ws, RNPK.title)[0])
         ref = _name_ref(wb, 'resp_inspection_status')[1]
         self.assertFalse(ws[ref].protection.locked)
-        # ровно три пункта: подпись с запятой не режется (список — диапазон на _meta, не строка через запятую)
+        # ровно три пункта: в подписях нет запятых — Excel и Numbers режут список «через запятую» по каждой
         self.assertEqual(_list_values(wb, ws, ref), ['Осмотр не требуется', 'Требуется осмотр',
-                                                     'Требуется осмотр, возможен осмотр по фотографиям'])
+                                                     'Требуется осмотр (возможен по фотографиям)'])
 
     def test_generic_template_shows_conditions_and_keeps_blocks_open(self):
         wb, ws = self._load(build_v2())

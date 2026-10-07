@@ -67,7 +67,7 @@ INSPECTION_NOT_REQUIRED, INSPECTION_REQUIRED, INSPECTION_PHOTO = 'not_required',
 INSPECTION_CHOICES = (
     (INSPECTION_NOT_REQUIRED, 'Осмотр не требуется'),
     (INSPECTION_REQUIRED, 'Требуется осмотр'),
-    (INSPECTION_PHOTO, 'Требуется осмотр, возможен осмотр по фотографиям'),
+    (INSPECTION_PHOTO, 'Требуется осмотр (возможен по фотографиям)'),
 )
 
 INSPECTION = ResponseSection(
@@ -84,6 +84,8 @@ INSPECTION = ResponseSection(
             ('по фото', INSPECTION_PHOTO), ('по фотографиям', INSPECTION_PHOTO),
             ('осмотр по фотографиям', INSPECTION_PHOTO), ('возможен осмотр по фотографиям', INSPECTION_PHOTO),
             ('требуется осмотр (возможен по фото)', INSPECTION_PHOTO),
+            # прежняя подпись (с запятой: в списке Excel/Numbers резалась на два пункта) — шаблоны до 2026-10-07 вечера
+            ('требуется осмотр, возможен осмотр по фотографиям', INSPECTION_PHOTO),
         )),
     ),
     summary_column='Осмотр',

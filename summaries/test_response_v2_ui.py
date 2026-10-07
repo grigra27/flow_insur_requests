@@ -60,7 +60,7 @@ class ResponseV2UiTests(ResponseV2Base):
     def test_block_lines_for_superuser_with_missing_marked(self):
         content = self._detail(self.superuser).content.decode()
         self.assertIn('class="og-v2-lines"', content)
-        self.assertIn('Требуется осмотр, возможен осмотр по фотографиям', content)
+        self.assertIn('Требуется осмотр (возможен по фотографиям)', content)
         self.assertIn('Будут прописаны в полисе', content)
         self.assertNotIn('Будут прописаны в полисе ·', content)  # у РНПК нет комментария
         self.assertIn('5 330 ₽', content)
