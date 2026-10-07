@@ -58,3 +58,38 @@ def sync_after_offer_removed(summary_id: int, company_name: str) -> None:
         deleted, _ = InsurerResponse.objects.filter(summary_id=summary_id, company_name=company_name).delete()
         if deleted:
             logger.info("Ответ СК удалён вместе с последним предложением: свод #%s, %s", summary_id, company_name)
+
+
+def display_lines(summary: InsuranceSummary, company_names) -> Dict[str, list]:
+    """Строки дополнительных блоков для карточки свода: {компания: [{label, text, missing}]}.
+
+    Только блоки, нужные по заявке свода; если ответа СК или значения нет — «нет данных».
+    """
+    from ..response_sections import CHOICE, MONEY, required_sections
+
+    sections = required_sections(summary.request)
+    if not sections:
+        return {}
+    responses = {r.company_name: r for r in InsurerResponse.objects.filter(summary=summary)}
+    lines = {}
+    for company in company_names:
+        response = responses.get(company)
+        company_lines = []
+        for section in sections:
+            main, *extra = section.fields
+            value = getattr(response, main.name, None) if response else None
+            if value in (None, ''):
+                company_lines.append({'label': section.short_title or section.title, 'text': 'нет данных', 'missing': True})
+                continue
+            if main.kind == CHOICE:
+                text = dict(main.choices).get(value, value)
+            elif main.kind == MONEY:
+                text = f'{value:,.0f} ₽'.replace(',', ' ')
+            else:
+                text = str(value)
+            details = [getattr(response, f.name, '') for f in extra if getattr(response, f.name, '')]
+            if details:
+                text = f"{text} · {' · '.join(details)}"
+            company_lines.append({'label': section.short_title or section.title, 'text': text, 'missing': False})
+        lines[company] = company_lines
+    return lines

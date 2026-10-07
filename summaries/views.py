@@ -34,6 +34,7 @@ from .services.analytics_overview import build_overview_payload as build_analyti
 from .services import analytics_parser_edits as analytics_parser_edits_service
 from .services import analytics_post_creation as analytics_post_creation_service
 from .services import company_statuses
+from .services import insurer_response
 from .services import analytics_insurance_company_card as company_card_service
 from .services import analytics_tariffs as tariffs_service
 
@@ -58,6 +59,24 @@ def download_company_response_template(request):
         filename='flow_answer_template.xlsx',
         content_type=EXCEL_CONTENT_TYPE,
     )
+
+
+@superuser_required
+def download_response_template_v2(request, summary_id=None):
+    """Шаблон ответа страховщика V2 (тест, только суперпользователь): персональный по своду —
+    нужные блоки «ЗАПОЛНИТЕ», остальные закрыты; без свода — общий резервный шаблон."""
+    from .response_template import build_v2
+
+    if summary_id is None:
+        content, filename = build_v2(), 'otvet_strahovshika_v2_obshchiy.xlsx'
+    else:
+        summary = get_object_or_404(InsuranceSummary.objects.select_related('request'), pk=summary_id)
+        digits = re.sub(r'[^\d]', '', summary.request.dfa_number or '') or str(summary.pk)
+        content, filename = build_v2(summary.request, summary.pk), f'otvet_strahovshika_v2_{digits}.xlsx'
+    logger.info(f"Response template V2 downloaded: summary={summary_id}, user={request.user.username}")
+    response = HttpResponse(content, content_type=EXCEL_CONTENT_TYPE)
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
 
 
 @user_required
@@ -807,7 +826,9 @@ def summary_detail(request, pk):
                 if summary_analytics['price_ranges'] else []
             ),
             selected_company=(summary.selected_company or '').strip(),
+            response_lines=_response_lines(summary, sorted_companies, request.user),
         ),
+        'response_v2_visible': insurer_response.v2_contour(request.user),
         'offers_have_variant_2': any(offer.premium_with_franchise_2 or offer.franchise_2 for offer in offers),
     })
 
@@ -858,8 +879,19 @@ def _territory_lines(offers):
     return lines
 
 
+def _response_lines(summary, company_names, user):
+    """Строки блоков шаблона ответа V2 у компаний — пока только в контуре V2 (суперпользователь)."""
+    if not insurer_response.v2_contour(user):
+        return {}
+    try:
+        return insurer_response.display_lines(summary, company_names)
+    except Exception:  # noqa: BLE001 — блоки V2 не должны ломать карточку свода
+        logger.exception('Insurer response lines failed for summary #%s', summary.pk)
+        return {}
+
+
 def _offer_groups(sorted_companies, companies_with_offers, company_totals, company_notes,
-                  best_company_names=(), selected_company=''):
+                  best_company_names=(), selected_company='', response_lines=None):
     """Предложения, сгруппированные по компаниям, для единой таблицы на карточке свода.
 
     is_best — компания с минимальной итоговой премией за срок (как «Лучшее» в сводной информации),
@@ -881,6 +913,7 @@ def _offer_groups(sorted_companies, companies_with_offers, company_totals, compa
             'notes': company_notes.get(company_name, []),
             'territory_lines': _territory_lines(company_offers),
             'territory_value': next((line['text'] for line in _territory_lines(company_offers) if line['kind'] == 'text'), ''),
+            'response_lines': (response_lines or {}).get(company_name, []),
         })
     return groups
 

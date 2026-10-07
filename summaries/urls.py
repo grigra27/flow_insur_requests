@@ -38,6 +38,8 @@ urlpatterns = [
     path('analytics/managers/<int:user_id>/export/', views.export_analytics_managers_widget, name='export_analytics_manager_detail'),
     path('help/', views.help_page, name='help'),
     path('response-template/download/', views.download_company_response_template, name='download_company_response_template'),
+    path('response-template/v2/', views.download_response_template_v2, name='download_response_template_v2_generic'),
+    path('<int:summary_id>/response-template/v2/', views.download_response_template_v2, name='download_response_template_v2'),
     
     # Создание и управление сводами
     path('create/<int:request_id>/', views.create_summary, name='create_summary'),

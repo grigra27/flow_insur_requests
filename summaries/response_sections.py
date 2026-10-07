@@ -52,6 +52,7 @@ class ResponseSection:
     condition_text: str  # для общего шаблона: «Заполняется, если …»
     fields: Tuple[SectionField, ...] = field(default_factory=tuple)
     summary_column: str = ''  # подпись колонки в своде V2
+    short_title: str = ''  # короткое название для карточки свода (по умолчанию — title)
 
     def is_required(self, request) -> bool:
         return bool(request is not None and self.condition(request))
@@ -80,6 +81,7 @@ RNPK = ResponseSection(
         SectionField('rnpk_comment', 'Комментарий (необязательно)', TEXT, required=False),
     ),
     summary_column='Риски РНПК',
+    short_title='Риски РНПК',
 )
 
 TRANSPORT = ResponseSection(
@@ -93,6 +95,7 @@ TRANSPORT = ResponseSection(
         SectionField('transport_terms', 'Условия перевозки (необязательно)', TEXT, required=False),
     ),
     summary_column='Перевозка, ₽',
+    short_title='Перевозка',
 )
 
 SECTIONS: Tuple[ResponseSection, ...] = (RNPK, TRANSPORT)

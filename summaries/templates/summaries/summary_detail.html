@@ -174,6 +174,17 @@
                                     </div>
                                     {% endfor %}
                                     </div>
+                                    {% if group.response_lines %}
+                                    <div class="og-v2-lines" title="Блоки шаблона ответа V2 — видны только суперпользователю">
+                                        {% for line in group.response_lines %}
+                                        <div class="og-v2-line{% if line.missing %} og-v2-line--missing{% endif %}">
+                                            <span class="og-v2-tag">V2</span>
+                                            <span class="og-territory-label">{{ line.label }}</span>
+                                            <span>{% if line.missing %}<i class="bi bi-exclamation-triangle"></i> {% endif %}{{ line.text }}</span>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
                                     <form class="og-territory-form d-none js-territory-form" data-company="{{ group.name }}">
                                         <label class="og-territory-label d-block mb-1">Территория — для всех лет {{ group.name }}</label>
                                         <textarea class="form-control form-control-sm" rows="3" name="territory"
@@ -332,6 +343,33 @@
                     <a class="sd-v2-test__btn" href="{% url 'summaries:generate_summary_file_v2' summary.pk 'full' %}">
                         <i class="bi bi-cone-striped"></i>
                         <span><b>Тест: полный свод V2</b><small>+ лист «Параметры запроса»</small></span>
+                    </a>
+                </div>
+                <div class="sd-v2-test__stripe" aria-hidden="true"></div>
+            </div>
+
+            <!-- Шаблон ответа страховщика V2 — ТЕСТ (docs/improvement_plans/insurer_response_v2.md).
+                 Рабочий шаблон для сотрудников — кнопка «Скачать актуальный шаблон ответа» в блоке «Ответы компаний». -->
+            <div class="card mb-4 sd-v2-test" role="note" aria-label="Тестовый шаблон ответа страховщика, не для отправки">
+                <div class="sd-v2-test__stripe" aria-hidden="true"></div>
+                <div class="sd-v2-test__head">
+                    <i class="bi bi-exclamation-triangle-fill"></i>
+                    <div>
+                        <b>ТЕСТ · Шаблон ответа V2</b>
+                        <small>блоки «Риски РНПК» и «Перевозка», в разработке</small>
+                    </div>
+                </div>
+                <div class="sd-v2-test__body">
+                    <div class="sd-v2-test__warn">
+                        Только для проверки. <b>Не отправлять</b> страховщикам вместо рабочего шаблона.
+                        Ответ в этом шаблоне можно загрузить в обычный блок «Ответы компаний».
+                    </div>
+                    <a class="sd-v2-test__btn" href="{% url 'summaries:download_response_template_v2' summary.pk %}">
+                        <i class="bi bi-cone-striped"></i>
+                        <span><b>Тест: шаблон V2 для этого свода</b><small>нужные блоки отмечены «ЗАПОЛНИТЕ»</small></span>
+                    </a>
+                    <a class="sd-v2-test__link" href="{% url 'summaries:download_response_template_v2_generic' %}">
+                        <i class="bi bi-download"></i> общий шаблон V2 (резерв)
                     </a>
                 </div>
                 <div class="sd-v2-test__stripe" aria-hidden="true"></div>
@@ -1361,6 +1399,12 @@
 .sd-v2-test__btn span { display: flex; flex-direction: column; line-height: 1.15; }
 .sd-v2-test__btn b { font-size: 0.86rem; font-weight: 700; }
 .sd-v2-test__btn small { font-size: 0.72rem; opacity: 0.75; }
+.sd-v2-test__link { font-size: 0.8rem; color: #3d2f00; text-decoration: underline dashed; }
+.sd-v2-test__link:hover { color: #111; }
+.og-v2-lines { margin-top: 0.3rem; display: grid; gap: 0.15rem; }
+.og-v2-line { display: flex; align-items: baseline; gap: 0.4rem; font-size: 0.8rem; }
+.og-v2-line--missing { color: #b42318; }
+.og-v2-tag { font-size: 0.62rem; font-weight: 800; padding: 0 0.3rem; border-radius: 4px; background: #ffc400; color: #111; border: 1px solid #111; }
 .sd-xls-btn span { display: flex; flex-direction: column; line-height: 1.15; }
 .sd-xls-btn b { font-size: 0.88rem; font-weight: 700; white-space: nowrap; }
 .sd-xls-btn small { font-size: 0.68rem; color: #f5c9d0; white-space: nowrap; }
@@ -2414,7 +2458,8 @@ function showMultipleUploadSuccess(data) {
         data.results.forEach(result => {
             if (result.success) {
                 const hasRowWarnings = Array.isArray(result.row_warnings) && result.row_warnings.length > 0;
-                const hasWarnings = hasRowWarnings;
+                const hasWarnings = hasRowWarnings
+                    || (Array.isArray(result.response_warnings) && result.response_warnings.length > 0);
                 const alertClass = hasWarnings ? 'alert-warning' : 'alert-success';
                 const icon = hasWarnings ? 'bi-exclamation-triangle' : 'bi-check-circle';
                 let warningsBlock = '';
@@ -2428,6 +2473,9 @@ function showMultipleUploadSuccess(data) {
                     `;
                 }
                 const territoryBlock = `<br>Территория: ${escapeHtml(result.coverage_territory || '')}`;
+                const responseWarnings = Array.isArray(result.response_warnings) ? result.response_warnings : [];
+                const v2Block = (result.template_version === 2 ? '<br><span class="og-v2-tag">V2</span> шаблон ответа V2' : '')
+                    + responseWarnings.map(msg => `<div class="mt-2"><strong>Внимание:</strong> ${escapeHtml(msg)}</div>`).join('');
                 content += `
                     <div class="alert ${alertClass}">
                         <i class="bi ${icon}"></i>
@@ -2436,6 +2484,7 @@ function showMultipleUploadSuccess(data) {
                         Создано предложений: ${result.offers_created}
                         ${result.years_processed ? `<br>Годы: ${result.years_processed.join(', ')}` : ''}
                         ${territoryBlock}
+                        ${v2Block}
                         ${warningsBlock}
                     </div>
                 `;
