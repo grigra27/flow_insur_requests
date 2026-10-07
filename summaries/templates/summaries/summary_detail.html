@@ -180,7 +180,7 @@
                                         <div class="og-v2-line{% if line.missing %} og-v2-line--missing{% endif %}">
                                             <span class="og-territory-label">{{ line.label }}</span>
                                             <span>{% if line.missing %}<i class="bi bi-exclamation-triangle"></i> {% endif %}{{ line.text }}</span>
-                                            {% if forloop.last %}<button type="button" class="og-territory-edit js-response-edit" title="Риски РНПК и перевозка этой страховой">изменить</button>{% endif %}
+                                            {% if forloop.last %}<button type="button" class="og-territory-edit js-response-edit" title="Осмотр, риски РНПК и перевозка этой страховой">изменить</button>{% endif %}
                                         </div>
                                         {% endfor %}
                                     </div>
@@ -1413,8 +1413,8 @@
 .og-v2-lines { margin-top: 0.3rem; display: grid; gap: 0.15rem; }
 .og-v2-line { display: flex; align-items: baseline; gap: 0.4rem; font-size: 0.8rem; }
 .og-v2-line--missing { color: #b42318; }
-.og-v2-form { margin-top: 0.4rem; padding: 0.6rem 0.75rem; border: 2px dashed #111; border-radius: 10px; background: #fff8d6; }
-.og-v2-form__title { font-size: 0.8rem; font-weight: 700; margin-bottom: 0.4rem; }
+.og-v2-form { margin-top: 0.4rem; max-width: 40rem; padding: 0.6rem 0.75rem; border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc; }
+.og-v2-form__title { font-size: 0.8rem; font-weight: 600; color: #64748b; margin-bottom: 0.4rem; }
 .og-v2-form__row { display: grid; grid-template-columns: minmax(10rem, 17rem) 1fr; gap: 0.5rem; align-items: center; margin-bottom: 0.35rem; }
 .og-v2-form__row .og-territory-label { white-space: normal; line-height: 1.2; }
 @media (max-width: 576px) { .og-v2-form__row { grid-template-columns: 1fr; } }
