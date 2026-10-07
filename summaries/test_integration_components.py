@@ -120,7 +120,7 @@ class SummariesUIIntegrationTest(TestCase):
         copy_data = {
             'company_name': 'ВСК',
             'insurance_year': 1,
-            'insurance_sum': '1500000.00',
+            'coverage_territory': 'Российская Федерация', 'insurance_sum': '1500000.00',
             'franchise_1': '0.00',
             'premium_with_franchise_1': '55000.00',
             'franchise_2': '30000.00',
@@ -164,7 +164,7 @@ class SummariesUIIntegrationTest(TestCase):
         duplicate_data = {
             'company_name': self.offer1.company_name,
             'insurance_year': self.offer1.insurance_year,
-            'insurance_sum': '1000000.00',
+            'coverage_territory': 'Российская Федерация', 'insurance_sum': '1000000.00',
             'franchise_1': '0.00',
             'premium_with_franchise_1': '50000.00',
             'installment_variant_1': False,
@@ -298,7 +298,7 @@ class SummariesUIIntegrationTest(TestCase):
         invalid_data = {
             'company_name': '',
             'insurance_year': '',
-            'insurance_sum': '',
+            'coverage_territory': 'Российская Федерация', 'insurance_sum': '',
             'franchise_1': '0.00',
             'premium_with_franchise_1': '',
         }
@@ -313,7 +313,7 @@ class SummariesUIIntegrationTest(TestCase):
         invalid_numeric_data = {
             'company_name': 'Согаз',
             'insurance_year': 0,  # Некорректный год
-            'insurance_sum': '-1000',  # Отрицательная сумма
+            'coverage_territory': 'Российская Федерация', 'insurance_sum': '-1000',  # Отрицательная сумма
             'franchise_1': '0.00',
             'premium_with_franchise_1': '50000.00',
         }
@@ -489,7 +489,7 @@ class SummariesUIRegressionTest(TestCase):
         offer_data = {
             'company_name': 'Пари',
             'insurance_year': 1,
-            'insurance_sum': '500000.00',
+            'coverage_territory': 'Российская Федерация', 'insurance_sum': '500000.00',
             'franchise_1': '0.00',
             'premium_with_franchise_1': '25000.00',
         }
@@ -524,7 +524,7 @@ class SummariesUIRegressionTest(TestCase):
         updated_data = {
             'company_name': 'Согласие',
             'insurance_year': 1,
-            'insurance_sum': '1200000.00',
+            'coverage_territory': 'Российская Федерация', 'insurance_sum': '1200000.00',
             'franchise_1': '0.00',
             'premium_with_franchise_1': '55000.00',
         }

@@ -156,7 +156,7 @@ class TestCoreUIFunctionality(TestCase):
         form_data = {
             'company_name': 'ВСК',
             'insurance_year': 3,
-            'insurance_sum': '1200000.00',
+            'coverage_territory': 'Российская Федерация', 'insurance_sum': '1200000.00',
             'franchise_1': '0.00',
             'premium_with_franchise_1': '48000.00',
             'installment_variant_1': False,
@@ -270,7 +270,7 @@ class TestCoreUIFunctionality(TestCase):
         invalid_data = {
             'company_name': '',  # Required field empty
             'insurance_year': 15,  # Invalid year
-            'insurance_sum': '1000000.00',
+            'coverage_territory': 'Российская Федерация', 'insurance_sum': '1000000.00',
             'franchise_1': '0.00',
             'premium_with_franchise_1': '50000.00',
             'payments_per_year_variant_1': 1

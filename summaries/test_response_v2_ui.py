@@ -144,3 +144,68 @@ class InsurerResponseManualEditTests(ResponseV2Base):
         content = self.client.get(reverse('summaries:summary_detail', args=[self.summary.pk])).content.decode()
         self.assertNotIn('js-response-form"', content)
         self.assertNotIn('data-response-url', content)
+
+
+class ManualOfferWithV2BlocksTests(ResponseV2Base):
+    """Ручное добавление предложения: блоки V2 в форме (контур V2) и обязательная территория (для всех)."""
+
+    def _post(self, user, company='Пари', territory='Российская Федерация', **extra):
+        self.client.force_login(user)
+        data = {
+            'company_name': company, 'coverage_territory': territory, 'notes': '',
+            'payments_per_year_variant_1': '1', 'payments_per_year_variant_2': '1',
+            'rows-TOTAL': '2',
+            'rows-0-insurance_year': '1', 'rows-0-insurance_sum': '3000000', 'rows-0-franchise_1': '0',
+            'rows-0-premium_with_franchise_1': '90000',
+            'rows-1-insurance_year': '2', 'rows-1-insurance_sum': '2700000', 'rows-1-franchise_1': '0',
+            'rows-1-premium_with_franchise_1': '85000',
+        }
+        data.update(extra)
+        return self.client.post(reverse('summaries:add_offer', args=[self.summary.pk]), data, follow=True)
+
+    def _offers(self, company='Пари'):
+        return InsuranceOffer.objects.filter(summary=self.summary, company_name=company)
+
+    def test_superuser_adds_offer_with_blocks(self):
+        self._post(self.superuser, rnpk_status='included', rnpk_comment='по правилам', transport_cost='5 330')
+        self.assertEqual(self._offers().count(), 2)
+        response = InsurerResponse.objects.get(summary=self.summary, company_name='Пари')
+        self.assertEqual((response.rnpk_status, response.transport_cost), ('included', Decimal('5330.00')))
+        self.assertEqual(response.template_version, InsurerResponse.TEMPLATE_V1)
+
+    def test_superuser_missing_required_block_rejected(self):
+        page = self._post(self.superuser, transport_cost='5330')
+        self.assertFalse(self._offers().exists())
+        self.assertContains(page, 'Не заполнен блок «Риски РНПК»')
+        self.assertContains(page, 'name="transport_cost" id="v2_transport_cost" value="5330"')  # введённое не теряется
+
+    def test_staff_has_no_v2_section_and_saves_without_blocks(self):
+        self.client.force_login(self.staff)
+        form_page = self.client.get(reverse('summaries:add_offer', args=[self.summary.pk]))
+        self.assertNotContains(form_page, 'Дополнительные условия ответа')
+        self._post(self.staff)
+        self.assertEqual(self._offers().count(), 2)
+        self.assertFalse(InsurerResponse.objects.filter(company_name='Пари').exists())
+
+    def test_form_has_existing_values_for_prefill(self):
+        self.client.force_login(self.superuser)
+        page = self.client.get(reverse('summaries:add_offer', args=[self.summary.pk]))
+        self.assertContains(page, 'Дополнительные условия ответа')
+        self.assertContains(page, 'id="response-v2-existing"')
+        self.assertContains(page, '"rnpk_status": "included"')  # Согаз
+
+    def test_territory_required_once_for_all_users(self):
+        for territory in ('', '—'):
+            with self.subTest(territory=territory):
+                page = self._post(self.staff, territory=territory)
+                self.assertFalse(self._offers().exists())
+                self.assertContains(page, 'Укажите территорию страхования', count=2)  # сообщение + поле
+
+    def test_company_territory_edit_rejects_empty(self):
+        self.client.force_login(self.staff)
+        response = self.client.post(reverse('summaries:set_company_territory', args=[self.summary.pk]),
+                                    {'company': 'Согаз', 'territory': '  '})
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('Укажите территорию страхования', response.json()['error'])
+        self.assertTrue(InsuranceOffer.objects.filter(summary=self.summary, company_name='Согаз',
+                                                      coverage_territory='РФ').exists())

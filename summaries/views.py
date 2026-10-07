@@ -9,6 +9,7 @@ from django.urls import reverse
 from django.contrib import messages
 from django.http import FileResponse, Http404, JsonResponse, HttpResponse
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.views.decorators.http import require_http_methods
 from django.db import transaction, IntegrityError
 from django.db.models import Count, Prefetch, Q, prefetch_related_objects
@@ -23,7 +24,11 @@ from pathlib import Path
 from .models import InsuranceSummary, InsuranceOffer, SummaryCompanyStatus, SummaryTemplate
 from insurance_requests.models import InsuranceRequest
 from insurance_requests.decorators import admin_required, superuser_required, user_required
-from .forms import OfferForm, SummaryForm, AddOfferToSummaryForm, DealListFilterForm
+from .forms import (
+    OfferForm, SummaryForm, AddOfferToSummaryForm, DealListFilterForm, TERRITORY_REQUIRED_MESSAGE,
+    clean_required_territory,
+)
+from .response_sections import required_sections
 from .exceptions import DuplicateOfferError
 from .services.analytics_insurance_companies import (
     build_analytics_insurance_companies_payload,
@@ -945,7 +950,10 @@ def set_company_territory(request, summary_id):
     company_name = (request.POST.get('company') or '').strip()
     if not company_name or not summary.offers.filter(company_name=company_name).exists():
         return JsonResponse({'success': False, 'error': 'У этой страховой нет предложений в своде.'}, status=400)
-    territory = (request.POST.get('territory') or '').strip()
+    try:
+        territory = clean_required_territory(request.POST.get('territory'))
+    except ValidationError as error:
+        return JsonResponse({'success': False, 'error': ' '.join(error.messages)}, status=400)
     updated = apply_territory(summary.pk, company_name, territory)
     logger.info(f"Summary {summary_id}: territory of '{company_name}' set for {updated} offers by {request.user.username}")
     return JsonResponse({'success': True, 'updated': updated})
@@ -1324,6 +1332,24 @@ def _form_error_messages(form):
     return messages_list
 
 
+def _offer_form_response_v2(request, summary, mode):
+    """Секция блоков шаблона ответа V2 в форме добавления (контур V2, блоки нужны по заявке)."""
+    if mode != 'add' or not insurer_response.v2_contour(request.user):
+        return None
+    sections = required_sections(summary.request)
+    if not sections:
+        return None
+    posted = request.POST if request.method == 'POST' else {}
+    groups = [{
+        'title': section.short_title or section.title,
+        'fields': [{
+            'name': fld.name, 'label': fld.label, 'kind': fld.kind, 'required': fld.required,
+            'choices': fld.choices, 'hint': fld.hint, 'value': posted.get(fld.name, ''),
+        } for fld in section.fields],
+    } for section in sections]
+    return {'sections': groups, 'existing': insurer_response.existing_values(summary)}
+
+
 def _offer_page(request, *, mode, summary, form, rows, row_errors=(), offer=None, original_offer=None):
     """Единая страница формы предложения: добавление (несколько лет), редактирование, копирование."""
     exclude_offer_id = offer.pk if offer else None
@@ -1343,6 +1369,7 @@ def _offer_page(request, *, mode, summary, form, rows, row_errors=(), offer=None
         'installment_choices': installment_choices,
         'company_years': _company_years(summary, exclude_offer_id=exclude_offer_id),
         'max_rows': MAX_OFFER_ROWS,
+        'response_v2': _offer_form_response_v2(request, summary, mode),
     })
 
 
@@ -1361,8 +1388,20 @@ def add_offer(request, summary_id):
         rows = _offer_rows_from_data(data)[:MAX_OFFER_ROWS] or [{field: '' for field in OFFER_ROW_FIELDS}]
         forms_by_row = [AddOfferToSummaryForm(_offer_form_data(data, row)) for row in rows]
         row_errors = [_form_error_messages(form) if not form.is_valid() else [] for form in forms_by_row]
+        # Общие поля (территория) проверяются в каждой строке — показываем их ошибку один раз
+        common_errors = list(dict.fromkeys(
+            error for errors in row_errors for error in errors if TERRITORY_REQUIRED_MESSAGE in error))
+        row_errors = [[e for e in errors if TERRITORY_REQUIRED_MESSAGE not in e] for errors in row_errors]
 
-        if not any(row_errors):
+        # Блоки шаблона ответа V2 (риски РНПК, перевозка) — в контуре V2 обязательны, как в Excel
+        response_values = None
+        if insurer_response.v2_contour(request.user) and required_sections(summary.request):
+            try:
+                response_values = insurer_response.parse_form_values(summary, request.POST, strict=True)
+            except insurer_response.ResponseFormError as error:
+                common_errors.append(str(error))
+
+        if not any(row_errors) and not common_errors:
             company_name = forms_by_row[0].cleaned_data['company_name']
             years = [form.cleaned_data['insurance_year'] for form in forms_by_row]
             taken = set(_company_years(summary).get(company_name, []))
@@ -1372,7 +1411,7 @@ def add_offer(request, summary_id):
                 elif year in taken:
                     row_errors[index].append(DuplicateOfferError(company_name, year).get_user_message())
 
-        if not any(row_errors):
+        if not any(row_errors) and not common_errors:
             try:
                 with transaction.atomic():
                     saved = []
@@ -1382,6 +1421,9 @@ def add_offer(request, summary_id):
                         offer.save()
                         saved.append(offer)
                     summary.update_total_offers_count()
+                    if response_values is not None:
+                        insurer_response.apply_values(summary, saved[0].company_name, response_values,
+                                                      user=request.user)
             except IntegrityError as e:
                 logger.warning(f"IntegrityError adding offers to summary {summary_id}: {e}")
                 messages.error(request, 'Не удалось сохранить: такое предложение уже есть в своде.')
@@ -1394,8 +1436,9 @@ def add_offer(request, summary_id):
                 messages.success(request, f'Предложение от {saved[0].company_name} ({years_label}) успешно добавлено')
                 return redirect('summaries:summary_detail', pk=summary_id)
         else:
-            logger.warning(f"Offer form validation failed for summary {summary_id}: {row_errors}")
-            messages.error(request, f'Ошибки в форме: {"; ".join(error for errors in row_errors for error in errors)}')
+            logger.warning(f"Offer form validation failed for summary {summary_id}: {common_errors} {row_errors}")
+            all_errors = common_errors + [error for errors in row_errors for error in errors]
+            messages.error(request, f'Ошибки в форме: {"; ".join(dict.fromkeys(all_errors))}')
 
         return _offer_page(request, mode='add', summary=summary, form=forms_by_row[0], rows=rows, row_errors=row_errors)
 

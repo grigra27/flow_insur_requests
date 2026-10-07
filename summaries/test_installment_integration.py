@@ -51,7 +51,7 @@ class TestInstallmentIntegration(TestCase):
         form_data = {
             'company_name': 'ВСК',
             'insurance_year': 2,
-            'insurance_sum': '1000000.00',
+            'coverage_territory': 'Российская Федерация', 'insurance_sum': '1000000.00',
             'franchise_1': '0.00',
             'premium_with_franchise_1': '50000.00',
             'installment_variant_1': False,  # Рассрочка НЕ доступна
@@ -78,7 +78,7 @@ class TestInstallmentIntegration(TestCase):
         form_data = {
             'company_name': 'Согаз',
             'insurance_year': 1,
-            'insurance_sum': '1200000.00',
+            'coverage_territory': 'Российская Федерация', 'insurance_sum': '1200000.00',
             'franchise_1': '0.00',
             'premium_with_franchise_1': '60000.00',
             'installment_variant_1': True,  # Рассрочка доступна
@@ -117,7 +117,7 @@ class TestInstallmentIntegration(TestCase):
         form_data = {
             'company_name': 'Ренессанс',
             'insurance_year': 2,
-            'insurance_sum': '900000.00',
+            'coverage_territory': 'Российская Федерация', 'insurance_sum': '900000.00',
             'franchise_1': '5000.00',
             'premium_with_franchise_1': '45000.00',
             'installment_variant_1': False,  # Убираем рассрочку
@@ -145,7 +145,7 @@ class TestInstallmentIntegration(TestCase):
         form_data = {
             'company_name': '',  # Пустое обязательное поле
             'insurance_year': 15,  # Недопустимый год
-            'insurance_sum': '1000000.00',
+            'coverage_territory': 'Российская Федерация', 'insurance_sum': '1000000.00',
             'franchise_1': '0.00',
             'premium_with_franchise_1': '50000.00',
             'installment_variant_1': False,

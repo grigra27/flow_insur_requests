@@ -40,7 +40,7 @@ class TestOfferFormValidation(TestCase):
         # Базовые валидные данные для формы
         self.valid_form_data = {
             'insurance_year': 1,
-            'insurance_sum': Decimal('1000000.00'),
+            'coverage_territory': 'Российская Федерация', 'insurance_sum': Decimal('1000000.00'),
             'franchise_1': Decimal('0.00'),
             'premium_with_franchise_1': Decimal('50000.00'),
             'installment_variant_1': False,
@@ -215,7 +215,7 @@ class TestAddOfferToSummaryFormValidation(TestCase):
         # Базовые валидные данные для формы
         self.valid_form_data = {
             'insurance_year': 1,
-            'insurance_sum': Decimal('1000000.00'),
+            'coverage_territory': 'Российская Федерация', 'insurance_sum': Decimal('1000000.00'),
             'franchise_1': Decimal('0.00'),
             'premium_with_franchise_1': Decimal('50000.00'),
             'installment_variant_1': False,
@@ -349,7 +349,7 @@ class TestFormErrorMessages(TestCase):
         """Тест сообщения об ошибке для обязательного поля company_name в OfferForm"""
         form_data = {
             'insurance_year': 1,
-            'insurance_sum': Decimal('1000000.00'),
+            'coverage_territory': 'Российская Федерация', 'insurance_sum': Decimal('1000000.00'),
             'franchise_1': Decimal('0.00'),
             'premium_with_franchise_1': Decimal('50000.00'),
             # company_name отсутствует
@@ -368,7 +368,7 @@ class TestFormErrorMessages(TestCase):
         form_data = {
             'company_name': 'Недопустимая компания',
             'insurance_year': 1,
-            'insurance_sum': Decimal('1000000.00'),
+            'coverage_territory': 'Российская Федерация', 'insurance_sum': Decimal('1000000.00'),
             'franchise_1': Decimal('0.00'),
             'premium_with_franchise_1': Decimal('50000.00'),
         }
@@ -385,7 +385,7 @@ class TestFormErrorMessages(TestCase):
         """Тест сообщения об ошибке для обязательного поля company_name в AddOfferToSummaryForm"""
         form_data = {
             'insurance_year': 1,
-            'insurance_sum': Decimal('1000000.00'),
+            'coverage_territory': 'Российская Федерация', 'insurance_sum': Decimal('1000000.00'),
             'franchise_1': Decimal('0.00'),
             'premium_with_franchise_1': Decimal('50000.00'),
             # company_name отсутствует
@@ -404,7 +404,7 @@ class TestFormErrorMessages(TestCase):
         form_data = {
             'company_name': 'Неизвестная страховая',
             'insurance_year': 1,
-            'insurance_sum': Decimal('1000000.00'),
+            'coverage_territory': 'Российская Федерация', 'insurance_sum': Decimal('1000000.00'),
             'franchise_1': Decimal('0.00'),
             'premium_with_franchise_1': Decimal('50000.00'),
         }
@@ -490,7 +490,7 @@ class TestFormFieldValidationIntegration(TestCase):
                     form_data = {
                         'company_name': company,
                         'insurance_year': 1,
-                        'insurance_sum': Decimal('1000000.00'),
+                        'coverage_territory': 'Российская Федерация', 'insurance_sum': Decimal('1000000.00'),
                         'franchise_1': Decimal('0.00'),
                         'premium_with_franchise_1': Decimal('50000.00'),
                         'installment_variant_1': False,
@@ -511,7 +511,7 @@ class TestFormFieldValidationIntegration(TestCase):
         form_data = {
             'company_name': 'Абсолют',
             'insurance_year': 1,
-            'insurance_sum': Decimal('1000000.00'),
+            'coverage_territory': 'Российская Федерация', 'insurance_sum': Decimal('1000000.00'),
             'franchise_1': Decimal('0.00'),
             'premium_with_franchise_1': Decimal('50000.00'),
             'installment_variant_1': False,
@@ -582,7 +582,7 @@ class TestFormFieldValidationIntegration(TestCase):
                 form_data = {
                     'company_name': test_value,
                     'insurance_year': 1,
-                    'insurance_sum': Decimal('1000000.00'),
+                    'coverage_territory': 'Российская Федерация', 'insurance_sum': Decimal('1000000.00'),
                     'franchise_1': Decimal('0.00'),
                     'premium_with_franchise_1': Decimal('50000.00'),
                     'installment_variant_1': False,

@@ -415,7 +415,7 @@ class TestFormValidationUI(TestCase):
         invalid_data = {
             'company_name': '',  # Required field left empty
             'insurance_year': 15,  # Invalid year (> 10)
-            'insurance_sum': -1000,  # Negative sum
+            'coverage_territory': 'Российская Федерация', 'insurance_sum': -1000,  # Negative sum
             'franchise_1': -500,  # Negative franchise
             'premium_with_franchise_1': 0,  # Zero premium
             'payments_per_year_variant_1': 1
@@ -444,7 +444,7 @@ class TestFormValidationUI(TestCase):
         valid_data = {
             'company_name': 'Росгосстрах',
             'insurance_year': 2,
-            'insurance_sum': '1000000.00',
+            'coverage_territory': 'Российская Федерация', 'insurance_sum': '1000000.00',
             'franchise_1': '0.00',
             'premium_with_franchise_1': '50000.00',
             'payments_per_year_variant_1': 1

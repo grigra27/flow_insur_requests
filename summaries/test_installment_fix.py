@@ -42,7 +42,7 @@ class TestInstallmentFix(TestCase):
         form_data = {
             'company_name': 'Росгосстрах',
             'insurance_year': 2,
-            'insurance_sum': '1000000.00',
+            'coverage_territory': 'Российская Федерация', 'insurance_sum': '1000000.00',
             'franchise_1': '0.00',
             'premium_with_franchise_1': '50000.00',
             'installment_variant_1': False,  # Рассрочка НЕ доступна
@@ -61,7 +61,7 @@ class TestInstallmentFix(TestCase):
         form_data = {
             'company_name': 'Росгосстрах',
             'insurance_year': 2,
-            'insurance_sum': '1000000.00',
+            'coverage_territory': 'Российская Федерация', 'insurance_sum': '1000000.00',
             'franchise_1': '0.00',
             'premium_with_franchise_1': '50000.00',
             'installment_variant_1': True,  # Рассрочка доступна
@@ -80,7 +80,7 @@ class TestInstallmentFix(TestCase):
         form_data = {
             'company_name': 'Росгосстрах',
             'insurance_year': 2,
-            'insurance_sum': '1000000.00',
+            'coverage_territory': 'Российская Федерация', 'insurance_sum': '1000000.00',
             'franchise_1': '0.00',
             'premium_with_franchise_1': '50000.00',
             'installment_variant_1': False,  # Рассрочка НЕ доступна
@@ -99,7 +99,7 @@ class TestInstallmentFix(TestCase):
         form_data = {
             'company_name': 'Абсолют',
             'insurance_year': 2,
-            'insurance_sum': '1000000.00',
+            'coverage_territory': 'Российская Федерация', 'insurance_sum': '1000000.00',
             'franchise_1': '0.00',
             'premium_with_franchise_1': '50000.00',
             'installment_variant_1': False,  # Рассрочка НЕ доступна для варианта 1
@@ -118,7 +118,7 @@ class TestInstallmentFix(TestCase):
         form_data = {
             'company_name': 'ВСК',
             'insurance_year': 2,
-            'insurance_sum': '1000000.00',
+            'coverage_territory': 'Российская Федерация', 'insurance_sum': '1000000.00',
             'franchise_1': '0.00',
             'premium_with_franchise_1': '50000.00',
             'installment_variant_1': True,  # Рассрочка доступна для варианта 1
@@ -137,7 +137,7 @@ class TestInstallmentFix(TestCase):
         form_data = {
             'company_name': 'Росгосстрах',
             'insurance_year': 2,
-            'insurance_sum': '1000000.00',
+            'coverage_territory': 'Российская Федерация', 'insurance_sum': '1000000.00',
             'franchise_1': '0.00',
             'premium_with_franchise_1': '50000.00',
             'installment_variant_1': True,  # Рассрочка доступна
@@ -154,7 +154,7 @@ class TestInstallmentFix(TestCase):
         form_data = {
             'company_name': 'Росгосстрах',
             'insurance_year': 2,
-            'insurance_sum': '1000000.00',
+            'coverage_territory': 'Российская Федерация', 'insurance_sum': '1000000.00',
             'franchise_1': '0.00',
             'premium_with_franchise_1': '50000.00',
             'installment_variant_1': False,  # Рассрочка НЕ доступна

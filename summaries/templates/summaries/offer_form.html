@@ -140,10 +140,12 @@
         <div class="of-card__head"><h2>Условия</h2></div>
         <div class="of-card__body of-conditions">
             <div>
-                <label for="id_coverage_territory" class="form-label of-label">Территория страхования</label>
-                <textarea name="coverage_territory" id="id_coverage_territory" rows="3" class="form-control of-control"
+                <label for="id_coverage_territory" class="form-label of-label">Территория страхования <span class="text-danger">*</span></label>
+                <textarea name="coverage_territory" id="id_coverage_territory" rows="3" required
+                          class="form-control of-control{% if form.coverage_territory.errors %} is-invalid{% endif %}"
                           placeholder="Например: Российская Федерация, кроме новых территорий">{{ form.coverage_territory.value|default_if_none:'' }}</textarea>
-                <div class="form-text of-hint">Общая для всех лет этой СК в своде — обновится у всех её лет</div>
+                {% for error in form.coverage_territory.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                <div class="form-text of-hint">Обязательно. Общая для всех лет этой СК в своде — обновится у всех её лет</div>
             </div>
             <div>
                 <label for="id_notes" class="form-label of-label">Комментарий</label>
@@ -153,6 +155,44 @@
             </div>
         </div>
     </div>
+
+    {% if response_v2 %}
+    {# ── Блоки шаблона ответа V2 (контур V2): риски РНПК, перевозка — по заявке ── #}
+    <div class="of-card of-card--v2">
+        <div class="of-card__head">
+            <h2><span class="of-v2-tag">V2</span> Дополнительные условия ответа</h2>
+            <span>обязательны по этой заявке, как в шаблоне ответа V2</span>
+        </div>
+        <div class="of-card__body">
+            {% for section in response_v2.sections %}
+            <div class="of-v2-section">
+                <div class="of-v2-section__title">{{ section.title }}</div>
+                <div class="of-v2-fields">
+                {% for field in section.fields %}
+                <div class="of-v2-field">
+                    <label for="v2_{{ field.name }}" class="form-label of-label">{{ field.label }}{% if field.required %} <span class="text-danger">*</span>{% endif %}</label>
+                    {% if field.kind == 'choice' %}
+                    <select name="{{ field.name }}" id="v2_{{ field.name }}" class="form-select of-control js-v2-field">
+                        <option value="">— выберите —</option>
+                        {% for code, label in field.choices %}
+                        <option value="{{ code }}"{% if field.value == code %} selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                    {% else %}
+                    <input name="{{ field.name }}" id="v2_{{ field.name }}" value="{{ field.value }}"
+                           class="form-control of-control js-v2-field"{% if field.kind == 'money' %} inputmode="decimal" placeholder="например, 5 330"{% else %} placeholder="необязательно"{% endif %}>
+                    {% endif %}
+                    {% if field.hint %}<div class="form-text of-hint">{{ field.hint }}</div>{% endif %}
+                </div>
+                {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+            <div class="form-text of-hint">Если у этой СК в своде уже есть ответ, при выборе СК значения подставятся — новые значения его заменят.</div>
+        </div>
+    </div>
+    {{ response_v2.existing|json_script:"response-v2-existing" }}
+    {% endif %}
 
     {# ── Панель действий ── #}
     <div class="of-actions">
@@ -224,6 +264,11 @@
     .of-card__head { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 0.85rem 1.35rem; border-bottom: 1px solid var(--of-line); }
     .of-card__head h2 { margin: 0; font-size: 0.94rem; font-weight: 700; color: var(--of-ink); }
     .of-card__head span { font-size: 0.78rem; color: var(--of-muted); }
+    .of-card--v2 { border: 2px dashed #111; background: #fffbea; }
+    .of-v2-tag { font-size: 0.62rem; font-weight: 800; padding: 0 0.3rem; border-radius: 4px; background: #ffc400; color: #111; border: 1px solid #111; vertical-align: middle; }
+    .of-v2-section + .of-v2-section { margin-top: 0.9rem; padding-top: 0.9rem; border-top: 1px dashed #d6c56a; }
+    .of-v2-section__title { font-weight: 700; font-size: 0.9rem; margin-bottom: 0.5rem; }
+    .of-v2-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 0.6rem 1.2rem; }
     .of-card__body { padding: 1.1rem 1.35rem 1.25rem; }
 
     .of-label { margin-bottom: 0.4rem; font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--of-muted-2); }
@@ -318,6 +363,20 @@ document.addEventListener('DOMContentLoaded', function() {
     const hint = document.getElementById('company-years-hint');
     const companyYears = JSON.parse(document.getElementById('company-years-data').textContent);
     const maxRows = {{ max_rows }};
+
+    // ── Блоки ответа V2: при выборе СК подставить её текущий «Ответ СК» ──
+    const v2Existing = document.getElementById('response-v2-existing');
+    if (v2Existing && companySelect) {
+        const existing = JSON.parse(v2Existing.textContent);
+        const fillV2 = () => {
+            const values = existing[companySelect.value] || {};
+            document.querySelectorAll('.js-v2-field').forEach(field => {
+                if (Object.prototype.hasOwnProperty.call(values, field.name)) field.value = values[field.name];
+            });
+        };
+        companySelect.addEventListener('change', fillV2);
+        if (companySelect.value && ![...document.querySelectorAll('.js-v2-field')].some(f => f.value)) fillV2();
+    }
 
     // ── Суммы с пробелами между тысячами ──
     const parseMoney = value => {

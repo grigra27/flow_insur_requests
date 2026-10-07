@@ -44,7 +44,7 @@ class TestOfferForms(TestCase):
         form_data = {
             'company_name': 'Абсолют',
             'insurance_year': 2,
-            'insurance_sum': Decimal('1000000.00'),
+            'coverage_territory': 'Российская Федерация', 'insurance_sum': Decimal('1000000.00'),
             'franchise_1': Decimal('0.00'),
             'premium_with_franchise_1': Decimal('50000.00'),
             'franchise_2': Decimal('25000.00'),
@@ -78,7 +78,7 @@ class TestOfferForms(TestCase):
             form_data = {
                 'company_name': 'ВСК',
                 'insurance_year': year,
-                'insurance_sum': Decimal('1000000.00'),
+                'coverage_territory': 'Российская Федерация', 'insurance_sum': Decimal('1000000.00'),
                 'franchise_1': Decimal('0.00'),
                 'premium_with_franchise_1': Decimal('50000.00'),
                 'payments_per_year_variant_1': 1
@@ -91,7 +91,7 @@ class TestOfferForms(TestCase):
             form_data = {
                 'company_name': 'ВСК',
                 'insurance_year': year,
-                'insurance_sum': Decimal('1000000.00'),
+                'coverage_territory': 'Российская Федерация', 'insurance_sum': Decimal('1000000.00'),
                 'franchise_1': Decimal('0.00'),
                 'premium_with_franchise_1': Decimal('50000.00'),
                 'payments_per_year_variant_1': 1
@@ -107,7 +107,7 @@ class TestOfferForms(TestCase):
             form_data = {
                 'company_name': 'ВСК',
                 'insurance_year': 1,
-                'insurance_sum': Decimal('1000000.00'),
+                'coverage_territory': 'Российская Федерация', 'insurance_sum': Decimal('1000000.00'),
                 'franchise_1': Decimal('0.00'),
                 'premium_with_franchise_1': Decimal('50000.00'),
                 'installment_variant_1': True,
@@ -121,7 +121,7 @@ class TestOfferForms(TestCase):
             form_data = {
                 'company_name': 'ВСК',
                 'insurance_year': 1,
-                'insurance_sum': Decimal('1000000.00'),
+                'coverage_territory': 'Российская Федерация', 'insurance_sum': Decimal('1000000.00'),
                 'franchise_1': Decimal('0.00'),
                 'premium_with_franchise_1': Decimal('50000.00'),
                 'installment_variant_1': True,  # Рассрочка доступна
@@ -137,7 +137,7 @@ class TestOfferForms(TestCase):
         form_data = {
             'company_name': 'ВСК',
             'insurance_year': 1,
-            'insurance_sum': Decimal('1000000.00'),
+            'coverage_territory': 'Российская Федерация', 'insurance_sum': Decimal('1000000.00'),
             'franchise_1': Decimal('0.00'),
             'premium_with_franchise_1': Decimal('50000.00'),
             'installment_variant_1': False,
@@ -160,7 +160,7 @@ class TestOfferForms(TestCase):
         form_data = {
             'company_name': 'Согаз',
             'insurance_year': 3,
-            'insurance_sum': Decimal('800000.00'),
+            'coverage_territory': 'Российская Федерация', 'insurance_sum': Decimal('800000.00'),
             'franchise_1': Decimal('5000.00'),
             'premium_with_franchise_1': Decimal('42000.00'),
             'installment_variant_1': True,
@@ -185,7 +185,7 @@ class TestOfferForms(TestCase):
         form_data = {
             'company_name': 'ВСК',
             'insurance_year': 1,
-            'insurance_sum': Decimal('1000000.00'),
+            'coverage_territory': 'Российская Федерация', 'insurance_sum': Decimal('1000000.00'),
             'franchise_1': Decimal('-1000.00'),  # Negative franchise
             'premium_with_franchise_1': Decimal('50000.00'),
             'payments_per_year_variant_1': 1
@@ -311,7 +311,7 @@ class TestOfferViews(TestCase):
         post_data = {
             'company_name': 'РЕСО',
             'insurance_year': 2,
-            'insurance_sum': '1500000.00',
+            'coverage_territory': 'Российская Федерация', 'insurance_sum': '1500000.00',
             'franchise_1': '0.00',
             'premium_with_franchise_1': '65000.00',
             'franchise_2': '30000.00',
@@ -382,7 +382,7 @@ class TestOfferViews(TestCase):
         post_data = {
             'company_name': 'Совкомбанк СК',
             'insurance_year': 3,
-            'insurance_sum': '1200000.00',
+            'coverage_territory': 'Российская Федерация', 'insurance_sum': '1200000.00',
             'franchise_1': '10000.00',
             'premium_with_franchise_1': '52000.00',
             'franchise_2': '25000.00',

@@ -108,28 +108,24 @@ class ResponseFormError(ValueError):
     """Неверное значение в форме ручной правки «Ответа СК» (сообщение — для сотрудника)."""
 
 
-def update_from_form(summary: InsuranceSummary, company_name: str, data, user=None) -> InsurerResponse:
-    """Ручная правка блоков «Ответа СК» на карточке свода.
-
-    Принимаются только поля блоков, нужных по заявке; значения проверяются по реестру так же, как при
-    загрузке файла. Пустое значение очищает поле. Строка «Ответ СК» создаётся, если её ещё нет.
-    """
+def parse_form_values(summary: InsuranceSummary, data, strict: bool) -> Dict:
+    """Значения блоков из формы (ручной ввод): только блоки, нужные по заявке; проверка по реестру
+    так же, как при загрузке файла. strict — пустое обязательное поле тоже ошибка (контур V2 при
+    добавлении предложения); без strict пустое значение очищает поле."""
     from decimal import Decimal, InvalidOperation
 
     from ..response_sections import CHOICE, MONEY, required_sections
     from .excel_services import ExcelResponseProcessor
 
-    if not InsuranceOffer.objects.filter(summary=summary, company_name=company_name).exists():
-        raise ResponseFormError('У этой страховой нет предложений в своде.')
-    sections = required_sections(summary.request)
-    if not sections:
-        raise ResponseFormError('По этой заявке дополнительные блоки ответа не нужны.')
-
     values = {}
-    for section in sections:
+    for section in required_sections(summary.request):
         for fld in section.fields:
             raw = (data.get(fld.name) or '').strip()
-            if not raw:
+            if not any(char.isalnum() for char in raw):
+                if strict and fld.required:
+                    raise ResponseFormError(
+                        f'Не заполнен блок «{section.short_title or section.title}» (поле «{fld.label}»). '
+                        f'Если страховщик его не указал — запросите у него.')
                 values[fld.name] = None if fld.kind == MONEY else ''
             elif fld.kind == CHOICE:
                 code = fld.match_choice(raw)
@@ -147,7 +143,11 @@ def update_from_form(summary: InsuranceSummary, company_name: str, data, user=No
                 values[fld.name] = amount
             else:
                 values[fld.name] = raw
+    return values
 
+
+def apply_values(summary: InsuranceSummary, company_name: str, values: Dict, user=None) -> InsurerResponse:
+    """Записать значения блоков в «Ответ СК» (создать строку, если её нет); версию шаблона не трогает."""
     response, created = InsurerResponse.objects.get_or_create(summary=summary, company_name=company_name)
     for name, value in values.items():
         setattr(response, name, value)
@@ -157,3 +157,31 @@ def update_from_form(summary: InsuranceSummary, company_name: str, data, user=No
     logger.info("Ответ СК %s вручную: свод #%s, %s, %s", 'создан' if created else 'изменён',
                 summary.pk, company_name, {k: v for k, v in values.items() if v not in (None, '')})
     return response
+
+
+def existing_values(summary: InsuranceSummary) -> Dict[str, Dict[str, str]]:
+    """{компания: {поле: значение для формы}} — подставить в форму добавления при выборе СК."""
+    result = {}
+    for response in InsurerResponse.objects.filter(summary=summary):
+        row = {}
+        for fld in all_fields():
+            value = getattr(response, fld.name)
+            if value not in (None, ''):
+                row[fld.name] = f'{value:.0f}' if fld.kind == 'money' else str(value)
+        result[response.company_name] = row
+    return result
+
+
+def update_from_form(summary: InsuranceSummary, company_name: str, data, user=None) -> InsurerResponse:
+    """Ручная правка блоков «Ответа СК» на карточке свода (кнопка «изменить» у компании).
+
+    Принимаются только поля блоков, нужных по заявке; пустое значение очищает поле.
+    Строка «Ответ СК» создаётся, если её ещё нет.
+    """
+    from ..response_sections import required_sections
+
+    if not InsuranceOffer.objects.filter(summary=summary, company_name=company_name).exists():
+        raise ResponseFormError('У этой страховой нет предложений в своде.')
+    if not required_sections(summary.request):
+        raise ResponseFormError('По этой заявке дополнительные блоки ответа не нужны.')
+    return apply_values(summary, company_name, parse_form_values(summary, data, strict=False), user=user)

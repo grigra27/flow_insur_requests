@@ -14,6 +14,20 @@ import os
 # Удаляем дублирующийся виджет - используем тот что ниже
 
 
+TERRITORY_REQUIRED_MESSAGE = (
+    'Укажите территорию страхования и территориальные ограничения — без неё предложение не сохраняется.'
+)
+
+
+def clean_required_territory(value):
+    """Территория обязательна при ручном вводе, как в шаблоне ответа (решение владельца 2026-10-07).
+    Пусто, пробелы или прочерк — «не заполнено»."""
+    text = (value or '').strip()
+    if not any(char.isalnum() for char in text):
+        raise ValidationError(TERRITORY_REQUIRED_MESSAGE)
+    return text
+
+
 class OfferForm(forms.ModelForm):
     """Форма для добавления/редактирования предложения от страховщика"""
     
@@ -107,6 +121,9 @@ class OfferForm(forms.ModelForm):
             'attachment_file': forms.FileInput(attrs={'class': 'form-control'}),
         }
     
+    def clean_coverage_territory(self):
+        return clean_required_territory(self.cleaned_data.get('coverage_territory'))
+
     def clean_company_name(self):
         """Валидация выбора страховой компании"""
         company_name = self.cleaned_data.get('company_name')
@@ -450,6 +467,9 @@ class AddOfferToSummaryForm(forms.ModelForm):
             'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
         }
     
+    def clean_coverage_territory(self):
+        return clean_required_territory(self.cleaned_data.get('coverage_territory'))
+
     def clean_company_name(self):
         """Валидация выбора страховщика"""
         company_name = self.cleaned_data.get('company_name')

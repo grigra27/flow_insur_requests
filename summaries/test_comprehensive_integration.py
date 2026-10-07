@@ -121,7 +121,7 @@ class ComprehensiveIntegrationTest(TestCase):
         valid_data = {
             'company_name': 'Абсолют',
             'insurance_year': 1,
-            'insurance_sum': '1000000.00',
+            'coverage_territory': 'Российская Федерация', 'insurance_sum': '1000000.00',
             'franchise_1': '0.00',
             'premium_with_franchise_1': '50000.00',
             'installment_variant_1': False,
@@ -236,7 +236,7 @@ class ComprehensiveIntegrationTest(TestCase):
         post_data = {
             'company_name': 'Абсолют',
             'insurance_year': 1,
-            'insurance_sum': '1000000.00',
+            'coverage_territory': 'Российская Федерация', 'insurance_sum': '1000000.00',
             'franchise_1': '0.00',
             'premium_with_franchise_1': '50000.00',
             'installment_variant_1': False,
@@ -365,7 +365,7 @@ class ComprehensiveIntegrationTest(TestCase):
         invalid_data = {
             'company_name': '',  # Пустое значение
             'insurance_year': 1,
-            'insurance_sum': '1000000.00',
+            'coverage_territory': 'Российская Федерация', 'insurance_sum': '1000000.00',
             'franchise_1': '0.00',
             'premium_with_franchise_1': '50000.00',
         }

@@ -300,7 +300,7 @@ class FullCycleExcelGenerationTests(ExcelExportIntegrationTestCase):
         offer_data = {
             'company_name': 'РЕСО',  # Используем валидное название из списка
             'insurance_year': 1,
-            'insurance_sum': '2000000.00',
+            'coverage_territory': 'Российская Федерация', 'insurance_sum': '2000000.00',
             'franchise_1': '0.00',
             'premium_with_franchise_1': '100000.00',
             'franchise_2': '50000.00',

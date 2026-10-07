@@ -29,7 +29,7 @@ class UserMessagesTestCase(TestCase):
         form_data = {
             'company_name': '',
             'insurance_year': 1,
-            'insurance_sum': 1000000,
+            'coverage_territory': 'Российская Федерация', 'insurance_sum': 1000000,
             'franchise_1': 0,
             'premium_with_franchise_1': 50000,
         }
@@ -62,7 +62,7 @@ class UserMessagesTestCase(TestCase):
         form_data = {
             'company_name': '',
             'insurance_year': 1,
-            'insurance_sum': 1000000,
+            'coverage_territory': 'Российская Федерация', 'insurance_sum': 1000000,
             'franchise_1': 0,
             'premium_with_franchise_1': 50000,
         }

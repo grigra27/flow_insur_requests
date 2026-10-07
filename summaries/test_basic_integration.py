@@ -150,7 +150,7 @@ class BasicIntegrationTest(TestCase):
         copy_data = {
             'company_name': 'ВСК',
             'insurance_year': 2,
-            'insurance_sum': '1500000.00',
+            'coverage_territory': 'Российская Федерация', 'insurance_sum': '1500000.00',
             'franchise_1': '0.00',
             'premium_with_franchise_1': '55000.00',
             'franchise_2': '30000.00',
