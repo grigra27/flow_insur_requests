@@ -359,7 +359,7 @@
         <!-- Свод предложений -->
         <div class="card mb-4">
             <div class="card-header"><h6 class="mb-0"><i class="bi bi-collection"></i> Свод предложений</h6></div>
-            <div class="card-body">
+            <div class="card-body" id="summary-section">
                 {% if request.summary %}
                 <div class="rq-summary">
                     <div>
@@ -769,6 +769,7 @@ document.addEventListener('DOMContentLoaded', function () {
             .then(data => {
                 if (data.success) {
                     updateStatusBadges(data.new_status, data.new_status_display);
+                    refreshSummarySection();
                     statusSelect.dataset.currentStatus = data.new_status;
                     showStatusMessage(data.message, 'success');
                 } else {
@@ -789,6 +790,20 @@ document.addEventListener('DOMContentLoaded', function () {
         });
 
         statusSelect.dataset.currentStatus = '{{ request.status }}';
+    }
+
+    // Блок «Свод предложений» зависит от статуса (кнопка «Создать свод» — только после «Письма отправлены»):
+    // берём его актуальную разметку с сервера, без перезагрузки страницы
+    function refreshSummarySection() {
+        const section = document.getElementById('summary-section');
+        if (!section) return;
+        fetch(window.location.href, { headers: { 'X-Requested-With': 'XMLHttpRequest' }, cache: 'no-store' })
+            .then(response => response.ok ? response.text() : Promise.reject(response.status))
+            .then(html => {
+                const fresh = new DOMParser().parseFromString(html, 'text/html').getElementById('summary-section');
+                if (fresh) section.innerHTML = fresh.innerHTML;
+            })
+            .catch(() => window.location.reload());
     }
 
     // Пилюли статуса в шапке и в блоке «Управление статусом»

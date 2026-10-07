@@ -95,3 +95,24 @@ class InsurerKitTests(TestCase):
         self.assertIn('application_', plain)  # прежнее имя для красной кнопки
         kit = self.client.get(url + '?kit=1')['Content-Disposition']
         self.assertIn("filename*=UTF-8''" + quote('Заявка — ОБ-20702-ЛО-КР.pdf'), kit)
+
+
+class SummarySectionRefreshTests(TestCase):
+    """После смены статуса без перезагрузки JS подменяет блок #summary-section свежей разметкой страницы."""
+
+    def test_section_has_create_button_after_emails_sent(self):
+        users = Group.objects.get_or_create(name='Пользователи')[0]
+        staff = User.objects.create_user('s', password='p')
+        staff.groups.add(users)
+        obj = InsuranceRequest.objects.create(client_name='ООО', inn='1', dfa_number='ОБ-9', vehicle_info='Станок',
+                                              status='email_generated')
+        self.client.force_login(staff)
+        url = reverse('insurance_requests:request_detail', args=[obj.pk])
+        page = self.client.get(url)
+        self.assertContains(page, 'id="summary-section"')
+        self.assertContains(page, 'refreshSummarySection()')
+        self.assertNotContains(page, 'create-summary-btn')
+        self.client.post(reverse('insurance_requests:change_request_status', args=[obj.pk]),
+                         {'status': 'emails_sent'}, HTTP_X_REQUESTED_WITH='XMLHttpRequest')
+        fresh = self.client.get(url, HTTP_X_REQUESTED_WITH='XMLHttpRequest')
+        self.assertContains(fresh, 'create-summary-btn')
