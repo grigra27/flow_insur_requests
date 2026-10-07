@@ -28,7 +28,7 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Protection, Si
 from openpyxl.workbook.defined_name import DefinedName
 from openpyxl.worksheet.datavalidation import DataValidation
 
-from .response_sections import CHOICE, MONEY as MONEY_FIELD, SECTIONS, TEXT, transport_route
+from .response_sections import CHOICE, MONEY as MONEY_FIELD, SECTIONS, TEXT, all_fields, transport_route
 
 ROOT = Path(__file__).resolve().parent.parent
 V1_TEMPLATE_PATH = ROOT / "templates" / "flow_answer_template.xlsx"
@@ -461,7 +461,7 @@ def _write_section(ws, row: int, section, state: str, request, names: dict, vali
         ws.row_dimensions[row].height = 34 if fld.kind == TEXT else 24
         names[fld.cell_name] = f"$D${row}"
         if active and fld.kind == CHOICE:
-            dv = DataValidation(type="list", formula1='"' + ",".join(fld.choice_labels) + '"', allow_blank=True,
+            dv = DataValidation(type="list", formula1=_choice_list_ref(fld), allow_blank=True,
                                 showErrorMessage=True, errorTitle=section.title,
                                 error="Выберите значение из списка.")
             dv.add(cells[0])
@@ -474,6 +474,17 @@ def _write_section(ws, row: int, section, state: str, request, names: dict, vali
             validations.append(dv)
         row += 1
     return row + 1
+
+
+def _choice_fields():
+    return [fld for fld in all_fields() if fld.kind == CHOICE]
+
+
+def _choice_list_ref(fld) -> str:
+    """Список значений — диапазон на листе _meta (колонка на поле, с D): в списке через запятую Excel режет
+    подписи с запятой («Требуется осмотр, возможен осмотр по фотографиям») на два пункта."""
+    col = chr(ord("D") + _choice_fields().index(fld))
+    return f"'{META_SHEET}'!${col}$1:${col}${len(fld.choices)}"
 
 
 def build_v2(request=None, summary_id: Optional[int] = None) -> bytes:
@@ -503,6 +514,9 @@ def build_v2(request=None, summary_id: Optional[int] = None) -> bytes:
     meta["A2"], meta["B2"] = "summary_id", summary_id
     # Номер заявки: шаблон скачивается со страницы заявки ещё до создания свода
     meta["A3"], meta["B3"] = "request_id", getattr(request, 'pk', None) if request is not None else None
+    for index, fld in enumerate(_choice_fields()):
+        for offset, label in enumerate(fld.choice_labels, start=1):
+            meta.cell(row=offset, column=4 + index, value=label)
     meta.sheet_state = "veryHidden"
     wb.active = 0
     return _save(wb)

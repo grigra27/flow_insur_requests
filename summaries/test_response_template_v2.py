@@ -50,6 +50,15 @@ def _request(**kwargs):
     return InsuranceRequest(**defaults)
 
 
+def _list_values(wb, ws, ref):
+    """Пункты выпадающего списка ячейки, как их покажет Excel."""
+    formula = next(dv.formula1 for dv in ws.data_validations.dataValidation if str(dv.sqref) == ref)
+    if formula.startswith('"'):
+        return formula.strip('"').split(',')
+    sheet, cells = formula.split('!')
+    return [c[0].value for c in wb[sheet.strip("'")][cells.replace('$', '')]]
+
+
 def _name_ref(wb, name):
     """Адрес именованной ячейки: ('Ответ СК', 'D16')."""
     sheet, ref = next(iter(wb.defined_names[name].destinations))
@@ -119,8 +128,7 @@ class V2TemplateTests(SimpleTestCase):
         route_row, _ = self._block_pill(ws, TRANSPORT.title)
         self.assertEqual(ws[f'D{route_row + 1}'].value, 'Москва → Армавир · ориентировочно 3 дн.')
         rnpk_ref = _name_ref(wb, 'resp_rnpk_status')[1]
-        lists = {str(dv.sqref): dv.formula1 for dv in ws.data_validations.dataValidation}
-        self.assertEqual(lists[rnpk_ref], '"' + ','.join(label for _c, label in RNPK_CHOICES) + '"')
+        self.assertEqual(_list_values(wb, ws, rnpk_ref), [label for _c, label in RNPK_CHOICES])
 
     def test_personal_casco_greys_out_blocks(self):
         wb, ws = self._load(build_v2(_request(dfa_number='ТС-20848-ЛА-КЗ'), summary_id=304))
@@ -139,9 +147,9 @@ class V2TemplateTests(SimpleTestCase):
         self.assertLess(row, self._block_pill(ws, RNPK.title)[0])
         ref = _name_ref(wb, 'resp_inspection_status')[1]
         self.assertFalse(ws[ref].protection.locked)
-        lists = {str(dv.sqref): dv.formula1 for dv in ws.data_validations.dataValidation}
-        self.assertEqual(lists[ref], '"Осмотр не требуется,Требуется осмотр,'
-                                     'Требуется осмотр, возможен осмотр по фотографиям"')
+        # ровно три пункта: подпись с запятой не режется (список — диапазон на _meta, не строка через запятую)
+        self.assertEqual(_list_values(wb, ws, ref), ['Осмотр не требуется', 'Требуется осмотр',
+                                                     'Требуется осмотр, возможен осмотр по фотографиям'])
 
     def test_generic_template_shows_conditions_and_keeps_blocks_open(self):
         wb, ws = self._load(build_v2())
