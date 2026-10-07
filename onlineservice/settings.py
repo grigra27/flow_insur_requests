@@ -139,10 +139,12 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # Шаблон ответа страховщика V2 (docs/improvement_plans/insurer_response_v2.md). False — всё новое (комплект
 # для страховщика, блоки «Осмотр / Риски РНПК / Перевозка», их проверки) видит только суперпользователь.
 # True — шаблон V2 для всех сотрудников; свод Excel V2 при этом остаётся у суперпользователя.
-RESPONSE_TEMPLATE_V2_FOR_ALL = config('RESPONSE_TEMPLATE_V2_FOR_ALL', default=False, cast=bool)
+# Открыт сотрудникам 2026-10-07 (решение владельца). В тестах по умолчанию выключен: оба режима
+# проверяются явно через override_settings.
+RESPONSE_TEMPLATE_V2_FOR_ALL = config('RESPONSE_TEMPLATE_V2_FOR_ALL', default=not RUNNING_TESTS, cast=bool)
 # Дата переключения (ГГГГ-ММ-ДД): строгие проверки блоков — только для заявок, созданных с этой даты;
 # ответы на запросы, разосланные раньше со старым шаблоном, загружаются как прежде. Пусто — для всех заявок.
-RESPONSE_TEMPLATE_V2_SINCE = config('RESPONSE_TEMPLATE_V2_SINCE', default='')
+RESPONSE_TEMPLATE_V2_SINCE = config('RESPONSE_TEMPLATE_V2_SINCE', default='' if RUNNING_TESTS else '2026-10-08')
 
 # Срок ответа страховщика: N рабочих часов от загрузки заявки (core.business_time).
 # Рабочее время по Москве: начало дня и конец по дням недели (Пн=0); в сокращённый
