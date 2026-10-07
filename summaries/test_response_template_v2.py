@@ -12,7 +12,7 @@ from openpyxl import load_workbook
 from insurance_requests.models import InsuranceRequest
 from summaries.models import InsuranceSummary, InsurerResponse
 from summaries.response_sections import (
-    RNPK, RNPK_CHOICES, SECTIONS, TRANSPORT, required_sections, transport_route,
+    INSPECTION, RNPK, RNPK_CHOICES, SECTIONS, TRANSPORT, required_sections, transport_route,
 )
 from summaries.response_template import (
     META_SHEET, SHEET_TITLE, TEMPLATE_VERSION_V2, V1_TEMPLATE_PATH, build_v1, build_v2,
@@ -75,8 +75,9 @@ class ResponseSectionsTests(SimpleTestCase):
 
     def test_required_sections_in_registry_order(self):
         request = _request(insurance_type='страхование имущества', has_transportation=True)
-        self.assertEqual(required_sections(request), [RNPK, TRANSPORT])
-        self.assertEqual(required_sections(_request()), [])
+        self.assertEqual(required_sections(request), [INSPECTION, RNPK, TRANSPORT])
+        self.assertEqual(required_sections(_request()), [INSPECTION])  # осмотр — в любом ответе
+        self.assertTrue(INSPECTION.is_required(None))
 
     def test_transport_route(self):
         request = _request(transportation_departure='Москва', transportation_destination='Армавир',
@@ -110,7 +111,7 @@ class V2TemplateTests(SimpleTestCase):
         for title in (RNPK.title, TRANSPORT.title):
             _row, pill = self._block_pill(ws, title)
             self.assertEqual(pill, 'ЗАПОЛНИТЕ — обязательно для этого запроса')
-        for name in ('resp_rnpk_status', 'resp_rnpk_comment', 'resp_transport_cost', 'resp_transport_terms'):
+        for name in ('resp_inspection_status', 'resp_rnpk_status', 'resp_transport_cost', 'resp_transport_terms'):
             sheet, ref = _name_ref(wb, name)
             self.assertEqual(sheet, SHEET_TITLE)
             self.assertFalse(ws[ref].protection.locked, name)
@@ -132,14 +133,24 @@ class V2TemplateTests(SimpleTestCase):
             self.assertEqual(ws[ref].value, '—')
         validated = {str(dv.sqref) for dv in ws.data_validations.dataValidation}
         self.assertNotIn(_name_ref(wb, 'resp_rnpk_status')[1], validated)
+        # осмотр — обязателен и для КАСКО, первым из дополнительных блоков
+        row, pill = self._block_pill(ws, INSPECTION.title)
+        self.assertEqual(pill, 'ЗАПОЛНИТЕ — обязательно во всех ответах')
+        self.assertLess(row, self._block_pill(ws, RNPK.title)[0])
+        ref = _name_ref(wb, 'resp_inspection_status')[1]
+        self.assertFalse(ws[ref].protection.locked)
+        lists = {str(dv.sqref): dv.formula1 for dv in ws.data_validations.dataValidation}
+        self.assertEqual(lists[ref], '"Осмотр не требуется,Требуется осмотр,'
+                                     'Требуется осмотр, возможен осмотр по фотографиям"')
 
     def test_generic_template_shows_conditions_and_keeps_blocks_open(self):
         wb, ws = self._load(build_v2())
         self.assertEqual(ws['A1'].value, 'Ответ страховой компании на запрос котировки')
         self.assertTrue(ws['A12'].value.startswith('Общий шаблон.'))
-        for section in SECTIONS:
+        for section in (RNPK, TRANSPORT):
             _row, pill = self._block_pill(ws, section.title)
             self.assertEqual(pill, section.condition_text)
+        self.assertEqual(self._block_pill(ws, INSPECTION.title)[1], 'ЗАПОЛНИТЕ — обязательно во всех ответах')
         for name in ('resp_rnpk_status', 'resp_transport_cost'):
             self.assertFalse(ws[_name_ref(wb, name)[1]].protection.locked, name)
 

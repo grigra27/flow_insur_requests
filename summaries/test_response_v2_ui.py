@@ -40,7 +40,7 @@ class ResponseV2Base(TestCase):
             )
         InsurerResponse.objects.create(
             summary=cls.summary, company_name='Согаз', template_version=InsurerResponse.TEMPLATE_V2,
-            rnpk_status='included', rnpk_comment='по правилам СК', transport_cost=Decimal('5330'),
+            inspection_status='photo', rnpk_status='included', transport_cost=Decimal('5330'),
         )
 
 
@@ -60,7 +60,9 @@ class ResponseV2UiTests(ResponseV2Base):
     def test_block_lines_for_superuser_with_missing_marked(self):
         content = self._detail(self.superuser).content.decode()
         self.assertIn('class="og-v2-lines"', content)
-        self.assertIn('Будут прописаны в полисе · по правилам СК', content)
+        self.assertIn('Требуется осмотр, возможен осмотр по фотографиям', content)
+        self.assertIn('Будут прописаны в полисе', content)
+        self.assertNotIn('Будут прописаны в полисе ·', content)  # у РНПК нет комментария
         self.assertIn('5 330 ₽', content)
         self.assertIn('og-v2-line og-v2-line--missing', content)  # у ВСК ответа V2 нет
         self.assertNotIn('class="og-v2-lines"', self._detail(self.staff).content.decode())
@@ -97,11 +99,11 @@ class InsurerResponseManualEditTests(ResponseV2Base):
         return self.client.post(reverse('summaries:set_insurer_response', args=[self.summary.pk]), data)
 
     def test_superuser_creates_response_for_company_without_one(self):
-        response = self._post(self.superuser, company='ВСК', rnpk_status='not_included', rnpk_comment='СБ',
+        response = self._post(self.superuser, company='ВСК', inspection_status='not_required', rnpk_status='not_included',
                               transport_cost='5 330 руб.', transport_terms='на время перевозки')
         self.assertEqual(response.json(), {'success': True})
         saved = InsurerResponse.objects.get(summary=self.summary, company_name='ВСК')
-        self.assertEqual((saved.rnpk_status, saved.rnpk_comment), ('not_included', 'СБ'))
+        self.assertEqual((saved.rnpk_status, saved.inspection_status), ('not_included', 'not_required'))
         self.assertEqual(saved.transport_cost, Decimal('5330.00'))
         self.assertEqual(saved.template_version, InsurerResponse.TEMPLATE_V1)
         self.assertEqual(saved.created_by, self.superuser)
@@ -111,7 +113,7 @@ class InsurerResponseManualEditTests(ResponseV2Base):
         saved = InsurerResponse.objects.get(summary=self.summary, company_name='Согаз')
         self.assertEqual(saved.rnpk_status, 'not_included')
         self.assertIsNone(saved.transport_cost)
-        self.assertEqual(saved.rnpk_comment, '')
+        self.assertEqual(saved.inspection_status, 'photo')  # поля, которых нет в форме, не трогаются
         self.assertEqual(saved.template_version, InsurerResponse.TEMPLATE_V2)
 
     def test_invalid_values_rejected_with_message(self):
@@ -167,16 +169,18 @@ class ManualOfferWithV2BlocksTests(ResponseV2Base):
         return InsuranceOffer.objects.filter(summary=self.summary, company_name=company)
 
     def test_superuser_adds_offer_with_blocks(self):
-        self._post(self.superuser, rnpk_status='included', rnpk_comment='по правилам', transport_cost='5 330')
+        self._post(self.superuser, inspection_status='Требуется осмотр', rnpk_status='included', transport_cost='5 330')
         self.assertEqual(self._offers().count(), 2)
         response = InsurerResponse.objects.get(summary=self.summary, company_name='Пари')
         self.assertEqual((response.rnpk_status, response.transport_cost), ('included', Decimal('5330.00')))
         self.assertEqual(response.template_version, InsurerResponse.TEMPLATE_V1)
 
     def test_superuser_missing_required_block_rejected(self):
-        page = self._post(self.superuser, transport_cost='5330')
+        page = self._post(self.superuser, inspection_status='required', transport_cost='5330')
         self.assertFalse(self._offers().exists())
         self.assertContains(page, 'Не заполнен блок «Риски РНПК»')
+        page = self._post(self.superuser, rnpk_status='included', transport_cost='5330')
+        self.assertContains(page, 'Не заполнен блок «Осмотр»')
         self.assertContains(page, 'name="transport_cost" id="v2_transport_cost" value="5330"')  # введённое не теряется
 
     def test_staff_has_no_v2_section_and_saves_without_blocks(self):

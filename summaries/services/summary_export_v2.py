@@ -41,7 +41,7 @@ from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.pagebreak import Break
 
 from ..models import InsuranceSummary, InsurerResponse
-from ..response_sections import RNPK, TRANSPORT
+from ..response_sections import SECTIONS, required_sections
 from .excel_services import ExcelExportService, ExcelExportServiceError
 
 logger = logging.getLogger(__name__)
@@ -104,13 +104,13 @@ class SummaryExportV2Service(ExcelExportService):
 
     WIDTHS = {'company': 22.5, 'year': 9, 'sum': 17, 'rate': 10, 'premium': 14.5, 'franchise': 13.5,
               'payments': 11, 'total': 15.5, 'territory': 36, 'notes': 72,
-              'inspection': 13, 'rnpk': 20, 'transport': 14}
+              'inspection': 18, 'rnpk': 18, 'transport': 14}
     NOTES_MIN_WIDTH = 40
 
-    # Колонки второй страницы между территорией и комментариями (этап 5 плана ответа V2):
-    # «Осмотр» — всегда; «Риски РНПК» и «Перевозка» — если блок нужен по заявке (реестр блоков)
-    EXTRA_TITLES = {'inspection': 'Осмотр', 'rnpk': RNPK.summary_column, 'transport': TRANSPORT.summary_column}
-    INSPECTION_REQUIRED = 'Обязателен'
+    # Колонки второй страницы между территорией и комментариями (этап 5 плана ответа V2) — блоки реестра,
+    # нужные по заявке: «Осмотр» (всегда), «Риски РНПК», «Перевозка». Значения — только из ответа
+    # страховщика («Ответ СК»); правило «б/у → осмотр» в своде V2 не используется (решение 2026-10-07)
+    EXTRA_TITLES = {section.key: section.summary_column for section in SECTIONS}
     NO_DATA = 'нет данных'
 
     def __init__(self, palette: str = DEFAULT_PALETTE):
@@ -167,7 +167,7 @@ class SummaryExportV2Service(ExcelExportService):
 
     @staticmethod
     def extra_columns(request) -> List[str]:
-        return ['inspection'] + [section.key for section in (RNPK, TRANSPORT) if section.is_required(request)]
+        return [section.key for section in required_sections(request)]
 
     def _fill(self, key: str):
         color = self.palette[key]
@@ -231,23 +231,25 @@ class SummaryExportV2Service(ExcelExportService):
         return round(max(self.NOTES_MIN_WIDTH, min(self.WIDTHS['notes'], notes_width)), 1)
 
     def _extra_values(self, summary, extras) -> Dict[str, Dict[str, object]]:
-        """Значения доп. колонок по компаниям: осмотр — по правилу б/у, РНПК и перевозка — из «Ответа СК»."""
-        inspection = self.INSPECTION_REQUIRED if not self._is_new_object(summary.request) else '—'
+        """Значения доп. колонок по компаниям — из «Ответа СК»: подпись значения из списка или сумма;
+        «нет данных», если страховщик не ответил (например, ответ в старом шаблоне)."""
         responses = {r.company_name: r for r in InsurerResponse.objects.filter(summary=summary)}
         values = {}
         for name in summary.offers.values_list('company_name', flat=True).distinct():
             response = responses.get(name)
-            row = {'inspection': inspection}
-            if 'rnpk' in extras:
-                if response and response.rnpk_status:
-                    text = response.get_rnpk_status_display()
-                    row['rnpk'] = f'{text}\n{response.rnpk_comment}' if response.rnpk_comment else text
+            row = {}
+            for section in SECTIONS:
+                if section.key not in extras:
+                    continue
+                main = section.fields[0]
+                value = getattr(response, main.name, None) if response else None
+                if value in (None, ''):
+                    row[section.key] = self.NO_DATA
+                elif main.kind == 'choice':
+                    row[section.key] = dict(main.choices).get(value, value)
                 else:
-                    row['rnpk'] = self.NO_DATA
-            if 'transport' in extras:
-                row['transport'] = (response.transport_cost if response and response.transport_cost is not None
-                                    else self.NO_DATA)
-                row['transport_terms'] = response.transport_terms if response else ''
+                    row[section.key] = value
+            row['transport_terms'] = response.transport_terms if response and 'transport' in extras else ''
             values[name] = row
         return values
 
@@ -426,21 +428,20 @@ class SummaryExportV2Service(ExcelExportService):
                 c = ws[f'{cols["territory"]}{start + i}']
                 c.value, c.font, c.alignment = text, _font(self.fs['data']), Alignment(vertical='top', wrap_text=True)
 
-        # «Обязателен осмотр…» в своде V2 — колонка «Осмотр», в комментарии не дублируется
+        # Системная фраза про осмотр в своде V2 не пишется — осмотр в колонке «Осмотр» (ответ страховщика)
         additional = self._combine_additional_notes(
             self._get_franchise_approval_note_for_company(offers, name),
             f"Условия перевозки: {extra['transport_terms']}" if extra.get('transport_terms') else None,
         )
         notes = self._consolidate_notes(offers, additional) or ''
-        for key in ('inspection', 'rnpk', 'transport'):
+        for key in self.EXTRA_TITLES:
             if key not in cols:
                 continue
             value = extra.get(key, self.NO_DATA)
             is_amount = isinstance(value, Decimal)
             self._merge_block(
                 ws, cols[key], start, end, value,
-                _font(self.fs['data'], bold=key == 'inspection' and value == self.INSPECTION_REQUIRED,
-                      color=MUTED if value in (self.NO_DATA, '—') else INK),
+                _font(self.fs['data'], color=MUTED if value == self.NO_DATA else INK),
                 Alignment(horizontal='right' if is_amount else 'center', vertical='center', wrap_text=True),
                 MONEY if is_amount else None,
             )
@@ -475,7 +476,8 @@ class SummaryExportV2Service(ExcelExportService):
         needed_lines = max(
             _text_lines(notes, int(self._width('notes'))),
             max((_text_lines(t, int(self._width('territory'))) for t in territories), default=0),
-            _text_lines(extra.get('rnpk', ''), int(self._width('rnpk'))) if 'rnpk' in cols else 0,
+            max((_text_lines(str(extra.get(key, '')), int(self._width(key)))
+                 for key in self.EXTRA_TITLES if key in cols), default=0),
         )
         per_row = max(MIN_ROW_HEIGHT, needed_lines * LINE_HEIGHT / len(offers) + 2)
         for r in range(start, end + 1):

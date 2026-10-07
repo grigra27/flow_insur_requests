@@ -22,14 +22,20 @@ from summaries.services.excel_services import ExcelResponseProcessor
 XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
 
-def _fill(workbook, company='Согаз', territory='Российская Федерация', blocks=None, years=1):
+def _fill(workbook, company='Согаз', territory='Российская Федерация', blocks=None, years=1,
+          inspection='Требуется осмотр'):
+    """Заполнить файл ответа как страховщик. Блок «Осмотр» нужен во всех ответах V2 — заполняется по
+    умолчанию (inspection=None — оставить пустым)."""
+    blocks = dict(blocks or {})
+    if inspection is not None and 'resp_inspection_status' in workbook.defined_names:
+        blocks.setdefault('resp_inspection_status', inspection)
     ws = workbook[SHEET_TITLE] if SHEET_TITLE in workbook.sheetnames else workbook.active
     ws['B2'], ws['B3'] = company, territory
     for offset in range(years):
         row = 6 + offset
         for col, value in zip('BDEF', (2_000_000 - offset * 100_000, 80_000, 0, 1)):
             ws[f'{col}{row}'] = value
-    for name, value in (blocks or {}).items():
+    for name, value in blocks.items():
         sheet, ref = next(iter(workbook.defined_names[name].destinations))
         workbook[sheet][ref.replace('$', '')] = value
     buffer = BytesIO()
@@ -66,7 +72,7 @@ class InsurerResponseUploadBase(TestCase):
         )
         cls.casco_summary = InsuranceSummary.objects.create(request=cls.casco_request, status='collecting')
 
-    def _v2(self, summary, blocks=None, generic=False, **kwargs):
+    def _v2(self, summary, blocks=None, generic=False, **kwargs):  # kwargs → _fill (в т. ч. inspection)
         data = build_v2(None if generic else summary.request, None if generic else summary.pk)
         return _fill(load_workbook(BytesIO(data)), blocks=blocks, **kwargs)
 
@@ -80,7 +86,8 @@ class InsurerResponseUploadBase(TestCase):
 class StrictContourTests(InsurerResponseUploadBase):
     """Контур V2 — суперпользователь."""
 
-    FULL_BLOCKS = {'resp_rnpk_status': 'Будут прописаны в полисе', 'resp_rnpk_comment': 'по правилам СК',
+    FULL_BLOCKS = {'resp_inspection_status': 'Требуется осмотр, возможен осмотр по фотографиям',
+                   'resp_rnpk_status': 'Будут прописаны в полисе',
                    'resp_transport_cost': 5330, 'resp_transport_terms': 'на время перевозки'}
 
     def test_filled_v2_file_saves_offers_and_response(self):
@@ -93,7 +100,7 @@ class StrictContourTests(InsurerResponseUploadBase):
         response = InsurerResponse.objects.get(summary=self.property_summary, company_name='Согаз')
         self.assertEqual(response.template_version, InsurerResponse.TEMPLATE_V2)
         self.assertEqual(response.rnpk_status, 'included')
-        self.assertEqual(response.rnpk_comment, 'по правилам СК')
+        self.assertEqual(response.inspection_status, 'photo')
         self.assertEqual(response.transport_cost, Decimal('5330.00'))
         self.assertEqual(response.transport_terms, 'на время перевозки')
         self.assertEqual(response.created_by, self.superuser)
@@ -140,20 +147,34 @@ class StrictContourTests(InsurerResponseUploadBase):
             self._process(self._v1(), self.property_summary, self.superuser)
         message = str(ctx.exception)
         self.assertIn('файл в старом шаблоне ответа', message)
-        self.assertIn('обязательны блоки «Риски РНПК», «Перевозка (транспортировка) предмета лизинга»', message)
+        self.assertIn('обязательны блоки «Осмотр предмета лизинга», «Риски РНПК», '
+                      '«Перевозка (транспортировка) предмета лизинга»', message)
 
-    def test_old_template_accepted_when_no_blocks_required(self):
-        result = self._process(self._v1(), self.casco_summary, self.superuser)
-        self.assertEqual(result['template_version'], 1)
-        response = InsurerResponse.objects.get(summary=self.casco_summary, company_name='Согаз')
-        self.assertEqual(response.template_version, InsurerResponse.TEMPLATE_V1)
-        self.assertEqual(response.rnpk_status, '')
+    def test_old_template_rejected_even_for_casco_inspection_always_required(self):
+        with self.assertRaises(MissingDataError) as ctx:
+            self._process(self._v1(), self.casco_summary, self.superuser)
+        self.assertIn('обязателен блок «Осмотр предмета лизинга»', str(ctx.exception))
+
+    def test_empty_inspection_rejected(self):
+        content = self._v2(self.casco_summary, inspection=None)
+        with self.assertRaises(MissingDataError) as ctx:
+            self._process(content, self.casco_summary, self.superuser)
+        self.assertIn('не заполнен блок «Осмотр предмета лизинга»', str(ctx.exception))
+
+    def test_inspection_values_and_aliases(self):
+        for text, code in (('Осмотр не требуется', 'not_required'), ('требуется', 'required'),
+                           ('по фото', 'photo')):
+            with self.subTest(text=text):
+                InsuranceOffer.objects.filter(summary=self.casco_summary).delete()
+                self._process(self._v2(self.casco_summary, inspection=text), self.casco_summary, self.superuser)
+                self.assertEqual(InsurerResponse.objects.get(summary=self.casco_summary).inspection_status, code)
 
     def test_generic_template_checked_against_request(self):
         # Общий шаблон: КАСКО — заполненный РНПК не сохраняется (блок по заявке не нужен)
         content = self._v2(self.casco_summary, {'resp_rnpk_status': 'Будут прописаны в полисе'}, generic=True)
         self._process(content, self.casco_summary, self.superuser)
-        self.assertEqual(InsurerResponse.objects.get(summary=self.casco_summary).rnpk_status, '')
+        saved = InsurerResponse.objects.get(summary=self.casco_summary)
+        self.assertEqual((saved.rnpk_status, saved.inspection_status), ('', 'required'))
         # Общий шаблон для имущества с перевозкой — пустые блоки отклоняются, как в персональном
         with self.assertRaises(MissingDataError):
             self._process(self._v2(self.property_summary, generic=True), self.property_summary, self.superuser)

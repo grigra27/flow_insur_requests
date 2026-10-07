@@ -53,13 +53,47 @@ class ResponseSection:
     fields: Tuple[SectionField, ...] = field(default_factory=tuple)
     summary_column: str = ''  # подпись колонки в своде V2
     short_title: str = ''  # короткое название для карточки свода (по умолчанию — title)
+    always: bool = False  # нужен в любом ответе (и в общем шаблоне — «обязательно», а не по условию)
 
     def is_required(self, request) -> bool:
+        if self.always:
+            return True
         return bool(request is not None and self.condition(request))
 
 
-# Ровно два варианта (решение владельца 2026-10-07): читается одной фразой с названием поля —
-# «Риски РНПК будут прописаны в полисе» / «Риски РНПК не будут прописаны в полисе»
+# Осмотр — во всех ответах (решение владельца 2026-10-07): отвечает страховщик, правило «б/у → осмотр»
+# в своде V2 не используется (в своде V1 системная фраза про осмотр остаётся как была)
+INSPECTION_NOT_REQUIRED, INSPECTION_REQUIRED, INSPECTION_PHOTO = 'not_required', 'required', 'photo'
+INSPECTION_CHOICES = (
+    (INSPECTION_NOT_REQUIRED, 'Осмотр не требуется'),
+    (INSPECTION_REQUIRED, 'Требуется осмотр'),
+    (INSPECTION_PHOTO, 'Требуется осмотр, возможен осмотр по фотографиям'),
+)
+
+INSPECTION = ResponseSection(
+    key='inspection',
+    title='Осмотр предмета лизинга',
+    condition=lambda request: True,
+    condition_text='Заполняется во всех ответах',
+    fields=(
+        SectionField('inspection_status', 'Осмотр', CHOICE, choices=INSPECTION_CHOICES, aliases=(
+            ('не требуется', INSPECTION_NOT_REQUIRED), ('без осмотра', INSPECTION_NOT_REQUIRED),
+            ('нет', INSPECTION_NOT_REQUIRED),
+            ('требуется', INSPECTION_REQUIRED), ('обязателен', INSPECTION_REQUIRED),
+            ('обязателен осмотр', INSPECTION_REQUIRED), ('да', INSPECTION_REQUIRED),
+            ('по фото', INSPECTION_PHOTO), ('по фотографиям', INSPECTION_PHOTO),
+            ('осмотр по фотографиям', INSPECTION_PHOTO), ('возможен осмотр по фотографиям', INSPECTION_PHOTO),
+            ('требуется осмотр (возможен по фото)', INSPECTION_PHOTO),
+        )),
+    ),
+    summary_column='Осмотр',
+    short_title='Осмотр',
+    always=True,
+)
+
+
+# Ровно два варианта и без комментария (решение владельца 2026-10-07): читается одной фразой с названием
+# поля — «Риски РНПК будут прописаны в полисе» / «Риски РНПК не будут прописаны в полисе»
 RNPK_INCLUDED, RNPK_NOT_INCLUDED = 'included', 'not_included'
 RNPK_CHOICES = (
     (RNPK_INCLUDED, 'Будут прописаны в полисе'),
@@ -82,7 +116,6 @@ RNPK = ResponseSection(
             ('включены в полис', RNPK_INCLUDED), ('включены', RNPK_INCLUDED), ('включено', RNPK_INCLUDED),
             ('не включены', RNPK_NOT_INCLUDED), ('не включено', RNPK_NOT_INCLUDED),
         )),
-        SectionField('rnpk_comment', 'Комментарий (необязательно)', TEXT, required=False),
     ),
     summary_column='Риски РНПК',
     short_title='Риски РНПК',
@@ -102,7 +135,8 @@ TRANSPORT = ResponseSection(
     short_title='Перевозка',
 )
 
-SECTIONS: Tuple[ResponseSection, ...] = (RNPK, TRANSPORT)
+# Порядок — порядок блоков в шаблоне, колонок в своде V2 и строк на карточке свода
+SECTIONS: Tuple[ResponseSection, ...] = (INSPECTION, RNPK, TRANSPORT)
 
 
 def required_sections(request) -> List[ResponseSection]:

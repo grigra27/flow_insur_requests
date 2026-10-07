@@ -105,9 +105,9 @@ INSTRUCTIONS = _BASE_INSTRUCTIONS + [
 def _instructions_v2(personal: bool) -> List[str]:
     return _BASE_INSTRUCTIONS + [
         "Обязательно укажите территорию и территориальные ограничения в поле «Территория страхования» — "
-        "без неё ответ не будет принят. Риски РНПК и перевозку — в отдельных блоках ниже; прочие условия "
-        "(осмотр, согласование СБ и т. п.) — в «Примечании».",
-        "Дополнительные блоки заполняйте, "
+        "без неё ответ не будет принят. Осмотр, риски РНПК и перевозку — в отдельных блоках ниже; прочие "
+        "условия (согласование СБ и т. п.) — в «Примечании».",
+        "Блок «Осмотр» заполняется во всех ответах. Остальные дополнительные блоки — "
         + ("только если блок отмечен «ЗАПОЛНИТЕ»; серые блоки к вашему запросу не относятся."
            if personal else "только если условие в заголовке блока относится к вашему запросу."),
         "Обязательные поля и блоки не оставляйте пустыми — иначе ответ не будет принят.",
@@ -362,7 +362,10 @@ REQUIRED, OFF, CONDITIONAL = 'required', 'off', 'conditional'
 
 
 def section_state(section, request) -> str:
-    """Персональный шаблон: блок обязателен или не нужен; общий (request=None): по условию."""
+    """Персональный шаблон: блок обязателен или не нужен; общий (request=None): по условию.
+    Блок, нужный в любом ответе (осмотр), обязателен в обоих."""
+    if section.always:
+        return REQUIRED
     if request is None:
         return CONDITIONAL
     return REQUIRED if section.is_required(request) else OFF
@@ -403,7 +406,8 @@ def _write_section(ws, row: int, section, state: str, request, names: dict, vali
     for col in "BCDEF":
         ws[f"{col}{row}"].fill = BLOCK_TITLE_FILL
     pill_text, pill_fill, pill_color = {
-        REQUIRED: ("ЗАПОЛНИТЕ — обязательно для этого запроса", REQUIRED_PILL_FILL, "3D2F00"),
+        REQUIRED: ("ЗАПОЛНИТЕ — обязательно во всех ответах" if section.always
+                   else "ЗАПОЛНИТЕ — обязательно для этого запроса", REQUIRED_PILL_FILL, "3D2F00"),
         OFF: ("НЕ ТРЕБУЕТСЯ для этого запроса — не заполняйте", OFF_FILL, "7F7F7F"),
         CONDITIONAL: (section.condition_text, CONDITION_PILL_FILL, BRAND_SLATE),
     }[state]
@@ -434,7 +438,9 @@ def _write_section(ws, row: int, section, state: str, request, names: dict, vali
         row += 1
 
     for fld in section.fields:
-        last_col = {CHOICE: "F", MONEY_FIELD: "E", TEXT: "J"}[fld.kind]
+        # Список без подсказки — на всю ширину: длинные значения («Требуется осмотр, возможен осмотр
+        # по фотографиям») не помещаются в D:F
+        last_col = {CHOICE: "F" if fld.hint else "J", MONEY_FIELD: "E", TEXT: "J"}[fld.kind]
         ws.merge_cells(f"A{row}:C{row}")
         put(ws, f"A{row}", fld.label,
             fnt=font(10, bold=active and fld.required, color="000000" if active else "9A9A9A"),

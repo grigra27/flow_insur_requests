@@ -111,7 +111,7 @@ class ResponseFormError(ValueError):
 def parse_form_values(summary: InsuranceSummary, data, strict: bool) -> Dict:
     """Значения блоков из формы (ручной ввод): только блоки, нужные по заявке; проверка по реестру
     так же, как при загрузке файла. strict — пустое обязательное поле тоже ошибка (контур V2 при
-    добавлении предложения); без strict пустое значение очищает поле."""
+    добавлении предложения); без strict пустое значение очищает поле, а отсутствующее не меняется."""
     from decimal import Decimal, InvalidOperation
 
     from ..response_sections import CHOICE, MONEY, required_sections
@@ -120,6 +120,8 @@ def parse_form_values(summary: InsuranceSummary, data, strict: bool) -> Dict:
     values = {}
     for section in required_sections(summary.request):
         for fld in section.fields:
+            if not strict and fld.name not in data:
+                continue  # правка на карточке: поля, которых нет в запросе, не трогаем
             raw = (data.get(fld.name) or '').strip()
             if not any(char.isalnum() for char in raw):
                 if strict and fld.required:

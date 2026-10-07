@@ -260,7 +260,7 @@ class SummaryExportV2ResponseColumnsTests(SummaryExportV2Base):
         cls._offer('Альфа', 1, 3_000_000, 95_000, None, territory='РФ', summary=cls.property_summary)
         InsurerResponse.objects.create(
             summary=cls.property_summary, company_name='Согаз', rnpk_status='included',
-            rnpk_comment='по правилам СК', transport_cost=Decimal('5330'), transport_terms='на время перевозки',
+            inspection_status='photo', transport_cost=Decimal('5330'), transport_terms='на время перевозки',
         )
 
     def _sheet(self):
@@ -279,21 +279,22 @@ class SummaryExportV2ResponseColumnsTests(SummaryExportV2Base):
         ws = self._sheet()
         rows = {ws[f'A{r}'].value: r for r in range(10, ws.max_row + 1) if ws[f'A{r}'].value}
         sogaz, alfa = rows['Согаз'], rows['Альфа']
-        self.assertEqual(ws[f'K{sogaz}'].value, 'Будут прописаны в полисе\nпо правилам СК')
+        self.assertEqual(ws[f'K{sogaz}'].value, 'Будут прописаны в полисе')
         self.assertEqual(ws[f'L{sogaz}'].value, Decimal('5330.00'))
         self.assertEqual(ws[f'L{sogaz}'].number_format, '#,##0')
         self.assertIn('Условия перевозки: на время перевозки', ws[f'M{sogaz}'].value)
         self.assertEqual((ws[f'K{alfa}'].value, ws[f'L{alfa}'].value), ('нет данных', 'нет данных'))
 
-    def test_inspection_column_replaces_system_note(self):
+    def test_inspection_column_is_insurer_answer_not_used_object_rule(self):
         ws = self._sheet()
-        for r in range(10, ws.max_row + 1):
-            if ws[f'A{r}'].value in ('Согаз', 'Альфа'):
-                self.assertEqual(ws[f'J{r}'].value, 'Обязателен')
-                self.assertNotIn('осмотр', (ws[f'M{r}'].value or '').lower())
-        # новый объект (КАСКО из базового набора, condition=new) — прочерк
+        rows = {ws[f'A{r}'].value: r for r in range(10, ws.max_row + 1) if ws[f'A{r}'].value}
+        # объект б/у, но колонка — только ответ страховщика; системной фразы про осмотр нет
+        self.assertEqual(ws[f'J{rows["Согаз"]}'].value, 'Требуется осмотр, возможен осмотр по фотографиям')
+        self.assertEqual(ws[f'J{rows["Альфа"]}'].value, 'нет данных')
+        for r in rows.values():
+            self.assertNotIn('обязателен осмотр', (ws[f'M{r}'].value or '').lower())
         casco = self._workbook()['Свод']
-        self.assertEqual(casco['O10'].value, '—')
+        self.assertEqual(casco['O10'].value, 'нет данных')
 
     def test_page_two_not_wider_than_numbers_page(self):
         ws = self._sheet()

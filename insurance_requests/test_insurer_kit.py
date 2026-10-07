@@ -51,7 +51,7 @@ class InsurerKitTests(TestCase):
         self.assertFalse(kit['is_batch'])
         self.assertEqual([f['title'] for f in kit['files']],
                          ['Заявка — ОБ-20702-ЛО-КР.pdf', 'Ответ страховщика — ОБ-20702-ЛО-КР.xlsx'])
-        self.assertEqual(kit['files'][1]['subtitle'], 'шаблон ответа · блоки: Риски РНПК, Перевозка')
+        self.assertEqual(kit['files'][1]['subtitle'], 'шаблон ответа · блоки: Осмотр, Риски РНПК, Перевозка')
         self.assertContains(response, 'Скачать оба файла')
         self.assertContains(response, 'Скачать заявку (PDF)')  # текущая версия на месте
 
