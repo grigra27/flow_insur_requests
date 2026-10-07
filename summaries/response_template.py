@@ -495,6 +495,8 @@ def build_v2(request=None, summary_id: Optional[int] = None) -> bytes:
     meta = wb.create_sheet(META_SHEET)
     meta["A1"], meta["B1"] = "template_version", TEMPLATE_VERSION_V2
     meta["A2"], meta["B2"] = "summary_id", summary_id
+    # Номер заявки: шаблон скачивается со страницы заявки ещё до создания свода
+    meta["A3"], meta["B3"] = "request_id", getattr(request, 'pk', None) if request is not None else None
     meta.sheet_state = "veryHidden"
     wb.active = 0
     return _save(wb)

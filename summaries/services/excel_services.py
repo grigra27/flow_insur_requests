@@ -2970,6 +2970,10 @@ class ExcelResponseProcessor:
         'Шаблон ответа был сформирован для свода #{expected}, а загружен в свод #{actual} — '
         'проверьте, что это ответ на нужный запрос.'
     )
+    REQUEST_MISMATCH_WARNING = (
+        'Шаблон ответа был сформирован для другой заявки (#{expected}), а загружен в свод по заявке '
+        '{actual} — проверьте, что это ответ на нужный запрос.'
+    )
 
     # Текст-заглушка в B2 из шаблонов разных лет (сравнение без учёта регистра)
     COMPANY_PLACEHOLDERS = {'название ск', 'выберите компанию', 'выберите компанию из списка'}
@@ -3458,9 +3462,17 @@ class ExcelResponseProcessor:
                 ))
             return result
 
+        # Шаблон со страницы заявки сверяется по заявке, ранние шаблоны со свода — по своду
+        expected_request = meta['B3'].value if meta['A3'].value == 'request_id' else None
         expected_summary = meta['B2'].value
-        if expected_summary not in (None, '') and str(expected_summary) != str(summary.pk):
+        warning = None
+        if expected_request not in (None, ''):
+            if str(expected_request) != str(summary.request_id):
+                warning = self.REQUEST_MISMATCH_WARNING.format(
+                    expected=expected_request, actual=summary.request.dfa_number or f'#{summary.request_id}')
+        elif expected_summary not in (None, '') and str(expected_summary) != str(summary.pk):
             warning = self.SUMMARY_MISMATCH_WARNING.format(expected=expected_summary, actual=summary.pk)
+        if warning:
             self.logger.warning(f"Ответ СК '{company_name}': {warning}")
             result['warnings'].append(warning)
 

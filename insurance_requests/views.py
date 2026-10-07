@@ -41,6 +41,8 @@ from .exporters import (
 from .application_export import (
     build_application_filename,
     render_application_pdf,
+    attachment_disposition,
+    kit_filename,
 )
 from .security import (
     clear_login_failures,
@@ -1291,12 +1293,70 @@ def request_detail(request, pk):
 
     return render(request, 'insurance_requests/request_detail.html', {
         'request': insurance_request,
+        'insurer_kit': _insurer_kit(request.user, insurance_request, batch_siblings),
         'status_form': status_form,
         'batch_siblings': batch_siblings,
         'batch_prev': batch_prev,
         'batch_next': batch_next,
         'batch_total': batch_total,
     })
+
+
+def _insurer_kit(user, insurance_request, batch_siblings):
+    """Комплект для страховщика (шаблон ответа V2, docs/improvement_plans/insurer_response_v2.md):
+    заявка PDF + шаблон ответа; для партии — PDF на всю партию + шаблон на каждый объект.
+    Пока — только в контуре V2 (суперпользователь), сотрудники видят прежнюю кнопку PDF."""
+    from django.urls import reverse
+    from summaries.response_sections import required_sections
+    from summaries.services.insurer_response import v2_contour
+
+    if not v2_contour(user):
+        return None
+
+    def blocks_label(req):
+        titles = [section.short_title or section.title for section in required_sections(req)]
+        return 'блоки: ' + ', '.join(titles) if titles else 'без дополнительных блоков'
+
+    if batch_siblings:
+        objects = sorted([insurance_request, *batch_siblings], key=lambda r: r.item_no or 0)
+        files = [{
+            'kind': 'pdf', 'title': kit_filename(insurance_request, 'batch_application'),
+            'subtitle': f'общие данные и таблица всех {len(objects)} объектов',
+            'url': reverse('insurance_requests:export_batch_application', args=[insurance_request.pk]) + '?kit=1',
+        }]
+        files += [{
+            'kind': 'xlsx', 'title': kit_filename(obj, 'response'),
+            'subtitle': f'шаблон ответа · {blocks_label(obj)}',
+            'url': reverse('insurance_requests:download_response_template', args=[obj.pk]),
+            'current': obj.pk == insurance_request.pk,
+        } for obj in objects]
+        return {'is_batch': True, 'files': files}
+
+    return {'is_batch': False, 'files': [
+        {'kind': 'pdf', 'title': kit_filename(insurance_request, 'application'),
+         'subtitle': 'A4 · 1 страница',
+         'url': reverse('insurance_requests:export_request_application', args=[insurance_request.pk]) + '?kit=1'},
+        {'kind': 'xlsx', 'title': kit_filename(insurance_request, 'response'),
+         'subtitle': f'шаблон ответа · {blocks_label(insurance_request)}',
+         'url': reverse('insurance_requests:download_response_template', args=[insurance_request.pk])},
+    ]}
+
+
+@superuser_required
+def download_response_template(request, pk):
+    """Шаблон ответа страховщика V2 для заявки (комплект для страховщика) — пока суперпользователь."""
+    from summaries.models import InsuranceSummary
+    from summaries.response_template import build_v2
+
+    insurance_request = get_object_or_404(InsuranceRequest, pk=pk)
+    summary_id = InsuranceSummary.objects.filter(request=insurance_request).values_list('pk', flat=True).first()
+    response = HttpResponse(
+        build_v2(insurance_request, summary_id),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
+    response['Content-Disposition'] = attachment_disposition(kit_filename(insurance_request, 'response'))
+    logger.info("Response template V2 for request %s downloaded by %s", pk, request.user.username)
+    return response
 
 
 def _batch_total_display(batch_requests):
@@ -1330,6 +1390,8 @@ def export_batch_application(request, pk):
     try:
         pdf_bytes = render_application_pdf(insurance_request, batch=True)
         filename = build_application_filename(insurance_request, batch=True)
+        if request.GET.get('kit'):  # комплект для страховщика — понятное имя
+            filename = kit_filename(insurance_request, 'batch_application')
     except Exception as exc:
         logger.error(
             "Batch application PDF export failed for request %s by user %s: %s",
@@ -1339,7 +1401,7 @@ def export_batch_application(request, pk):
         return redirect('insurance_requests:request_detail', pk=pk)
 
     response = HttpResponse(pdf_bytes, content_type='application/pdf')
-    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    response['Content-Disposition'] = attachment_disposition(filename)
     logger.info("Batch application PDF generated for request %s by user %s: %s", pk, request.user.username, filename)
     return response
 
@@ -1443,6 +1505,8 @@ def export_request_application(request, pk):
     try:
         pdf_bytes = render_application_pdf(insurance_request)
         filename = build_application_filename(insurance_request)
+        if request.GET.get('kit'):  # комплект для страховщика — понятное имя
+            filename = kit_filename(insurance_request, 'application')
     except Exception as exc:
         logger.error(
             "Request application PDF export failed for request %s by user %s: %s",
@@ -1455,7 +1519,7 @@ def export_request_application(request, pk):
         return redirect('insurance_requests:request_detail', pk=pk)
 
     response = HttpResponse(pdf_bytes, content_type='application/pdf')
-    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    response['Content-Disposition'] = attachment_disposition(filename)
 
     logger.info(
         "Request application PDF export generated for request %s by user %s: %s",

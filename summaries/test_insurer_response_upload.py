@@ -156,11 +156,24 @@ class StrictContourTests(InsurerResponseUploadBase):
         with self.assertRaises(MissingDataError):
             self._process(self._v2(self.property_summary, generic=True), self.property_summary, self.superuser)
 
-    def test_template_for_other_summary_gives_warning(self):
-        content = _fill(load_workbook(BytesIO(build_v2(self.casco_request, 999))))
+    def test_template_for_other_request_gives_warning(self):
+        # шаблон скачан со страницы другой заявки (имущество), загружен в свод КАСКО
+        content = _fill(load_workbook(BytesIO(build_v2(self.property_request))))
         result = self._process(content, self.casco_summary, self.superuser)
         self.assertEqual(len(result['response_warnings']), 1)
+        self.assertIn(f'для другой заявки (#{self.property_request.pk})', result['response_warnings'][0])
+        self.assertIn('ТС-20848-ЛА-КЗ', result['response_warnings'][0])
+
+    def test_early_summary_template_checked_by_summary(self):
+        # шаблон, скачанный со свода до появления номера заявки в _meta
+        wb = load_workbook(BytesIO(build_v2(self.casco_request, 999)))
+        wb['_meta']['A3'] = wb['_meta']['B3'] = None
+        result = self._process(_fill(wb), self.casco_summary, self.superuser)
         self.assertIn('сформирован для свода #999', result['response_warnings'][0])
+
+    def test_own_request_template_has_no_warning(self):
+        content = _fill(load_workbook(BytesIO(build_v2(self.casco_request))))
+        self.assertEqual(self._process(content, self.casco_summary, self.superuser)['response_warnings'], [])
 
     @override_settings(RESPONSE_TEMPLATE_V2_FOR_ALL=True)
     def test_flag_turns_strict_checks_on_for_staff(self):

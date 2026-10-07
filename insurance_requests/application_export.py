@@ -390,6 +390,30 @@ def build_batch_application_context(insurance_request) -> dict:
     return context
 
 
+def kit_filename(insurance_request, kind: str) -> str:
+    """Понятные имена файлов комплекта для страховщика (шаблон ответа V2): одинаковые по ДФА.
+
+    kind: 'application' — заявка PDF, 'batch_application' — PDF на партию, 'response' — шаблон ответа.
+    """
+    dfa = (insurance_request.dfa_number or f'заявка {insurance_request.pk}').replace('/', '-').replace('\\', '-')
+    if kind == 'application':
+        return f'Заявка — {dfa}.pdf'
+    if kind == 'batch_application':
+        return f'Заявка на партию — {dfa}.pdf'
+    suffix = ''
+    if (insurance_request.item_count or 0) > 1:
+        suffix = f' (объект {insurance_request.item_no} из {insurance_request.item_count})'
+    return f'Ответ страховщика — {dfa}{suffix}.xlsx'
+
+
+def attachment_disposition(filename: str) -> str:
+    """Content-Disposition для имени с кириллицей: ASCII-запасное имя + filename* (RFC 5987)."""
+    from urllib.parse import quote
+
+    fallback = get_valid_filename(filename.encode('ascii', 'ignore').decode()) or 'file'
+    return f"attachment; filename=\"{fallback}\"; filename*=UTF-8''{quote(filename)}"
+
+
 def build_application_filename(insurance_request, batch: bool = False) -> str:
     base_name = insurance_request.dfa_number or f'request_{insurance_request.pk}'
     safe_name = get_valid_filename(base_name) or f'request_{insurance_request.pk}'

@@ -315,6 +315,28 @@
     </div>
 
     <div class="col-lg-4">
+        {% if insurer_kit %}
+        <!-- Комплект для страховщика (шаблон ответа V2): заявка PDF + шаблон ответа — пока суперпользователь.
+             Красная кнопка «Скачать заявку (PDF)» в шапке — текущая версия, не меняется. -->
+        <div class="card mb-4 rq-kit">
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-send"></i> Отправка страховщику<span class="rq-kit__tag">V2</span></h6></div>
+            <div class="card-body">
+                {% for file in insurer_kit.files %}
+                {% if forloop.first %}<div class="rq-kit__step">1 · {% if insurer_kit.is_batch %}Заявка на партию{% else %}Заявка{% endif %}</div>{% endif %}
+                {% if forloop.counter == 2 %}<div class="rq-kit__step">2 · {% if insurer_kit.is_batch %}Шаблоны ответа — по объектам{% else %}Шаблон ответа{% endif %}</div>{% endif %}
+                <a href="{{ file.url }}" class="rq-kit__file js-kit-file{% if file.current %} rq-kit__file--current{% endif %}" title="{{ file.title }}">
+                    <span class="rq-kit__ico rq-kit__ico--{{ file.kind }}"><i class="bi {% if file.kind == 'pdf' %}bi-file-earmark-pdf-fill{% else %}bi-file-earmark-excel-fill{% endif %}"></i></span>
+                    <span class="rq-kit__txt"><b>{{ file.title }}</b><small>{{ file.subtitle }}</small></span>
+                    <i class="bi bi-download rq-kit__dl"></i>
+                </a>
+                {% endfor %}
+                <button type="button" class="rq-kit__all" id="rq-kit-all">
+                    <i class="bi bi-download"></i> {% if insurer_kit.is_batch %}Скачать все файлы ({{ insurer_kit.files|length }}){% else %}Скачать оба файла{% endif %}
+                </button>
+                <div class="rq-kit__hint">Отправьте {% if insurer_kit.is_batch %}все файлы{% else %}оба файла{% endif %} страховщику одним письмом. Ответ страховщика в этом шаблоне загрузите в свод.</div>
+            </div>
+        </div>
+        {% endif %}
         <!-- Статус заявки -->
         <div class="card mb-4">
             <div class="card-header"><h6 class="mb-0"><i class="bi bi-gear"></i> Управление статусом</h6></div>
@@ -664,11 +686,47 @@ a.rq-tile__name:hover { color: #166534; }
     .rq-head__actions { flex-wrap: wrap; }
     .rq-batchnav__head { flex-direction: column; align-items: flex-start; }
 }
+/* Комплект для страховщика (V2) */
+.rq-kit .card-body { display: grid; gap: 0.55rem; grid-template-columns: minmax(0, 1fr); }
+.rq-kit__tag { font-size: 0.62rem; font-weight: 800; letter-spacing: 0.03em; padding: 0.05rem 0.35rem; border-radius: 5px; background: var(--rq-ink); color: #fff; vertical-align: middle; margin-left: 0.35rem; }
+.rq-kit__step { font-size: 0.7rem; font-weight: 700; color: var(--rq-muted-2); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: -0.2rem; }
+.rq-kit__file { display: flex; align-items: center; gap: 0.7rem; min-width: 0; padding: 0.6rem 0.75rem; border: 1px solid var(--rq-border); border-radius: 12px; background: #fff; color: var(--rq-ink); text-decoration: none; transition: border-color 0.15s ease, box-shadow 0.15s ease; }
+.rq-kit__file:hover, .rq-kit__file:focus-visible { border-color: #b9c6d3; color: var(--rq-ink); box-shadow: 0 6px 18px -10px rgba(15, 27, 45, 0.35); }
+.rq-kit__file--current { border-color: var(--rq-ink-2); }
+.rq-kit__ico { width: 2.3rem; height: 2.3rem; flex: none; display: grid; place-items: center; border-radius: 9px; font-size: 1.25rem; }
+.rq-kit__ico--pdf { background: #fde8eb; color: var(--rq-brand-red); }
+.rq-kit__ico--xlsx { background: #e3f4ea; color: #1f7a45; }
+.rq-kit__txt { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.2; }
+.rq-kit__txt b { font-size: 0.86rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rq-kit__txt small { font-size: 0.74rem; color: var(--rq-muted-2); }
+.rq-kit__dl { color: var(--rq-muted-2); }
+.rq-kit__all { display: flex; justify-content: center; align-items: center; gap: 0.45rem; margin-top: 0.25rem; padding: 0.55rem 0.95rem; border: 0; border-radius: 11px; background: var(--rq-ink); color: #fff; font-weight: 600; font-size: 0.88rem; }
+.rq-kit__all:hover { background: var(--rq-ink-2); }
+.rq-kit__hint { font-size: 0.78rem; color: var(--rq-muted); line-height: 1.35; }
 </style>
 {% endblock %}
 
 {% block extra_js %}
 <script>
+// Комплект для страховщика: «Скачать оба/все файла» — по одному файлу, с паузой
+// (браузер при первом разе спросит разрешение на скачивание нескольких файлов)
+document.addEventListener('DOMContentLoaded', function () {
+    const all = document.getElementById('rq-kit-all');
+    if (!all) { return; }
+    all.addEventListener('click', function () {
+        document.querySelectorAll('.js-kit-file').forEach(function (link, index) {
+            setTimeout(function () {
+                const a = document.createElement('a');
+                a.href = link.href;
+                a.download = '';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+            }, index * 700);
+        });
+    });
+});
+
     document.addEventListener('DOMContentLoaded', function () {
         initStatusChange();
         initLetterToggle();
