@@ -1,7 +1,7 @@
 """Комплект для страховщика на странице заявки (шаблон ответа V2): заявка PDF + шаблон ответа.
 
-docs/improvement_plans/insurer_response_v2.md. Пока только суперпользователь; у сотрудников —
-прежняя красная кнопка «Скачать заявку (PDF)».
+docs/improvement_plans/insurer_response_v2.md. Виден, когда открыт шаблон V2; иначе —
+прежняя красная кнопка «Скачать заявку (PDF)» в шапке.
 """
 import uuid
 from io import BytesIO
@@ -53,14 +53,16 @@ class InsurerKitTests(TestCase):
                          ['Заявка — ОБ-20702-ЛО-КР.pdf', 'Ответ страховщика — ОБ-20702-ЛО-КР.xlsx'])
         self.assertEqual(kit['files'][1]['subtitle'], 'шаблон ответа · блоки: Осмотр, Риски РНПК, Перевозка')
         self.assertContains(response, 'Скачать оба файла')
-        self.assertContains(response, 'Скачать заявку (PDF)')  # текущая версия на месте
+        self.assertContains(response, 'rq-kit__btn--pdf')
+        self.assertContains(response, 'rq-kit__btn--xlsx')
+        self.assertNotContains(response, 'class="rq-pdf-btn"')  # кнопка PDF в шапке — только без комплекта
 
     def test_staff_sees_only_current_pdf_button(self):
         for user in (self.admin, self.staff):
             response = self._detail(user, self.request_obj)
             self.assertIsNone(response.context['insurer_kit'])
             self.assertNotContains(response, 'Отправка страховщику')
-            self.assertContains(response, 'Скачать заявку (PDF)')
+            self.assertContains(response, 'class="rq-pdf-btn"')
 
     def test_batch_kit_has_batch_pdf_and_template_per_object(self):
         kit = self._detail(self.superuser, self.batch[1]).context['insurer_kit']
@@ -69,6 +71,8 @@ class InsurerKitTests(TestCase):
         self.assertEqual(titles[0], 'Заявка на партию — ТС-18022-2-3.pdf')
         self.assertEqual(titles[1:], [f'Ответ страховщика — ТС-18022-2-3 (объект {n} из 3).xlsx' for n in (1, 2, 3)])
         self.assertEqual([f.get('current', False) for f in kit['files'][1:]], [False, True, False])
+        self.assertEqual(kit['template'], kit['files'][2])
+        self.assertEqual([f['label'][:13] for f in kit['others']], ['Объект 1 из 3', 'Объект 3 из 3'])
         self.assertIn('?kit=1', kit['files'][0]['url'])
 
     def test_template_download_carries_request_and_summary(self):

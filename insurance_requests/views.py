@@ -1305,7 +1305,7 @@ def request_detail(request, pk):
 def _insurer_kit(user, insurance_request, batch_siblings):
     """Комплект для страховщика (шаблон ответа V2, docs/improvement_plans/insurer_response_v2.md):
     заявка PDF + шаблон ответа; для партии — PDF на всю партию + шаблон на каждый объект.
-    Пока — только в контуре V2 (суперпользователь), сотрудники видят прежнюю кнопку PDF."""
+    Виден, когда шаблон V2 открыт пользователю (v2_visible); иначе — прежняя красная кнопка PDF в шапке."""
     from django.urls import reverse
     from summaries.response_sections import required_sections
     from summaries.services.insurer_response import v2_visible
@@ -1329,17 +1329,28 @@ def _insurer_kit(user, insurance_request, batch_siblings):
             'subtitle': f'шаблон ответа · {blocks_label(obj)}',
             'url': reverse('insurance_requests:download_response_template', args=[obj.pk]),
             'current': obj.pk == insurance_request.pk,
+            'label': ' · '.join(filter(None, [f'Объект {obj.item_no} из {len(objects)}', obj.object_display_name])),
         } for obj in objects]
-        return {'is_batch': True, 'files': files}
+        return _kit_layout({'is_batch': True, 'files': files})
 
-    return {'is_batch': False, 'files': [
+    return _kit_layout({'is_batch': False, 'files': [
         {'kind': 'pdf', 'title': kit_filename(insurance_request, 'application'),
          'subtitle': 'A4 · 1 страница',
          'url': reverse('insurance_requests:export_request_application', args=[insurance_request.pk]) + '?kit=1'},
         {'kind': 'xlsx', 'title': kit_filename(insurance_request, 'response'),
          'subtitle': f'шаблон ответа · {blocks_label(insurance_request)}',
-         'url': reverse('insurance_requests:download_response_template', args=[insurance_request.pk])},
-    ]}
+         'url': reverse('insurance_requests:download_response_template', args=[insurance_request.pk]),
+         'current': True},
+    ]})
+
+
+def _kit_layout(kit):
+    """Для карточки: PDF и шаблон этой заявки — большими кнопками, шаблоны остальных объектов партии — списком."""
+    templates = kit['files'][1:]
+    kit['pdf'] = kit['files'][0]
+    kit['template'] = next(f for f in templates if f.get('current'))
+    kit['others'] = [f for f in templates if not f.get('current')]
+    return kit
 
 
 @user_required

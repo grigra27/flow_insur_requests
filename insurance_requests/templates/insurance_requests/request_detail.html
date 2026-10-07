@@ -7,7 +7,7 @@
 {% block content %}
 <div class="rq-page">
 
-<!-- Шапка в языке карточки свода; «Скачать заявку (PDF)» — главное действие страницы -->
+{# Шапка в языке карточки свода; «Скачать заявку (PDF)» здесь — только без комплекта для страховщика #}
 <div class="rq-head">
     <div class="rq-head__main">
         <div class="rq-head__title-row">
@@ -25,6 +25,7 @@
         <a href="{% url 'insurance_requests:edit_request' request.pk %}" class="btn btn-outline-primary">
             <i class="bi bi-pencil"></i> Редактировать
         </a>
+        {% if not insurer_kit %}
         <a href="{% url 'insurance_requests:export_request_application' request.pk %}" class="rq-pdf-btn">
             <i class="bi bi-file-earmark-pdf-fill"></i>
             <span>
@@ -32,6 +33,7 @@
                 <small>для страховой · A4 · 1 страница</small>
             </span>
         </a>
+        {% endif %}
     </div>
 </div>
 
@@ -316,24 +318,35 @@
 
     <div class="col-lg-4">
         {% if insurer_kit %}
-        <!-- Комплект для страховщика (шаблон ответа V2): заявка PDF + шаблон ответа — пока суперпользователь.
-             Красная кнопка «Скачать заявку (PDF)» в шапке — текущая версия, не меняется. -->
+        <!-- Комплект для страховщика: заявка PDF (красная) + шаблон ответа этой заявки (зелёная);
+             для партии — PDF на всю партию и шаблоны остальных объектов списком ниже -->
         <div class="card mb-4 rq-kit">
             <div class="card-header"><h6 class="mb-0"><i class="bi bi-send"></i> Отправка страховщику{% if user.is_superuser %}<span class="rq-kit__tag">V2</span>{% endif %}</h6></div>
             <div class="card-body">
-                {% for file in insurer_kit.files %}
-                {% if forloop.first %}<div class="rq-kit__step">1 · {% if insurer_kit.is_batch %}Заявка на партию{% else %}Заявка{% endif %}</div>{% endif %}
-                {% if forloop.counter == 2 %}<div class="rq-kit__step">2 · {% if insurer_kit.is_batch %}Шаблоны ответа — по объектам{% else %}Шаблон ответа{% endif %}</div>{% endif %}
-                <a href="{{ file.url }}" class="rq-kit__file js-kit-file{% if file.current %} rq-kit__file--current{% endif %}" title="{{ file.title }}">
-                    <span class="rq-kit__ico rq-kit__ico--{{ file.kind }}"><i class="bi {% if file.kind == 'pdf' %}bi-file-earmark-pdf-fill{% else %}bi-file-earmark-excel-fill{% endif %}"></i></span>
-                    <span class="rq-kit__txt"><b>{{ file.title }}</b><small>{{ file.subtitle }}</small></span>
+                <a href="{{ insurer_kit.pdf.url }}" class="rq-kit__btn rq-kit__btn--pdf js-kit-file" title="{{ insurer_kit.pdf.title }}">
+                    <i class="bi bi-file-earmark-pdf-fill"></i>
+                    <span><b>{% if insurer_kit.is_batch %}Заявка на партию (PDF){% else %}Заявка для страховщика (PDF){% endif %}</b><small>{{ insurer_kit.pdf.subtitle }}</small></span>
+                    <i class="bi bi-download rq-kit__dl"></i>
+                </a>
+                <a href="{{ insurer_kit.template.url }}" class="rq-kit__btn rq-kit__btn--xlsx js-kit-file" title="{{ insurer_kit.template.title }}">
+                    <i class="bi bi-file-earmark-excel-fill"></i>
+                    <span><b>Шаблон ответа (Excel)</b><small>{% if insurer_kit.is_batch %}только для объекта {{ request.item_no }} из {{ request.item_count }}{% else %}только для этой заявки{% endif %} · {{ insurer_kit.template.subtitle|cut:"шаблон ответа · " }}</small></span>
+                    <i class="bi bi-download rq-kit__dl"></i>
+                </a>
+                {% if insurer_kit.others %}
+                <div class="rq-kit__step">Шаблоны остальных объектов партии</div>
+                {% for file in insurer_kit.others %}
+                <a href="{{ file.url }}" class="rq-kit__file js-kit-file" title="{{ file.title }}">
+                    <i class="bi bi-file-earmark-excel-fill rq-kit__mini"></i>
+                    <span class="rq-kit__txt"><b>{{ file.label|default:file.title }}</b></span>
                     <i class="bi bi-download rq-kit__dl"></i>
                 </a>
                 {% endfor %}
+                {% endif %}
                 <button type="button" class="rq-kit__all" id="rq-kit-all">
                     <i class="bi bi-download"></i> {% if insurer_kit.is_batch %}Скачать все файлы ({{ insurer_kit.files|length }}){% else %}Скачать оба файла{% endif %}
                 </button>
-                <div class="rq-kit__hint">Отправьте {% if insurer_kit.is_batch %}все файлы{% else %}оба файла{% endif %} страховщику одним письмом. Ответ страховщика в этом шаблоне загрузите в свод.</div>
+                <div class="rq-kit__hint">Приложите {% if insurer_kit.is_batch %}заявку и шаблоны{% else %}оба файла{% endif %} к письму страховщику. Шаблон ответа — свой у каждой заявки: общий шаблон не отправляйте. Ответ страховщика загрузите в свод.</div>
             </div>
         </div>
         {% endif %}
@@ -690,18 +703,27 @@ a.rq-tile__name:hover { color: #166534; }
 .rq-kit .card-body { display: grid; gap: 0.55rem; grid-template-columns: minmax(0, 1fr); }
 .rq-kit__tag { font-size: 0.62rem; font-weight: 800; letter-spacing: 0.03em; padding: 0.05rem 0.35rem; border-radius: 5px; background: var(--rq-ink); color: #fff; vertical-align: middle; margin-left: 0.35rem; }
 .rq-kit__step { font-size: 0.7rem; font-weight: 700; color: var(--rq-muted-2); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: -0.2rem; }
-.rq-kit__file { display: flex; align-items: center; gap: 0.7rem; min-width: 0; padding: 0.6rem 0.75rem; border: 1px solid var(--rq-border); border-radius: 12px; background: #fff; color: var(--rq-ink); text-decoration: none; transition: border-color 0.15s ease, box-shadow 0.15s ease; }
-.rq-kit__file:hover, .rq-kit__file:focus-visible { border-color: #b9c6d3; color: var(--rq-ink); box-shadow: 0 6px 18px -10px rgba(15, 27, 45, 0.35); }
-.rq-kit__file--current { border-color: var(--rq-ink-2); }
-.rq-kit__ico { width: 2.3rem; height: 2.3rem; flex: none; display: grid; place-items: center; border-radius: 9px; font-size: 1.25rem; }
-.rq-kit__ico--pdf { background: #fde8eb; color: var(--rq-brand-red); }
-.rq-kit__ico--xlsx { background: #e3f4ea; color: #1f7a45; }
+.rq-kit__btn { display: flex; align-items: center; gap: 0.75rem; min-width: 0; padding: 0.85rem 1rem; border-radius: 14px; color: #fff; text-decoration: none; transition: background-color 0.15s ease, transform 0.15s ease; }
+.rq-kit__btn:hover, .rq-kit__btn:focus-visible { color: #fff; transform: translateY(-1px); }
+.rq-kit__btn > .bi:first-child { font-size: 1.9rem; line-height: 1; flex: none; }
+.rq-kit__btn span { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.2; }
+.rq-kit__btn b { font-size: 1rem; font-weight: 700; }
+.rq-kit__btn small { font-size: 0.74rem; }
+.rq-kit__btn .rq-kit__dl { color: rgba(255, 255, 255, 0.8); font-size: 1.1rem; }
+.rq-kit__btn--pdf { background: var(--rq-brand-red); box-shadow: 0 6px 16px -6px rgba(186, 18, 43, 0.55); }
+.rq-kit__btn--pdf:hover, .rq-kit__btn--pdf:focus-visible { background: #9e0f24; }
+.rq-kit__btn--pdf small { color: #f5c9d0; }
+.rq-kit__btn--xlsx { background: #1f7a45; box-shadow: 0 6px 16px -6px rgba(31, 122, 69, 0.55); }
+.rq-kit__btn--xlsx:hover, .rq-kit__btn--xlsx:focus-visible { background: #186338; }
+.rq-kit__btn--xlsx small { color: #c9ecd7; }
+.rq-kit__file { display: flex; align-items: center; gap: 0.55rem; min-width: 0; padding: 0.4rem 0.65rem; border: 1px solid var(--rq-border); border-radius: 10px; background: #fff; color: var(--rq-ink); text-decoration: none; }
+.rq-kit__file:hover, .rq-kit__file:focus-visible { border-color: #b9c6d3; color: var(--rq-ink); }
+.rq-kit__mini { color: #1f7a45; font-size: 1.05rem; }
 .rq-kit__txt { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.2; }
-.rq-kit__txt b { font-size: 0.86rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.rq-kit__txt small { font-size: 0.74rem; color: var(--rq-muted-2); }
+.rq-kit__txt b { font-size: 0.8rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rq-kit__dl { color: var(--rq-muted-2); }
-.rq-kit__all { display: flex; justify-content: center; align-items: center; gap: 0.45rem; margin-top: 0.25rem; padding: 0.55rem 0.95rem; border: 0; border-radius: 11px; background: var(--rq-ink); color: #fff; font-weight: 600; font-size: 0.88rem; }
-.rq-kit__all:hover { background: var(--rq-ink-2); }
+.rq-kit__all { justify-self: center; display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.1rem 0.2rem; border: 0; background: none; color: var(--rq-ink-2); font-weight: 600; font-size: 0.85rem; text-decoration: underline; text-underline-offset: 3px; }
+.rq-kit__all:hover { color: var(--rq-ink); }
 .rq-kit__hint { font-size: 0.78rem; color: var(--rq-muted); line-height: 1.35; }
 </style>
 {% endblock %}

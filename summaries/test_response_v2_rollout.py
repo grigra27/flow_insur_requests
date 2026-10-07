@@ -84,7 +84,9 @@ class ResponseTemplateV2RolloutTests(TestCase):
         page = self.client.get(reverse('insurance_requests:request_detail', args=[self.new_request.pk]))
         self.assertContains(page, 'Отправка страховщику')
         self.assertNotContains(page, '<span class="rq-kit__tag">')
-        self.assertContains(page, 'Скачать заявку (PDF)')
+        self.assertContains(page, 'Заявка для страховщика (PDF)')
+        self.assertContains(page, 'Шаблон ответа (Excel)')
+        self.assertNotContains(page, 'class="rq-pdf-btn"')
         download = self.client.get(reverse('insurance_requests:download_response_template',
                                            args=[self.new_request.pk]))
         self.assertEqual(download.status_code, 200)

@@ -283,7 +283,8 @@ class RequestApplicationPdfExportTest(TestCase):
             reverse('insurance_requests:request_detail', kwargs={'pk': self.request.pk})
         )
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Скачать заявку (PDF)')
+        # у суперпользователя PDF — красная кнопка комплекта «Отправка страховщику»
+        self.assertContains(response, 'Заявка для страховщика (PDF)')
         self.assertContains(
             response,
             reverse('insurance_requests:export_request_application', kwargs={'pk': self.request.pk}),
