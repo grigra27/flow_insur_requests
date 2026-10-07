@@ -372,33 +372,6 @@
                 </div>
                 <div class="sd-v2-test__stripe" aria-hidden="true"></div>
             </div>
-
-            <!-- Шаблон ответа страховщика V2 — ТЕСТ (docs/improvement_plans/insurer_response_v2.md).
-                 Рабочий шаблон для сотрудников — кнопка «Скачать актуальный шаблон ответа» в блоке «Ответы компаний». -->
-            <div class="card mb-4 sd-v2-test" role="note" aria-label="Тестовый шаблон ответа страховщика, не для отправки">
-                <div class="sd-v2-test__stripe" aria-hidden="true"></div>
-                <div class="sd-v2-test__head">
-                    <i class="bi bi-exclamation-triangle-fill"></i>
-                    <div>
-                        <b>ТЕСТ · Шаблон ответа V2</b>
-                        <small>блоки «Риски РНПК» и «Перевозка», в разработке</small>
-                    </div>
-                </div>
-                <div class="sd-v2-test__body">
-                    <div class="sd-v2-test__warn">
-                        Только для проверки. <b>Не отправлять</b> страховщикам вместо рабочего шаблона.
-                        Ответ в этом шаблоне можно загрузить в обычный блок «Ответы компаний».
-                    </div>
-                    <a class="sd-v2-test__btn" href="{% url 'summaries:download_response_template_v2' summary.pk %}">
-                        <i class="bi bi-cone-striped"></i>
-                        <span><b>Тест: шаблон V2 для этого свода</b><small>нужные блоки отмечены «ЗАПОЛНИТЕ»</small></span>
-                    </a>
-                    <a class="sd-v2-test__link" href="{% url 'summaries:download_response_template_v2_generic' %}">
-                        <i class="bi bi-download"></i> общий шаблон V2 (резерв)
-                    </a>
-                </div>
-                <div class="sd-v2-test__stripe" aria-hidden="true"></div>
-            </div>
             {% endif %}
             <!-- Сводная информация -->
             <div class="card mb-4">
@@ -1438,8 +1411,6 @@
 .sd-v2-test__btn span { display: flex; flex-direction: column; line-height: 1.15; }
 .sd-v2-test__btn b { font-size: 0.86rem; font-weight: 700; }
 .sd-v2-test__btn small { font-size: 0.72rem; opacity: 0.75; }
-.sd-v2-test__link { font-size: 0.8rem; color: #3d2f00; text-decoration: underline dashed; }
-.sd-v2-test__link:hover { color: #111; }
 .og-v2-lines { margin-top: 0.3rem; display: grid; gap: 0.15rem; }
 .og-v2-line { display: flex; align-items: baseline; gap: 0.4rem; font-size: 0.8rem; }
 .og-v2-line--missing { color: #b42318; }

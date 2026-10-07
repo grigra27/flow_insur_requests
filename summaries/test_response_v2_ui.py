@@ -50,12 +50,15 @@ class ResponseV2UiTests(ResponseV2Base):
         self.client.force_login(user)
         return self.client.get(reverse('summaries:summary_detail', args=[self.summary.pk]))
 
-    def test_test_card_visible_only_to_superuser(self):
-        self.assertContains(self._detail(self.superuser), 'ТЕСТ · Шаблон ответа V2')
+    def test_only_summary_v2_test_card_left(self):
+        # шаблон ответа — в комплекте на странице заявки; на своде у суперпользователя только тест свода V2
+        content = self._detail(self.superuser).content.decode()
+        self.assertIn('ТЕСТ · Свод V2', content)
+        self.assertNotIn('Шаблон ответа V2', content)
         for user in (self.admin, self.staff):
             response = self._detail(user)
             self.assertEqual(response.status_code, 200)
-            self.assertNotContains(response, 'Шаблон ответа V2')
+            self.assertNotContains(response, 'ТЕСТ · ')
 
     def test_block_lines_for_superuser_with_missing_marked(self):
         content = self._detail(self.superuser).content.decode()
