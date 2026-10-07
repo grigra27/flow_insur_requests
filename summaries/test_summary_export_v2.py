@@ -100,7 +100,8 @@ class SummaryExportV2ContentTests(SummaryExportV2Base):
         self.assertEqual([ws[f'{c}9'].value for c in 'DEFGH'],
                          ['Тариф', 'Премия', 'Франшиза', 'Платежей в год', 'ИТОГО за срок'])
         self.assertEqual(ws['N8'].value, 'Территория страхования')
-        self.assertEqual(ws['O8'].value, 'Комментарии')
+        self.assertEqual(ws['O8'].value, 'Осмотр')  # КАСКО: без РНПК и перевозки
+        self.assertEqual(ws['P8'].value, 'Комментарии')
 
     def test_territory_and_notes_follow_v1_rules_without_service_placeholder(self):
         ws = self._workbook()['Свод']
@@ -108,23 +109,23 @@ class SummaryExportV2ContentTests(SummaryExportV2Base):
         self.assertEqual(ws['N10'].value, '—')  # Альфа: ответ до сбора территории
         self.assertNotIn('ранее не собиралась', _all_text(ws))
         # системный комментарий о франшизе — как в своде V1
-        self.assertIn('Требуется согласование франшизы с ГО.', ws['O14'].value)
-        self.assertTrue(ws['O14'].value.startswith('территория страхования: РФ'))
+        self.assertIn('Требуется согласование франшизы с ГО.', ws['P14'].value)
+        self.assertTrue(ws['P14'].value.startswith('территория страхования: РФ'))
 
     def test_selection_fields_are_manual_yellow_with_lists_and_highlight(self):
         ws = self._workbook()['Свод']
-        self.assertEqual(ws['N2'].value, 'Выбрана СК:')
-        self.assertEqual(ws['N4'].value, 'Выбрано предложение:')
-        self.assertIsNone(ws['O2'].value)
-        self.assertIsNone(ws['O4'].value)
-        self.assertEqual(ws['O2'].fill.fgColor.rgb, '00FFF2B3')
+        self.assertEqual(ws['O2'].value, 'Выбрана СК:')  # колонка перед «Комментариями»
+        self.assertEqual(ws['O4'].value, 'Выбрано предложение:')
+        self.assertIsNone(ws['P2'].value)
+        self.assertIsNone(ws['P4'].value)
+        self.assertEqual(ws['P2'].fill.fgColor.rgb, '00FFF2B3')
         self.assertIsNone(ws['A7'].value)  # отдельной строки выбора нет
         lists = {str(dv.sqref): dv.formula1 for dv in ws.data_validations.dataValidation}
-        self.assertEqual(lists['O2'], '"Альфа,Зетта,ВСК"')
-        self.assertEqual(lists['O4'], '"Предложение 1,Предложение 2"')
+        self.assertEqual(lists['P2'], '"Альфа,Зетта,ВСК"')
+        self.assertEqual(lists['P4'], '"Предложение 1,Предложение 2"')
         rules = [rule.formula[0] for rng in ws.conditional_formatting for rule in rng.rules]
-        self.assertIn('$O$2="Альфа"', rules)
-        self.assertIn('AND($O$2="Альфа",$O$4="Предложение 2")', rules)
+        self.assertIn('$P$2="Альфа"', rules)
+        self.assertIn('AND($P$2="Альфа",$P$4="Предложение 2")', rules)
 
     def test_navy_style_banner_company_band_and_total_badges(self):
         ws = self._workbook()['Свод']
@@ -142,7 +143,7 @@ class SummaryExportV2ContentTests(SummaryExportV2Base):
         self.assertEqual(ws['A10'].alignment.vertical, 'center')
         self.assertEqual(ws['E10'].font.sz, 10)
         self.assertFalse(ws['E10'].border.left and ws['E10'].border.left.style)  # только горизонтальные линии
-        self.assertEqual(ws['O2'].fill.fgColor.rgb, '00FFF2B3')  # поля менеджера — жёлтые
+        self.assertEqual(ws['P2'].fill.fgColor.rgb, '00FFF2B3')  # поля менеджера — жёлтые
 
     def test_white_label(self):
         wb = self._workbook()
@@ -169,9 +170,10 @@ class SummaryExportV2ContentTests(SummaryExportV2Base):
         self._offer('Альфа', 1, 1_000_000, 50_000, None, summary=summary)
         ws = self._workbook(summary)['Свод']
         self.assertEqual(ws['I8'].value, 'Территория страхования')
-        self.assertEqual(ws['J8'].value, 'Комментарии')
+        self.assertEqual(ws['J8'].value, 'Осмотр')
+        self.assertEqual(ws['K8'].value, 'Комментарии')
         lists = {str(dv.sqref): dv.formula1 for dv in ws.data_validations.dataValidation}
-        self.assertEqual(lists['J4'], '"Предложение 1"')
+        self.assertEqual(lists['K4'], '"Предложение 1"')
 
 
 class SummaryExportV2PrintTests(SummaryExportV2Base):
@@ -239,3 +241,69 @@ class SummaryExportV2AccessTests(SummaryExportV2Base):
         response = self.client.get(detail)
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, 'Свод V2')
+
+
+class SummaryExportV2ResponseColumnsTests(SummaryExportV2Base):
+    """Этап 5 плана ответа V2: «Осмотр», «Риски РНПК», «Перевозка, ₽» на второй странице."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        from summaries.models import InsurerResponse
+        request = InsuranceRequest.objects.create(
+            client_name='ООО Склад', inn='2', dfa_number='ОБ-20702-ЛО-КР', vehicle_info='Компрессор',
+            insurance_type='страхование имущества', condition='used', has_transportation=True,
+            transportation_departure='Москва', transportation_destination='Армавир',
+        )
+        cls.property_summary = InsuranceSummary.objects.create(request=request, status='collecting')
+        cls._offer('Согаз', 1, 3_000_000, 90_000, None, territory='РФ', summary=cls.property_summary)
+        cls._offer('Альфа', 1, 3_000_000, 95_000, None, territory='РФ', summary=cls.property_summary)
+        InsurerResponse.objects.create(
+            summary=cls.property_summary, company_name='Согаз', rnpk_status='included',
+            rnpk_comment='по правилам СК', transport_cost=Decimal('5330'), transport_terms='на время перевозки',
+        )
+
+    def _sheet(self):
+        return self._workbook(self.property_summary)['Свод']
+
+    def test_columns_order_on_page_two(self):
+        ws = self._sheet()
+        # один вариант: цифры A..H, дальше территория, осмотр, РНПК, перевозка, комментарии
+        self.assertEqual([ws[f'{c}8'].value for c in 'IJKLM'],
+                         ['Территория страхования', 'Осмотр', 'Риски РНПК', 'Перевозка, ₽', 'Комментарии'])
+        self.assertEqual(ws['L2'].value, 'Выбрана СК:')
+        self.assertEqual(ws['M2'].fill.fgColor.rgb, '00FFF2B3')
+        self.assertEqual([b.id for b in ws.col_breaks.brk], [8])  # разрыв по-прежнему после «ИТОГО»
+
+    def test_values_from_insurer_response_and_missing(self):
+        ws = self._sheet()
+        rows = {ws[f'A{r}'].value: r for r in range(10, ws.max_row + 1) if ws[f'A{r}'].value}
+        sogaz, alfa = rows['Согаз'], rows['Альфа']
+        self.assertEqual(ws[f'K{sogaz}'].value, 'Включены в полис\nпо правилам СК')
+        self.assertEqual(ws[f'L{sogaz}'].value, Decimal('5330.00'))
+        self.assertEqual(ws[f'L{sogaz}'].number_format, '#,##0')
+        self.assertIn('Условия перевозки: на время перевозки', ws[f'M{sogaz}'].value)
+        self.assertEqual((ws[f'K{alfa}'].value, ws[f'L{alfa}'].value), ('нет данных', 'нет данных'))
+
+    def test_inspection_column_replaces_system_note(self):
+        ws = self._sheet()
+        for r in range(10, ws.max_row + 1):
+            if ws[f'A{r}'].value in ('Согаз', 'Альфа'):
+                self.assertEqual(ws[f'J{r}'].value, 'Обязателен')
+                self.assertNotIn('осмотр', (ws[f'M{r}'].value or '').lower())
+        # новый объект (КАСКО из базового набора, condition=new) — прочерк
+        casco = self._workbook()['Свод']
+        self.assertEqual(casco['O10'].value, '—')
+
+    def test_page_two_not_wider_than_numbers_page(self):
+        ws = self._sheet()
+        service = SummaryExportV2Service()
+        numbers = service._span_points(ws, 1, 8)
+        page_two = service._span_points(ws, 1, 1) + service._span_points(ws, 9, 13)
+        # имущество с РНПК и перевозкой, один вариант: уже нельзя — комментарии минимальной ширины
+        self.assertEqual(ws.column_dimensions['M'].width, SummaryExportV2Service.NOTES_MIN_WIDTH)
+        self.assertGreater(page_two, numbers)
+        # КАСКО, два варианта: вторая страница не шире цифр
+        casco = self._workbook()['Свод']
+        self.assertLessEqual(service._span_points(casco, 1, 1) + service._span_points(casco, 14, 16),
+                             service._span_points(casco, 1, 13) + 4)

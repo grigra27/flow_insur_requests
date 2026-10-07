@@ -40,7 +40,8 @@ from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.pagebreak import Break
 
-from ..models import InsuranceSummary
+from ..models import InsuranceSummary, InsurerResponse
+from ..response_sections import RNPK, TRANSPORT
 from .excel_services import ExcelExportService, ExcelExportServiceError
 
 logger = logging.getLogger(__name__)
@@ -102,10 +103,19 @@ class SummaryExportV2Service(ExcelExportService):
     LEGACY_TERRITORY_V2 = '—'
 
     WIDTHS = {'company': 22.5, 'year': 9, 'sum': 17, 'rate': 10, 'premium': 14.5, 'franchise': 13.5,
-              'payments': 11, 'total': 15.5, 'territory': 36, 'notes': 72}
+              'payments': 11, 'total': 15.5, 'territory': 36, 'notes': 72,
+              'inspection': 13, 'rnpk': 20, 'transport': 14}
+    NOTES_MIN_WIDTH = 40
+
+    # Колонки второй страницы между территорией и комментариями (этап 5 плана ответа V2):
+    # «Осмотр» — всегда; «Риски РНПК» и «Перевозка» — если блок нужен по заявке (реестр блоков)
+    EXTRA_TITLES = {'inspection': 'Осмотр', 'rnpk': RNPK.summary_column, 'transport': TRANSPORT.summary_column}
+    INSPECTION_REQUIRED = 'Обязателен'
+    NO_DATA = 'нет данных'
 
     def __init__(self, palette: str = DEFAULT_PALETTE):
         self.fs = FONT_SIZES
+        self._width_override = {}
         self.palette = PALETTES[palette]
         self.hair = Side(style='thin', color=self.palette['hair'])
         self.block_line = Side(style='medium', color=self.palette['block'])
@@ -142,31 +152,42 @@ class SummaryExportV2Service(ExcelExportService):
     # ── колонки ──────────────────────────────────────────────────────────────
 
     @staticmethod
-    def columns(has_variant_2: bool) -> Dict[str, str]:
+    def columns(has_variant_2: bool, extras=('inspection',)) -> Dict[str, str]:
         keys = ['company', 'year', 'sum']
         for v in ([1, 2] if has_variant_2 else [1]):
             keys += [f'rate_{v}', f'premium_{v}', f'franchise_{v}', f'payments_{v}', f'total_{v}']
         cols = {key: get_column_letter(i) for i, key in enumerate(keys, start=1)}
         cols['numbers_last'] = get_column_letter(len(keys))  # последняя колонка «ИТОГО»
-        cols['territory'] = get_column_letter(len(keys) + 1)
-        cols['notes'] = cols['last'] = get_column_letter(len(keys) + 2)
+        page_two = ['territory', *extras, 'notes']
+        for offset, key in enumerate(page_two, start=1):
+            cols[key] = get_column_letter(len(keys) + offset)
+        cols['last'] = cols['notes']
+        cols['label'] = get_column_letter(len(keys) + len(page_two) - 1)  # подписи полей выбора
         return cols
+
+    @staticmethod
+    def extra_columns(request) -> List[str]:
+        return ['inspection'] + [section.key for section in (RNPK, TRANSPORT) if section.is_required(request)]
 
     def _fill(self, key: str):
         color = self.palette[key]
         return PatternFill('solid', fgColor=color) if color else None
 
     def _width(self, key: str) -> float:
-        return self.WIDTHS[re.sub(r'_\d$', '', key)]
+        key = re.sub(r'_\d$', '', key)
+        return self._width_override.get(key, self.WIDTHS[key])
 
     # ── лист «Свод» ──────────────────────────────────────────────────────────
 
     def _build_summary_sheet(self, ws, summary: InsuranceSummary, has_variant_2: bool) -> None:
-        cols = self.columns(has_variant_2)
+        extras = self.extra_columns(summary.request)
+        cols = self.columns(has_variant_2, extras)
+        self._width_override = {'notes': self._fit_notes_width(cols, extras)}
         for key, letter in cols.items():
-            if key not in ('numbers_last', 'last'):
+            if key not in ('numbers_last', 'last', 'label'):
                 ws.column_dimensions[letter].width = self._width(key)
         ws.sheet_view.showGridLines = False
+        extra_values = self._extra_values(summary, extras)
 
         companies = self._sorted_companies(summary)
         declined = self._get_declined_companies(summary)
@@ -176,10 +197,9 @@ class SummaryExportV2Service(ExcelExportService):
 
         row = FIRST_DATA_ROW
         blocks: List[Tuple[int, int]] = []
-        asset_note = self._get_additional_note_for_asset_status(summary)
         for index, (name, offers) in enumerate(companies):
-            end = self._write_company_block(ws, row, name, offers, cols, has_variant_2, asset_note,
-                                            banded=index % 2 == 1)
+            end = self._write_company_block(ws, row, name, offers, cols, has_variant_2,
+                                            extra_values.get(name, {}), banded=index % 2 == 1)
             blocks.append((row, end))
             row = end + 1
         for name in declined:
@@ -198,6 +218,38 @@ class SummaryExportV2Service(ExcelExportService):
             return (total is None, total or Decimal('0'), name)
 
         return sorted(companies.items(), key=key)
+
+    def _fit_notes_width(self, cols, extras) -> float:
+        """Ширина «Комментариев», при которой вторая страница (СК + территория + доп. колонки +
+        комментарии) не шире первой (цифры): тогда она не уменьшает масштаб печати цифр ни в одной
+        ориентации. Если доп. колонок много, а цифры узкие (один вариант), — не уже NOTES_MIN_WIDTH."""
+        numbers_pt = sum(col_points(self._width(key)) for key in cols if key not in (
+            'numbers_last', 'territory', 'notes', 'last', 'label', *extras))
+        target_pt = numbers_pt
+        others_pt = sum(col_points(self.WIDTHS[key]) for key in ('company', 'territory', *extras))
+        notes_width = ((target_pt - others_pt) / 0.75 - 5) / 7
+        return round(max(self.NOTES_MIN_WIDTH, min(self.WIDTHS['notes'], notes_width)), 1)
+
+    def _extra_values(self, summary, extras) -> Dict[str, Dict[str, object]]:
+        """Значения доп. колонок по компаниям: осмотр — по правилу б/у, РНПК и перевозка — из «Ответа СК»."""
+        inspection = self.INSPECTION_REQUIRED if not self._is_new_object(summary.request) else '—'
+        responses = {r.company_name: r for r in InsurerResponse.objects.filter(summary=summary)}
+        values = {}
+        for name in summary.offers.values_list('company_name', flat=True).distinct():
+            response = responses.get(name)
+            row = {'inspection': inspection}
+            if 'rnpk' in extras:
+                if response and response.rnpk_status:
+                    text = response.get_rnpk_status_display()
+                    row['rnpk'] = f'{text}\n{response.rnpk_comment}' if response.rnpk_comment else text
+                else:
+                    row['rnpk'] = self.NO_DATA
+            if 'transport' in extras:
+                row['transport'] = (response.transport_cost if response and response.transport_cost is not None
+                                    else self.NO_DATA)
+                row['transport_terms'] = response.transport_terms if response else ''
+            values[name] = row
+        return values
 
     @staticmethod
     def selection_cells(cols) -> Tuple[str, str]:
@@ -231,7 +283,8 @@ class SummaryExportV2Service(ExcelExportService):
             ('Цели использования', request.usage_purposes or ''),
             ('Примечание', summary.notes or ''),
         ]
-        value_keys = [k for k in cols if k not in ('company', 'year', 'numbers_last', 'territory', 'notes', 'last')]
+        value_keys = [k for k in cols if k not in (
+            'company', 'year', 'numbers_last', 'territory', 'notes', 'last', 'label', *self.EXTRA_TITLES)]
         chars = int(sum(self._width(k) for k in value_keys) * 1.05)
         for offset, (label, value) in enumerate(rows):
             r = 2 + offset
@@ -245,11 +298,11 @@ class SummaryExportV2Service(ExcelExportService):
             ws[f'C{r}'].alignment = Alignment(vertical='top', wrap_text=True)
             ws.row_dimensions[r].height = max(16, _text_lines(ws[f'C{r}'].value, chars) * 14)
 
-        # Ручные поля выбора справа: подпись в колонке территории, жёлтое поле — в комментариях
+        # Ручные поля выбора справа: подпись — в колонке перед комментариями, жёлтое поле — в комментариях
         company_cell, variant_cell = self.selection_cells(cols)
         for coord, label in ((company_cell, 'Выбрана СК:'), (variant_cell, 'Выбрано предложение:')):
             row = ws[coord].row
-            label_cell = ws[f'{cols["territory"]}{row}']
+            label_cell = ws[f'{cols["label"]}{row}']
             label_cell.value = label
             label_cell.font = _font(10, bold=True)
             label_cell.alignment = Alignment(horizontal='right', vertical='center')
@@ -299,9 +352,10 @@ class SummaryExportV2Service(ExcelExportService):
             c = ws[f'{letter}{row}']
             c.fill, c.font, c.alignment, c.border = fill, font, center, self.cell_border
 
-        for key, title in (('company', 'Страховая компания'), ('year', 'Год'),
-                           ('sum', 'Страховая сумма'), ('territory', 'Территория страхования'),
-                           ('notes', 'Комментарии')):
+        fixed = [('company', 'Страховая компания'), ('year', 'Год'), ('sum', 'Страховая сумма'),
+                 ('territory', 'Территория страхования'), ('notes', 'Комментарии')]
+        fixed += [(key, title) for key, title in self.EXTRA_TITLES.items() if key in cols]
+        for key, title in fixed:
             letter = cols[key]
             ws.merge_cells(f'{letter}{top}:{letter}{sub}')
             style(letter, top, self._fill('header'), white)
@@ -321,7 +375,7 @@ class SummaryExportV2Service(ExcelExportService):
                       _font(self.fs['header'], bold=True, color=self.palette['title']))
                 ws[f'{letter}{sub}'].value = title
 
-    def _write_company_block(self, ws, start, name, offers, cols, has_variant_2, asset_note, banded) -> int:
+    def _write_company_block(self, ws, start, name, offers, cols, has_variant_2, extra, banded) -> int:
         """Блок СК: строки по годам; возвращает номер последней строки блока."""
         offers = sorted(offers, key=lambda o: o.insurance_year)
         end = start + len(offers) - 1
@@ -372,10 +426,24 @@ class SummaryExportV2Service(ExcelExportService):
                 c = ws[f'{cols["territory"]}{start + i}']
                 c.value, c.font, c.alignment = text, _font(self.fs['data']), Alignment(vertical='top', wrap_text=True)
 
+        # «Обязателен осмотр…» в своде V2 — колонка «Осмотр», в комментарии не дублируется
         additional = self._combine_additional_notes(
-            asset_note, self._get_franchise_approval_note_for_company(offers, name)
+            self._get_franchise_approval_note_for_company(offers, name),
+            f"Условия перевозки: {extra['transport_terms']}" if extra.get('transport_terms') else None,
         )
         notes = self._consolidate_notes(offers, additional) or ''
+        for key in ('inspection', 'rnpk', 'transport'):
+            if key not in cols:
+                continue
+            value = extra.get(key, self.NO_DATA)
+            is_amount = isinstance(value, Decimal)
+            self._merge_block(
+                ws, cols[key], start, end, value,
+                _font(self.fs['data'], bold=key == 'inspection' and value == self.INSPECTION_REQUIRED,
+                      color=MUTED if value in (self.NO_DATA, '—') else INK),
+                Alignment(horizontal='right' if is_amount else 'center', vertical='center', wrap_text=True),
+                MONEY if is_amount else None,
+            )
         self._merge_block(ws, cols['notes'], start, end, notes, _font(self.fs['data']),
                           Alignment(vertical='top', wrap_text=True))
 
@@ -407,6 +475,7 @@ class SummaryExportV2Service(ExcelExportService):
         needed_lines = max(
             _text_lines(notes, int(self._width('notes'))),
             max((_text_lines(t, int(self._width('territory'))) for t in territories), default=0),
+            _text_lines(extra.get('rnpk', ''), int(self._width('rnpk'))) if 'rnpk' in cols else 0,
         )
         per_row = max(MIN_ROW_HEIGHT, needed_lines * LINE_HEIGHT / len(offers) + 2)
         for r in range(start, end + 1):
