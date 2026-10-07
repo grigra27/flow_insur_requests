@@ -60,10 +60,11 @@ def sync_after_offer_removed(summary_id: int, company_name: str) -> None:
             logger.info("Ответ СК удалён вместе с последним предложением: свод #%s, %s", summary_id, company_name)
 
 
-def display_lines(summary: InsuranceSummary, company_names) -> Dict[str, list]:
-    """Строки дополнительных блоков для карточки свода: {компания: [{label, text, missing}]}.
+def display_lines(summary: InsuranceSummary, company_names) -> Dict[str, dict]:
+    """Блоки ответа V2 для карточки свода: {компания: {'lines': [...], 'fields': [...]}}.
 
-    Только блоки, нужные по заявке свода; если ответа СК или значения нет — «нет данных».
+    lines — строки для показа (если ответа СК или значения нет — «нет данных»); fields — поля формы
+    ручной правки с текущими значениями. Только блоки, нужные по заявке свода.
     """
     from ..response_sections import CHOICE, MONEY, required_sections
 
@@ -71,25 +72,88 @@ def display_lines(summary: InsuranceSummary, company_names) -> Dict[str, list]:
     if not sections:
         return {}
     responses = {r.company_name: r for r in InsurerResponse.objects.filter(summary=summary)}
-    lines = {}
+    result = {}
     for company in company_names:
         response = responses.get(company)
-        company_lines = []
+        lines, fields = [], []
         for section in sections:
             main, *extra = section.fields
+            label = section.short_title or section.title
             value = getattr(response, main.name, None) if response else None
             if value in (None, ''):
-                company_lines.append({'label': section.short_title or section.title, 'text': 'нет данных', 'missing': True})
-                continue
-            if main.kind == CHOICE:
-                text = dict(main.choices).get(value, value)
-            elif main.kind == MONEY:
-                text = f'{value:,.0f} ₽'.replace(',', ' ')
+                lines.append({'label': label, 'text': 'нет данных', 'missing': True})
             else:
-                text = str(value)
-            details = [getattr(response, f.name, '') for f in extra if getattr(response, f.name, '')]
-            if details:
-                text = f"{text} · {' · '.join(details)}"
-            company_lines.append({'label': section.short_title or section.title, 'text': text, 'missing': False})
-        lines[company] = company_lines
-    return lines
+                if main.kind == CHOICE:
+                    text = dict(main.choices).get(value, value)
+                elif main.kind == MONEY:
+                    text = f'{value:,.0f} ₽'.replace(',', ' ')
+                else:
+                    text = str(value)
+                details = [getattr(response, f.name, '') for f in extra if getattr(response, f.name, '')]
+                if details:
+                    text = f"{text} · {' · '.join(details)}"
+                lines.append({'label': label, 'text': text, 'missing': False})
+            for fld in section.fields:
+                current = getattr(response, fld.name, None) if response else None
+                fields.append({
+                    'name': fld.name, 'label': fld.label, 'kind': fld.kind, 'required': fld.required,
+                    'choices': fld.choices, 'section': label,
+                    'value': '' if current is None else (f'{current:.0f}' if fld.kind == MONEY else current),
+                })
+        result[company] = {'lines': lines, 'fields': fields}
+    return result
+
+
+class ResponseFormError(ValueError):
+    """Неверное значение в форме ручной правки «Ответа СК» (сообщение — для сотрудника)."""
+
+
+def update_from_form(summary: InsuranceSummary, company_name: str, data, user=None) -> InsurerResponse:
+    """Ручная правка блоков «Ответа СК» на карточке свода.
+
+    Принимаются только поля блоков, нужных по заявке; значения проверяются по реестру так же, как при
+    загрузке файла. Пустое значение очищает поле. Строка «Ответ СК» создаётся, если её ещё нет.
+    """
+    from decimal import Decimal, InvalidOperation
+
+    from ..response_sections import CHOICE, MONEY, required_sections
+    from .excel_services import ExcelResponseProcessor
+
+    if not InsuranceOffer.objects.filter(summary=summary, company_name=company_name).exists():
+        raise ResponseFormError('У этой страховой нет предложений в своде.')
+    sections = required_sections(summary.request)
+    if not sections:
+        raise ResponseFormError('По этой заявке дополнительные блоки ответа не нужны.')
+
+    values = {}
+    for section in sections:
+        for fld in section.fields:
+            raw = (data.get(fld.name) or '').strip()
+            if not raw:
+                values[fld.name] = None if fld.kind == MONEY else ''
+            elif fld.kind == CHOICE:
+                code = fld.match_choice(raw)
+                if code is None:
+                    raise ResponseFormError(
+                        f'«{fld.label}»: выберите одно из значений — {", ".join(fld.choice_labels)}.')
+                values[fld.name] = code
+            elif fld.kind == MONEY:
+                try:
+                    amount = Decimal(ExcelResponseProcessor()._normalize_decimal_input(raw)).quantize(Decimal('0.01'))
+                except (InvalidOperation, ValueError, TypeError):
+                    amount = None
+                if amount is None or amount < 0:
+                    raise ResponseFormError(f'«{fld.label}»: укажите сумму в рублях, например 5 330.')
+                values[fld.name] = amount
+            else:
+                values[fld.name] = raw
+
+    response, created = InsurerResponse.objects.get_or_create(summary=summary, company_name=company_name)
+    for name, value in values.items():
+        setattr(response, name, value)
+    if user is not None and getattr(user, 'is_authenticated', False) and not response.created_by_id:
+        response.created_by = user
+    response.save()
+    logger.info("Ответ СК %s вручную: свод #%s, %s, %s", 'создан' if created else 'изменён',
+                summary.pk, company_name, {k: v for k, v in values.items() if v not in (None, '')})
+    return response

@@ -111,7 +111,7 @@
             <div class="card-body">
                 {% if offers %}
                     <!-- Предложения: одна таблица на все компании, шапка один раз (редизайн 2026-09) -->
-                    <div class="og-wrap" data-territory-url="{% url 'summaries:set_company_territory' summary.pk %}">
+                    <div class="og-wrap" data-territory-url="{% url 'summaries:set_company_territory' summary.pk %}"{% if response_v2_visible %} data-response-url="{% url 'summaries:set_insurer_response' summary.pk %}"{% endif %}>
                     <table class="og-table{% if offers_have_variant_2 %} og-has-v2{% endif %}">
                         <thead>
                             {% if offers_have_variant_2 %}
@@ -174,16 +174,41 @@
                                     </div>
                                     {% endfor %}
                                     </div>
-                                    {% if group.response_lines %}
+                                    {% if group.response_v2 %}
                                     <div class="og-v2-lines" title="Блоки шаблона ответа V2 — видны только суперпользователю">
-                                        {% for line in group.response_lines %}
+                                        {% for line in group.response_v2.lines %}
                                         <div class="og-v2-line{% if line.missing %} og-v2-line--missing{% endif %}">
                                             <span class="og-v2-tag">V2</span>
                                             <span class="og-territory-label">{{ line.label }}</span>
                                             <span>{% if line.missing %}<i class="bi bi-exclamation-triangle"></i> {% endif %}{{ line.text }}</span>
+                                            {% if forloop.last %}<button type="button" class="og-territory-edit js-response-edit" title="Риски РНПК и перевозка этой страховой">изменить</button>{% endif %}
                                         </div>
                                         {% endfor %}
                                     </div>
+                                    <form class="og-v2-form d-none js-response-form" data-company="{{ group.name }}">
+                                        <div class="og-v2-form__title"><span class="og-v2-tag">V2</span> Ответ {{ group.name }} — дополнительные блоки</div>
+                                        {% for field in group.response_v2.fields %}
+                                        <label class="og-v2-form__row">
+                                            <span class="og-territory-label">{{ field.label }}</span>
+                                            {% if field.kind == 'choice' %}
+                                            <select class="form-select form-select-sm" name="{{ field.name }}">
+                                                <option value="">— нет данных —</option>
+                                                {% for code, label in field.choices %}
+                                                <option value="{{ code }}"{% if field.value == code %} selected{% endif %}>{{ label }}</option>
+                                                {% endfor %}
+                                            </select>
+                                            {% elif field.kind == 'money' %}
+                                            <input class="form-control form-control-sm" name="{{ field.name }}" value="{{ field.value }}" inputmode="decimal" placeholder="например, 5 330">
+                                            {% else %}
+                                            <input class="form-control form-control-sm" name="{{ field.name }}" value="{{ field.value }}" placeholder="необязательно">
+                                            {% endif %}
+                                        </label>
+                                        {% endfor %}
+                                        <div class="d-flex gap-2 mt-2">
+                                            <button type="submit" class="btn btn-success btn-sm">Сохранить</button>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm js-response-cancel">Отмена</button>
+                                        </div>
+                                    </form>
                                     {% endif %}
                                     <form class="og-territory-form d-none js-territory-form" data-company="{{ group.name }}">
                                         <label class="og-territory-label d-block mb-1">Территория — для всех лет {{ group.name }}</label>
@@ -1404,6 +1429,11 @@
 .og-v2-lines { margin-top: 0.3rem; display: grid; gap: 0.15rem; }
 .og-v2-line { display: flex; align-items: baseline; gap: 0.4rem; font-size: 0.8rem; }
 .og-v2-line--missing { color: #b42318; }
+.og-v2-form { margin-top: 0.4rem; padding: 0.6rem 0.75rem; border: 2px dashed #111; border-radius: 10px; background: #fff8d6; }
+.og-v2-form__title { font-size: 0.8rem; font-weight: 700; margin-bottom: 0.4rem; }
+.og-v2-form__row { display: grid; grid-template-columns: minmax(10rem, 17rem) 1fr; gap: 0.5rem; align-items: center; margin-bottom: 0.35rem; }
+.og-v2-form__row .og-territory-label { white-space: normal; line-height: 1.2; }
+@media (max-width: 576px) { .og-v2-form__row { grid-template-columns: 1fr; } }
 .og-v2-tag { font-size: 0.62rem; font-weight: 800; padding: 0 0.3rem; border-radius: 4px; background: #ffc400; color: #111; border: 1px solid #111; }
 .sd-xls-btn span { display: flex; flex-direction: column; line-height: 1.15; }
 .sd-xls-btn b { font-size: 0.88rem; font-weight: 700; white-space: nowrap; }
@@ -3671,6 +3701,46 @@ function showCompanyStatusesIfMissing(data) {
                 .catch(function () {
                     submit.disabled = false;
                     showErrorMessage('Не удалось сохранить территорию — проверьте соединение', 6000);
+                });
+        });
+    });
+    const responseUrl = offersWrap ? offersWrap.dataset.responseUrl : null;
+    document.querySelectorAll('.js-response-edit').forEach(function (button) {
+        button.addEventListener('click', function () {
+            const cell = button.closest('td');
+            cell.querySelector('.og-v2-lines').classList.add('d-none');
+            cell.querySelector('.js-response-form').classList.remove('d-none');
+        });
+    });
+    document.querySelectorAll('.js-response-cancel').forEach(function (button) {
+        button.addEventListener('click', function () {
+            const cell = button.closest('td');
+            cell.querySelector('.js-response-form').classList.add('d-none');
+            cell.querySelector('.og-v2-lines').classList.remove('d-none');
+        });
+    });
+    document.querySelectorAll('.js-response-form').forEach(function (form) {
+        form.addEventListener('submit', function (event) {
+            event.preventDefault();
+            if (!responseUrl) { return; }
+            const body = new FormData(form);
+            body.append('company', form.dataset.company);
+            body.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+            const submit = form.querySelector('button[type=submit]');
+            submit.disabled = true;
+            fetch(responseUrl, { method: 'POST', body: body })
+                .then(function (response) { return response.json(); })
+                .then(function (data) {
+                    if (data.success) {
+                        location.reload();
+                    } else {
+                        submit.disabled = false;
+                        showErrorMessage(data.error || 'Не удалось сохранить ответ СК', 6000);
+                    }
+                })
+                .catch(function () {
+                    submit.disabled = false;
+                    showErrorMessage('Не удалось сохранить ответ СК — проверьте соединение', 6000);
                 });
         });
     });

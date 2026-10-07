@@ -51,6 +51,7 @@ urlpatterns = [
     path('<int:summary_id>/update-notes/', views.update_summary_notes, name='update_summary_notes'),
     path('<int:summary_id>/company-status/', views.set_company_status, name='set_company_status'),
     path('<int:summary_id>/company-territory/', views.set_company_territory, name='set_company_territory'),
+    path('<int:summary_id>/insurer-response/', views.set_insurer_response, name='set_insurer_response'),
     path('<int:summary_id>/company-status/remaining/', views.set_remaining_company_statuses, name='set_remaining_company_statuses'),
     
     # Управление предложениями

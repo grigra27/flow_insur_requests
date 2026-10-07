@@ -913,7 +913,7 @@ def _offer_groups(sorted_companies, companies_with_offers, company_totals, compa
             'notes': company_notes.get(company_name, []),
             'territory_lines': _territory_lines(company_offers),
             'territory_value': next((line['text'] for line in _territory_lines(company_offers) if line['kind'] == 'text'), ''),
-            'response_lines': (response_lines or {}).get(company_name, []),
+            'response_v2': (response_lines or {}).get(company_name),
         })
     return groups
 
@@ -949,6 +949,22 @@ def set_company_territory(request, summary_id):
     updated = apply_territory(summary.pk, company_name, territory)
     logger.info(f"Summary {summary_id}: territory of '{company_name}' set for {updated} offers by {request.user.username}")
     return JsonResponse({'success': True, 'updated': updated})
+
+
+@require_http_methods(["POST"])
+@user_required
+def set_insurer_response(request, summary_id):
+    """Ручная правка блоков «Ответа СК» (шаблон ответа V2: риски РНПК, перевозка) — контур V2."""
+    if not insurer_response.v2_contour(request.user):
+        return JsonResponse({'success': False, 'error': 'Недоступно.'}, status=403)
+    summary = get_object_or_404(InsuranceSummary.objects.select_related('request'), pk=summary_id)
+    company_name = (request.POST.get('company') or '').strip()
+    try:
+        insurer_response.update_from_form(summary, company_name, request.POST, user=request.user)
+    except insurer_response.ResponseFormError as error:
+        return JsonResponse({'success': False, 'error': str(error)}, status=400)
+    logger.info(f"Summary {summary_id}: insurer response of '{company_name}' edited by {request.user.username}")
+    return JsonResponse({'success': True})
 
 
 @require_http_methods(["POST"])

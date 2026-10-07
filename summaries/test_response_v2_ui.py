@@ -15,7 +15,7 @@ from summaries.models import InsuranceOffer, InsuranceSummary, InsurerResponse
 from summaries.response_template import META_SHEET, SHEET_TITLE
 
 
-class ResponseV2UiTests(TestCase):
+class ResponseV2Base(TestCase):
     @classmethod
     def setUpTestData(cls):
         admins = Group.objects.get_or_create(name='Администраторы')[0]
@@ -43,6 +43,9 @@ class ResponseV2UiTests(TestCase):
             rnpk_status='included', rnpk_comment='по правилам СК', transport_cost=Decimal('5330'),
         )
 
+
+
+class ResponseV2UiTests(ResponseV2Base):
     def _detail(self, user):
         self.client.force_login(user)
         return self.client.get(reverse('summaries:summary_detail', args=[self.summary.pk]))
@@ -84,3 +87,60 @@ class ResponseV2UiTests(TestCase):
         for url in (reverse('summaries:download_response_template_v2', args=[self.summary.pk]),
                     reverse('summaries:download_response_template_v2_generic')):
             self.assertEqual(self.client.get(url).status_code, 403)
+
+
+class InsurerResponseManualEditTests(ResponseV2Base):
+    """Этап 4: ручная правка блоков «Ответа СК» на карточке свода."""
+
+    def _post(self, user, **data):
+        self.client.force_login(user)
+        return self.client.post(reverse('summaries:set_insurer_response', args=[self.summary.pk]), data)
+
+    def test_superuser_creates_response_for_company_without_one(self):
+        response = self._post(self.superuser, company='ВСК', rnpk_status='approval', rnpk_comment='СБ',
+                              transport_cost='5 330 руб.', transport_terms='на время перевозки')
+        self.assertEqual(response.json(), {'success': True})
+        saved = InsurerResponse.objects.get(summary=self.summary, company_name='ВСК')
+        self.assertEqual((saved.rnpk_status, saved.rnpk_comment), ('approval', 'СБ'))
+        self.assertEqual(saved.transport_cost, Decimal('5330.00'))
+        self.assertEqual(saved.template_version, InsurerResponse.TEMPLATE_V1)
+        self.assertEqual(saved.created_by, self.superuser)
+
+    def test_edit_existing_keeps_version_and_empty_clears(self):
+        self._post(self.superuser, company='Согаз', rnpk_status='Не включены', transport_cost='')
+        saved = InsurerResponse.objects.get(summary=self.summary, company_name='Согаз')
+        self.assertEqual(saved.rnpk_status, 'not_included')
+        self.assertIsNone(saved.transport_cost)
+        self.assertEqual(saved.rnpk_comment, '')
+        self.assertEqual(saved.template_version, InsurerResponse.TEMPLATE_V2)
+
+    def test_invalid_values_rejected_with_message(self):
+        for data, expected in (
+            ({'rnpk_status': 'может быть'}, 'выберите одно из значений'),
+            ({'rnpk_status': 'included', 'transport_cost': 'дорого'}, 'укажите сумму в рублях'),
+        ):
+            with self.subTest(data=data):
+                response = self._post(self.superuser, company='ВСК', **data)
+                self.assertEqual(response.status_code, 400)
+                self.assertIn(expected, response.json()['error'])
+        self.assertFalse(InsurerResponse.objects.filter(company_name='ВСК').exists())
+
+    def test_company_without_offers_rejected(self):
+        response = self._post(self.superuser, company='Альфа', rnpk_status='included')
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('нет предложений', response.json()['error'])
+
+    def test_not_available_outside_v2_contour(self):
+        self.assertEqual(self._post(self.staff, company='ВСК', rnpk_status='included').status_code, 403)
+        self.assertFalse(InsurerResponse.objects.filter(company_name='ВСК').exists())
+
+    def test_edit_form_on_page_for_superuser_only(self):
+        self.client.force_login(self.superuser)
+        content = self.client.get(reverse('summaries:summary_detail', args=[self.summary.pk])).content.decode()
+        self.assertIn('class="og-v2-form d-none js-response-form" data-company="ВСК"', content)
+        self.assertIn('<option value="included" selected>Включены в полис</option>', content)  # Согаз
+        self.assertIn('name="transport_cost" value="5330"', content)
+        self.client.force_login(self.staff)
+        content = self.client.get(reverse('summaries:summary_detail', args=[self.summary.pk])).content.decode()
+        self.assertNotIn('js-response-form"', content)
+        self.assertNotIn('data-response-url', content)
