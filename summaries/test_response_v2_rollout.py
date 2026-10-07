@@ -75,9 +75,29 @@ class ResponseTemplateV2RolloutTests(TestCase):
         self.assertTrue(v2_visible(self.staff))
         self.assertTrue(v2_strict(self.staff, self.new_request))
         self.assertFalse(v2_strict(self.staff, self.old_request))
-        self.assertTrue(v2_strict(self.superuser, self.old_request))
+        # суперпользователь — по тому же правилу даты, что и сотрудники
+        self.assertFalse(v2_strict(self.superuser, self.old_request))
+        self.assertTrue(v2_strict(self.superuser, self.new_request))
+        with override_settings(RESPONSE_TEMPLATE_V2_FOR_ALL=False):
+            self.assertTrue(v2_strict(self.superuser, self.old_request))  # тестовый контур до открытия
+            self.assertFalse(v2_strict(self.staff, self.new_request))
         with override_settings(RESPONSE_TEMPLATE_V2_SINCE=''):
             self.assertTrue(v2_strict(self.staff, self.old_request))
+
+    def test_no_v2_tags_for_superuser_either(self):
+        InsuranceOffer.objects.create(summary=self.new_summary, company_name='Согаз', insurance_year=1,
+                                      insurance_sum=Decimal('1000000'), franchise_1=Decimal('0'),
+                                      premium_with_franchise_1=Decimal('50000'), coverage_territory='РФ')
+        self.client.force_login(self.superuser)
+        pages = [
+            self.client.get(reverse('insurance_requests:request_detail', args=[self.new_request.pk])),
+            self.client.get(reverse('summaries:summary_detail', args=[self.new_summary.pk])),
+            self.client.get(reverse('summaries:add_offer', args=[self.new_summary.pk])),
+        ]
+        for page in pages:
+            self.assertEqual(page.status_code, 200)
+            for tag in ('rq-kit__tag', 'og-v2-tag', 'of-v2-tag'):
+                self.assertNotContains(page, tag)
 
     def test_staff_gets_kit_without_test_tags(self):
         self.client.force_login(self.staff)

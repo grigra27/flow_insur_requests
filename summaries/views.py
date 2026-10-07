@@ -1352,8 +1352,7 @@ def _offer_form_response_v2(request, summary, mode):
         } for fld in section.fields],
     } for section in sections]
     return {'sections': groups, 'existing': insurer_response.existing_values(summary),
-            'strict': insurer_response.v2_strict(request.user, summary.request),
-            'show_tag': request.user.is_superuser}
+            'strict': insurer_response.v2_strict(request.user, summary.request)}
 
 
 def _offer_page(request, *, mode, summary, form, rows, row_errors=(), offer=None, original_offer=None):

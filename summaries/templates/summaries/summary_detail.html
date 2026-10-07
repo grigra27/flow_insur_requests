@@ -178,7 +178,6 @@
                                     <div class="og-v2-lines" title="Осмотр, риски РНПК и перевозка из ответа страховщика">
                                         {% for line in group.response_v2.lines %}
                                         <div class="og-v2-line{% if line.missing %} og-v2-line--missing{% endif %}">
-                                            {% if user.is_superuser %}<span class="og-v2-tag">V2</span>{% endif %}
                                             <span class="og-territory-label">{{ line.label }}</span>
                                             <span>{% if line.missing %}<i class="bi bi-exclamation-triangle"></i> {% endif %}{{ line.text }}</span>
                                             {% if forloop.last %}<button type="button" class="og-territory-edit js-response-edit" title="Риски РНПК и перевозка этой страховой">изменить</button>{% endif %}
@@ -186,7 +185,7 @@
                                         {% endfor %}
                                     </div>
                                     <form class="og-v2-form d-none js-response-form" data-company="{{ group.name }}">
-                                        <div class="og-v2-form__title">{% if user.is_superuser %}<span class="og-v2-tag">V2</span> {% endif %}Ответ {{ group.name }} — дополнительные блоки</div>
+                                        <div class="og-v2-form__title">Ответ {{ group.name }} — дополнительные блоки</div>
                                         {% for field in group.response_v2.fields %}
                                         <label class="og-v2-form__row">
                                             <span class="og-territory-label">{{ field.label }}</span>
@@ -1419,7 +1418,6 @@
 .og-v2-form__row { display: grid; grid-template-columns: minmax(10rem, 17rem) 1fr; gap: 0.5rem; align-items: center; margin-bottom: 0.35rem; }
 .og-v2-form__row .og-territory-label { white-space: normal; line-height: 1.2; }
 @media (max-width: 576px) { .og-v2-form__row { grid-template-columns: 1fr; } }
-.og-v2-tag { font-size: 0.62rem; font-weight: 800; padding: 0 0.3rem; border-radius: 4px; background: #ffc400; color: #111; border: 1px solid #111; }
 .sd-xls-btn span { display: flex; flex-direction: column; line-height: 1.15; }
 .sd-xls-btn b { font-size: 0.88rem; font-weight: 700; white-space: nowrap; }
 .sd-xls-btn small { font-size: 0.68rem; color: #f5c9d0; white-space: nowrap; }
@@ -2508,8 +2506,7 @@ function showMultipleUploadSuccess(data) {
                 }
                 const territoryBlock = `<br>Территория: ${escapeHtml(result.coverage_territory || '')}`;
                 const responseWarnings = Array.isArray(result.response_warnings) ? result.response_warnings : [];
-                const v2Block = {% if user.is_superuser %}(result.template_version === 2 ? '<br><span class="og-v2-tag">V2</span> шаблон ответа V2' : ''){% else %}''{% endif %}
-                    + responseWarnings.map(msg => `<div class="mt-2"><strong>Внимание:</strong> ${escapeHtml(msg)}</div>`).join('');
+                const v2Block = responseWarnings.map(msg => `<div class="mt-2"><strong>Внимание:</strong> ${escapeHtml(msg)}</div>`).join('');
                 content += `
                     <div class="alert ${alertClass}">
                         <i class="bi ${icon}"></i>

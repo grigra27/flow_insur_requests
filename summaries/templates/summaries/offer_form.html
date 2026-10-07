@@ -160,7 +160,7 @@
     {# ── Блоки шаблона ответа V2 (контур V2): риски РНПК, перевозка — по заявке ── #}
     <div class="of-card of-card--v2">
         <div class="of-card__head">
-            <h2>{% if response_v2.show_tag %}<span class="of-v2-tag">V2</span> {% endif %}Дополнительные условия ответа</h2>
+            <h2>Дополнительные условия ответа</h2>
             <span>{% if response_v2.strict %}обязательны по этой заявке, как в шаблоне ответа{% else %}заполните, если страховщик их указал{% endif %}</span>
         </div>
         <div class="of-card__body">
@@ -265,7 +265,6 @@
     .of-card__head h2 { margin: 0; font-size: 0.94rem; font-weight: 700; color: var(--of-ink); }
     .of-card__head span { font-size: 0.78rem; color: var(--of-muted); }
     .of-card--v2 { border: 2px dashed #111; background: #fffbea; }
-    .of-v2-tag { font-size: 0.62rem; font-weight: 800; padding: 0 0.3rem; border-radius: 4px; background: #ffc400; color: #111; border: 1px solid #111; vertical-align: middle; }
     .of-v2-section + .of-v2-section { margin-top: 0.9rem; padding-top: 0.9rem; border-top: 1px dashed #d6c56a; }
     .of-v2-section__title { font-weight: 700; font-size: 0.9rem; margin-bottom: 0.5rem; }
     .of-v2-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 0.6rem 1.2rem; }

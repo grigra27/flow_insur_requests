@@ -321,7 +321,7 @@
         <!-- Комплект для страховщика: заявка PDF (красная) + шаблон ответа этой заявки (зелёная);
              для партии — PDF на всю партию и шаблоны остальных объектов списком ниже -->
         <div class="card mb-4 rq-kit">
-            <div class="card-header"><h6 class="mb-0"><i class="bi bi-send"></i> Отправка страховщику{% if user.is_superuser %}<span class="rq-kit__tag">V2</span>{% endif %}</h6></div>
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-send"></i> Отправка страховщику</h6></div>
             <div class="card-body">
                 <a href="{{ insurer_kit.pdf.url }}" class="rq-kit__btn rq-kit__btn--pdf js-kit-file" title="{{ insurer_kit.pdf.title }}">
                     <i class="bi bi-file-earmark-pdf-fill"></i>
@@ -701,7 +701,6 @@ a.rq-tile__name:hover { color: #166534; }
 }
 /* Комплект для страховщика (V2) */
 .rq-kit .card-body { display: grid; gap: 0.55rem; grid-template-columns: minmax(0, 1fr); }
-.rq-kit__tag { font-size: 0.62rem; font-weight: 800; letter-spacing: 0.03em; padding: 0.05rem 0.35rem; border-radius: 5px; background: var(--rq-ink); color: #fff; vertical-align: middle; margin-left: 0.35rem; }
 .rq-kit__step { font-size: 0.7rem; font-weight: 700; color: var(--rq-muted-2); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: -0.2rem; }
 .rq-kit__btn { display: flex; align-items: center; gap: 0.75rem; min-width: 0; padding: 0.85rem 1rem; border-radius: 14px; color: #fff; text-decoration: none; transition: background-color 0.15s ease, transform 0.15s ease; }
 .rq-kit__btn:hover, .rq-kit__btn:focus-visible { color: #fff; transform: translateY(-1px); }

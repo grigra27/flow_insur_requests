@@ -43,13 +43,12 @@ def _v2_since():
 def v2_strict(user, request=None) -> bool:
     """Строгие проверки блоков (пустой обязательный блок или старый шаблон — отказ).
 
-    Суперпользователю — всегда. Остальным — при включённом флаге и только для заявок, созданных не раньше
-    даты переключения: запросы, разосланные со старым шаблоном, загружаются как раньше (решение 2026-10-07).
+    При включённом флаге — для всех одинаково (суперпользователь тоже, решение 2026-10-07): только для заявок,
+    созданных не раньше даты переключения; запросы, разосланные со старым шаблоном, загружаются как раньше.
+    Флаг выключен — строго только у суперпользователя (тестовый контур).
     """
-    if user is not None and getattr(user, 'is_superuser', False):
-        return True
     if not getattr(settings, 'RESPONSE_TEMPLATE_V2_FOR_ALL', False):
-        return False
+        return bool(user is not None and getattr(user, 'is_superuser', False))
     since = _v2_since()
     created = getattr(request, 'created_at', None)
     if since is None or created is None:
