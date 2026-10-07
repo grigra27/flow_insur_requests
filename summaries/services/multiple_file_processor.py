@@ -25,14 +25,16 @@ class MultipleFileProcessor:
     # Блокировка для предотвращения параллельной записи в БД
     _db_lock = threading.Lock()
     
-    def __init__(self, summary: InsuranceSummary):
+    def __init__(self, summary: InsuranceSummary, user=None):
         """
         Инициализация процессора
         
         Args:
             summary: Свод предложений для обработки файлов
+            user: Кто загружает — определяет контур шаблона ответа V2
         """
         self.summary = summary
+        self.user = user
         self.excel_processor = get_excel_response_processor()
         self.results = []
         self.logger = logging.getLogger(f'{__name__}.{self.__class__.__name__}')
@@ -234,6 +236,8 @@ class MultipleFileProcessor:
                 skipped_rows=processing_result.get('skipped_rows', []),
                 row_warnings=processing_result.get('processing_errors', []),
                 coverage_territory=processing_result.get('coverage_territory', ''),
+                template_version=processing_result.get('template_version', 1),
+                response_warnings=processing_result.get('response_warnings', []),
             )
             
         except DuplicateOfferError as e:
@@ -448,6 +452,9 @@ class MultipleFileProcessor:
                 # лимита и т.п. — строка пропущена, остальные импортированы).
                 'row_warnings': kwargs.get('row_warnings', []),
                 'coverage_territory': kwargs.get('coverage_territory', ''),
+                'template_version': kwargs.get('template_version', 1),
+                # Предупреждения шаблона ответа V2 (например, файл сформирован для другого свода)
+                'response_warnings': kwargs.get('response_warnings', []),
             })
         else:
             result.update({
@@ -617,7 +624,7 @@ class MultipleFileProcessor:
             try:
                 # Блокировка уже применена на уровне process_files, используем только транзакцию
                 with transaction.atomic():
-                    return self.excel_processor.process_excel_file(file, self.summary)
+                    return self.excel_processor.process_excel_file(file, self.summary, user=self.user)
                         
             except OperationalError as e:
                 if "database is locked" in str(e).lower() and attempt < max_retries:

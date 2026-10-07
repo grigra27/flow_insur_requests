@@ -152,12 +152,22 @@ def _sync_offered(summary_id, company_name):
         logger.exception('Company status sync failed for summary #%s, %s', summary_id, company_name)
 
 
+def _sync_insurer_response(summary_id, company_name):
+    from .services.insurer_response import sync_after_offer_removed
+
+    try:
+        sync_after_offer_removed(summary_id, company_name)
+    except Exception:  # noqa: BLE001 — «Ответ СК» не должен ронять удаление предложения
+        logger.exception('Insurer response sync failed for summary #%s, %s', summary_id, company_name)
+
+
 @receiver(post_save, sender=InsuranceOffer)
 def offer_post_save(sender, instance, **kwargs):
     old = getattr(instance, _FLAG_OLD_COMPANY, None)
     if old:
         delattr(instance, _FLAG_OLD_COMPANY)
         _sync_offered(*old)  # предложение перенесли на другую СК — у прежней могло не остаться предложений
+        _sync_insurer_response(*old)
     _sync_offered(instance.summary_id, instance.company_name)
     _sync_territory(instance)  # территория одна на компанию в своде (services/offer_territory.py)
 
@@ -165,6 +175,7 @@ def offer_post_save(sender, instance, **kwargs):
 @receiver(post_delete, sender=InsuranceOffer)
 def offer_post_delete(sender, instance, **kwargs):
     _sync_offered(instance.summary_id, instance.company_name)
+    _sync_insurer_response(instance.summary_id, instance.company_name)
 
 
 @receiver(post_save, sender=InsuranceCompany)

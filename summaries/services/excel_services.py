@@ -21,7 +21,7 @@ from django.db import transaction
 from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
 
-from ..models import InsuranceSummary, InsuranceOffer
+from ..models import InsuranceSummary, InsuranceOffer, InsurerResponse
 from ..exceptions import (
     DuplicateOfferError,
     ExcelProcessingError,
@@ -2952,6 +2952,25 @@ class ExcelResponseProcessor:
         'страхования и территориальными ограничениями и загрузите файл снова.'
     )
 
+    # Шаблон ответа V2: дополнительные блоки (docs/improvement_plans/insurer_response_v2.md, §6)
+    SECTION_MISSING_MESSAGE = (
+        'Ответ СК «{company}» не загружен: не заполнен блок «{section}» (поле «{field}»). '
+        'Запросите у страховой компании корректное предложение с заполненным блоком и загрузите файл снова.'
+    )
+    SECTION_INVALID_MESSAGE = (
+        'Ответ СК «{company}» не загружен: в блоке «{section}» поле «{field}» заполнено неверно — '
+        '«{value}» ({expected}). Запросите у страховой компании корректное предложение и загрузите файл снова.'
+    )
+    OLD_TEMPLATE_MESSAGE = (
+        'Ответ СК «{company}» не загружен: файл в старом шаблоне ответа, а по этой заявке {required} '
+        '«{sections}». Отправьте страховщику шаблон ответа V2 (персональный, с карточки свода) '
+        'и загрузите заполненный файл.'
+    )
+    SUMMARY_MISMATCH_WARNING = (
+        'Шаблон ответа был сформирован для свода #{expected}, а загружен в свод #{actual} — '
+        'проверьте, что это ответ на нужный запрос.'
+    )
+
     # Текст-заглушка в B2 из шаблонов разных лет (сравнение без учёта регистра)
     COMPANY_PLACEHOLDERS = {'название ск', 'выберите компанию', 'выберите компанию из списка'}
     
@@ -3127,13 +3146,14 @@ class ExcelResponseProcessor:
             'processing_info': processing_info
         }
     
-    def process_excel_file(self, file, summary: InsuranceSummary) -> Dict[str, Any]:
+    def process_excel_file(self, file, summary: InsuranceSummary, user=None) -> Dict[str, Any]:
         """
         Обрабатывает Excel файл и создает предложения
         
         Args:
             file: Загруженный файл Excel
             summary: Свод предложений для связи
+            user: Кто загружает — определяет контур шаблона ответа V2 (insurer_response.v2_contour)
             
         Returns:
             Dict с результатами обработки
@@ -3165,11 +3185,24 @@ class ExcelResponseProcessor:
             # Валидируем извлеченные данные
             self.logger.info("Этап 3: Валидация извлеченных данных")
             self.validate_extracted_data(company_data)
-            
+
+            # Дополнительные блоки шаблона V2 (риски РНПК, перевозка) — до записи в базу:
+            # в контуре V2 пустой обязательный блок или старый шаблон отклоняют весь файл
+            from .insurer_response import attach_source_file, save_response, v2_contour
+            strict = v2_contour(user)
+            sections = self.extract_response_sections(
+                workbook, summary, company_data['company_name'], strict=strict,
+            )
+
             # Создаем предложения
             self.logger.info("Этап 4: Создание предложений в базе данных")
-            created_offers = self.create_offers(company_data, summary)
-            self._attach_source_file(file, created_offers)
+            with transaction.atomic():
+                created_offers = self.create_offers(company_data, summary)
+                if strict or sections['version'] == InsurerResponse.TEMPLATE_V2:
+                    save_response(summary, company_data['company_name'], sections['values'],
+                                  sections['version'], user=user)
+            stored_name = self._attach_source_file(file, created_offers)
+            attach_source_file(summary.pk, company_data['company_name'], stored_name)
 
             result = {
                 'success': True,
@@ -3181,6 +3214,8 @@ class ExcelResponseProcessor:
                 'company_matching_info': company_data.get('company_matching_info', {}),
                 'processing_errors': processing_info.get('processing_errors', []),
                 'coverage_territory': company_data.get('coverage_territory', ''),
+                'template_version': sections['version'],
+                'response_warnings': sections['warnings'],
             }
             
             self.logger.info(f"=== ОБРАБОТКА ЗАВЕРШЕНА УСПЕШНО ===")
@@ -3386,6 +3421,90 @@ class ExcelResponseProcessor:
             self.logger.error(error_msg, exc_info=True)
             raise ExcelProcessingError(error_msg) from e
     
+    @staticmethod
+    def _defined_name_value(workbook, name: str):
+        """Значение именованной ячейки книги; None, если имени нет."""
+        defined = workbook.defined_names.get(name)
+        if defined is None:
+            return None
+        for sheet, ref in defined.destinations:
+            if sheet in workbook.sheetnames:
+                return workbook[sheet][ref.replace('$', '')].value
+        return None
+
+    def extract_response_sections(self, workbook, summary: InsuranceSummary, company_name: str,
+                                  strict: bool) -> Dict[str, Any]:
+        """
+        Дополнительные блоки ответа (риски РНПК, перевозка): версия шаблона, значения, предупреждения.
+
+        Читаются только блоки, нужные по заявке свода (а не по тому, что заполнил страховщик).
+        strict (контур V2): пустой обязательный блок, неверное значение или старый шаблон при
+        обязательных блоках — MissingDataError; иначе такие значения молча пропускаются.
+        """
+        from ..response_sections import CHOICE, MONEY, required_sections
+        from ..response_template import META_SHEET, TEMPLATE_VERSION_V2
+
+        result = {'version': InsurerResponse.TEMPLATE_V1, 'values': {}, 'warnings': []}
+        meta = workbook[META_SHEET] if META_SHEET in workbook.sheetnames else None
+        if meta is not None and meta['B1'].value == TEMPLATE_VERSION_V2:
+            result['version'] = InsurerResponse.TEMPLATE_V2
+        required = required_sections(summary.request)
+
+        if result['version'] != InsurerResponse.TEMPLATE_V2:
+            if strict and required:
+                raise MissingDataError(message=self.OLD_TEMPLATE_MESSAGE.format(
+                    company=company_name, sections='», «'.join(section.title for section in required),
+                    required='обязательны блоки' if len(required) > 1 else 'обязателен блок',
+                ))
+            return result
+
+        expected_summary = meta['B2'].value
+        if expected_summary not in (None, '') and str(expected_summary) != str(summary.pk):
+            warning = self.SUMMARY_MISMATCH_WARNING.format(expected=expected_summary, actual=summary.pk)
+            self.logger.warning(f"Ответ СК '{company_name}': {warning}")
+            result['warnings'].append(warning)
+
+        for section in required:
+            for fld in section.fields:
+                raw = self._defined_name_value(workbook, fld.cell_name)
+                text = '' if raw is None else str(raw).strip()
+                if not any(char.isalnum() for char in text):  # пусто, пробелы или «—»
+                    if fld.required and strict:
+                        raise MissingDataError(message=self.SECTION_MISSING_MESSAGE.format(
+                            company=company_name, section=section.title, field=fld.label,
+                        ))
+                    continue
+                if fld.kind == CHOICE:
+                    value = fld.match_choice(text)
+                    expected = 'ожидается одно из: ' + ', '.join(fld.choice_labels)
+                elif fld.kind == MONEY:
+                    try:
+                        value = Decimal(self._normalize_decimal_input(raw)).quantize(Decimal('0.01'))
+                        value = value if value >= 0 else None
+                    except (InvalidOperation, ValueError, TypeError):
+                        value = None
+                    expected = 'ожидается сумма в рублях'
+                else:
+                    value = ILLEGAL_CHARACTERS_RE.sub('', text)
+                    expected = ''
+                if value is None:
+                    if strict:
+                        raise MissingDataError(message=self.SECTION_INVALID_MESSAGE.format(
+                            company=company_name, section=section.title, field=fld.label,
+                            value=text[:100], expected=expected,
+                        ))
+                    self.logger.warning(
+                        f"Ответ СК '{company_name}': значение «{text[:100]}» в поле «{fld.label}» пропущено"
+                    )
+                    continue
+                result['values'][fld.name] = value
+
+        self.logger.info(
+            f"Блоки ответа V{result['version']} для '{company_name}': "
+            f"нужны {[section.key for section in required]}, прочитано {sorted(result['values'])}"
+        )
+        return result
+
     def _extract_year_data(self, worksheet, year_mapping: Dict[str, str], row_number: int) -> Optional[Dict[str, Any]]:
         """
         Извлекает данные для конкретного года
@@ -3896,14 +4015,15 @@ class ExcelResponseProcessor:
                 f'не больше страховой суммы ({year_data["insurance_sum"]})'
             )
     
-    def _attach_source_file(self, file, offers: List[InsuranceOffer]) -> None:
+    def _attach_source_file(self, file, offers: List[InsuranceOffer]) -> Optional[str]:
         """
         Сохраняет загруженный файл страховщика и привязывает его ко всем созданным
         предложениям (одна копия на диске на загрузку). Ошибка сохранения не отменяет
         импорт — предложения уже созданы, файл нужен только для разбора спорных случаев.
+        Возвращает имя сохранённого файла (или None).
         """
         if not offers:
-            return
+            return None
         try:
             file.seek(0)
             content = ContentFile(file.read())
@@ -3915,8 +4035,10 @@ class ExcelResponseProcessor:
             for offer in offers:
                 offer.attachment_file.name = first.attachment_file.name
             self.logger.info(f"Исходный файл сохранён: {first.attachment_file.name}")
+            return first.attachment_file.name
         except Exception as e:
             self.logger.warning(f"Не удалось сохранить исходный файл '{getattr(file, 'name', '')}': {e}")
+            return None
 
     def create_offers(self, data: Dict[str, Any], summary: InsuranceSummary) -> List[InsuranceOffer]:
         """

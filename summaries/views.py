@@ -1884,7 +1884,7 @@ def upload_company_response(request, summary_id):
         processor = get_excel_response_processor()
         
         # Обработка успешной загрузки с созданием предложений (требование 4.3, 5.2, 5.4)
-        result = processor.process_excel_file(excel_file, summary)
+        result = processor.process_excel_file(excel_file, summary, user=request.user)
         
         # Логирование успешной операции
         logger.info(f"Company response uploaded successfully for summary {summary_id} by user {request.user.username}: "
@@ -2222,7 +2222,7 @@ def upload_multiple_company_responses(request, summary_id):
         )
         
         # Создаем процессор для множественных файлов
-        processor = MultipleFileProcessor(summary)
+        processor = MultipleFileProcessor(summary, user=request.user)
         
         # Обрабатываем файлы
         results = processor.process_files(excel_files)

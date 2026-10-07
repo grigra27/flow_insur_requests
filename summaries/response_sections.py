@@ -24,6 +24,7 @@ class SectionField:
     kind: str
     required: bool = True
     choices: Tuple[Tuple[str, str], ...] = ()  # (код в БД, подпись в шаблоне)
+    aliases: Tuple[Tuple[str, str], ...] = ()  # (как пишут вручную, код) — для списка значений
     hint: str = ''
 
     @property
@@ -33,6 +34,14 @@ class SectionField:
     @property
     def choice_labels(self) -> Tuple[str, ...]:
         return tuple(label for _code, label in self.choices)
+
+    def match_choice(self, text: str) -> Optional[str]:
+        """Код значения по подписи, коду или синониму без учёта регистра; None — не из списка."""
+        key = ' '.join(str(text).split()).casefold().rstrip('.')
+        for code, label in self.choices:
+            if key in (code.casefold(), label.casefold()):
+                return code
+        return next((code for alias, code in self.aliases if key == alias.casefold()), None)
 
 
 @dataclass(frozen=True)
@@ -62,7 +71,12 @@ RNPK = ResponseSection(
     condition=lambda request: getattr(request, 'insurance_type', None) in RNPK_TYPES,
     condition_text='Заполняется, если вид страхования — спецтехника или имущество',
     fields=(
-        SectionField('rnpk_status', 'Риски РНПК в полисе', CHOICE, choices=RNPK_CHOICES),
+        SectionField('rnpk_status', 'Риски РНПК в полисе', CHOICE, choices=RNPK_CHOICES, aliases=(
+            ('включены', RNPK_INCLUDED), ('включено', RNPK_INCLUDED), ('да', RNPK_INCLUDED),
+            ('не включены', RNPK_NOT_INCLUDED), ('не включено', RNPK_NOT_INCLUDED), ('нет', RNPK_NOT_INCLUDED),
+            ('согласование', RNPK_APPROVAL), ('требуется согласование рисков рнпк', RNPK_APPROVAL),
+            ('нужно согласование', RNPK_APPROVAL),
+        )),
         SectionField('rnpk_comment', 'Комментарий (необязательно)', TEXT, required=False),
     ),
     summary_column='Риски РНПК',

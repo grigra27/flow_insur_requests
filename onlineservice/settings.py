@@ -136,6 +136,10 @@ STORAGES = {
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+# Шаблон ответа страховщика V2 (docs/improvement_plans/insurer_response_v2.md): пока False — проверки
+# дополнительных блоков (риски РНПК, перевозка) действуют только для суперпользователя.
+RESPONSE_TEMPLATE_V2_FOR_ALL = config('RESPONSE_TEMPLATE_V2_FOR_ALL', default=False, cast=bool)
+
 # Срок ответа страховщика: N рабочих часов от загрузки заявки (core.business_time).
 # Рабочее время по Москве: начало дня и конец по дням недели (Пн=0); в сокращённый
 # предпраздничный день конец на час раньше. Суббота/воскресенье работают только

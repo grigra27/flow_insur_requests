@@ -130,7 +130,7 @@ class FinalIntegrationTest(TestCase):
         
         with patch('summaries.services.excel_services.ExcelResponseProcessor.process_excel_file') as mock_process:
             # Настраиваем мок для смешанных результатов
-            def side_effect(file, summary):
+            def side_effect(file, summary, user=None):
                 if 'company1' in file.name:
                     # Успешная обработка первого файла
                     return {
@@ -312,7 +312,7 @@ class FinalIntegrationTest(TestCase):
         ]
         
         with patch('summaries.services.excel_services.ExcelResponseProcessor.process_excel_file') as mock_process:
-            def side_effect(file, summary):
+            def side_effect(file, summary, user=None):
                 if 'success' in file.name:
                     return {
                         'company_name': 'ВСК',
