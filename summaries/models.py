@@ -4,6 +4,7 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from insurance_requests.models import InsuranceRequest
+from .response_sections import RNPK_CHOICES
 from decimal import Decimal
 
 
@@ -790,6 +791,81 @@ class SummaryCompanyStatus(models.Model):
 
     def __str__(self):
         return f'{self.company} в своде #{self.summary_id}: {self.get_status_display()}'
+
+
+class InsurerResponse(models.Model):
+    """Ответ страховой компании целиком: данные, общие для всех лет ответа.
+
+    docs/improvement_plans/insurer_response_v2.md, §5. Одна строка на пару «свод + компания»
+    (компания — по названию, как в InsuranceOffer.company_name). Цифры по годам остаются в годовых
+    InsuranceOffer. Поля дополнительных блоков (риски РНПК, перевозка) описаны в реестре
+    summaries/response_sections.py; значения блока, который по заявке не нужен, не сохраняются.
+    """
+
+    TEMPLATE_V1 = 1
+    TEMPLATE_V2 = 2
+    TEMPLATE_VERSION_CHOICES = [
+        (TEMPLATE_V1, 'Шаблон V1 или ручной ввод'),
+        (TEMPLATE_V2, 'Шаблон V2'),
+    ]
+
+    summary = models.ForeignKey(
+        InsuranceSummary,
+        on_delete=models.CASCADE,
+        related_name='insurer_responses',
+        verbose_name='Свод',
+    )
+    company_name = models.CharField(max_length=255, verbose_name='Страховая компания')
+    template_version = models.PositiveSmallIntegerField(
+        choices=TEMPLATE_VERSION_CHOICES,
+        default=TEMPLATE_V1,
+        verbose_name='Версия шаблона ответа',
+    )
+    rnpk_status = models.CharField(
+        max_length=20,
+        choices=list(RNPK_CHOICES),
+        blank=True,
+        default='',
+        verbose_name='Риски РНПК',
+        help_text='Для спецтехники и имущества',
+    )
+    rnpk_comment = models.TextField(blank=True, default='', verbose_name='Комментарий к рискам РНПК')
+    transport_cost = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name='Стоимость страхования перевозки, ₽',
+        help_text='Если в заявке требуется перевозка',
+    )
+    transport_terms = models.TextField(blank=True, default='', verbose_name='Условия перевозки')
+    source_file = models.FileField(
+        upload_to='responses/%Y/%m/%d/',
+        null=True,
+        blank=True,
+        verbose_name='Файл ответа',
+    )
+    received_at = models.DateTimeField(auto_now_add=True, verbose_name='Получен')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Изменён')
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='+',
+        verbose_name='Кто загрузил',
+    )
+
+    class Meta:
+        verbose_name = 'Ответ СК'
+        verbose_name_plural = 'Ответы СК'
+        ordering = ['summary_id', 'company_name']
+        constraints = [
+            models.UniqueConstraint(fields=['summary', 'company_name'], name='unique_summary_insurer_response'),
+        ]
+
+    def __str__(self):
+        return f'{self.company_name} в своде #{self.summary_id}'
 
 
 class SummaryTemplate(models.Model):

@@ -4,8 +4,8 @@ from django.core.exceptions import ValidationError
 from django.http import HttpResponseRedirect
 from django.urls import reverse
 from .models import (
-    InsuranceCompany, InsuranceSummary, InsuranceOffer, StatusEvent, SummaryCompanyStatus, SummaryTemplate,
-    UserDailyActivity,
+    InsuranceCompany, InsuranceSummary, InsuranceOffer, InsurerResponse, StatusEvent, SummaryCompanyStatus,
+    SummaryTemplate, UserDailyActivity,
 )
 
 
@@ -199,6 +199,23 @@ class InsuranceOfferAdmin(admin.ModelAdmin):
         ('Дополнительно', {
             'fields': ('coverage_territory', 'notes', 'original_email_subject', 'attachment_file', 'received_at')
         })
+    )
+
+
+@admin.register(InsurerResponse)
+class InsurerResponseAdmin(admin.ModelAdmin):
+    """Ответ СК целиком (шаблон ответа V2): риски РНПК, перевозка, файл ответа."""
+
+    list_display = ['company_name', 'summary', 'template_version', 'rnpk_status', 'transport_cost', 'received_at']
+    list_filter = ['template_version', 'rnpk_status', 'company_name', 'received_at']
+    search_fields = ['company_name', 'summary__request__dfa_number', 'summary__request__client_name']
+    raw_id_fields = ['summary']
+    readonly_fields = ['received_at', 'updated_at', 'created_by']
+    fieldsets = (
+        ('Ответ', {'fields': ('summary', 'company_name', 'template_version', 'source_file')}),
+        ('Риски РНПК', {'fields': ('rnpk_status', 'rnpk_comment')}),
+        ('Перевозка', {'fields': ('transport_cost', 'transport_terms')}),
+        ('Служебное', {'fields': ('received_at', 'updated_at', 'created_by')}),
     )
 
 
