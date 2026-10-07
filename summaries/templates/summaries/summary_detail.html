@@ -1257,6 +1257,9 @@
 }
 
 /* Upload results styles */
+#upload-results .upload-results-head { display: flex; justify-content: space-between; align-items: center; font-weight: 700; margin-bottom: 0.5rem; }
+#upload-results .upload-file-failed { border-left: 5px solid #b42318; }
+#upload-results .upload-summary { font-size: 0.95rem; }
 #upload-results .alert {
     margin-bottom: 0.5rem;
 }
@@ -2032,16 +2035,18 @@ function uploadMultipleCompanyResponses(files) {
         hideUploadProgress();
         
         if (data.success) {
-            showMultipleUploadSuccess(data);
+            const hasProblems = showMultipleUploadSuccess(data);
             
             // Clear form
             form.reset();
             document.getElementById('selected-files-list').style.display = 'none';
             
-            // Reload page after short delay to show new offers
-            setTimeout(() => {
-                location.reload();
-            }, 3000);
+            // Новые предложения видны после обновления страницы. Если есть ошибки или предупреждения —
+            // не обновляем сами (сотрудник должен прочитать причины), а даём кнопку; результаты
+            // сохраняются и показываются снова после обновления.
+            if (data.successful_files > 0 && !hasProblems) {
+                setTimeout(reloadKeepingUploadResults, 1500);
+            }
         } else {
             showUploadError(data.error);
         }
@@ -2075,8 +2080,13 @@ function hideUploadProgress() {
 function showUploadResults(content, type = 'info') {
     const resultsDiv = document.getElementById('upload-results');
     if (resultsDiv) {
-        resultsDiv.innerHTML = content;
+        resultsDiv.innerHTML = `
+            <div class="upload-results-head">
+                <span><i class="bi bi-clipboard-check"></i> Результат последней загрузки</span>
+                <button type="button" class="btn-close" aria-label="Закрыть" onclick="hideUploadResults()"></button>
+            </div>` + content;
         resultsDiv.style.display = 'block';
+        resultsDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
 }
 
@@ -2463,18 +2473,29 @@ function escapeHtml(value) {
 
 // Show multiple upload success results
 function showMultipleUploadSuccess(data) {
+    const results = Array.isArray(data.results) ? data.results : [];
+    const failed = data.failed_files || 0;
+    const loaded = data.successful_files || 0;
+    const warned = results.some(r => r.success && (
+        (Array.isArray(r.row_warnings) && r.row_warnings.length) ||
+        (Array.isArray(r.response_warnings) && r.response_warnings.length)));
+    const headClass = failed > 0 ? 'alert-danger' : (warned ? 'alert-warning' : 'alert-success');
+    const headIcon = failed > 0 || warned ? 'bi-exclamation-triangle-fill' : 'bi-check-circle';
     let content = `
-        <div class="alert alert-success">
-            <i class="bi bi-check-circle"></i>
-            <strong>Загрузка завершена!</strong>
+        <div class="alert ${headClass} upload-summary">
+            <i class="bi ${headIcon}"></i>
+            <strong>Загружено файлов: ${loaded} из ${data.total_files || results.length}.</strong>
     `;
-    
-    if (data.total_files) {
-        content += `<br>Обработано файлов: ${data.successful_files} из ${data.total_files}`;
-        
-        if (data.failed_files > 0) {
-            content += ` (${data.failed_files} с ошибками)`;
-        }
+    if (failed > 0) {
+        content += `<br><strong>Не загружено: ${failed}</strong> — причина указана ниже по каждому файлу.
+            Предложения из этих файлов в свод не попали.`;
+    } else if (warned) {
+        content += `<br>Есть замечания — проверьте их ниже.`;
+    }
+    if (loaded > 0 && (failed > 0 || warned)) {
+        content += `<div class="mt-2"><button type="button" class="btn btn-sm btn-outline-dark"
+            onclick="reloadKeepingUploadResults()"><i class="bi bi-arrow-clockwise"></i>
+            Показать загруженные предложения</button></div>`;
     }
     
     if (data.processing_time) {
@@ -2484,8 +2505,9 @@ function showMultipleUploadSuccess(data) {
     content += '</div>';
     
     // Show individual file results
-    if (data.results && data.results.length > 0) {
-        data.results.forEach(result => {
+    if (results.length > 0) {
+        // Отклонённые файлы — первыми: их причину нужно увидеть сразу
+        results.slice().sort((a, b) => (a.success ? 1 : 0) - (b.success ? 1 : 0)).forEach(result => {
             if (result.success) {
                 const hasRowWarnings = Array.isArray(result.row_warnings) && result.row_warnings.length > 0;
                 const hasWarnings = hasRowWarnings
@@ -2520,10 +2542,10 @@ function showMultipleUploadSuccess(data) {
                 `;
             } else {
                 content += `
-                    <div class="alert alert-danger">
-                        <i class="bi bi-exclamation-triangle"></i>
-                        <strong>${escapeHtml(result.file_name)}</strong><br>
-                        Ошибка: ${escapeHtml(result.error_message || '')}
+                    <div class="alert alert-danger upload-file-failed">
+                        <i class="bi bi-x-octagon-fill"></i>
+                        <strong>Файл не загружен: ${escapeHtml(result.file_name)}</strong>
+                        <div class="mt-1">${escapeHtml(result.error_message || 'Неизвестная ошибка')}</div>
                     </div>
                 `;
             }
@@ -2532,13 +2554,39 @@ function showMultipleUploadSuccess(data) {
     
     showUploadResults(content, 'success');
     
-    // Show toast notification
-    if (data.successful_files > 0) {
-        showSuccessMessage(`Успешно загружено ${data.successful_files} файл(ов)!`, 4000);
+    // Всплывающие уведомления — только подсказка; подробности остаются в блоке результатов
+    if (failed > 0) {
+        showErrorMessage(`Не загружено файлов: ${failed}. Причины — в блоке «Результат последней загрузки».`, 8000);
+    } else if (loaded > 0) {
+        showSuccessMessage(`Успешно загружено ${loaded} файл(ов)!`, 4000);
     }
-    
-    if (data.failed_files > 0) {
-        showWarningMessage(`${data.failed_files} файл(ов) содержали ошибки`, 4000);
+    return failed > 0 || warned;
+}
+
+// Обновить страницу, сохранив результаты загрузки: после обновления они показываются снова
+function reloadKeepingUploadResults() {
+    const resultsDiv = document.getElementById('upload-results');
+    try {
+        if (resultsDiv && resultsDiv.innerHTML.trim()) {
+            sessionStorage.setItem('insflow.uploadResults.' + getSummaryId(), resultsDiv.innerHTML);
+        }
+    } catch (e) { /* без сохранения — просто обновим */ }
+    location.reload();
+}
+
+function restoreUploadResults() {
+    const resultsDiv = document.getElementById('upload-results');
+    if (!resultsDiv) { return; }
+    let saved = null;
+    try {
+        const key = 'insflow.uploadResults.' + getSummaryId();
+        saved = sessionStorage.getItem(key);
+        sessionStorage.removeItem(key);
+    } catch (e) { return; }
+    if (saved) {
+        resultsDiv.innerHTML = saved;
+        resultsDiv.style.display = 'block';
+        resultsDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
 }
 
@@ -2552,6 +2600,7 @@ document.addEventListener('DOMContentLoaded', function() {
     updateOfferDisplay();
     enhanceTableInteractivity();
     initializeCompanyResponseUpload();
+    restoreUploadResults();
     
     // Устанавливаем текущий статус в селекте
     const statusSelect = document.getElementById('status-select');
