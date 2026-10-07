@@ -80,7 +80,7 @@ class InsurerResponseUploadBase(TestCase):
 class StrictContourTests(InsurerResponseUploadBase):
     """Контур V2 — суперпользователь."""
 
-    FULL_BLOCKS = {'resp_rnpk_status': 'Включены в полис', 'resp_rnpk_comment': 'по правилам СК',
+    FULL_BLOCKS = {'resp_rnpk_status': 'Будут прописаны в полисе', 'resp_rnpk_comment': 'по правилам СК',
                    'resp_transport_cost': 5330, 'resp_transport_terms': 'на время перевозки'}
 
     def test_filled_v2_file_saves_offers_and_response(self):
@@ -105,21 +105,22 @@ class StrictContourTests(InsurerResponseUploadBase):
         content = self._v2(self.property_summary, {'resp_transport_cost': 5330})
         with self.assertRaises(MissingDataError) as ctx:
             self._process(content, self.property_summary, self.superuser)
-        self.assertIn('не заполнен блок «Риски РНПК» (поле «Риски РНПК в полисе»)', str(ctx.exception))
+        self.assertIn('не заполнен блок «Риски РНПК». Запросите', str(ctx.exception))
         self.assertIn('Ответ СК «Согаз» не загружен', str(ctx.exception))
         self.assertFalse(InsuranceOffer.objects.filter(summary=self.property_summary).exists())
         self.assertFalse(InsurerResponse.objects.exists())
 
     def test_dash_in_money_counts_as_empty(self):
-        content = self._v2(self.property_summary, {'resp_rnpk_status': 'Не включены', 'resp_transport_cost': '—'})
+        content = self._v2(self.property_summary, {'resp_rnpk_status': 'Не будут прописаны в полисе', 'resp_transport_cost': '—'})
         with self.assertRaises(MissingDataError) as ctx:
             self._process(content, self.property_summary, self.superuser)
         self.assertIn('«Перевозка (транспортировка) предмета лизинга»', str(ctx.exception))
 
     def test_invalid_choice_and_money_are_rejected(self):
         for blocks, expected in (
-            ({'resp_rnpk_status': 'может быть', 'resp_transport_cost': 100}, 'ожидается одно из: Включены в полис'),
-            ({'resp_rnpk_status': 'Включены в полис', 'resp_transport_cost': 'дорого'}, 'ожидается сумма в рублях'),
+            ({'resp_rnpk_status': 'Требуется согласование', 'resp_transport_cost': 100},
+             'ожидается одно из: Будут прописаны в полисе, Не будут прописаны в полисе'),
+            ({'resp_rnpk_status': 'Будут прописаны в полисе', 'resp_transport_cost': 'дорого'}, 'ожидается сумма в рублях'),
         ):
             with self.subTest(blocks=blocks), self.assertRaises(MissingDataError) as ctx:
                 self._process(self._v2(self.property_summary, blocks), self.property_summary, self.superuser)
@@ -127,10 +128,11 @@ class StrictContourTests(InsurerResponseUploadBase):
 
     def test_hand_written_values_are_normalised(self):
         content = self._v2(self.property_summary,
-                           {'resp_rnpk_status': ' нужно согласование ', 'resp_transport_cost': '5 330 руб.'})
+                           {'resp_rnpk_status': ' риски РНПК не будут прописаны в полисе. ',
+                            'resp_transport_cost': '5 330 руб.'})
         self._process(content, self.property_summary, self.superuser)
         response = InsurerResponse.objects.get(summary=self.property_summary)
-        self.assertEqual(response.rnpk_status, 'approval')
+        self.assertEqual(response.rnpk_status, 'not_included')
         self.assertEqual(response.transport_cost, Decimal('5330.00'))
 
     def test_old_template_rejected_when_blocks_required(self):
@@ -149,7 +151,7 @@ class StrictContourTests(InsurerResponseUploadBase):
 
     def test_generic_template_checked_against_request(self):
         # Общий шаблон: КАСКО — заполненный РНПК не сохраняется (блок по заявке не нужен)
-        content = self._v2(self.casco_summary, {'resp_rnpk_status': 'Включены в полис'}, generic=True)
+        content = self._v2(self.casco_summary, {'resp_rnpk_status': 'Будут прописаны в полисе'}, generic=True)
         self._process(content, self.casco_summary, self.superuser)
         self.assertEqual(InsurerResponse.objects.get(summary=self.casco_summary).rnpk_status, '')
         # Общий шаблон для имущества с перевозкой — пустые блоки отклоняются, как в персональном
@@ -197,7 +199,7 @@ class StaffContourTests(InsurerResponseUploadBase):
 
     def test_v2_file_values_saved_silently_and_invalid_skipped(self):
         content = self._v2(self.property_summary,
-                           {'resp_rnpk_status': 'Включены в полис', 'resp_transport_cost': 'дорого'})
+                           {'resp_rnpk_status': 'Включены в полис', 'resp_transport_cost': 'дорого'})  # прежняя подпись
         self._process(content, self.property_summary, self.staff)
         response = InsurerResponse.objects.get(summary=self.property_summary)
         self.assertEqual(response.rnpk_status, 'included')

@@ -58,11 +58,12 @@ class ResponseSection:
         return bool(request is not None and self.condition(request))
 
 
-RNPK_INCLUDED, RNPK_NOT_INCLUDED, RNPK_APPROVAL = 'included', 'not_included', 'approval'
+# Ровно два варианта (решение владельца 2026-10-07): читается одной фразой с названием поля —
+# «Риски РНПК будут прописаны в полисе» / «Риски РНПК не будут прописаны в полисе»
+RNPK_INCLUDED, RNPK_NOT_INCLUDED = 'included', 'not_included'
 RNPK_CHOICES = (
-    (RNPK_INCLUDED, 'Включены в полис'),
-    (RNPK_NOT_INCLUDED, 'Не включены'),
-    (RNPK_APPROVAL, 'Требуется согласование'),
+    (RNPK_INCLUDED, 'Будут прописаны в полисе'),
+    (RNPK_NOT_INCLUDED, 'Не будут прописаны в полисе'),
 )
 RNPK_TYPES = ('страхование спецтехники', 'страхование имущества')
 
@@ -72,11 +73,14 @@ RNPK = ResponseSection(
     condition=lambda request: getattr(request, 'insurance_type', None) in RNPK_TYPES,
     condition_text='Заполняется, если вид страхования — спецтехника или имущество',
     fields=(
-        SectionField('rnpk_status', 'Риски РНПК в полисе', CHOICE, choices=RNPK_CHOICES, aliases=(
-            ('включены', RNPK_INCLUDED), ('включено', RNPK_INCLUDED), ('да', RNPK_INCLUDED),
-            ('не включены', RNPK_NOT_INCLUDED), ('не включено', RNPK_NOT_INCLUDED), ('нет', RNPK_NOT_INCLUDED),
-            ('согласование', RNPK_APPROVAL), ('требуется согласование рисков рнпк', RNPK_APPROVAL),
-            ('нужно согласование', RNPK_APPROVAL),
+        SectionField('rnpk_status', 'Риски РНПК', CHOICE, choices=RNPK_CHOICES, aliases=(
+            ('риски рнпк будут прописаны в полисе', RNPK_INCLUDED), ('будут прописаны', RNPK_INCLUDED),
+            ('прописаны', RNPK_INCLUDED), ('будут', RNPK_INCLUDED), ('да', RNPK_INCLUDED),
+            ('риски рнпк не будут прописаны в полисе', RNPK_NOT_INCLUDED), ('не будут прописаны', RNPK_NOT_INCLUDED),
+            ('не прописаны', RNPK_NOT_INCLUDED), ('не будут', RNPK_NOT_INCLUDED), ('нет', RNPK_NOT_INCLUDED),
+            # прежние подписи списка — в шаблонах, скачанных до 2026-10-07
+            ('включены в полис', RNPK_INCLUDED), ('включены', RNPK_INCLUDED), ('включено', RNPK_INCLUDED),
+            ('не включены', RNPK_NOT_INCLUDED), ('не включено', RNPK_NOT_INCLUDED),
         )),
         SectionField('rnpk_comment', 'Комментарий (необязательно)', TEXT, required=False),
     ),

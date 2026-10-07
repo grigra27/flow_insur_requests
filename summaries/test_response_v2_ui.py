@@ -60,7 +60,7 @@ class ResponseV2UiTests(ResponseV2Base):
     def test_block_lines_for_superuser_with_missing_marked(self):
         content = self._detail(self.superuser).content.decode()
         self.assertIn('class="og-v2-lines"', content)
-        self.assertIn('Включены в полис · по правилам СК', content)
+        self.assertIn('Будут прописаны в полисе · по правилам СК', content)
         self.assertIn('5 330 ₽', content)
         self.assertIn('og-v2-line og-v2-line--missing', content)  # у ВСК ответа V2 нет
         self.assertNotIn('class="og-v2-lines"', self._detail(self.staff).content.decode())
@@ -97,17 +97,17 @@ class InsurerResponseManualEditTests(ResponseV2Base):
         return self.client.post(reverse('summaries:set_insurer_response', args=[self.summary.pk]), data)
 
     def test_superuser_creates_response_for_company_without_one(self):
-        response = self._post(self.superuser, company='ВСК', rnpk_status='approval', rnpk_comment='СБ',
+        response = self._post(self.superuser, company='ВСК', rnpk_status='not_included', rnpk_comment='СБ',
                               transport_cost='5 330 руб.', transport_terms='на время перевозки')
         self.assertEqual(response.json(), {'success': True})
         saved = InsurerResponse.objects.get(summary=self.summary, company_name='ВСК')
-        self.assertEqual((saved.rnpk_status, saved.rnpk_comment), ('approval', 'СБ'))
+        self.assertEqual((saved.rnpk_status, saved.rnpk_comment), ('not_included', 'СБ'))
         self.assertEqual(saved.transport_cost, Decimal('5330.00'))
         self.assertEqual(saved.template_version, InsurerResponse.TEMPLATE_V1)
         self.assertEqual(saved.created_by, self.superuser)
 
     def test_edit_existing_keeps_version_and_empty_clears(self):
-        self._post(self.superuser, company='Согаз', rnpk_status='Не включены', transport_cost='')
+        self._post(self.superuser, company='Согаз', rnpk_status='Не будут прописаны в полисе', transport_cost='')
         saved = InsurerResponse.objects.get(summary=self.summary, company_name='Согаз')
         self.assertEqual(saved.rnpk_status, 'not_included')
         self.assertIsNone(saved.transport_cost)
@@ -138,7 +138,7 @@ class InsurerResponseManualEditTests(ResponseV2Base):
         self.client.force_login(self.superuser)
         content = self.client.get(reverse('summaries:summary_detail', args=[self.summary.pk])).content.decode()
         self.assertIn('class="og-v2-form d-none js-response-form" data-company="ВСК"', content)
-        self.assertIn('<option value="included" selected>Включены в полис</option>', content)  # Согаз
+        self.assertIn('<option value="included" selected>Будут прописаны в полисе</option>', content)  # Согаз
         self.assertIn('name="transport_cost" value="5330"', content)
         self.client.force_login(self.staff)
         content = self.client.get(reverse('summaries:summary_detail', args=[self.summary.pk])).content.decode()

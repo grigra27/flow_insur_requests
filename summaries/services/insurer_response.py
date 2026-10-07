@@ -123,9 +123,10 @@ def parse_form_values(summary: InsuranceSummary, data, strict: bool) -> Dict:
             raw = (data.get(fld.name) or '').strip()
             if not any(char.isalnum() for char in raw):
                 if strict and fld.required:
+                    title = section.short_title or section.title
+                    field = '' if fld.label == title else f' (поле «{fld.label}»)'
                     raise ResponseFormError(
-                        f'Не заполнен блок «{section.short_title or section.title}» (поле «{fld.label}»). '
-                        f'Если страховщик его не указал — запросите у него.')
+                        f'Не заполнен блок «{title}»{field}. Если страховщик его не указал — запросите у него.')
                 values[fld.name] = None if fld.kind == MONEY else ''
             elif fld.kind == CHOICE:
                 code = fld.match_choice(raw)

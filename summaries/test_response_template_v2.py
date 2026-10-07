@@ -189,7 +189,8 @@ class InsurerResponseModelTests(TestCase):
         self.assertEqual(self.summary.insurer_responses.count(), 2)
 
     def test_rnpk_choices_come_from_registry(self):
-        response = InsurerResponse(summary=self.summary, company_name='Согаз', rnpk_status='approval')
-        self.assertEqual(response.get_rnpk_status_display(), 'Требуется согласование')
+        response = InsurerResponse(summary=self.summary, company_name='Согаз', rnpk_status='not_included')
+        self.assertEqual(response.get_rnpk_status_display(), 'Не будут прописаны в полисе')
+        self.assertEqual([code for code, _ in RNPK_CHOICES], ['included', 'not_included'])
         self.assertEqual(response.template_version, InsurerResponse.TEMPLATE_V1)
         self.assertEqual(str(response), f'Согаз в своде #{self.summary.pk}')

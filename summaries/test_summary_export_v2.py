@@ -279,7 +279,7 @@ class SummaryExportV2ResponseColumnsTests(SummaryExportV2Base):
         ws = self._sheet()
         rows = {ws[f'A{r}'].value: r for r in range(10, ws.max_row + 1) if ws[f'A{r}'].value}
         sogaz, alfa = rows['Согаз'], rows['Альфа']
-        self.assertEqual(ws[f'K{sogaz}'].value, 'Включены в полис\nпо правилам СК')
+        self.assertEqual(ws[f'K{sogaz}'].value, 'Будут прописаны в полисе\nпо правилам СК')
         self.assertEqual(ws[f'L{sogaz}'].value, Decimal('5330.00'))
         self.assertEqual(ws[f'L{sogaz}'].number_format, '#,##0')
         self.assertIn('Условия перевозки: на время перевозки', ws[f'M{sogaz}'].value)

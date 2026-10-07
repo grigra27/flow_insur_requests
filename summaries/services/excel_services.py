@@ -2954,7 +2954,7 @@ class ExcelResponseProcessor:
 
     # Шаблон ответа V2: дополнительные блоки (docs/improvement_plans/insurer_response_v2.md, §6)
     SECTION_MISSING_MESSAGE = (
-        'Ответ СК «{company}» не загружен: не заполнен блок «{section}» (поле «{field}»). '
+        'Ответ СК «{company}» не загружен: не заполнен блок «{section}»{field}. '
         'Запросите у страховой компании корректное предложение с заполненным блоком и загрузите файл снова.'
     )
     SECTION_INVALID_MESSAGE = (
@@ -3483,7 +3483,8 @@ class ExcelResponseProcessor:
                 if not any(char.isalnum() for char in text):  # пусто, пробелы или «—»
                     if fld.required and strict:
                         raise MissingDataError(message=self.SECTION_MISSING_MESSAGE.format(
-                            company=company_name, section=section.title, field=fld.label,
+                            company=company_name, section=section.title,
+                            field='' if fld.label == section.title else f' (поле «{fld.label}»)',
                         ))
                     continue
                 if fld.kind == CHOICE:
