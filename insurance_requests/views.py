@@ -1308,9 +1308,9 @@ def _insurer_kit(user, insurance_request, batch_siblings):
     Пока — только в контуре V2 (суперпользователь), сотрудники видят прежнюю кнопку PDF."""
     from django.urls import reverse
     from summaries.response_sections import required_sections
-    from summaries.services.insurer_response import v2_contour
+    from summaries.services.insurer_response import v2_visible
 
-    if not v2_contour(user):
+    if not v2_visible(user):
         return None
 
     def blocks_label(req):
@@ -1342,11 +1342,17 @@ def _insurer_kit(user, insurance_request, batch_siblings):
     ]}
 
 
-@superuser_required
+@user_required
 def download_response_template(request, pk):
-    """Шаблон ответа страховщика V2 для заявки (комплект для страховщика) — пока суперпользователь."""
+    """Шаблон ответа страховщика V2 для заявки (комплект для страховщика) — когда шаблон V2 виден
+    пользователю (суперпользователь или RESPONSE_TEMPLATE_V2_FOR_ALL)."""
     from summaries.models import InsuranceSummary
     from summaries.response_template import build_v2
+    from summaries.services.insurer_response import v2_visible
+
+    if not v2_visible(request.user):
+        return render(request, 'insurance_requests/access_denied.html',
+                      {'required_role': 'Superuser'}, status=403)
 
     insurance_request = get_object_or_404(InsuranceRequest, pk=pk)
     summary_id = InsuranceSummary.objects.filter(request=insurance_request).values_list('pk', flat=True).first()

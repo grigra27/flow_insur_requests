@@ -160,8 +160,8 @@
     {# ── Блоки шаблона ответа V2 (контур V2): риски РНПК, перевозка — по заявке ── #}
     <div class="of-card of-card--v2">
         <div class="of-card__head">
-            <h2><span class="of-v2-tag">V2</span> Дополнительные условия ответа</h2>
-            <span>обязательны по этой заявке, как в шаблоне ответа V2</span>
+            <h2>{% if response_v2.show_tag %}<span class="of-v2-tag">V2</span> {% endif %}Дополнительные условия ответа</h2>
+            <span>{% if response_v2.strict %}обязательны по этой заявке, как в шаблоне ответа{% else %}заполните, если страховщик их указал{% endif %}</span>
         </div>
         <div class="of-card__body">
             {% for section in response_v2.sections %}
@@ -170,7 +170,7 @@
                 <div class="of-v2-fields">
                 {% for field in section.fields %}
                 <div class="of-v2-field">
-                    <label for="v2_{{ field.name }}" class="form-label of-label">{{ field.label }}{% if field.required %} <span class="text-danger">*</span>{% endif %}</label>
+                    <label for="v2_{{ field.name }}" class="form-label of-label">{{ field.label }}{% if field.required and response_v2.strict %} <span class="text-danger">*</span>{% endif %}</label>
                     {% if field.kind == 'choice' %}
                     <select name="{{ field.name }}" id="v2_{{ field.name }}" class="form-select of-control js-v2-field">
                         <option value="">— выберите —</option>

@@ -18,11 +18,68 @@ from ..response_sections import all_fields
 logger = logging.getLogger(__name__)
 
 
-def v2_contour(user) -> bool:
-    """Работает ли для пользователя контур V2 (строгие проверки дополнительных блоков)."""
-    if getattr(settings, 'RESPONSE_TEMPLATE_V2_FOR_ALL', False):
+def v2_visible(user) -> bool:
+    """Видно ли новое по шаблону ответа V2: комплект для страховщика, блоки на карточке свода, формы.
+    Суперпользователю — всегда; остальным — когда включён RESPONSE_TEMPLATE_V2_FOR_ALL."""
+    if user is not None and getattr(user, 'is_superuser', False):
         return True
-    return bool(user is not None and getattr(user, 'is_superuser', False))
+    return bool(getattr(settings, 'RESPONSE_TEMPLATE_V2_FOR_ALL', False))
+
+
+def _v2_since():
+    """Дата переключения на шаблон V2 (RESPONSE_TEMPLATE_V2_SINCE, ГГГГ-ММ-ДД); None — без переходного периода."""
+    from datetime import date
+
+    raw = (getattr(settings, 'RESPONSE_TEMPLATE_V2_SINCE', '') or '').strip()
+    if not raw:
+        return None
+    try:
+        return date.fromisoformat(raw)
+    except ValueError:
+        logger.error("RESPONSE_TEMPLATE_V2_SINCE='%s' — не дата ГГГГ-ММ-ДД, переходный период не действует", raw)
+        return None
+
+
+def v2_strict(user, request=None) -> bool:
+    """Строгие проверки блоков (пустой обязательный блок или старый шаблон — отказ).
+
+    Суперпользователю — всегда. Остальным — при включённом флаге и только для заявок, созданных не раньше
+    даты переключения: запросы, разосланные со старым шаблоном, загружаются как раньше (решение 2026-10-07).
+    """
+    if user is not None and getattr(user, 'is_superuser', False):
+        return True
+    if not getattr(settings, 'RESPONSE_TEMPLATE_V2_FOR_ALL', False):
+        return False
+    since = _v2_since()
+    created = getattr(request, 'created_at', None)
+    if since is None or created is None:
+        return True
+    from django.utils import timezone
+
+    return timezone.localtime(created).date() >= since
+
+
+def v2_contour(user) -> bool:
+    """Устаревшее имя: строгий режим без учёта заявки."""
+    return v2_strict(user)
+
+
+def v1_comment_note(response) -> str:
+    """Ответы блоков одной строкой для комментария свода V1:
+    «Осмотр: требуется осмотр. Риски РНПК будут прописаны в полисе. Перевозка: 5 330 ₽ (условия).»"""
+    if response is None:
+        return ''
+    parts = []
+    if response.inspection_status:
+        label = response.get_inspection_status_display()
+        parts.append(f'Осмотр: {label[:1].lower()}{label[1:]}.')
+    if response.rnpk_status:
+        parts.append(f'Риски РНПК {response.get_rnpk_status_display().lower()}.')
+    if response.transport_cost is not None:
+        amount = f'{response.transport_cost:,.0f}'.replace(',', ' ')
+        terms = f' ({response.transport_terms.strip()})' if response.transport_terms.strip() else ''
+        parts.append(f'Перевозка: {amount} ₽{terms}.')
+    return ' '.join(parts)
 
 
 def save_response(summary: InsuranceSummary, company_name: str, values: Dict, template_version: int,

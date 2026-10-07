@@ -66,11 +66,15 @@ def download_company_response_template(request):
     )
 
 
-@superuser_required
+@user_required
 def download_response_template_v2(request, summary_id=None):
-    """Шаблон ответа страховщика V2 (тест, только суперпользователь): персональный по своду —
-    нужные блоки «ЗАПОЛНИТЕ», остальные закрыты; без свода — общий резервный шаблон."""
+    """Шаблон ответа страховщика V2: персональный по своду — нужные блоки «ЗАПОЛНИТЕ», остальные
+    закрыты; без свода — общий резервный шаблон. Когда шаблон V2 виден пользователю (v2_visible)."""
     from .response_template import build_v2
+
+    if not insurer_response.v2_visible(request.user):
+        return render(request, 'insurance_requests/access_denied.html',
+                      {'required_role': 'Superuser'}, status=403)
 
     if summary_id is None:
         content, filename = build_v2(), 'otvet_strahovshika_v2_obshchiy.xlsx'
@@ -833,7 +837,7 @@ def summary_detail(request, pk):
             selected_company=(summary.selected_company or '').strip(),
             response_lines=_response_lines(summary, sorted_companies, request.user),
         ),
-        'response_v2_visible': insurer_response.v2_contour(request.user),
+        'response_v2_visible': insurer_response.v2_visible(request.user),
         'offers_have_variant_2': any(offer.premium_with_franchise_2 or offer.franchise_2 for offer in offers),
     })
 
@@ -885,8 +889,8 @@ def _territory_lines(offers):
 
 
 def _response_lines(summary, company_names, user):
-    """Строки блоков шаблона ответа V2 у компаний — пока только в контуре V2 (суперпользователь)."""
-    if not insurer_response.v2_contour(user):
+    """Строки блоков шаблона ответа V2 у компаний — когда шаблон V2 виден пользователю."""
+    if not insurer_response.v2_visible(user):
         return {}
     try:
         return insurer_response.display_lines(summary, company_names)
@@ -963,7 +967,7 @@ def set_company_territory(request, summary_id):
 @user_required
 def set_insurer_response(request, summary_id):
     """Ручная правка блоков «Ответа СК» (шаблон ответа V2: риски РНПК, перевозка) — контур V2."""
-    if not insurer_response.v2_contour(request.user):
+    if not insurer_response.v2_visible(request.user):
         return JsonResponse({'success': False, 'error': 'Недоступно.'}, status=403)
     summary = get_object_or_404(InsuranceSummary.objects.select_related('request'), pk=summary_id)
     company_name = (request.POST.get('company') or '').strip()
@@ -1334,7 +1338,7 @@ def _form_error_messages(form):
 
 def _offer_form_response_v2(request, summary, mode):
     """Секция блоков шаблона ответа V2 в форме добавления (контур V2, блоки нужны по заявке)."""
-    if mode != 'add' or not insurer_response.v2_contour(request.user):
+    if mode != 'add' or not insurer_response.v2_visible(request.user):
         return None
     sections = required_sections(summary.request)
     if not sections:
@@ -1347,7 +1351,9 @@ def _offer_form_response_v2(request, summary, mode):
             'choices': fld.choices, 'hint': fld.hint, 'value': posted.get(fld.name, ''),
         } for fld in section.fields],
     } for section in sections]
-    return {'sections': groups, 'existing': insurer_response.existing_values(summary)}
+    return {'sections': groups, 'existing': insurer_response.existing_values(summary),
+            'strict': insurer_response.v2_strict(request.user, summary.request),
+            'show_tag': request.user.is_superuser}
 
 
 def _offer_page(request, *, mode, summary, form, rows, row_errors=(), offer=None, original_offer=None):
@@ -1393,11 +1399,13 @@ def add_offer(request, summary_id):
             error for errors in row_errors for error in errors if TERRITORY_REQUIRED_MESSAGE in error))
         row_errors = [[e for e in errors if TERRITORY_REQUIRED_MESSAGE not in e] for errors in row_errors]
 
-        # Блоки шаблона ответа V2 (риски РНПК, перевозка) — в контуре V2 обязательны, как в Excel
+        # Блоки шаблона ответа V2 (осмотр, риски РНПК, перевозка): в строгом режиме обязательны, как в Excel;
+        # для заявок до переключения на V2 — сохраняются, если заполнены
         response_values = None
-        if insurer_response.v2_contour(request.user) and required_sections(summary.request):
+        if insurer_response.v2_visible(request.user) and required_sections(summary.request):
+            strict = insurer_response.v2_strict(request.user, summary.request)
             try:
-                response_values = insurer_response.parse_form_values(summary, request.POST, strict=True)
+                response_values = insurer_response.parse_form_values(summary, request.POST, strict=strict)
             except insurer_response.ResponseFormError as error:
                 common_errors.append(str(error))
 
@@ -1421,7 +1429,7 @@ def add_offer(request, summary_id):
                         offer.save()
                         saved.append(offer)
                     summary.update_total_offers_count()
-                    if response_values is not None:
+                    if response_values and any(v not in (None, '') for v in response_values.values()):
                         insurer_response.apply_values(summary, saved[0].company_name, response_values,
                                                       user=request.user)
             except IntegrityError as e:
@@ -3251,6 +3259,7 @@ def help_page(request):
     try:
         # Подготавливаем контекст для шаблона справки
         context = {
+            'response_v2_visible': insurer_response.v2_visible(request.user),
             'title': 'Справка по работе со сводами',
             'sections': [
                 'upload_responses',    # Раздел о загрузке ответов страховщиков

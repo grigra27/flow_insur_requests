@@ -175,10 +175,10 @@
                                     {% endfor %}
                                     </div>
                                     {% if group.response_v2 %}
-                                    <div class="og-v2-lines" title="Блоки шаблона ответа V2 — видны только суперпользователю">
+                                    <div class="og-v2-lines" title="Осмотр, риски РНПК и перевозка из ответа страховщика">
                                         {% for line in group.response_v2.lines %}
                                         <div class="og-v2-line{% if line.missing %} og-v2-line--missing{% endif %}">
-                                            <span class="og-v2-tag">V2</span>
+                                            {% if user.is_superuser %}<span class="og-v2-tag">V2</span>{% endif %}
                                             <span class="og-territory-label">{{ line.label }}</span>
                                             <span>{% if line.missing %}<i class="bi bi-exclamation-triangle"></i> {% endif %}{{ line.text }}</span>
                                             {% if forloop.last %}<button type="button" class="og-territory-edit js-response-edit" title="Риски РНПК и перевозка этой страховой">изменить</button>{% endif %}
@@ -186,7 +186,7 @@
                                         {% endfor %}
                                     </div>
                                     <form class="og-v2-form d-none js-response-form" data-company="{{ group.name }}">
-                                        <div class="og-v2-form__title"><span class="og-v2-tag">V2</span> Ответ {{ group.name }} — дополнительные блоки</div>
+                                        <div class="og-v2-form__title">{% if user.is_superuser %}<span class="og-v2-tag">V2</span> {% endif %}Ответ {{ group.name }} — дополнительные блоки</div>
                                         {% for field in group.response_v2.fields %}
                                         <label class="og-v2-form__row">
                                             <span class="og-territory-label">{{ field.label }}</span>
@@ -646,6 +646,16 @@
                 </div>
                 <div class="card-body">
                     <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+                        {% if response_v2_visible %}
+                        <a href="{% url 'summaries:download_response_template_v2_generic' %}"
+                           class="btn btn-outline-secondary btn-sm">
+                            <i class="bi bi-file-earmark-arrow-down"></i>
+                            Общий шаблон ответа (резерв)
+                        </a>
+                        <span class="text-muted small">
+                            Основной — шаблон под заявку: страница заявки → «Отправка страховщику».
+                        </span>
+                        {% else %}
                         <a href="{% url 'summaries:download_company_response_template' %}"
                            class="btn btn-outline-secondary btn-sm">
                             <i class="bi bi-file-earmark-arrow-down"></i>
@@ -654,6 +664,7 @@
                         <span class="text-muted small">
                             Передайте его страховщику — инструкция и образец заполнения внутри файла.
                         </span>
+                        {% endif %}
                     </div>
                     <form id="company-response-form" method="POST" action="{% url 'summaries:upload_multiple_company_responses' summary.pk %}" enctype="multipart/form-data">
                         {% csrf_token %}
@@ -2526,7 +2537,7 @@ function showMultipleUploadSuccess(data) {
                 }
                 const territoryBlock = `<br>Территория: ${escapeHtml(result.coverage_territory || '')}`;
                 const responseWarnings = Array.isArray(result.response_warnings) ? result.response_warnings : [];
-                const v2Block = (result.template_version === 2 ? '<br><span class="og-v2-tag">V2</span> шаблон ответа V2' : '')
+                const v2Block = {% if user.is_superuser %}(result.template_version === 2 ? '<br><span class="og-v2-tag">V2</span> шаблон ответа V2' : ''){% else %}''{% endif %}
                     + responseWarnings.map(msg => `<div class="mt-2"><strong>Внимание:</strong> ${escapeHtml(msg)}</div>`).join('');
                 content += `
                     <div class="alert ${alertClass}">

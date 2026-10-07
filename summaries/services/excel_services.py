@@ -897,13 +897,15 @@ class ExcelExportService:
         )
         return self.ASSET_STATUS_ADDITIONAL_NOTE
 
-    def _build_export_notes(self, offer_notes: Optional[str], additional_note: Optional[str] = None) -> Optional[str]:
+    def _build_export_notes(self, offer_notes: Optional[str], additional_note: Optional[str] = None,
+                            leading_note: Optional[str] = None) -> Optional[str]:
         """
         Формирует итоговый текст примечаний для записи в Excel.
 
         Args:
             offer_notes: Примечание из предложения страховщика
-            additional_note: Дополнительное системное примечание
+            additional_note: Дополнительное системное примечание (после примечания страховщика)
+            leading_note: Ответы блоков шаблона V2 (осмотр, РНПК, перевозка) — перед примечанием
 
         Returns:
             Optional[str]: Итоговый текст примечаний
@@ -912,11 +914,13 @@ class ExcelExportService:
         extra_notes = str(additional_note).strip() if additional_note else ''
 
         if base_notes and extra_notes:
-            if extra_notes.lower() in base_notes.lower():
-                return base_notes
-            return f"{base_notes} {extra_notes}"
-
-        return base_notes or extra_notes or None
+            text = base_notes if extra_notes.lower() in base_notes.lower() else f"{base_notes} {extra_notes}"
+        else:
+            text = base_notes or extra_notes or ''
+        lead = str(leading_note).strip() if leading_note else ''
+        if lead:
+            text = f"{lead} {text}" if text else lead
+        return text or None
 
     @staticmethod
     def _sanitize_excel_text(value: Any, max_length: Optional[int] = None) -> str:
@@ -1025,6 +1029,11 @@ class ExcelExportService:
                     f"{asset_status_note}"
                 )
             
+            # Ответы блоков шаблона V2 — в комментарии свода V1 (переходный период, решение 2026-10-07)
+            from .insurer_response import v1_comment_note
+            insurer_responses = ({r.company_name: r for r in InsurerResponse.objects.filter(summary=summary)}
+                                 if isinstance(summary, InsuranceSummary) else {})
+
             # Получаем отсортированные данные компаний
             raw_companies_data = self._get_companies_sorted_data(summary)
             
@@ -1056,8 +1065,11 @@ class ExcelExportService:
                 logger.debug(f"Обрабатываем компанию {company_index + 1}/{total_companies}: '{company_name}'")
 
                 franchise_approval_note = self._get_franchise_approval_note_for_company(offers, company_name)
+                response = insurer_responses.get(company_name)
+                leading_note = v1_comment_note(response)
                 company_additional_note = self._combine_additional_notes(
-                    asset_status_note,
+                    # страховщик ответил про осмотр в шаблоне — его ответ вместо системной фразы
+                    None if response is not None and response.inspection_status else asset_status_note,
                     franchise_approval_note
                 )
                 
@@ -1093,6 +1105,7 @@ class ExcelExportService:
                         year_display,
                         columns_mapping=columns,
                         additional_note=company_additional_note,
+                        leading_note=leading_note,
                     )
                     current_row += 1
                 
@@ -1110,6 +1123,7 @@ class ExcelExportService:
                         offers,
                         columns_mapping=columns,
                         additional_note=company_additional_note,
+                        leading_note=leading_note,
                     )
                     # Одинаковую территорию по всем годам показываем одной
                     # объединенной ячейкой; разные значения оставляем построчно.
@@ -1419,6 +1433,7 @@ class ExcelExportService:
         year_display: str,
         columns_mapping: dict = None,
         additional_note: Optional[str] = None,
+        leading_note: Optional[str] = None,
     ) -> None:
         """
         Заполняет строку с данными года страхования с корректным форматированием
@@ -1551,7 +1566,7 @@ class ExcelExportService:
             )
             
             # Примечания (если есть) с обрезкой и валидацией
-            notes_to_export = self._build_export_notes(getattr(offer, 'notes', None), additional_note)
+            notes_to_export = self._build_export_notes(getattr(offer, 'notes', None), additional_note, leading_note)
             if notes_to_export:
                 notes = self._sanitize_excel_text(
                     notes_to_export,
@@ -2583,6 +2598,7 @@ class ExcelExportService:
         offers: List,
         columns_mapping: dict = None,
         additional_note: Optional[str] = None,
+        leading_note: Optional[str] = None,
     ) -> None:
         """
         Объединяет ячейки в столбце примечаний с консолидацией примечаний по всем годам страхования
@@ -2607,7 +2623,8 @@ class ExcelExportService:
             logger.debug(f"Объединяем ячейки примечаний для компании '{company_name}' в диапазоне {notes_column}{start_row}:{notes_column}{end_row}")
             
             # Консолидируем примечания из всех предложений
-            consolidated_notes = self._consolidate_notes(offers, additional_note=additional_note)
+            consolidated_notes = self._consolidate_notes(offers, additional_note=additional_note,
+                                                         leading_note=leading_note)
             
             # Определяем диапазон для объединения в столбце примечаний
             merge_range_q = f'{notes_column}{start_row}:{notes_column}{end_row}'
@@ -2638,7 +2655,8 @@ class ExcelExportService:
                 end_row,
                 offers,
                 columns_mapping=columns,
-                additional_note=additional_note
+                additional_note=additional_note,
+                leading_note=leading_note,
             )
 
     def _get_export_coverage_territory(self, offer) -> str:
@@ -2708,7 +2726,8 @@ class ExcelExportService:
                 f"Не удалось объединить ячейки территории для компании '{company_name}': {e}"
             )
     
-    def _consolidate_notes(self, offers: List, additional_note: Optional[str] = None) -> Optional[str]:
+    def _consolidate_notes(self, offers: List, additional_note: Optional[str] = None,
+                           leading_note: Optional[str] = None) -> Optional[str]:
         """
         Объединяет все примечания по годам в единый текст с разделением пробелом
         
@@ -2777,6 +2796,10 @@ class ExcelExportService:
                             consolidated_parts.append(additional_note_str)
                             logger.debug("Добавлено дополнительное примечание по году выпуска в консолидированный текст")
             
+            # Ответы блоков шаблона V2 — первыми, перед примечаниями страховщика
+            if leading_note and str(leading_note).strip():
+                consolidated_parts.insert(0, ' '.join(self._sanitize_excel_text(leading_note).split()))
+
             # Объединяем все части с разделением пробелом
             if consolidated_parts:
                 consolidated_text = ' '.join(consolidated_parts)
@@ -2855,6 +2878,7 @@ class ExcelExportService:
         offers: List,
         columns_mapping: dict = None,
         additional_note: Optional[str] = None,
+        leading_note: Optional[str] = None,
     ) -> None:
         """
         Fallback метод: заполняет примечания в отдельные ячейки при ошибке объединения
@@ -2891,7 +2915,8 @@ class ExcelExportService:
                 try:
                     # Получаем примечания для текущего предложения
                     row_additional_note = additional_note if i == 0 else None
-                    notes = self._build_export_notes(getattr(offer, 'notes', None), row_additional_note)
+                    notes = self._build_export_notes(getattr(offer, 'notes', None), row_additional_note,
+                                                     leading_note if i == 0 else None)
                     
                     if notes:
                         notes_str = self._sanitize_excel_text(
@@ -3157,7 +3182,7 @@ class ExcelResponseProcessor:
         Args:
             file: Загруженный файл Excel
             summary: Свод предложений для связи
-            user: Кто загружает — определяет контур шаблона ответа V2 (insurer_response.v2_contour)
+            user: Кто загружает — определяет строгость проверок шаблона V2 (insurer_response.v2_strict)
             
         Returns:
             Dict с результатами обработки
@@ -3192,8 +3217,8 @@ class ExcelResponseProcessor:
 
             # Дополнительные блоки шаблона V2 (риски РНПК, перевозка) — до записи в базу:
             # в контуре V2 пустой обязательный блок или старый шаблон отклоняют весь файл
-            from .insurer_response import attach_source_file, save_response, v2_contour
-            strict = v2_contour(user)
+            from .insurer_response import attach_source_file, save_response, v2_strict
+            strict = v2_strict(user, summary.request)
             sections = self.extract_response_sections(
                 workbook, summary, company_data['company_name'], strict=strict,
             )

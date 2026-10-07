@@ -319,7 +319,7 @@
         <!-- Комплект для страховщика (шаблон ответа V2): заявка PDF + шаблон ответа — пока суперпользователь.
              Красная кнопка «Скачать заявку (PDF)» в шапке — текущая версия, не меняется. -->
         <div class="card mb-4 rq-kit">
-            <div class="card-header"><h6 class="mb-0"><i class="bi bi-send"></i> Отправка страховщику<span class="rq-kit__tag">V2</span></h6></div>
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-send"></i> Отправка страховщику{% if user.is_superuser %}<span class="rq-kit__tag">V2</span>{% endif %}</h6></div>
             <div class="card-body">
                 {% for file in insurer_kit.files %}
                 {% if forloop.first %}<div class="rq-kit__step">1 · {% if insurer_kit.is_batch %}Заявка на партию{% else %}Заявка{% endif %}</div>{% endif %}

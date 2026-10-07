@@ -68,6 +68,21 @@ ${lease_term_text}
 С Уважением,
 ОН-ЛАЙН брокер"""
     
+    # Шаблон ответа страховщика V2 (RESPONSE_TEMPLATE_V2_FOR_ALL): письмо отсылает к приложенному шаблону
+    # ответа и его блокам вместо просьб «указать РНПК в ответном письме» (решение владельца 2026-10-07)
+    RESPONSE_TEMPLATE_V2_REPLACEMENTS = (
+        ('Просим указать, будут ли прописаны в полисе риски РНПК.',
+         'Будут ли прописаны в полисе риски РНПК — просим указать в приложенном шаблоне ответа (блок «Риски РНПК»).'),
+        ('1. Будут ли включены в полис риски РНПК\n',
+         '1. Будут ли прописаны в полисе риски РНПК — в приложенном шаблоне ответа (блок «Риски РНПК»)\n'),
+        ('Данные просим вписать в прилагаемую таблицу, с занесением данных за каждый период страхования (по годам). '
+         'Просим в таблице не использовать формулы, просто заполнить предлагаемые параметры.',
+         'Данные просим вписать в приложенный шаблон ответа (файл «Ответ страховщика»): по каждому периоду '
+         'страхования (по годам), а также блоки, отмеченные «ЗАПОЛНИТЕ», — в том числе необходимость осмотра '
+         'предмета лизинга. Ответ без заполненных обязательных блоков не может быть принят. Просим в шаблоне '
+         'не использовать формулы.'),
+    )
+
     def __init__(self, template_path: str = None):
         """
         Инициализация генератора шаблонов
@@ -115,6 +130,7 @@ ${lease_term_text}
             # Создаем Template объект и выполняем подстановку
             template = Template(self.template)
             email_body = template.safe_substitute(template_data)
+            email_body = self._apply_response_template_v2(email_body)
             
             logger.info("Email body generated successfully")
             return email_body
@@ -123,6 +139,16 @@ ${lease_term_text}
             logger.error(f"Error generating email body: {str(e)}")
             raise
     
+    def _apply_response_template_v2(self, email_body: str) -> str:
+        """При включённом шаблоне ответа V2 — ссылка на приложенный шаблон вместо просьб ответить письмом."""
+        from django.conf import settings
+
+        if not getattr(settings, 'RESPONSE_TEMPLATE_V2_FOR_ALL', False):
+            return email_body
+        for old, new in self.RESPONSE_TEMPLATE_V2_REPLACEMENTS:
+            email_body = email_body.replace(old, new)
+        return email_body
+
     def _get_franchise_text(self, franchise_type: str) -> str:
         """
         Возвращает текст о франшизе в зависимости от типа
