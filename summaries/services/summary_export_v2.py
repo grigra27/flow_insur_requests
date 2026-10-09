@@ -283,8 +283,9 @@ class SummaryExportV2Service(ExcelExportService):
             ('Объект страхования', object_text),
             ('Лизингополучатель', request.client_name),
             ('Цели использования', request.usage_purposes or ''),
-            ('Примечание', summary.notes or ''),
         ]
+        if (summary.notes or '').strip():  # пустое примечание не показываем — строка остаётся пустой
+            rows.append(('Примечание', summary.notes))
         value_keys = [k for k in cols if k not in (
             'company', 'year', 'numbers_last', 'territory', 'notes', 'last', 'label', *self.EXTRA_TITLES)]
         chars = int(sum(self._width(k) for k in value_keys) * 1.05)

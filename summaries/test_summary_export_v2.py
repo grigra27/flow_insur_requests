@@ -73,9 +73,16 @@ class SummaryExportV2ContentTests(SummaryExportV2Base):
         self.assertTrue(ws['A1'].value.startswith('Свод котировок и условий от '))
         labels = [ws[f'A{r}'].value for r in range(2, 7)]
         self.assertEqual(labels, ['Заявка №', 'Объект страхования', 'Лизингополучатель',
-                                  'Цели использования', 'Примечание'])
+                                  'Цели использования', None])
         self.assertEqual(ws['C2'].value, 'ТС-20848-ЛА-КЗ')
         self.assertEqual(ws['C4'].value, 'ООО "ПМК 77"')
+
+    def test_header_shows_note_only_when_filled(self):
+        self.summary.notes = 'Клиент просит рассрочку'
+        self.summary.save(update_fields=['notes'])
+        ws = self._workbook()['Свод']
+        self.assertEqual(ws['A6'].value, 'Примечание')
+        self.assertEqual(ws['C6'].value, 'Клиент просит рассрочку')
 
     def test_companies_sorted_by_total_of_offer_1_and_declined_last(self):
         ws = self._workbook()['Свод']
