@@ -18,10 +18,11 @@
 - подписи «Предложение 1/2» с размером франшизы; вместо служебной «Нет данных: территория
   ранее не собиралась» — «—»; дата свода в шапке; пустое примечание не выводится.
 
-Печать (A4): первая страница — СК, ценники и детализация в одном масштабе (ориентация — та, где
-цифры крупнее); территория, ответы СК и комментарии — ручным разрывом на следующую страницу,
-с повтором колонок «СК + ИТОГО». Если строк больше, чем помещается, разрывы ставятся только
-между блоками СК — компания не разрезается.
+Таблица (2026-10-12): сетка, тёмные линии между СК и между смысловыми блоками колонок, рамка, зебра
+по СК; индиго — предложение 1, бирюза — предложение 2, терракота — условия.
+
+Печать почти не настраивается (решение владельца 2026-10-12): только альбомная ориентация листа «Свод»;
+ни области, ни масштаба, ни разрывов — менеджер печатает как ему удобно. На экране закреплены СК и ценники.
 
 Правила данных (примечания, системные комментарии, территория, отказы) берутся у
 ExcelExportService, чтобы V1 и V2 не расходились. Старый свод этот модуль не меняет.
@@ -43,7 +44,6 @@ from openpyxl.formatting.rule import FormulaRule
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.datavalidation import DataValidation
-from openpyxl.worksheet.pagebreak import Break
 
 from ..models import InsuranceSummary, InsurerResponse
 from ..response_sections import SECTIONS, required_sections
@@ -62,9 +62,12 @@ INPUT_FILL = PatternFill('solid', fgColor='FFF2B3')  # ручные поля м�
 # ценников, detail — цифры детализации, chosen* — подсветка выбранной СК и предложения.
 PALETTES = {
     'indigo': {
-        'title': '312E81', 'header': '312E81', 'header_2': '5B4FB0', 'tag': 'EEF0FF', 'tag_2': 'F4F1FF',
+        'title': '312E81', 'header': '312E81', 'header_2': '0F766E', 'tag': 'EEF0FF', 'tag_2': 'E3F3F0',
         'detail': '4B5563', 'hair': 'E0E3F0', 'block': 'A5ACD6', 'section': 'EEF0FF',
         'chosen': 'EEF2FF', 'chosen_company': 'E0E7FF', 'chosen_total': 'C7D2FE', 'chosen_variant': 'E0E7FF',
+        # таблица: сетка, разделитель СК, рамка, шапка, зебра; терракота — блок условий и франшиза
+        'grid': 'D5D9E8', 'separator': '312E81', 'frame': '312E81', 'header_fill': 'F1F2F9',
+        'zebra': 'F8F9FD', 'declined_fill': 'F6F6F8', 'cond': 'B4532A', 'cond_fill': 'FBEEE8',
     },
 }
 DEFAULT_PALETTE = 'indigo'
@@ -79,13 +82,6 @@ ROW_HEIGHT = 17  # строка года — всегда одной высот�
 TAG_MIN_HEIGHT = 30  # ценник шрифтом 16 pt: блок СК не ниже этого, даже если в нём один год
 TEXT_LINE_HEIGHT = 11  # pt на строку текста шрифтом 8.5
 DECLINED_ROW_HEIGHT = 22
-
-# Печать: A4 (pt), поля в дюймах
-A4_SHORT, A4_LONG = 595.3, 841.9
-MARGIN_LR, MARGIN_TB = 0.4, 0.5
-PAGE_SIZES = {'landscape': (A4_LONG, A4_SHORT), 'portrait': (A4_SHORT, A4_LONG)}
-# Цифры на одном листе, пока масштаб не мельче 72%; иначе — по блокам СК на несколько листов
-ONE_PAGE_MIN_SCALE = 0.72
 
 
 def _font(size=9, bold=False, italic=False, color=INK):
@@ -115,7 +111,6 @@ class SummaryExportV2Service(ExcelExportService):
 
     WIDTHS = {'company': 20, 'total': 17, 'year': 7, 'sum': 13, 'franchise': 10, 'rate': 8, 'premium': 11,
               'payments': 8, 'territory': 40, 'notes': 48, 'inspection': 14, 'rnpk': 14, 'transport': 12}
-    NOTES_MIN_WIDTH = 40
     DETAIL_KEYS = ('franchise', 'rate', 'premium', 'payments')  # порядок: условие → результат
     DETAIL_TITLES = {'franchise': 'Франшиза', 'rate': 'Тариф', 'premium': 'Премия', 'payments': 'Платежей в год'}
 
@@ -126,7 +121,7 @@ class SummaryExportV2Service(ExcelExportService):
     NO_DATA = 'нет данных'
     # Перевозка — отдельная сумма и отдельная оплата: в ИТОГО не входит (решение владельца 2026-10-12)
     TRANSPORT_TITLE = 'Перевозка, ₽\nоплачивается отдельно'
-    TRANSPORT_FOOTNOTE = ('* ИТОГО за срок — без перевозки. Страхование перевозки оплачивается отдельно, '
+    TRANSPORT_FOOTNOTE = ('* ИТОГО — без перевозки. Страхование перевозки оплачивается отдельно, '
                           'одной суммой, указанной в колонке «Перевозка».')
 
     def __init__(self, palette: str = DEFAULT_PALETTE):
@@ -202,7 +197,6 @@ class SummaryExportV2Service(ExcelExportService):
     def _build_summary_sheet(self, ws, summary: InsuranceSummary, has_variant_2: bool) -> None:
         extras = self.extra_columns(summary.request)
         cols = self.columns(has_variant_2, extras)
-        self._width_override = {'notes': self._fit_notes_width(cols, extras)}
         for key, letter in cols.items():
             if key not in self.SERVICE_KEYS:
                 ws.column_dimensions[letter].width = self._width(key)
@@ -225,11 +219,13 @@ class SummaryExportV2Service(ExcelExportService):
             self._write_declined_row(ws, row, name, cols)
             blocks.append((row, row))
             row += 1
+        self._apply_table_style(ws, cols, blocks, len(companies), has_variant_2)
         if 'transport' in cols:
             self._write_transport_footnote(ws, row + 1, cols)
             row += 2
 
-        self._setup_print(ws, cols, blocks, max(row - 1, FIRST_DATA_ROW))
+        ws.freeze_panes = f'{cols["year"]}{FIRST_DATA_ROW}'  # СК и ценники остаются на экране при прокрутке
+        ws.page_setup.orientation = 'landscape'  # единственная настройка печати — остальное на усмотрение менеджера
 
     def _sorted_companies(self, summary: InsuranceSummary) -> List[tuple]:
         companies = self._validate_companies_data(self._get_companies_sorted_data(summary))
@@ -240,17 +236,6 @@ class SummaryExportV2Service(ExcelExportService):
             return (total is None, total or Decimal('0'), name)
 
         return sorted(companies.items(), key=key)
-
-    def _fit_notes_width(self, cols, extras) -> float:
-        """Ширина «Комментариев», при которой страница условий (СК + ИТОГО + территория + доп. колонки +
-        комментарии) не шире страницы цифр: тогда она не уменьшает масштаб печати цифр ни в одной
-        ориентации. Если доп. колонок много, а цифры узкие (один вариант), — не уже NOTES_MIN_WIDTH."""
-        numbers = [key for key in cols if key not in (*self.SERVICE_KEYS, 'territory', 'notes', *extras)]
-        repeated = [key for key in numbers if key == 'company' or key.startswith('total_')]
-        numbers_pt = sum(col_points(self._width(key)) for key in numbers)
-        others_pt = sum(col_points(self._width(key)) for key in (*repeated, 'territory', *extras))
-        notes_width = ((numbers_pt - others_pt) / 0.75 - 5) / 7
-        return round(max(self.NOTES_MIN_WIDTH, min(self.WIDTHS['notes'], notes_width)), 1)
 
     def _extra_values(self, summary, extras) -> Dict[str, Dict[str, object]]:
         """Значения доп. колонок по компаниям — из «Ответа СК»: подпись значения из списка или сумма;
@@ -385,7 +370,7 @@ class SummaryExportV2Service(ExcelExportService):
         first_total, last_total = cols['total_1'], cols['totals_last']
         if first_total != last_total:
             ws.merge_cells(f'{first_total}{top}:{last_total}{top}')
-        ws[f'{first_total}{top}'] = 'ИТОГО за срок*' if 'transport' in cols else 'ИТОГО за срок'
+        ws[f'{first_total}{top}'] = 'ИТОГО*' if 'transport' in cols else 'ИТОГО'
         ws[f'{first_total}{top}'].font = _font(9, bold=True, color=accent)
         ws[f'{first_total}{top}'].alignment = Alignment(horizontal='center', vertical='center')
         white = Side(style='medium', color='FFFFFF')
@@ -574,8 +559,88 @@ class SummaryExportV2Service(ExcelExportService):
         ws[f'{cols["total_1"]}{row}'].alignment = Alignment(horizontal='center', vertical='center')
         ws.row_dimensions[row].height = DECLINED_ROW_HEIGHT
 
+    def _apply_table_style(self, ws, cols, blocks, company_count, has_variant_2) -> None:
+        """Вид таблицы: сетка, плотная линия между СК, рамка, заливка шапки и зебра по СК.
+
+        Цвета: индиго — предложение 1, бирюза — предложение 2, терракота — условия (шапка блока
+        территория…комментарии и колонки «Франшиза»).
+        """
+        top, sub = FIRST_DATA_ROW - 2, FIRST_DATA_ROW - 1
+        last_col = ws[f'{cols["last"]}1'].column
+        last_row = blocks[-1][1] if blocks else sub
+        pal = self.palette
+        grid = Side(style='thin', color=pal['grid'])
+        separator = Side(style='medium', color=pal['separator'])
+        frame = Side(style='medium', color=pal['frame'])
+        variants = [1, 2] if has_variant_2 else [1]
+        col = lambda key: ws[f'{cols[key]}1'].column
+        totals = {col(f'total_{v}') for v in variants}
+        conditions = range(col('territory'), last_col + 1)
+        franchises = {col(f'franchise_{v}') for v in variants}
+
+        def has_fill(cell):
+            return cell.fill is not None and cell.fill.fill_type == 'solid'
+
+        # Шапка: светлая заливка; блок условий — терракотовый; подписи предложений остаются тёмными
+        for r in (top, sub):
+            for c in range(1, last_col + 1):
+                cell = ws.cell(row=r, column=c)
+                if r == sub and c in totals:
+                    continue
+                if c in conditions:
+                    cell.fill = self._fill('cond_fill')
+                    if cell.value:
+                        cell.font = _font(cell.font.sz, bold=True, color=pal['cond'])
+                else:
+                    cell.fill = self._fill('header_fill')
+        for v in variants:
+            letter = cols[f'{self.DETAIL_KEYS[0]}_{v}']
+            ws[f'{letter}{top}'].font = _font(self.fs['detail'], bold=True,
+                                              color=pal['header' if v == 1 else 'header_2'])
+        for c in franchises:
+            ws.cell(row=sub, column=c).font = _font(self.fs['column'], bold=True, color=pal['cond'])
+
+        # Зебра по СК (ценники и уже залитые ячейки не трогаем) и серый фон отказов
+        for index, (first, last) in enumerate(blocks):
+            declined = index >= company_count
+            if not declined and index % 2 == 0:
+                continue
+            for r in range(first, last + 1):
+                for c in range(1, last_col + 1):
+                    cell = ws.cell(row=r, column=c)
+                    if c in totals and not declined:
+                        continue
+                    if declined or not has_fill(cell):
+                        cell.fill = self._fill('declined_fill' if declined else 'zebra')
+
+        # Сетка, разделитель между СК, рамка. Добавочная строка блока (продолжение длинного текста)
+        # в колонках цифр без горизонтальной линии над ней — читается как часть блока, а не пустая строка
+        block_ends = {last for _, last in blocks}
+        year_col, numbers_last = col('year'), col('numbers_last')
+        # Тёмные вертикали между блоками: СК | ИТОГО | год+сумма | детализация П1 | П2 | территория |
+        # ответы СК | комментарии (внутри блоков — тонкая сетка)
+        group_starts = {col('total_1'), year_col, col('territory'), col('notes')}
+        group_starts |= {col(f'{self.DETAIL_KEYS[0]}_{v}') for v in variants}
+        extras = [key for key in self.EXTRA_TITLES if key in cols]
+        if extras:
+            group_starts.add(col(extras[0]))
+        overflow_rows = {r for first, last in blocks[:company_count] for r in range(first + 1, last + 1)
+                         if ws.cell(row=r, column=year_col).value in (None, '')}
+        for r in range(top, last_row + 1):
+            for c in range(1, last_col + 1):
+                bottom = separator if r in block_ends or r == sub else grid
+                top_side = frame if r == top else (separator if r - 1 in block_ends or r == FIRST_DATA_ROW else grid)
+                if c <= numbers_last and r + 1 in overflow_rows:
+                    bottom = None
+                if c <= numbers_last and r in overflow_rows:
+                    top_side = None
+                left = frame if c == 1 else (separator if c in group_starts else grid)
+                right = frame if c == last_col else (separator if c + 1 in group_starts else grid)
+                ws.cell(row=r, column=c).border = Border(
+                    left=left, right=right, top=top_side, bottom=frame if r == last_row else bottom)
+
     def _write_transport_footnote(self, ws, row, cols) -> None:
-        """Сноска к «ИТОГО за срок*» — на странице с цифрами, чтобы была видна и на бумаге."""
+        """Сноска к «ИТОГО*» — под таблицей, под колонками цифр."""
         ws.merge_cells(f'A{row}:{cols["numbers_last"]}{row}')
         cell = ws[f'A{row}']
         cell.value = self.TRANSPORT_FOOTNOTE
@@ -583,72 +648,6 @@ class SummaryExportV2Service(ExcelExportService):
         cell.alignment = Alignment(vertical='center', wrap_text=True)
         width = sum(self._width(k) for k in cols if k not in (*self.SERVICE_KEYS, 'territory', 'notes', *self.EXTRA_TITLES))
         ws.row_dimensions[row].height = _text_lines(self.TRANSPORT_FOOTNOTE, int(width * 1.1)) * 12 + 6
-
-    # ── печать ───────────────────────────────────────────────────────────────
-
-    @staticmethod
-    def _span_points(ws, first_col: int, last_col: int) -> float:
-        return sum(col_points(ws.column_dimensions[get_column_letter(i)].width or 8.43)
-                   for i in range(first_col, last_col + 1))
-
-    def print_plan(self, ws, cols, blocks: List[Tuple[int, int]], last_row: int) -> Dict:
-        """Ориентация, масштаб и разрывы: цифры на одном листе, если это читаемо; блоки СК не режутся."""
-        plans = [self._plan_for(ws, cols, blocks, last_row, o) for o in ('landscape', 'portrait')]
-        # меньше страниц с цифрами, затем крупнее; при равенстве — альбомная (первая)
-        return min(plans, key=lambda p: (p['pages_down'], -p['scale']))
-
-    def _plan_for(self, ws, cols, blocks, last_row: int, orientation: str) -> Dict:
-        page_width, page_height_pt = PAGE_SIZES[orientation]
-        printable_width = page_width - 2 * MARGIN_LR * 72
-        printable_height = page_height_pt - 2 * MARGIN_TB * 72
-        col = lambda key: ws[f'{cols[key]}1'].column
-        numbers_width = self._span_points(ws, 1, col('numbers_last'))
-        # Страница условий по ширине: повторяемые «СК + ИТОГО» + территория + ответы СК + комментарии
-        conditions_width = (self._span_points(ws, 1, col('totals_last'))
-                            + self._span_points(ws, col('territory'), col('notes')))
-        width_scale = min(1.0, printable_width / numbers_width, printable_width / conditions_width)
-
-        height = lambda first, last: sum(ws.row_dimensions[r].height or 15 for r in range(first, last + 1))
-        total_height = height(1, last_row)
-        one_page_scale = min(width_scale, printable_height / total_height)
-        if one_page_scale >= ONE_PAGE_MIN_SCALE:
-            return {'orientation': orientation, 'scale': one_page_scale, 'row_breaks': [], 'pages_down': 1}
-
-        # Не помещается на один лист читаемо: масштаб по ширине, переносы между блоками СК
-        page_height = printable_height / width_scale
-        titles_height = height(FIRST_DATA_ROW - 2, FIRST_DATA_ROW - 1)
-        used = height(1, FIRST_DATA_ROW - 1)
-        breaks = []
-        for first, last in blocks:
-            block_height = height(first, last)
-            if used + block_height > page_height and used > titles_height:
-                breaks.append(first - 1)
-                used = titles_height
-            used += block_height
-        return {'orientation': orientation, 'scale': width_scale, 'row_breaks': breaks,
-                'pages_down': len(breaks) + 1}
-
-    def _setup_print(self, ws, cols, blocks, last_row: int) -> None:
-        ws.freeze_panes = f'{cols["year"]}{FIRST_DATA_ROW}'  # СК и ценники остаются на экране при прокрутке
-        ws.print_area = f'A1:{cols["last"]}{last_row}'
-        ws.print_title_rows = f'{FIRST_DATA_ROW - 2}:{FIRST_DATA_ROW - 1}'
-        ws.print_title_cols = f'A:{cols["totals_last"]}'  # СК и ИТОГО — и на странице с условиями
-        ws.page_setup.paperSize = ws.PAPERSIZE_A4
-        ws.page_setup.pageOrder = 'downThenOver'  # сначала все цифры, потом условия
-        ws.page_margins.left = ws.page_margins.right = MARGIN_LR
-        ws.page_margins.top = ws.page_margins.bottom = MARGIN_TB
-        ws.page_margins.header = ws.page_margins.footer = 0.25
-        ws.oddFooter.center.text = 'Стр. &P из &N'
-        ws.oddFooter.center.size = 8
-
-        plan = self.print_plan(ws, cols, blocks, last_row)
-        ws.page_setup.orientation = plan['orientation']
-        # Явный масштаб вместо «вписать»: при «вписать» Excel игнорирует ручные разрывы
-        ws.sheet_properties.pageSetUpPr.fitToPage = False
-        ws.page_setup.scale = max(10, math.floor(plan['scale'] * 100))
-        ws.col_breaks.append(Break(id=ws[f'{cols["numbers_last"]}1'].column))
-        for row in plan['row_breaks']:
-            ws.row_breaks.append(Break(id=row))
 
     # ── лист «Параметры запроса» ─────────────────────────────────────────────
 
@@ -727,13 +726,6 @@ class SummaryExportV2Service(ExcelExportService):
                 row += 1
             row += 1
 
-        ws.page_setup.orientation = 'portrait'
-        ws.page_setup.paperSize = ws.PAPERSIZE_A4
-        ws.page_setup.fitToWidth = 1
-        ws.page_setup.fitToHeight = 0
-        ws.sheet_properties.pageSetUpPr.fitToPage = True
-        ws.page_margins.left = ws.page_margins.right = MARGIN_LR
-        ws.print_area = f'A1:B{row}'
 
 
 def build_filename(summary: InsuranceSummary, is_client_version: bool) -> str:

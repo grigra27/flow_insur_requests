@@ -109,7 +109,7 @@ class SummaryExportV2ContentTests(SummaryExportV2Base):
 
     def test_variant_captions_and_column_titles(self):
         ws = self._workbook()['Свод']
-        self.assertEqual(ws['B9'].value, 'ИТОГО за срок')
+        self.assertEqual(ws['B9'].value, 'ИТОГО')
         self.assertEqual(ws['B10'].value, 'Предложение 1 · без франшизы')
         self.assertEqual(ws['C10'].value, 'Предложение 2 · франшиза 100 000')
         self.assertEqual(ws['F9'].value, 'Детализация · Предложение 1')
@@ -165,9 +165,9 @@ class SummaryExportV2ContentTests(SummaryExportV2Base):
         self.assertEqual(ws['A1'].font.color.rgb, '00312E81')  # заголовок — индиго, без баннера
         self.assertEqual(ws['A1'].font.sz, 18)
         self.assertEqual(ws['B10'].fill.fgColor.rgb, '00312E81')  # подпись предложения 1 над ценником
-        self.assertEqual(ws['C10'].fill.fgColor.rgb, '005B4FB0')  # предложение 2 — другой оттенок
+        self.assertEqual(ws['C10'].fill.fgColor.rgb, '000F766E')  # предложение 2 — бирюза
         self.assertEqual(ws['B11'].fill.fgColor.rgb, '00EEF0FF')  # ценник
-        self.assertEqual(ws['C11'].fill.fgColor.rgb, '00F4F1FF')
+        self.assertEqual(ws['C11'].fill.fgColor.rgb, '00E3F3F0')
         self.assertEqual(ws['B11'].font.color.rgb, '00312E81')
         self.assertEqual(ws['B11'].font.sz, 16)
         self.assertTrue(ws['B11'].font.b)
@@ -209,35 +209,45 @@ class SummaryExportV2ContentTests(SummaryExportV2Base):
         self.assertGreaterEqual(ws.row_dimensions[11].height, 30)  # один год — ценник не обрезается
 
 
-class SummaryExportV2PrintTests(SummaryExportV2Base):
-    def test_numbers_on_first_page_conditions_after_column_break(self):
-        ws = self._workbook()['Свод']
-        self.assertEqual([b.id for b in ws.col_breaks.brk], [13])  # после детализации предложения 2 (M)
-        self.assertEqual(ws.print_title_cols, '$A:$C')  # СК и ценники — и на странице условий
-        self.assertEqual(ws.print_title_rows, '$9:$10')
-        self.assertEqual(ws.freeze_panes, 'D11')
-        self.assertEqual(str(ws.page_setup.paperSize), str(ws.PAPERSIZE_A4))
-        self.assertFalse(ws.sheet_properties.pageSetUpPr.fitToPage)
+class SummaryExportV2TableLookTests(SummaryExportV2Base):
+    def test_only_landscape_print_setting_and_frozen_panes(self):
+        wb = self._workbook(client=False)
+        ws = wb['Свод']
+        self.assertEqual(ws.freeze_panes, 'D11')  # СК и ценники на экране при прокрутке
         self.assertEqual(ws.page_setup.orientation, 'landscape')
-        self.assertTrue(72 <= ws.page_setup.scale <= 100)
-        self.assertEqual(list(ws.row_breaks.brk), [])
+        self.assertIsNone(wb['Параметры запроса'].page_setup.orientation)
+        for sheet in wb:
+            self.assertFalse(sheet.print_area)
+            self.assertFalse(sheet.print_title_rows)
+            self.assertFalse(sheet.print_title_cols)
+            self.assertEqual(list(sheet.col_breaks.brk), [])
+            self.assertEqual(list(sheet.row_breaks.brk), [])
+            self.assertIsNone(sheet.page_setup.scale)
+            self.assertFalse(sheet.sheet_properties.pageSetUpPr and sheet.sheet_properties.pageSetUpPr.fitToPage)
+            self.assertFalse(sheet.oddFooter.center.text)
 
-    def test_long_summary_breaks_only_between_company_blocks(self):
-        request = InsuranceRequest.objects.create(client_name='ООО Тест', inn='2', dfa_number='ТС-2',
-                                                 vehicle_info='Автомобиль HAVAL H3')
-        summary = InsuranceSummary.objects.create(request=request, status='collecting')
-        for i, company in enumerate(COMPANIES):
-            for year in range(1, 6):
-                self._offer(company, year, 3_000_000 - year * 100_000, 80_000 + i * 1_000, None,
-                            notes='Требуется осмотр ТС. ' * 3, summary=summary)
-        ws = self._workbook(summary)['Свод']
-        breaks = [b.id for b in ws.row_breaks.brk]
-        self.assertTrue(breaks)
-        for row in breaks:
-            # следующая за разрывом строка — первая строка блока СК
-            self.assertIn(ws[f'A{row + 1}'].value, COMPANIES)
-            self.assertEqual(ws[f'C{row + 1}'].value, '1 год')
-        self.assertEqual([b.id for b in ws.col_breaks.brk], [8])
+    def test_grid_separators_between_companies_and_column_groups(self):
+        ws = self._workbook()['Свод']
+        dark = '00312E81'
+        # между СК (Альфа 11–12 | Зетта 13–14) — тёмная линия, между годами одной СК — тонкая светлая
+        self.assertEqual((ws['H12'].border.bottom.style, ws['H12'].border.bottom.color.rgb), ('medium', dark))
+        self.assertEqual(ws['H13'].border.top.style, 'medium')
+        self.assertEqual((ws['H11'].border.bottom.style, ws['H11'].border.bottom.color.rgb), ('thin', '00D5D9E8'))
+        # вертикали блоков: перед ИТОГО (B), годом (D), детализацией П1 (F) и П2 (J), территорией (N),
+        # ответами СК (O) и комментариями (P); внутри блока — тонкая
+        for letter in 'BDFJNOP':
+            self.assertEqual(ws[f'{letter}11'].border.left.style, 'medium', letter)
+        self.assertEqual(ws['G11'].border.left.style, 'thin')
+        self.assertEqual(ws['A11'].border.left.style, 'medium')  # рамка таблицы
+        self.assertEqual(ws['A9'].border.top.style, 'medium')
+
+    def test_accent_colors_offer_2_teal_conditions_terracotta(self):
+        ws = self._workbook()['Свод']
+        self.assertEqual(ws['J9'].font.color.rgb, '000F766E')  # «Детализация · Предложение 2»
+        self.assertEqual(ws['F10'].font.color.rgb, '00B4532A')  # «Франшиза» — условие
+        self.assertEqual(ws['N9'].fill.fgColor.rgb, '00FBEEE8')  # шапка блока условий
+        self.assertEqual(ws['A13'].fill.fgColor.rgb, '00F8F9FD')  # зебра: вторая СК
+        self.assertEqual(ws['A17'].fill.fgColor.rgb, '00F6F6F8')  # отказ
 
 
 class SummaryExportV2AccessTests(SummaryExportV2Base):
@@ -308,20 +318,18 @@ class SummaryExportV2ResponseColumnsTests(SummaryExportV2Base):
                           'Комментарии'])
         self.assertEqual(ws['L4'].value, 'Выбрана СК:')
         self.assertEqual(ws['M4'].fill.fgColor.rgb, '00FFF2B3')
-        self.assertEqual([b.id for b in ws.col_breaks.brk], [8])  # разрыв по-прежнему после «ИТОГО»
 
     def test_transport_paid_separately_marked_with_footnote(self):
         ws = self._sheet()
-        self.assertEqual(ws['B9'].value, 'ИТОГО за срок*')
+        self.assertEqual(ws['B9'].value, 'ИТОГО*')
         footnotes = [ws[f'A{r}'].value for r in range(11, ws.max_row + 1)
-                     if str(ws[f'A{r}'].value or '').startswith('* ИТОГО за срок — без перевозки')]
+                     if str(ws[f'A{r}'].value or '').startswith('* ИТОГО — без перевозки')]
         self.assertEqual(len(footnotes), 1)
         self.assertIn('оплачивается отдельно', footnotes[0])
         footnote_row = next(r for r in range(11, ws.max_row + 1) if ws[f'A{r}'].value == footnotes[0])
-        self.assertIn(f'A{footnote_row}:H{footnote_row}', {str(r) for r in ws.merged_cells.ranges})  # на странице цифр
-        self.assertTrue(ws.print_area.endswith(str(footnote_row)))
+        self.assertIn(f'A{footnote_row}:H{footnote_row}', {str(r) for r in ws.merged_cells.ranges})  # под колонками цифр
         casco = self._workbook()['Свод']  # без перевозки — ни звёздочки, ни сноски
-        self.assertEqual(casco['B9'].value, 'ИТОГО за срок')
+        self.assertEqual(casco['B9'].value, 'ИТОГО')
         self.assertNotIn('без перевозки', _all_text(casco))
 
     def test_values_from_insurer_response_and_missing(self):
@@ -345,15 +353,3 @@ class SummaryExportV2ResponseColumnsTests(SummaryExportV2Base):
         casco = self._workbook()['Свод']
         self.assertEqual(casco['O11'].value, 'нет данных')
 
-    def test_page_two_not_wider_than_numbers_page(self):
-        ws = self._sheet()
-        service = SummaryExportV2Service()
-        numbers = service._span_points(ws, 1, 8)
-        page_two = service._span_points(ws, 1, 2) + service._span_points(ws, 9, 13)  # A:B повторяются
-        # имущество с РНПК и перевозкой, один вариант: уже нельзя — комментарии минимальной ширины
-        self.assertEqual(ws.column_dimensions['M'].width, SummaryExportV2Service.NOTES_MIN_WIDTH)
-        self.assertGreater(page_two, numbers)
-        # КАСКО, два варианта: вторая страница не шире цифр
-        casco = self._workbook()['Свод']
-        self.assertLessEqual(service._span_points(casco, 1, 3) + service._span_points(casco, 14, 16),
-                             service._span_points(casco, 1, 13) + 4)
