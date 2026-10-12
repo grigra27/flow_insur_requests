@@ -187,12 +187,51 @@ class SummaryExportV2ContentTests(SummaryExportV2Base):
     def test_request_parameters_sheet_has_v1_fields_and_new_ones(self):
         ws = self._workbook(client=False)['Параметры запроса']
         values = {ws[f'A{r}'].value: ws[f'B{r}'].value for r in range(1, ws.max_row + 1) if ws[f'A{r}'].value}
+        sections = [ws[f'A{r}'].value for r in range(1, ws.max_row + 1)
+                    if ws[f'A{r}'].value and ws[f'B{r}'].value is None and r > 1]
+        self.assertEqual(sections, ['Заявка', 'Лизингополучатель', 'Предмет лизинга', 'Условия страхования',
+                                    'Параметры и риски'])
         self.assertEqual(values['ИНН'], '7751199551')
         self.assertEqual(values['Филиал'], 'Казань')
-        self.assertEqual(values['Срок договора лизинга'], '11.09.2026 — 10.09.2028 (2 г.)')
+        self.assertEqual(values['Объект'], 'Mercedes-Benz V 300 D 4Matic')  # марка не дублируется
+        self.assertEqual(values['Состояние'], 'Новое')
+        self.assertEqual(values['Стоимость'], '17 600 000 руб.')
+        self.assertNotIn('Примечание', values)  # стоимость известна — пометки «старый загрузчик» нет
+        self.assertEqual(values['Договор лизинга'], '11.09.2026 — 10.09.2028 (2 г.)')
+        self.assertIn('Рассрочка', values)  # частота уплаты не распознана — хотя бы да/нет
         self.assertEqual(values['Противоугонные системы'], 'Сигнализация: штатная')
+        self.assertEqual(values['Автозапуск'], 'Нет')
         self.assertIn('Запрашиваемые риски', values)
-        self.assertNotIn('Доп. параметры имущества', values)
+        self.assertNotIn('Менеджер сделки', values)  # white label: нашего сотрудника нет
+
+    def test_request_parameters_sheet_takes_parser_v2_fields(self):
+        request = self.request_obj
+        request.legal_address = '420000, г. Казань, ул. Тестовая, 1'
+        request.postal_address = request.legal_address
+        request.business_activity = 'Грузоперевозки'
+        request.manager_name = 'Тестова Т. Т.'
+        request.manufacturing_year = '2025'
+        request.insurance_period = '1 год'
+        request.insurance_territory = 'РФ'
+        request.premium_frequency = 'quarterly'
+        request.has_installment = True
+        request.has_transportation = True
+        request.transportation_departure, request.transportation_destination = 'Москва', 'Казань'
+        request.save()
+        ws = self._workbook(client=False)['Параметры запроса']
+        values = {ws[f'A{r}'].value: ws[f'B{r}'].value for r in range(1, ws.max_row + 1) if ws[f'A{r}'].value}
+        self.assertEqual(values['Юридический адрес'], '420000, г. Казань, ул. Тестовая, 1')
+        self.assertEqual(values['Почтовый адрес'], 'совпадает с юридическим')
+        self.assertEqual(values['Вид деятельности'], 'Грузоперевозки')
+        self.assertEqual(values['Менеджер лизинговой компании'], 'Тестова Т. Т.')
+        self.assertEqual(values['Год выпуска'], '2025')
+        self.assertEqual(values['Срок страхования'], '1 год')
+        self.assertEqual(values['Территория'], 'РФ')
+        self.assertIn('рассрочка', values['Уплата премии'])
+        self.assertNotIn('Рассрочка', values)
+        self.assertEqual(values['Перевозка'], 'Да')
+        self.assertIn('Москва', values['Маршрут перевозки'])
+        self.assertNotIn('Стоимость перевозки', values)  # просьба к страховщику — только в PDF
 
     def test_single_variant_summary_has_no_offer_2_columns(self):
         request = InsuranceRequest.objects.create(client_name='ООО Тест', inn='1', dfa_number='ТС-1',

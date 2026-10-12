@@ -651,47 +651,57 @@ class SummaryExportV2Service(ExcelExportService):
 
     # ── лист «Параметры запроса» ─────────────────────────────────────────────
 
-    def _request_sections(self, request) -> List[tuple]:
-        franchise = self._get_franchise_text_for_tech_info(request.franchise_type or 'none')
-        if request.franchise_type != 'none' and request.franchise_amount_display:
-            franchise = f'{franchise}; размер франшизы: {request.franchise_amount_display}'
+    # Строки PDF-заявки, которые на листе «Параметры запроса» не нужны: наш сотрудник (white label)
+    # и просьба к страховщику указать стоимость перевозки отдельно
+    REQUEST_SHEET_SKIP = {'Менеджер сделки', 'Стоимость перевозки'}
+    REQUEST_SHEET_LABELS = {'Страховая сумма': 'Тип страховой суммы'}  # «Неагрегатная» — тип, а не сумма
 
-        conditions = [
-            ('Тип страхования', request.get_insurance_type_display()),
-            ('Предмет лизинга', request.object_summary),
-            ('Срок договора лизинга', request.lease_term_display),
-            ('Страхователь', request.get_insured_party_display() if request.insured_party else ''),
-            ('Банк-кредитор', request.creditor_bank),
-            ('Франшиза', franchise),
-            ('Рассрочка', self._get_installment_text_for_tech_info(request.has_installment)),
-            ('Цели использования', request.usage_purposes),
-            ('Запрашиваемые риски', self._get_insurance_description_for_tech_info(request)),
-        ]
-        sections = [
-            ('Данные о клиенте', [
-                ('Заявка', request.dfa_number), ('Лизингополучатель', request.client_name),
-                ('ИНН', request.inn), ('Филиал', request.branch),
-            ]),
-            ('Условия запроса', conditions),
-        ]
-        if request.insurance_type in ('КАСКО', 'страхование спецтехники'):
-            sections.append(('Доп. параметры КАСКО / спецтехники', [
-                ('Автозапуск', self._get_autostart_text_for_tech_info(request.has_autostart)),
-                ('Комплектность ключей', request.key_completeness),
-                ('ПТС / ПСМ', request.pts_psm),
-                ('Телематический комплекс', request.telematics_complex),
-                ('Противоугонные системы', request.anti_theft_systems),
-            ]))
-        if request.insurance_type == 'страхование имущества':
-            sections.append(('Доп. параметры имущества', [
-                ('Территория по исходной заявке', request.insurance_territory),
-                ('Перевозка', 'Запрос с условием перевозки' if request.has_transportation else ''),
-                ('СМР', 'Запрос с условием СМР' if request.has_construction_work else ''),
-                ('Тип страховой суммы',
-                 request.get_insured_sum_type_display() if request.insured_sum_type else ''),
-                ('Условия охраны / хранения', request.guard_conditions),
-            ]))
-        return sections
+    def _request_sections(self, request) -> List[tuple]:
+        """Все данные заявки для коллег лизинговой компании — из того же контекста, что PDF-заявка
+        для страховщика (insurance_requests.application_export), чтобы лист и PDF не расходились.
+        Пустые поля не выводятся; флаги параметров — явно «Да»/«Нет»."""
+        from insurance_requests.application_export import build_application_context
+
+        ctx = build_application_context(request)
+        keep = lambda rows: [(self.REQUEST_SHEET_LABELS.get(label, label), value) for label, value in rows
+                             if label not in self.REQUEST_SHEET_SKIP and str(value or '').strip()]
+        strip = dict(ctx['strip'])
+
+        title = ctx['object_title']
+        brand = (request.object_brand or '').strip()
+        kind = [part for part in ((request.machine_kind or '').strip(),
+                                  f'марка {brand}' if brand and brand.lower() not in title.lower() else '') if part]
+        object_name = ' · '.join([title, *kind])
+        quantity = ctx['quantity_count']
+        object_rows = [('Объект', object_name), *ctx['facts'],
+                       ('Стоимость единицы' if quantity else 'Стоимость', ctx['cost'])]
+        if quantity:
+            object_rows += [('Количество', ctx['quantity_label']), ('Общая стоимость', ctx['cost_total'])]
+        if ctx['legacy_note'] and not ctx['cost_known']:  # пометка нужна, только если данных объекта нет
+            object_rows.append(('Примечание', ctx['legacy_note']))
+        terms = list(ctx['terms_rows'])
+        if not any(label == 'Уплата премии' for label, _ in terms):  # частота не распознана — хотя бы да/нет
+            terms.append(('Рассрочка', self._get_installment_text_for_tech_info(request.has_installment)))
+
+        parameters = [(item['label'], item['value']) for row in ctx['tile_rows'] for item in row if item]
+        parameters += list(ctx['long_rows'])
+
+        return [(title, rows) for title, rows in (
+            ('Заявка', keep([
+                ('Номер ДФА', strip.get('Номер ДФА')),
+                ('Филиал', strip.get('Филиал')),
+                ('Дата подачи', strip.get('Дата подачи')),
+                ('Объект в партии', ctx['batch_label']),
+                ('Менеджер лизинговой компании', request.manager_name),
+            ])),
+            ('Лизингополучатель', keep(ctx['insured_rows'])),
+            ('Предмет лизинга', keep(object_rows)),
+            ('Условия страхования', keep([
+                *terms,
+                ('Запрашиваемые риски', self._get_insurance_description_for_tech_info(request)),
+            ])),
+            ('Параметры и риски', keep(parameters)),
+        ) if rows]
 
     def _build_request_sheet(self, ws, request) -> None:
         ws.sheet_view.showGridLines = False
