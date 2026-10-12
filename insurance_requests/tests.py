@@ -339,6 +339,16 @@ class RequestApplicationPdfExportTest(TestCase):
         self.assertNotIn('source_text', context)
         self.assertIn(('Мощность / производ.', '89,73'), context['facts'])
 
+    def test_transport_cost_asked_as_separate_amount(self):
+        # Перевозка — отдельная сумма: страховщика просят не включать её в премию по годам (2026-10-12)
+        from .application_export import build_application_context
+
+        self.request.has_transportation = True
+        rows = dict(build_application_context(self.request)['long_rows'])
+        self.assertIn('отдельной суммой', rows['Стоимость перевозки'])
+        self.request.has_transportation = False
+        self.assertNotIn('Стоимость перевозки', dict(build_application_context(self.request)['long_rows']))
+
     def test_legacy_request_says_object_was_not_parsed(self):
         # Старый загрузчик не разбирал стоимость: вместо «не указана» — честная пометка.
         from .application_export import build_application_context

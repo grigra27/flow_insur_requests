@@ -124,6 +124,10 @@ class SummaryExportV2Service(ExcelExportService):
     # страховщика («Ответ СК»); правило «б/у → осмотр» в своде V2 не используется (решение 2026-10-07)
     EXTRA_TITLES = {section.key: section.summary_column for section in SECTIONS}
     NO_DATA = 'нет данных'
+    # Перевозка — отдельная сумма и отдельная оплата: в ИТОГО не входит (решение владельца 2026-10-12)
+    TRANSPORT_TITLE = 'Перевозка, ₽\nоплачивается отдельно'
+    TRANSPORT_FOOTNOTE = ('* ИТОГО за срок — без перевозки. Страхование перевозки оплачивается отдельно, '
+                          'одной суммой, указанной в колонке «Перевозка».')
 
     def __init__(self, palette: str = DEFAULT_PALETTE):
         self.fs = FONT_SIZES
@@ -221,6 +225,9 @@ class SummaryExportV2Service(ExcelExportService):
             self._write_declined_row(ws, row, name, cols)
             blocks.append((row, row))
             row += 1
+        if 'transport' in cols:
+            self._write_transport_footnote(ws, row + 1, cols)
+            row += 2
 
         self._setup_print(ws, cols, blocks, max(row - 1, FIRST_DATA_ROW))
 
@@ -378,7 +385,7 @@ class SummaryExportV2Service(ExcelExportService):
         first_total, last_total = cols['total_1'], cols['totals_last']
         if first_total != last_total:
             ws.merge_cells(f'{first_total}{top}:{last_total}{top}')
-        ws[f'{first_total}{top}'] = 'ИТОГО за срок'
+        ws[f'{first_total}{top}'] = 'ИТОГО за срок*' if 'transport' in cols else 'ИТОГО за срок'
         ws[f'{first_total}{top}'].font = _font(9, bold=True, color=accent)
         ws[f'{first_total}{top}'].alignment = Alignment(horizontal='center', vertical='center')
         white = Side(style='medium', color='FFFFFF')
@@ -403,7 +410,7 @@ class SummaryExportV2Service(ExcelExportService):
         title(cols['territory'], 'Территория страхования', accent, 9)
         for key, text in self.EXTRA_TITLES.items():
             if key in cols:
-                title(cols[key], text, accent, 9)
+                title(cols[key], self.TRANSPORT_TITLE if key == 'transport' else text, accent, 9)
         title(cols['notes'], 'Комментарии', accent, 9)
 
         line = Side(style='medium', color=accent)
@@ -566,6 +573,16 @@ class SummaryExportV2Service(ExcelExportService):
         ws[f'{cols["total_1"]}{row}'] = self.DECLINED_TEXT
         ws[f'{cols["total_1"]}{row}'].alignment = Alignment(horizontal='center', vertical='center')
         ws.row_dimensions[row].height = DECLINED_ROW_HEIGHT
+
+    def _write_transport_footnote(self, ws, row, cols) -> None:
+        """Сноска к «ИТОГО за срок*» — на странице с цифрами, чтобы была видна и на бумаге."""
+        ws.merge_cells(f'A{row}:{cols["numbers_last"]}{row}')
+        cell = ws[f'A{row}']
+        cell.value = self.TRANSPORT_FOOTNOTE
+        cell.font = _font(9, italic=True, color=self.palette['title'])
+        cell.alignment = Alignment(vertical='center', wrap_text=True)
+        width = sum(self._width(k) for k in cols if k not in (*self.SERVICE_KEYS, 'territory', 'notes', *self.EXTRA_TITLES))
+        ws.row_dimensions[row].height = _text_lines(self.TRANSPORT_FOOTNOTE, int(width * 1.1)) * 12 + 6
 
     # ── печать ───────────────────────────────────────────────────────────────
 

@@ -129,8 +129,8 @@ TRANSPORT = ResponseSection(
     condition=lambda request: bool(getattr(request, 'has_transportation', False)),
     condition_text='Заполняется, если в запросе указана перевозка',
     fields=(
-        SectionField('transport_cost', 'Стоимость страхования перевозки, ₽', MONEY,
-                     hint='Одна сумма за перевозку по маршруту из запроса.'),
+        SectionField('transport_cost', 'Премия за перевозку, ₽ (отдельно)', MONEY,
+                     hint='Отдельная премия за перевозку по маршруту из запроса. Не включайте её в премию по годам.'),
         SectionField('transport_terms', 'Условия перевозки (необязательно)', TEXT, required=False),
     ),
     summary_column='Перевозка, ₽',

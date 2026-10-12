@@ -131,6 +131,23 @@ class ResponseTemplateV2RolloutTests(TestCase):
         accepted = self._upload(self.staff, self.old_summary, _filled(load_workbook(V1_TEMPLATE_PATH)))
         self.assertTrue(accepted['success'], accepted)
 
+    def test_transport_marked_as_paid_separately(self):
+        from summaries.response_sections import TRANSPORT
+        from summaries.services.insurer_response import display_lines
+
+        response = InsurerResponse(summary=self.new_summary, company_name='Согаз', transport_cost=Decimal('5330'),
+                                   transport_terms='на время перевозки')
+        self.assertEqual(v1_comment_note(response),
+                         'Перевозка: 5 330 ₽ — оплачивается отдельно, в премию не входит (на время перевозки).')
+        self.assertEqual(TRANSPORT.fields[0].label, 'Премия за перевозку, ₽ (отдельно)')
+        self.assertIn('Не включайте её в премию по годам', TRANSPORT.fields[0].hint)
+        self.new_request.has_transportation = True
+        self.new_request.save(update_fields=['has_transportation'])
+        response.save()
+        lines = display_lines(self.new_summary, ['Согаз'])['Согаз']['lines']
+        transport = next(line for line in lines if line['label'] == 'Перевозка')
+        self.assertEqual((transport['text'], transport['note']), ('5 330 ₽ · на время перевозки', 'отдельно от премии'))
+
     def test_new_request_v2_file_saved_and_goes_to_v1_comments(self):
         upload = _filled(load_workbook(BytesIO(build_v2(self.new_request, self.new_summary.pk))), {
             'resp_inspection_status': 'Осмотр не требуется',

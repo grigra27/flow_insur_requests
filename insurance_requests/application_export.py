@@ -260,6 +260,8 @@ def build_application_context(insurance_request) -> dict:
     transport = _transport_row(r)
     if transport:
         long_rows.append(transport)
+    if r.has_transportation:
+        long_rows.append(('Стоимость перевозки', 'укажите отдельной суммой — не включайте её в премию по годам'))
 
     facts = _object_facts(r)
     quantity = max(r.source_object_count or 1, 1)

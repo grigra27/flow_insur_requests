@@ -304,10 +304,25 @@ class SummaryExportV2ResponseColumnsTests(SummaryExportV2Base):
         ws = self._sheet()
         # один вариант: цифры A..H, дальше территория, осмотр, РНПК, перевозка, комментарии
         self.assertEqual([ws[f'{c}9'].value for c in 'IJKLM'],
-                         ['Территория страхования', 'Осмотр', 'Риски РНПК', 'Перевозка, ₽', 'Комментарии'])
+                         ['Территория страхования', 'Осмотр', 'Риски РНПК', 'Перевозка, ₽\nоплачивается отдельно',
+                          'Комментарии'])
         self.assertEqual(ws['L4'].value, 'Выбрана СК:')
         self.assertEqual(ws['M4'].fill.fgColor.rgb, '00FFF2B3')
         self.assertEqual([b.id for b in ws.col_breaks.brk], [8])  # разрыв по-прежнему после «ИТОГО»
+
+    def test_transport_paid_separately_marked_with_footnote(self):
+        ws = self._sheet()
+        self.assertEqual(ws['B9'].value, 'ИТОГО за срок*')
+        footnotes = [ws[f'A{r}'].value for r in range(11, ws.max_row + 1)
+                     if str(ws[f'A{r}'].value or '').startswith('* ИТОГО за срок — без перевозки')]
+        self.assertEqual(len(footnotes), 1)
+        self.assertIn('оплачивается отдельно', footnotes[0])
+        footnote_row = next(r for r in range(11, ws.max_row + 1) if ws[f'A{r}'].value == footnotes[0])
+        self.assertIn(f'A{footnote_row}:H{footnote_row}', {str(r) for r in ws.merged_cells.ranges})  # на странице цифр
+        self.assertTrue(ws.print_area.endswith(str(footnote_row)))
+        casco = self._workbook()['Свод']  # без перевозки — ни звёздочки, ни сноски
+        self.assertEqual(casco['B9'].value, 'ИТОГО за срок')
+        self.assertNotIn('без перевозки', _all_text(casco))
 
     def test_values_from_insurer_response_and_missing(self):
         ws = self._sheet()

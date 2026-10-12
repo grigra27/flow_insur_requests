@@ -65,7 +65,8 @@ def v2_contour(user) -> bool:
 
 def v1_comment_note(response) -> str:
     """Ответы блоков одной строкой для комментария свода V1:
-    «Осмотр: требуется осмотр. Риски РНПК будут прописаны в полисе. Перевозка: 5 330 ₽ (условия).»"""
+    «Осмотр: требуется осмотр. Риски РНПК будут прописаны в полисе. Перевозка: 5 330 ₽ — оплачивается
+    отдельно, в премию не входит (условия).»"""
     if response is None:
         return ''
     parts = []
@@ -77,7 +78,7 @@ def v1_comment_note(response) -> str:
     if response.transport_cost is not None:
         amount = f'{response.transport_cost:,.0f}'.replace(',', ' ')
         terms = f' ({response.transport_terms.strip()})' if response.transport_terms.strip() else ''
-        parts.append(f'Перевозка: {amount} ₽{terms}.')
+        parts.append(f'Перевозка: {amount} ₽ — оплачивается отдельно, в премию не входит{terms}.')
     return ' '.join(parts)
 
 
@@ -148,7 +149,9 @@ def display_lines(summary: InsuranceSummary, company_names) -> Dict[str, dict]:
                 details = [getattr(response, f.name, '') for f in extra if getattr(response, f.name, '')]
                 if details:
                     text = f"{text} · {' · '.join(details)}"
-                lines.append({'label': label, 'text': text, 'missing': False})
+                # Перевозка — отдельная сумма, в ИТОГО не входит: подчёркиваем на карточке
+                note = 'отдельно от премии' if section.key == 'transport' else ''
+                lines.append({'label': label, 'text': text, 'missing': False, 'note': note})
             for fld in section.fields:
                 current = getattr(response, fld.name, None) if response else None
                 fields.append({
