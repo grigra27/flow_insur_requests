@@ -275,8 +275,11 @@ def _write_base_block(ws, title: str) -> None:
                 unlocked=True)
 
 
-def _write_instructions(ws, top: int, instructions: List[str]) -> int:
-    """«Как заполнить» с номерами; возвращает номер последней строки."""
+def _write_instructions(ws, top: int, instructions: List[str], fit_height: bool = False) -> int:
+    """«Как заполнить» с номерами; возвращает номер последней строки.
+
+    fit_height — высота строки по длине текста (шаблон V2: пункт про территорию — три строки).
+    Без него — прежние «одна или две строки», чтобы собранный V1 совпадал с файлом в репозитории."""
     ws.merge_cells(f"A{top}:J{top}")
     put(ws, f"A{top}", "Как заполнить", fnt=font(11, bold=True, color=BRAND_RED),
         align=Alignment(vertical="bottom"))
@@ -287,7 +290,11 @@ def _write_instructions(ws, top: int, instructions: List[str]) -> int:
         put(ws, f"A{row}", idx, fnt=font(10, bold=True, color=BRAND_RED),
             align=Alignment(horizontal="right", vertical="top", indent=1))
         put(ws, f"B{row}", text, fnt=font(10), align=Alignment(vertical="top", wrap_text=True))
-        ws.row_dimensions[row].height = 28 if len(text) > 95 else 15
+        if fit_height:  # 1 строка — 15 pt, 2 — 28, 3 — 41: как раньше, но без потолка в две строки
+            lines = max(1, -(-len(text) // 92))
+            ws.row_dimensions[row].height = max(15, lines * 13 + 2)
+        else:
+            ws.row_dimensions[row].height = 28 if len(text) > 95 else 15
     return top + len(instructions)
 
 
@@ -490,7 +497,7 @@ def build_v2(request=None, summary_id: Optional[int] = None) -> bytes:
     for section in SECTIONS:
         row = _write_section(ws, row, section, section_state(section, request), request, names, validations)
 
-    last = _write_instructions(ws, row, _instructions_v2(personal=request is not None))
+    last = _write_instructions(ws, row, _instructions_v2(personal=request is not None), fit_height=True)
     last = _write_sample(ws, last + 2)
     _finalize(ws, last)
     for dv in validations:

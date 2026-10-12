@@ -172,6 +172,17 @@ class V2TemplateTests(SimpleTestCase):
         for name in ('resp_rnpk_status', 'resp_transport_cost'):
             self.assertFalse(ws[_name_ref(wb, name)[1]].protection.locked, name)
 
+    def test_long_instructions_get_rows_tall_enough(self):
+        # Пункт 7 («Обязательно укажите территорию…») — три строки, раньше обрезался на третьей
+        _, ws = self._load(build_v2(_request(insurance_type='страхование имущества', has_transportation=True),
+                                    summary_id=1))
+        row = next(r for r in range(12, ws.max_row + 1)
+                   if str(ws[f'B{r}'].value or '').startswith('Обязательно укажите территорию'))
+        self.assertGreaterEqual(ws.row_dimensions[row].height, 3 * 13)
+        short = next(r for r in range(12, ws.max_row + 1)
+                     if str(ws[f'B{r}'].value or '').startswith('Годы, которые вы не предлагаете'))
+        self.assertEqual(ws.row_dimensions[short].height, 15)
+
     def test_meta_sheet_is_very_hidden_with_version_and_summary(self):
         wb, _ws = self._load(build_v2(_request(), summary_id=304))
         meta = wb[META_SHEET]
