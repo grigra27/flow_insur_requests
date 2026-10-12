@@ -44,6 +44,8 @@ CLIENT_COORDINATES = ("D7", "D8")
 CLIENT_MAX_LABEL_ROW = 10
 # Подписи полей в бланках короткие; более длинный текст считается значением.
 LABEL_MAX_LENGTH = 60
+# Заголовки разделов бланка: под подписью поля они означают, что значение пустое
+SECTION_HEADER_PREFIXES = ("сведения об", "сведения о ", "параметры страхов")
 # Multi-word labels of *neighbouring* fields. The right-scan stops when it
 # reaches one of these, so an empty field (e.g. «Банк-кредитор» before the
 # creditor is known) is reported as empty instead of borrowing the next
@@ -2714,18 +2716,45 @@ class ExcelRequestParserV2:
             # A present cell that is itself another field's label means the
             # value column is empty. Stop here instead of skipping the label
             # and borrowing the neighbouring field's text.
-            if self._matches_any_group(candidate.normalized, FIELD_LABEL_GROUPS) and not self._looks_like_answer_text(candidate.value):
+            if self._is_neighbour_label(same_row, candidate):
                 return None
             if not self._looks_like_empty_or_label(candidate.value):
                 return candidate
         return None
 
+    def _is_neighbour_label(self, same_row: List[GridCell], candidate: GridCell) -> bool:
+        """Ячейка справа от подписи — подпись соседнего поля, а не наше значение?
+
+        Слова подписи бывают и в ответе: «основной вид деятельности (перевозка инструментов
+        и бригад)» в «Цели использования» (заявка 348, 12.10.2026). Подпись соседа всегда
+        ведёт к своему значению дальше в строке или заканчивается «:»; последняя ячейка
+        строки без «:» — ответ.
+        """
+        if not self._matches_any_group(candidate.normalized, FIELD_LABEL_GROUPS):
+            return False
+        if self._looks_like_answer_text(candidate.value):
+            return False
+        if clean_value(candidate.value).endswith(":"):
+            return True
+        return any(item.col > candidate.col for item in same_row)
+
     def _first_value_below(self, rows: Dict[int, List[GridCell]], cell: GridCell, max_rows: int = 3) -> Optional[GridCell]:
         for row_number in range(cell.row + 1, cell.row + max_rows + 1):
             same_column = next((item for item in rows.get(row_number, []) if item.col == cell.col), None)
-            if same_column and not self._looks_like_empty_or_label(same_column.value):
+            if same_column is None:
+                continue
+            # Под подписью начался следующий блок бланка: подпись другого поля или заголовок
+            # раздела («СВЕДЕНИЯ ОБ ОБЪЕКТЕ СТРАХОВАНИЯ») — значения у нашего поля нет.
+            if self._looks_like_section_start(same_column):
+                return None
+            if not self._looks_like_empty_or_label(same_column.value):
                 return same_column
         return None
+
+    def _looks_like_section_start(self, cell: GridCell) -> bool:
+        if self._matches_any_group(cell.normalized, FIELD_LABEL_GROUPS) and not self._looks_like_answer_text(cell.value):
+            return True
+        return cell.normalized.startswith(SECTION_HEADER_PREFIXES)
 
     def _looks_like_empty_or_label(self, value: str) -> bool:
         normalized = normalize_text(value)

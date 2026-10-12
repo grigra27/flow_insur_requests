@@ -370,6 +370,48 @@ class BusinessActivityRegressionTests(SimpleTestCase):
         self.assertEqual(parse(self.build('Разработка карьера'))['business_activity'], 'Разработка карьера')
 
 
+class UsagePurposesRegressionTests(SimpleTestCase):
+    """Цель использования: ответ со словами чужой подписи и заголовок раздела под пустым полем.
+
+    Реальный случай (заявка 348, письмо сотрудника 12.10.2026): в D37 «основнойвид деятельности
+    (перевозка инструментов и бригад)» парсер принял за подпись поля «Вид деятельности» и взял
+    заголовок «СВЕДЕНИЯ ОБ ОБЪЕКТЕ СТРАХОВАНИЯ» из B39.
+    """
+
+    def build(self, usage):
+        wb = build_casco_application()
+        sheet = wb.active
+        sheet['B37'] = 'Цель использования'
+        if usage:
+            sheet['D37'] = usage
+        sheet['B39'] = 'СВЕДЕНИЯ ОБ ОБЪЕКТЕ СТРАХОВАНИЯ'
+        return wb
+
+    def test_answer_with_other_label_words(self):
+        usage = 'основнойвид деятельности (перевозка инструментов и бригад)'
+        result = parse_result(self.build(usage))
+        self.assertEqual(result.data['usage_purposes'], usage)
+        self.assertEqual(result.source_map['usage_purposes'], 'D37')
+
+    def test_plain_answer(self):
+        self.assertEqual(parse(self.build('производственные'))['usage_purposes'], 'производственные')
+
+    def test_empty_value_does_not_take_section_header(self):
+        self.assertEqual(parse(self.build(''))['usage_purposes'], '')
+
+    def test_neighbour_label_with_its_value_still_stops(self):
+        # Пустая «Цель использования», правее — подпись другого поля со своим значением
+        wb = self.build('')
+        wb.active['F37'] = 'Территория страхования'
+        wb.active['H37'] = 'Россия'
+        self.assertEqual(parse(wb)['usage_purposes'], '')
+
+    def test_neighbour_label_with_colon_at_row_end_still_stops(self):
+        wb = self.build('')
+        wb.active['F37'] = 'Банк-кредитор:'
+        self.assertEqual(parse(wb)['usage_purposes'], '')
+
+
 class FranchiseAmountRegressionTests(SimpleTestCase):
     """Размеры франшизы: числа в отмеченной колонке «Абсолютная сумма» / «% от страховой суммы».
 
