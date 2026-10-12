@@ -2,21 +2,26 @@
 
 Содержание то же, что у текущего свода (ExcelExportService + шаблоны templates/*summary*.xlsx):
 лист «Свод» уходит клиенту, полная версия добавляет лист «Параметры запроса» для коллег
-из лизинговой компании. Отличия — только в подаче (решения владельца 2026-10-04):
+из лизинговой компании. Отличия — только в подаче.
 
-- white label: ни бренда, ни контактов, ни аналитики; палитра «деловой синий»;
-- СК отсортированы по ИТОГО предложения 1, строки по годам как раньше;
-- «Выбрана СК» / «Выбрано предложение» — ручные жёлтые поля, но с выпадающими списками;
+Оформление «Ценники» (выбрано владельцем 2026-10-12 из десяти вариантов):
+
+- слева направо: страховая компания → ИТОГО за срок крупными «ценниками» (по предложению) →
+  детализация по годам мелким шрифтом → территория, ответы СК, комментарии;
+- в детализации сначала условие, потом результат: франшиза → тариф → премия → платежей в год;
+- строки с цифрами одной высоты; длинный текст территории/комментариев продолжается
+  в добавочную строку в конце блока СК, а не растягивает строки лет;
+- white label: ни бренда, ни контактов, ни аналитики; палитра «индиго»;
+- СК отсортированы по ИТОГО предложения 1;
+- «Выбрана СК» / «Выбрано предложение» — ручные жёлтые поля с выпадающими списками;
   выбранная СК подсвечивается условным форматированием;
-- подписи «Предложение 1/2» с размером франшизы, понятные заголовки колонок;
-- вместо служебной «Нет данных: территория ранее не собиралась» — «—»;
-- дата свода в шапке; в тех. листе добавлены срок лизинга, страхователь, противоугонные
-  системы, тип страховой суммы и условия охраны.
+- подписи «Предложение 1/2» с размером франшизы; вместо служебной «Нет данных: территория
+  ранее не собиралась» — «—»; дата свода в шапке; пустое примечание не выводится.
 
-Печать (A4): первая страница — всё от «Страховой компании» до последнего «ИТОГО» в одном
-масштабе (ориентация — та, где цифры влезают на один лист крупнее); территория и комментарии — ручным разрывом на следующую
-страницу, с повтором колонки СК. Если строк больше, чем помещается, разрывы ставятся
-только между блоками СК — компания не разрезается.
+Печать (A4): первая страница — СК, ценники и детализация в одном масштабе (ориентация — та, где
+цифры крупнее); территория, ответы СК и комментарии — ручным разрывом на следующую страницу,
+с повтором колонок «СК + ИТОГО». Если строк больше, чем помещается, разрывы ставятся только
+между блоками СК — компания не разрезается.
 
 Правила данных (примечания, системные комментарии, территория, отказы) берутся у
 ExcelExportService, чтобы V1 и V2 не расходились. Старый свод этот модуль не меняет.
@@ -47,38 +52,39 @@ from .excel_services import ExcelExportService, ExcelExportServiceError
 logger = logging.getLogger(__name__)
 
 FONT = 'Arial'
-INK = '1F2328'
+INK = '111827'
 MUTED = '6B7280'
 INPUT_FILL = PatternFill('solid', fgColor='FFF2B3')  # ручные поля менеджера — всегда жёлтые
 
-# Палитра white label (без фирменных цветов брокера), выбор владельца 2026-10-05 — «деловой синий».
-# header/header_2 — шапки предложений 1/2 (и плашки «ИТОГО» под ними, и баннер заголовка),
-# sub/sub_2 — подзаголовки, sub — ещё и плашка СК, accent — полоса слева у плашки СК. Другие варианты (графит, изумруд, синий
-# с золотом) рассматривались и отклонены; новую палитру достаточно добавить сюда.
+# Палитра white label (без фирменных цветов брокера). «Индиго» — из выбранного образца «Ценники»
+# (2026-10-12); прежний «деловой синий» и отклонённые графит, изумруд, синий с золотом — в истории git.
+# header/header_2 — подписи предложений 1/2 над ценниками и цифры ценников, tag/tag_2 — заливка
+# ценников, detail — цифры детализации, chosen* — подсветка выбранной СК и предложения.
 PALETTES = {
-    'navy': {
-        'title': '1B3A6B', 'accent': '2E6BC6', 'header': '1B3A6B', 'header_2': '2E5C99',
-        'sub': 'DCE6F2', 'sub_2': 'E2EBF6', 'band': 'F5F8FC', 'hair': 'D5DEEA', 'block': '8FA9CC',
-        'company': '1B3A6B',
-        'chosen': 'DCEBFB', 'chosen_variant': 'BCD5F5', 'section': 'E8EEF6',
+    'indigo': {
+        'title': '312E81', 'header': '312E81', 'header_2': '5B4FB0', 'tag': 'EEF0FF', 'tag_2': 'F4F1FF',
+        'detail': '4B5563', 'hair': 'E0E3F0', 'block': 'A5ACD6', 'section': 'EEF0FF',
+        'chosen': 'EEF2FF', 'chosen_company': 'E0E7FF', 'chosen_total': 'C7D2FE', 'chosen_variant': 'E0E7FF',
     },
 }
-DEFAULT_PALETTE = 'navy'
+DEFAULT_PALETTE = 'indigo'
 
 MONEY = '#,##0'  # копейки хранятся в ячейке, на экране — целые рубли, как в своде V1
 RATE = '0.00%'
 
-FIRST_DATA_ROW = 10
-# Размеры шрифтов (pt) — «крупный» вид, выбор владельца 2026-10-05
-FONT_SIZES = {'data': 10, 'header': 10, 'company': 12, 'total': 13, 'title': 16}
-LINE_HEIGHT = 14  # pt на строку текста шрифтом 10
-MIN_ROW_HEIGHT = 22
+HEADER_ROW = 4  # поля шапки: строки 4–8 (заявка, объект, лизингополучатель, цели, примечание)
+FIRST_DATA_ROW = 11  # шапка таблицы — строки 9–10
+FONT_SIZES = {'detail': 8.5, 'text': 8.5, 'column': 8, 'company': 12, 'total': 16, 'title': 18, 'field': 11}
+ROW_HEIGHT = 17  # строка года — всегда одной высоты
+TAG_MIN_HEIGHT = 30  # ценник шрифтом 16 pt: блок СК не ниже этого, даже если в нём один год
+TEXT_LINE_HEIGHT = 11  # pt на строку текста шрифтом 8.5
+DECLINED_ROW_HEIGHT = 22
 
 # Печать: A4 (pt), поля в дюймах
 A4_SHORT, A4_LONG = 595.3, 841.9
 MARGIN_LR, MARGIN_TB = 0.4, 0.5
 PAGE_SIZES = {'landscape': (A4_LONG, A4_SHORT), 'portrait': (A4_SHORT, A4_LONG)}
-# Цифры на одном листе, пока шрифт 9 pt на бумаге не мельче ~6.5 pt; иначе — по блокам на несколько
+# Цифры на одном листе, пока масштаб не мельче 72%; иначе — по блокам СК на несколько листов
 ONE_PAGE_MIN_SCALE = 0.72
 
 
@@ -97,15 +103,21 @@ def col_points(width: float) -> float:
     return int(width * 7 + 5) * 0.75
 
 
+def text_chars(width: float) -> int:
+    """Сколько символов шрифта 8.5 pt помещается в строке колонки шириной width."""
+    return max(1, int(width * 1.2))
+
+
 class SummaryExportV2Service(ExcelExportService):
     """Генерация свода V2 с нуля, без xlsx-шаблона."""
 
     LEGACY_TERRITORY_V2 = '—'
 
-    WIDTHS = {'company': 22.5, 'year': 9, 'sum': 17, 'rate': 10, 'premium': 14.5, 'franchise': 13.5,
-              'payments': 11, 'total': 15.5, 'territory': 36, 'notes': 72,
-              'inspection': 18, 'rnpk': 18, 'transport': 14}
+    WIDTHS = {'company': 20, 'total': 17, 'year': 7, 'sum': 13, 'franchise': 10, 'rate': 8, 'premium': 11,
+              'payments': 8, 'territory': 40, 'notes': 48, 'inspection': 14, 'rnpk': 14, 'transport': 12}
     NOTES_MIN_WIDTH = 40
+    DETAIL_KEYS = ('franchise', 'rate', 'premium', 'payments')  # порядок: условие → результат
+    DETAIL_TITLES = {'franchise': 'Франшиза', 'rate': 'Тариф', 'premium': 'Премия', 'payments': 'Платежей в год'}
 
     # Колонки второй страницы между территорией и комментариями (этап 5 плана ответа V2) — блоки реестра,
     # нужные по заявке: «Осмотр» (всегда), «Риски РНПК», «Перевозка». Значения — только из ответа
@@ -151,13 +163,17 @@ class SummaryExportV2Service(ExcelExportService):
 
     # ── колонки ──────────────────────────────────────────────────────────────
 
-    @staticmethod
-    def columns(has_variant_2: bool, extras=('inspection',)) -> Dict[str, str]:
-        keys = ['company', 'year', 'sum']
-        for v in ([1, 2] if has_variant_2 else [1]):
-            keys += [f'rate_{v}', f'premium_{v}', f'franchise_{v}', f'payments_{v}', f'total_{v}']
+    SERVICE_KEYS = ('totals_last', 'numbers_last', 'last', 'label')  # не колонки, а ссылки на них
+
+    @classmethod
+    def columns(cls, has_variant_2: bool, extras=('inspection',)) -> Dict[str, str]:
+        variants = [1, 2] if has_variant_2 else [1]
+        keys = ['company', *[f'total_{v}' for v in variants], 'year', 'sum']
+        for v in variants:
+            keys += [f'{key}_{v}' for key in cls.DETAIL_KEYS]
         cols = {key: get_column_letter(i) for i, key in enumerate(keys, start=1)}
-        cols['numbers_last'] = get_column_letter(len(keys))  # последняя колонка «ИТОГО»
+        cols['totals_last'] = cols[f'total_{variants[-1]}']  # повторяются на странице условий
+        cols['numbers_last'] = get_column_letter(len(keys))  # последняя колонка детализации
         page_two = ['territory', *extras, 'notes']
         for offset, key in enumerate(page_two, start=1):
             cols[key] = get_column_letter(len(keys) + offset)
@@ -184,7 +200,7 @@ class SummaryExportV2Service(ExcelExportService):
         cols = self.columns(has_variant_2, extras)
         self._width_override = {'notes': self._fit_notes_width(cols, extras)}
         for key, letter in cols.items():
-            if key not in ('numbers_last', 'last', 'label'):
+            if key not in self.SERVICE_KEYS:
                 ws.column_dimensions[letter].width = self._width(key)
         ws.sheet_view.showGridLines = False
         extra_values = self._extra_values(summary, extras)
@@ -197,9 +213,8 @@ class SummaryExportV2Service(ExcelExportService):
 
         row = FIRST_DATA_ROW
         blocks: List[Tuple[int, int]] = []
-        for index, (name, offers) in enumerate(companies):
-            end = self._write_company_block(ws, row, name, offers, cols, has_variant_2,
-                                            extra_values.get(name, {}), banded=index % 2 == 1)
+        for name, offers in companies:
+            end = self._write_company_block(ws, row, name, offers, cols, has_variant_2, extra_values.get(name, {}))
             blocks.append((row, end))
             row = end + 1
         for name in declined:
@@ -220,14 +235,14 @@ class SummaryExportV2Service(ExcelExportService):
         return sorted(companies.items(), key=key)
 
     def _fit_notes_width(self, cols, extras) -> float:
-        """Ширина «Комментариев», при которой вторая страница (СК + территория + доп. колонки +
-        комментарии) не шире первой (цифры): тогда она не уменьшает масштаб печати цифр ни в одной
+        """Ширина «Комментариев», при которой страница условий (СК + ИТОГО + территория + доп. колонки +
+        комментарии) не шире страницы цифр: тогда она не уменьшает масштаб печати цифр ни в одной
         ориентации. Если доп. колонок много, а цифры узкие (один вариант), — не уже NOTES_MIN_WIDTH."""
-        numbers_pt = sum(col_points(self._width(key)) for key in cols if key not in (
-            'numbers_last', 'territory', 'notes', 'last', 'label', *extras))
-        target_pt = numbers_pt
-        others_pt = sum(col_points(self.WIDTHS[key]) for key in ('company', 'territory', *extras))
-        notes_width = ((target_pt - others_pt) / 0.75 - 5) / 7
+        numbers = [key for key in cols if key not in (*self.SERVICE_KEYS, 'territory', 'notes', *extras)]
+        repeated = [key for key in numbers if key == 'company' or key.startswith('total_')]
+        numbers_pt = sum(col_points(self._width(key)) for key in numbers)
+        others_pt = sum(col_points(self._width(key)) for key in (*repeated, 'territory', *extras))
+        notes_width = ((numbers_pt - others_pt) / 0.75 - 5) / 7
         return round(max(self.NOTES_MIN_WIDTH, min(self.WIDTHS['notes'], notes_width)), 1)
 
     def _extra_values(self, summary, extras) -> Dict[str, Dict[str, object]]:
@@ -255,23 +270,19 @@ class SummaryExportV2Service(ExcelExportService):
 
     @staticmethod
     def selection_cells(cols) -> Tuple[str, str]:
-        """Ручные жёлтые поля «Выбрана СК» и «Выбрано предложение» — справа, для менеджера
+        """Ручные жёлтые поля «Выбрана СК» и «Выбрано предложение» — справа вверху, для менеджера
         (при печати попадают на страницу с территорией и комментариями)."""
-        return f'{cols["notes"]}2', f'{cols["notes"]}4'
+        return f'{cols["notes"]}{HEADER_ROW}', f'{cols["notes"]}{HEADER_ROW + 2}'
 
     def _build_header(self, ws, summary, cols, company_names, has_variant_2) -> None:
         request = summary.request
-        value_end = cols['total_1']
+        value_end = cols['numbers_last']
 
-        ws.merge_cells(f'A1:{value_end}1')
-        cell = ws['A1']
-        cell.value = f'Свод котировок и условий от {timezone.localdate():%d.%m.%Y}'
-        # Заголовок — белым по синей полосе (баннер)
-        cell.font = _font(self.fs['title'], bold=True, color='FFFFFF')
-        cell.alignment = Alignment(vertical='center', indent=1)
-        ws.row_dimensions[1].height = 36
-        for idx in range(1, ws[f'{value_end}1'].column + 1):
-            ws.cell(row=1, column=idx).fill = self._fill('header')
+        ws['A1'] = 'Свод котировок и условий'
+        ws['A1'].font = _font(self.fs['title'], bold=True, color=self.palette['title'])
+        ws.row_dimensions[1].height = 28
+        ws['A2'] = f'от {timezone.localdate():%d.%m.%Y}'
+        ws['A2'].font = _font(11, color=MUTED)
 
         object_text = request.object_summary or ''
         year = (request.manufacturing_year or '').strip()
@@ -286,20 +297,19 @@ class SummaryExportV2Service(ExcelExportService):
         ]
         if (summary.notes or '').strip():  # пустое примечание не показываем — строка остаётся пустой
             rows.append(('Примечание', summary.notes))
-        value_keys = [k for k in cols if k not in (
-            'company', 'year', 'numbers_last', 'territory', 'notes', 'last', 'label', *self.EXTRA_TITLES)]
-        chars = int(sum(self._width(k) for k in value_keys) * 1.05)
+        width = sum(self._width(k) for k in cols if k not in (*self.SERVICE_KEYS, 'company', 'territory', 'notes',
+                                                            *self.EXTRA_TITLES))
+        chars = int(width * 0.95)
         for offset, (label, value) in enumerate(rows):
-            r = 2 + offset
-            ws.merge_cells(f'A{r}:B{r}')
+            r = HEADER_ROW + offset
             ws[f'A{r}'].value = label
-            ws[f'A{r}'].font = _font(self.fs['data'], color=MUTED)
+            ws[f'A{r}'].font = _font(9, color=MUTED)
             ws[f'A{r}'].alignment = Alignment(vertical='top')
-            ws.merge_cells(f'C{r}:{value_end}{r}')
-            ws[f'C{r}'].value = self._sanitize_excel_text(value)
-            ws[f'C{r}'].font = _font(self.fs['data'] + 1, bold=label in ('Заявка №', 'Объект страхования'))
-            ws[f'C{r}'].alignment = Alignment(vertical='top', wrap_text=True)
-            ws.row_dimensions[r].height = max(16, _text_lines(ws[f'C{r}'].value, chars) * 14)
+            ws.merge_cells(f'B{r}:{value_end}{r}')
+            ws[f'B{r}'].value = self._sanitize_excel_text(value)
+            ws[f'B{r}'].font = _font(self.fs['field'], bold=label in ('Заявка №', 'Объект страхования'))
+            ws[f'B{r}'].alignment = Alignment(vertical='top', wrap_text=True)
+            ws.row_dimensions[r].height = max(17, _text_lines(ws[f'B{r}'].value, chars) * 15)
 
         # Ручные поля выбора справа: подпись — в колонке перед комментариями, жёлтое поле — в комментариях
         company_cell, variant_cell = self.selection_cells(cols)
@@ -346,51 +356,95 @@ class SummaryExportV2Service(ExcelExportService):
 
     def _build_table_header(self, ws, cols, companies, has_variant_2) -> None:
         top, sub = FIRST_DATA_ROW - 2, FIRST_DATA_ROW - 1
-        ws.row_dimensions[top].height = 20
-        ws.row_dimensions[sub].height = 26
-        white = _font(self.fs['header'], bold=True, color='FFFFFF')
-        center = Alignment(horizontal='center', vertical='center', wrap_text=True)
-
-        def style(letter, row, fill, font):
-            c = ws[f'{letter}{row}']
-            c.fill, c.font, c.alignment, c.border = fill, font, center, self.cell_border
-
-        fixed = [('company', 'Страховая компания'), ('year', 'Год'), ('sum', 'Страховая сумма'),
-                 ('territory', 'Территория страхования'), ('notes', 'Комментарии')]
-        fixed += [(key, title) for key, title in self.EXTRA_TITLES.items() if key in cols]
-        for key, title in fixed:
-            letter = cols[key]
-            ws.merge_cells(f'{letter}{top}:{letter}{sub}')
-            style(letter, top, self._fill('header'), white)
-            style(letter, sub, self._fill('header'), white)
-            ws[f'{letter}{top}'].value = title
-
-        for v in ([1, 2] if has_variant_2 else [1]):
-            first, last = cols[f'rate_{v}'], cols[f'total_{v}']
-            ws.merge_cells(f'{first}{top}:{last}{top}')
-            for idx in range(ws[f'{first}{top}'].column, ws[f'{last}{top}'].column + 1):
-                style(get_column_letter(idx), top, self._fill('header' if v == 1 else 'header_2'), white)
-            ws[f'{first}{top}'].value = self._variant_caption(companies, v)
-            for key, title in (('rate', 'Тариф'), ('premium', 'Премия'), ('franchise', 'Франшиза'),
-                               ('payments', 'Платежей в год'), ('total', 'ИТОГО за срок')):
-                letter = cols[f'{key}_{v}']
-                style(letter, sub, self._fill('sub' if v == 1 else 'sub_2'),
-                      _font(self.fs['header'], bold=True, color=self.palette['title']))
-                ws[f'{letter}{sub}'].value = title
-
-    def _write_company_block(self, ws, start, name, offers, cols, has_variant_2, extra, banded) -> int:
-        """Блок СК: строки по годам; возвращает номер последней строки блока."""
-        offers = sorted(offers, key=lambda o: o.insurance_year)
-        end = start + len(offers) - 1
+        ws.row_dimensions[top].height = 18
+        # подпись предложения над ценником («… · франшиза по предложениям СК») может занять три строки
         variants = [1, 2] if has_variant_2 else [1]
+        caption_lines = max(_text_lines(self._variant_caption(companies, v), text_chars(self.WIDTHS['total']) - 3)
+                            for v in variants)
+        ws.row_dimensions[sub].height = max(30, caption_lines * TEXT_LINE_HEIGHT + 6)
+        accent = self.palette['title']
+        center = dict(horizontal='center', vertical='bottom', wrap_text=True)
+
+        def title(letter, text, color, size, merged=True):
+            if merged:
+                ws.merge_cells(f'{letter}{top}:{letter}{sub}')
+            cell = ws[f'{letter}{top if merged else sub}']
+            cell.value = text
+            cell.font = _font(size, bold=True, color=color)
+            cell.alignment = Alignment(**center)
+
+        title('A', 'Страховая компания', accent, 9)
+        ws['A' + str(top)].alignment = Alignment(vertical='bottom', wrap_text=True)
+        first_total, last_total = cols['total_1'], cols['totals_last']
+        if first_total != last_total:
+            ws.merge_cells(f'{first_total}{top}:{last_total}{top}')
+        ws[f'{first_total}{top}'] = 'ИТОГО за срок'
+        ws[f'{first_total}{top}'].font = _font(9, bold=True, color=accent)
+        ws[f'{first_total}{top}'].alignment = Alignment(horizontal='center', vertical='center')
+        white = Side(style='medium', color='FFFFFF')
+        for v in variants:
+            cell = ws[f'{cols[f"total_{v}"]}{sub}']
+            cell.value = self._variant_caption(companies, v)
+            cell.font = _font(self.fs['detail'], bold=True, color='FFFFFF')
+            cell.fill = self._fill('header' if v == 1 else 'header_2')
+            cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+            cell.border = Border(left=white, right=white)
+
+            first, last = cols[f'{self.DETAIL_KEYS[0]}_{v}'], cols[f'{self.DETAIL_KEYS[-1]}_{v}']
+            ws.merge_cells(f'{first}{top}:{last}{top}')
+            ws[f'{first}{top}'] = f'Детализация · Предложение {v}'
+            ws[f'{first}{top}'].font = _font(self.fs['detail'], bold=True, color=MUTED)
+            ws[f'{first}{top}'].alignment = Alignment(horizontal='center', vertical='center')
+            for key in self.DETAIL_KEYS:
+                title(cols[f'{key}_{v}'], self.DETAIL_TITLES[key], MUTED, self.fs['column'], merged=False)
+
+        title(cols['year'], 'Год', MUTED, self.fs['column'])
+        title(cols['sum'], 'Страховая сумма', MUTED, self.fs['column'])
+        title(cols['territory'], 'Территория страхования', accent, 9)
+        for key, text in self.EXTRA_TITLES.items():
+            if key in cols:
+                title(cols[key], text, accent, 9)
+        title(cols['notes'], 'Комментарии', accent, 9)
+
+        line = Side(style='medium', color=accent)
+        for idx in range(1, ws[f'{cols["last"]}1'].column + 1):
+            cell = ws.cell(row=sub, column=idx)
+            cell.border = Border(left=cell.border.left, right=cell.border.right, bottom=line)
+
+    def _write_company_block(self, ws, start, name, offers, cols, has_variant_2, extra) -> int:
+        """Блок СК: строки по годам (+ добавочная строка, если текст не влез); возвращает последнюю строку."""
+        offers = sorted(offers, key=lambda o: o.insurance_year)
+        last_year = start + len(offers) - 1
+        variants = [1, 2] if has_variant_2 else [1]
+        detail = _font(self.fs['detail'], color=self.palette['detail'])
         right = Alignment(horizontal='right', vertical='center')
         center = Alignment(horizontal='center', vertical='center')
+
+        territories = self._block_territories(offers)
+        # Системная фраза про осмотр в своде V2 не пишется — осмотр в колонке «Осмотр» (ответ страховщика)
+        additional = self._combine_additional_notes(
+            self._get_franchise_approval_note_for_company(offers, name),
+            f"Условия перевозки: {extra['transport_terms']}" if extra.get('transport_terms') else None,
+        )
+        notes = self._consolidate_notes(offers, additional) or ''
+        extra_keys = [key for key in self.EXTRA_TITLES if key in cols]
+
+        # Строки лет — одной высоты; текст, который в них не влез, продолжается в добавочной строке
+        per_year = len(territories) > 1
+        needed_lines = max(
+            _text_lines(notes, text_chars(self._width('notes'))),
+            0 if per_year else _text_lines(territories[0], text_chars(self._width('territory'))),
+            max((_text_lines(str(extra.get(key, '')), text_chars(self._width(key))) for key in extra_keys), default=0),
+        )
+        year_height = max(ROW_HEIGHT, math.ceil(TAG_MIN_HEIGHT / len(offers)))
+        overflow = needed_lines * TEXT_LINE_HEIGHT + 4 - len(offers) * year_height
+        end = last_year + 1 if overflow > 0 else last_year
 
         premiums = {v: [self._format_premium(o, v) for o in offers] for v in variants}
         for i, offer in enumerate(offers):
             r = start + i
             ws[f'{cols["year"]}{r}'] = f'{offer.insurance_year} год'
-            ws[f'{cols["year"]}{r}'].alignment = center
+            ws[f'{cols["year"]}{r}'].alignment = Alignment(horizontal='left', vertical='center')
             ws[f'{cols["sum"]}{r}'] = self._format_insurance_sum(offer)
             ws[f'{cols["sum"]}{r}'].number_format = MONEY
             ws[f'{cols["sum"]}{r}'].alignment = right
@@ -398,104 +452,80 @@ class SummaryExportV2Service(ExcelExportService):
                 premium = premiums[v][i]
                 p_col, s_col = cols[f'premium_{v}'], cols['sum']
                 if premium is not None:
-                    ws[f'{cols[f"rate_{v}"]}{r}'] = f'=IF(AND({s_col}{r}<>0,{p_col}{r}<>0),{p_col}{r}/{s_col}{r},"")'
-                    ws[f'{p_col}{r}'] = premium
                     franchise = self._format_franchise(offer, v)
                     ws[f'{cols[f"franchise_{v}"]}{r}'] = franchise if franchise is not None else 0
+                    ws[f'{cols[f"rate_{v}"]}{r}'] = f'=IF(AND({s_col}{r}<>0,{p_col}{r}<>0),{p_col}{r}/{s_col}{r},"")'
+                    ws[f'{p_col}{r}'] = premium
                     ws[f'{cols[f"payments_{v}"]}{r}'] = self._format_installment_payments(offer, v)
+                ws[f'{cols[f"franchise_{v}"]}{r}'].number_format = MONEY
                 ws[f'{cols[f"rate_{v}"]}{r}'].number_format = RATE
                 ws[f'{p_col}{r}'].number_format = MONEY
-                ws[f'{cols[f"franchise_{v}"]}{r}'].number_format = MONEY
-                for key in ('rate', 'premium', 'franchise'):
+                for key in ('franchise', 'rate', 'premium'):
                     ws[f'{cols[f"{key}_{v}"]}{r}'].alignment = right
                 ws[f'{cols[f"payments_{v}"]}{r}'].alignment = center
 
-        # Объединённые по блоку: компания, ИТОГО, территория, комментарии
-        self._merge_block(ws, cols['company'], start, end, name,
-                          _font(self.fs['company'], bold=True, color=self.palette['company']),
-                          Alignment(vertical='center', wrap_text=True, indent=1))
+        last_idx = ws[f'{cols["last"]}1'].column
+        for r in range(start, end + 1):
+            ws.row_dimensions[r].height = year_height if r <= last_year else overflow
+            for c_idx in range(1, last_idx + 1):
+                c = ws.cell(row=r, column=c_idx)
+                c.font = detail
+                c.border = Border(bottom=self.hair if r == end else None)
+
+        # Компания и ценники — на уровне строк лет (добавочная строка их не сдвигает)
+        self._merge_block(ws, cols['company'], start, last_year, name,
+                          _font(self.fs['company'], bold=True), Alignment(vertical='center', wrap_text=True, indent=1))
+        white = Side(style='thick', color='FFFFFF')
         for v in variants:
+            letter = cols[f'total_{v}']
             p_col = cols[f'premium_{v}']
-            value = f'=SUM({p_col}{start}:{p_col}{end})' if any(p is not None for p in premiums[v]) else None
-            self._merge_block(ws, cols[f'total_{v}'], start, end, value,
-                              _font(self.fs['total'], bold=True, color='FFFFFF'), right, MONEY)
+            value = f'=SUM({p_col}{start}:{p_col}{last_year})' if any(p is not None for p in premiums[v]) else None
+            self._merge_block(ws, letter, start, last_year, value,
+                              _font(self.fs['total'], bold=True, color=self.palette['header' if v == 1 else 'header_2']),
+                              Alignment(horizontal='center', vertical='center'), MONEY)
+            for r in range(start, last_year + 1):
+                ws[f'{letter}{r}'].fill = self._fill('tag' if v == 1 else 'tag_2')
+                ws[f'{letter}{r}'].border = Border(left=white, right=white, top=white, bottom=white)
 
-        territories = self._block_territories(offers)
-        if len(territories) == 1:
-            self._merge_block(ws, cols['territory'], start, end, territories[0], _font(self.fs['data']),
-                              Alignment(vertical='top', wrap_text=True))
+        text = _font(self.fs['text'])
+        top_left = Alignment(vertical='top', wrap_text=True)
+        if not per_year:
+            self._merge_block(ws, cols['territory'], start, end, territories[0], text, top_left)
         else:  # разные территории по годам — построчно, чтобы различия не потерялись
-            for i, text in enumerate(territories):
-                c = ws[f'{cols["territory"]}{start + i}']
-                c.value, c.font, c.alignment = text, _font(self.fs['data']), Alignment(vertical='top', wrap_text=True)
-
-        # Системная фраза про осмотр в своде V2 не пишется — осмотр в колонке «Осмотр» (ответ страховщика)
-        additional = self._combine_additional_notes(
-            self._get_franchise_approval_note_for_company(offers, name),
-            f"Условия перевозки: {extra['transport_terms']}" if extra.get('transport_terms') else None,
-        )
-        notes = self._consolidate_notes(offers, additional) or ''
-        for key in self.EXTRA_TITLES:
-            if key not in cols:
-                continue
+            for i, value in enumerate(territories):
+                r = start + i
+                c = ws[f'{cols["territory"]}{r}']
+                c.value, c.font, c.alignment = value, text, top_left
+                lines = _text_lines(value, text_chars(self._width('territory')))
+                ws.row_dimensions[r].height = max(year_height, lines * TEXT_LINE_HEIGHT + 4)
+        for key in extra_keys:
             value = extra.get(key, self.NO_DATA)
             is_amount = isinstance(value, Decimal)
             self._merge_block(
                 ws, cols[key], start, end, value,
-                _font(self.fs['data'], color=MUTED if value == self.NO_DATA else INK),
-                Alignment(horizontal='right' if is_amount else 'center', vertical='center', wrap_text=True),
+                _font(9, color=MUTED if value == self.NO_DATA else INK),
+                Alignment(horizontal='center', vertical='top', wrap_text=True),
                 MONEY if is_amount else None,
             )
-        self._merge_block(ws, cols['notes'], start, end, notes, _font(self.fs['data']),
-                          Alignment(vertical='top', wrap_text=True))
-
-        last_idx = ws[f'{cols["last"]}1'].column
-        for r in range(start, end + 1):
-            for c_idx in range(1, last_idx + 1):
-                c = ws.cell(row=r, column=c_idx)
-                if c.font is None or c.font.name != FONT:
-                    c.font = _font(self.fs['data'])
-                # «больше воздуха»: внутри таблицы только горизонтальные линии
-                vertical = self.hair if c_idx == 1 else None
-                c.border = Border(left=vertical, right=vertical, top=self.hair,
-                                  bottom=self.block_line if r == end else self.hair)
-                if banded:
-                    c.fill = self._fill('band')
-        # «ИТОГО» — белым по синей плашке в цвет шапки своего предложения
-        for v in variants:
-            for r in range(start, end + 1):
-                ws[f'{cols[f"total_{v}"]}{r}'].fill = self._fill('header' if v == 1 else 'header_2')
-        # Компания — плашкой с синей полосой слева
-        accent = Side(style='thick', color=self.palette['accent'])
-        for r in range(start, end + 1):
-            c = ws[f'{cols["company"]}{r}']
-            c.fill = self._fill('sub')
-            c.border = Border(left=accent, right=self.hair, top=self.hair,
-                              bottom=self.block_line if r == end else self.hair)
-
-        # Высота строк: чтобы текст территории и комментариев не обрезался
-        needed_lines = max(
-            _text_lines(notes, int(self._width('notes'))),
-            max((_text_lines(t, int(self._width('territory'))) for t in territories), default=0),
-            max((_text_lines(str(extra.get(key, '')), int(self._width(key)))
-                 for key in self.EXTRA_TITLES if key in cols), default=0),
-        )
-        per_row = max(MIN_ROW_HEIGHT, needed_lines * LINE_HEIGHT / len(offers) + 2)
-        for r in range(start, end + 1):
-            ws.row_dimensions[r].height = per_row
+        self._merge_block(ws, cols['notes'], start, end, notes, text, top_left)
 
         # Подсветка выбранной СК (и выбранного предложения) по ручным полям
         company_cell, variant_cell = self.selection_cells(cols)
         company_ref = '$' + re.sub(r'(\d+)', r'$\1', company_cell)
         variant_ref = '$' + re.sub(r'(\d+)', r'$\1', variant_cell)
         quoted = name.replace('"', '""')
-        ws.conditional_formatting.add(f'A{start}:{cols["last"]}{end}',
-                                      FormulaRule(formula=[f'{company_ref}="{quoted}"'], fill=self._fill('chosen')))
         for v in variants:
+            chosen = f'AND({company_ref}="{quoted}",{variant_ref}="Предложение {v}")'
+            letter = cols[f'total_{v}']
+            ws.conditional_formatting.add(f'{letter}{start}:{letter}{last_year}', FormulaRule(
+                formula=[chosen], fill=self._fill('chosen_total'), stopIfTrue=True))
             ws.conditional_formatting.add(
-                f'{cols[f"rate_{v}"]}{start}:{cols[f"total_{v}"]}{end}',
-                FormulaRule(formula=[f'AND({company_ref}="{quoted}",{variant_ref}="Предложение {v}")'],
-                            fill=self._fill('chosen_variant'), stopIfTrue=True))
+                f'{cols[f"franchise_{v}"]}{start}:{cols[f"payments_{v}"]}{last_year}',
+                FormulaRule(formula=[chosen], fill=self._fill('chosen_variant'), stopIfTrue=True))
+        is_chosen = [f'{company_ref}="{quoted}"']
+        ws.conditional_formatting.add(f'A{start}:A{end}', FormulaRule(formula=is_chosen, fill=self._fill('chosen_company')))
+        ws.conditional_formatting.add(f'{cols["year"]}{start}:{cols["last"]}{end}',
+                                      FormulaRule(formula=is_chosen, fill=self._fill('chosen')))
         return end
 
     def _block_territories(self, offers) -> List[str]:
@@ -524,17 +554,18 @@ class SummaryExportV2Service(ExcelExportService):
             cell.number_format = number_format
 
     def _write_declined_row(self, ws, row, name, cols) -> None:
-        muted = _font(self.fs['data'], italic=True, color=MUTED)
+        muted = _font(10, italic=True, color=MUTED)
         for c_idx in range(1, ws[f'{cols["last"]}1'].column + 1):
             c = ws.cell(row=row, column=c_idx)
-            c.border = Border(left=self.hair, right=self.hair, top=self.hair, bottom=self.block_line)
+            c.border = Border(bottom=self.hair)
             c.font = muted
         ws[f'A{row}'] = name
-        ws[f'A{row}'].font = _font(self.fs['company'] - 1, bold=True, color=MUTED)
-        ws.merge_cells(f'{cols["year"]}{row}:{cols["numbers_last"]}{row}')
-        ws[f'{cols["year"]}{row}'] = self.DECLINED_TEXT
-        ws[f'{cols["year"]}{row}'].alignment = Alignment(horizontal='center', vertical='center')
-        ws.row_dimensions[row].height = MIN_ROW_HEIGHT
+        ws[f'A{row}'].font = _font(11, bold=True, color=MUTED)
+        ws[f'A{row}'].alignment = Alignment(vertical='center', indent=1)
+        ws.merge_cells(f'{cols["total_1"]}{row}:{cols["numbers_last"]}{row}')
+        ws[f'{cols["total_1"]}{row}'] = self.DECLINED_TEXT
+        ws[f'{cols["total_1"]}{row}'].alignment = Alignment(horizontal='center', vertical='center')
+        ws.row_dimensions[row].height = DECLINED_ROW_HEIGHT
 
     # ── печать ───────────────────────────────────────────────────────────────
 
@@ -555,8 +586,9 @@ class SummaryExportV2Service(ExcelExportService):
         printable_height = page_height_pt - 2 * MARGIN_TB * 72
         col = lambda key: ws[f'{cols[key]}1'].column
         numbers_width = self._span_points(ws, 1, col('numbers_last'))
-        # Вторая страница по ширине: повторяемая колонка СК + территория + комментарии
-        conditions_width = self._span_points(ws, 1, 1) + self._span_points(ws, col('territory'), col('notes'))
+        # Страница условий по ширине: повторяемые «СК + ИТОГО» + территория + ответы СК + комментарии
+        conditions_width = (self._span_points(ws, 1, col('totals_last'))
+                            + self._span_points(ws, col('territory'), col('notes')))
         width_scale = min(1.0, printable_width / numbers_width, printable_width / conditions_width)
 
         height = lambda first, last: sum(ws.row_dimensions[r].height or 15 for r in range(first, last + 1))
@@ -580,10 +612,10 @@ class SummaryExportV2Service(ExcelExportService):
                 'pages_down': len(breaks) + 1}
 
     def _setup_print(self, ws, cols, blocks, last_row: int) -> None:
-        ws.freeze_panes = f'A{FIRST_DATA_ROW}'
+        ws.freeze_panes = f'{cols["year"]}{FIRST_DATA_ROW}'  # СК и ценники остаются на экране при прокрутке
         ws.print_area = f'A1:{cols["last"]}{last_row}'
         ws.print_title_rows = f'{FIRST_DATA_ROW - 2}:{FIRST_DATA_ROW - 1}'
-        ws.print_title_cols = 'A:A'  # название СК — и на странице с территорией/комментариями
+        ws.print_title_cols = f'A:{cols["totals_last"]}'  # СК и ИТОГО — и на странице с условиями
         ws.page_setup.paperSize = ws.PAPERSIZE_A4
         ws.page_setup.pageOrder = 'downThenOver'  # сначала все цифры, потом условия
         ws.page_margins.left = ws.page_margins.right = MARGIN_LR
@@ -667,14 +699,14 @@ class SummaryExportV2Service(ExcelExportService):
             for label, value in items:
                 text = self._sanitize_excel_text(value) or '—'
                 ws[f'A{row}'] = label
-                ws[f'A{row}'].font = _font(self.fs['data'], color=MUTED)
+                ws[f'A{row}'].font = _font(10, color=MUTED)
                 ws[f'A{row}'].alignment = Alignment(vertical='top', wrap_text=True)
                 ws[f'B{row}'] = text
-                ws[f'B{row}'].font = _font(self.fs['data'])
+                ws[f'B{row}'].font = _font(10)
                 ws[f'B{row}'].alignment = Alignment(vertical='top', wrap_text=True)
                 for col in 'AB':
                     ws[f'{col}{row}'].border = Border(bottom=self.hair)
-                ws.row_dimensions[row].height = max(16, _text_lines(text, 90) * LINE_HEIGHT + 3)
+                ws.row_dimensions[row].height = max(16, _text_lines(text, 90) * 14 + 3)
                 row += 1
             row += 1
 
