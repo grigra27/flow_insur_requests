@@ -122,6 +122,8 @@ For DB backups before migrations, the workflow calls `python manage.py backup_db
 
 ## Specs and historical context
 
+Open work lives in one place: `docs/improvement_plans/backlog.md` (created 2026-10-13; the other plans in that folder are closed or point to it). Add new tasks and decisions there.
+
 `.kiro/specs/<feature-name>/` contains `requirements.md` / `design.md` / `tasks.md` per initiative. When picking up a feature whose name matches one of those folders, read the spec first — it captures decisions and edge cases that aren't in the code.
 
 ## Conventions

@@ -1,5 +1,7 @@
 # Аудит покрытия Excel → БД
 
+> Закрыт 2026-10-13: исторический аудит, найденные регрессии исправлены. Актуальные задачи — [backlog.md](backlog.md).
+
 Дата: 2026-05-18.
 Корпус: `avtozayavka/real_requests/**` + `avtozayavka/im_request/**`, итого **178 файлов `.xls`**.
 Скрипт: [`scripts/coverage_audit.py`](../../scripts/coverage_audit.py), полный JSON-отчёт: [`scripts/coverage_audit_result.json`](../../scripts/coverage_audit_result.json).

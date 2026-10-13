@@ -1,5 +1,7 @@
 # JSON Schema v2
 
+> Справочный документ (не план). Задачи — [backlog.md](backlog.md); удаление `asset_status` из схемы — в рамках п. 1.
+
 Дата создания: 2026-05-20. Реализована: 2026-05-21.
 Статус: **актуальная схема** (`docs/insurance_request_format_package/insurance_request_schema_v2.json`).
 
