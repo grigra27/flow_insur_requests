@@ -465,6 +465,10 @@ class SummaryExportV2Service(ExcelExportService):
                 c = ws.cell(row=r, column=c_idx)
                 c.font = detail
                 c.border = Border(bottom=self.hair if r == end else None)
+        # Тариф — главная цифра детализации: жирным и темнее остальных
+        for v in variants:
+            for r in range(start, last_year + 1):
+                ws[f'{cols[f"rate_{v}"]}{r}'].font = _font(self.fs['detail'], bold=True)
 
         # Компания и ценники — на весь блок, вместе с добавочной строкой: общая заливка, значение по центру
         self._merge_block(ws, cols['company'], start, end, name,
