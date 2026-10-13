@@ -15,7 +15,7 @@ class DeclinedCompaniesExcelTests(TestCase):
     def setUp(self):
         request = InsuranceRequest.objects.create(
             client_name='ООО "СУ 888"', inn='2312100710', dfa_number='ТС-20496-ЛТ-КР',
-            vehicle_info='Экскаватор LOVOL FR225E2-N', insurance_type='страхование спецтехники',
+            object_description='Экскаватор LOVOL FR225E2-N', insurance_type='страхование спецтехники',
         )
         self.summary = InsuranceSummary.objects.create(request=request, status='ready')
         company_statuses.init_for_summary(self.summary)
@@ -100,7 +100,7 @@ class DeclinedCompaniesExcelTests(TestCase):
     def test_legacy_summary_without_statuses_keeps_note_only(self):
         legacy = InsuranceSummary.objects.create(
             request=InsuranceRequest.objects.create(
-                client_name='ООО Старый', inn='7707083893', dfa_number='ТС-19000', vehicle_info='Тягач',
+                client_name='ООО Старый', inn='7707083893', dfa_number='ТС-19000', object_description='Тягач',
             ),
             status='ready', notes='СК Зетта - ОТКАЗ',
         )

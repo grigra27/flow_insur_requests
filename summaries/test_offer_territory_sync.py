@@ -16,7 +16,7 @@ from .services import get_excel_export_service
 
 def make_summary():
     request = InsuranceRequest.objects.create(client_name='ООО Тест', inn='7707083893', dfa_number='ТС-1',
-                                              vehicle_info='Haval F7X')
+                                              object_description='Haval F7X')
     return InsuranceSummary.objects.create(request=request, status='ready')
 
 

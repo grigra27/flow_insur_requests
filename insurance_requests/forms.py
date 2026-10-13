@@ -239,8 +239,9 @@ class ParserV2PreviewForm(forms.Form):
         choices=[('', '-- Не указан --')] + InsuranceRequest.INSURANCE_PERIOD_CHOICES,
         widget=forms.Select(attrs={'class': 'form-control'})
     )
-    vehicle_info = forms.CharField(
-        label='Информация о предмете лизинга',
+    # Объект вручную — когда парсер не нашёл таблицу объектов (иначе объекты правятся в формсете)
+    object_description = forms.CharField(
+        label='Описание предмета лизинга',
         required=False,
         widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 4})
     )
@@ -290,7 +291,11 @@ class ParserV2PreviewForm(forms.Form):
     )
     has_construction_work = forms.BooleanField(label='Требуется СМР', required=False, widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}))
     manufacturing_year = forms.CharField(label='Год выпуска', required=False, widget=forms.TextInput(attrs={'class': 'form-control'}))
-    asset_status = forms.CharField(label='Статус имущества', required=False, widget=forms.TextInput(attrs={'class': 'form-control'}))
+    condition = forms.ChoiceField(
+        label='Состояние', required=False,
+        choices=[('', '-- Не указано --')] + InsuranceRequest.OBJECT_CONDITION_CHOICES,
+        widget=forms.Select(attrs={'class': 'form-control'}),
+    )
     key_completeness = forms.CharField(label='Комплектность ключей', required=False, widget=forms.TextInput(attrs={'class': 'form-control'}))
     pts_psm = forms.CharField(label='ПТС/ПСМ', required=False, widget=forms.TextInput(attrs={'class': 'form-control'}))
     creditor_bank = forms.CharField(label='Банк-кредитор', required=False, widget=forms.TextInput(attrs={'class': 'form-control'}))
@@ -410,7 +415,7 @@ class ParserV2PreviewForm(forms.Form):
             'inn': self._limit(cleaned.get('inn') or '', 12),
             'insurance_type': insurance_type,
             'insurance_period': cleaned.get('insurance_period') or '',
-            'vehicle_info': cleaned.get('vehicle_info') or '',
+            'object_description': cleaned.get('object_description') or '',
             'dfa_number': self._limit(cleaned.get('dfa_number') or 'Номер ДФА не указан', 100),
             'branch': self._normalize_branch(cleaned.get('branch')),
             'manager_name': self._limit(cleaned.get('manager_name') or '', 255),
@@ -428,7 +433,7 @@ class ParserV2PreviewForm(forms.Form):
             'transportation_days': cleaned.get('transportation_days') or None,
             'has_construction_work': bool(cleaned.get('has_construction_work')),
             'manufacturing_year': self._limit(cleaned.get('manufacturing_year') or '', 255),
-            'asset_status': self._limit(cleaned.get('asset_status') or '', 255),
+            'condition': cleaned.get('condition') or None,
             'key_completeness': self._limit(cleaned.get('key_completeness') or '', 255),
             'pts_psm': self._limit(cleaned.get('pts_psm') or '', 255),
             'creditor_bank': self._limit(cleaned.get('creditor_bank') or '', 255),
@@ -666,11 +671,11 @@ class InsuranceRequestForm(forms.ModelForm):
         model = InsuranceRequest
         fields = [
             'client_name', 'inn', 'insurance_type', 'insurance_period',
-            'vehicle_info', 'dfa_number', 'branch', 'manager_name', 'deal_status', 'franchise_type',
+            'object_description', 'dfa_number', 'branch', 'manager_name', 'deal_status', 'franchise_type',
             'franchise_amounts', 'franchise_unit',
             'has_installment', 'has_autostart', 'has_casco_ce', 'has_transportation',
             'transportation_departure', 'transportation_destination', 'transportation_days',
-            'has_construction_work', 'manufacturing_year', 'asset_status', 'response_deadline', 'notes',
+            'has_construction_work', 'manufacturing_year', 'response_deadline', 'notes',
             # Структурированные поля объекта Parser V2
             'brand', 'model', 'condition', 'equipment_type', 'power_or_capacity',
             'acquisition_cost_value', 'acquisition_cost_currency', 'source_object_count',
@@ -694,7 +699,7 @@ class InsuranceRequestForm(forms.ModelForm):
                 choices=InsuranceRequest.INSURANCE_TYPE_CHOICES,
                 attrs={'class': 'form-control'}
             ),
-            'vehicle_info': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+            'object_description': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
             'dfa_number': forms.TextInput(attrs={'class': 'form-control', 'maxlength': '100'}),
             'manager_name': forms.TextInput(attrs={
                 'class': 'form-control',
@@ -716,11 +721,6 @@ class InsuranceRequestForm(forms.ModelForm):
             'manufacturing_year': forms.TextInput(attrs={
                 'class': 'form-control',
                 'placeholder': 'Год выпуска предмета лизинга',
-                'maxlength': '255'
-            }),
-            'asset_status': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'Статус имущества предмета лизинга',
                 'maxlength': '255'
             }),
             'brand': forms.TextInput(attrs={
@@ -926,17 +926,6 @@ class InsuranceRequestForm(forms.ModelForm):
             # Ensure notes field is properly initialized
             if hasattr(self.instance, 'notes') and self.instance.notes:
                 self.fields['notes'].initial = self.instance.notes
-
-            # Депрекейт legacy-полей объекта: если у заявки есть
-            # структурированные данные объекта (V2), редактировать
-            # vehicle_info/asset_status не даём — состояние правится через
-            # condition, описание — через структуру. Так оператор не «оживит»
-            # legacy-поля, которые парсер V2 намеренно оставляет пустыми.
-            # Для исторических V1-заявок (структуры нет) поля оставляем —
-            # там это единственный источник данных об объекте.
-            if self.instance.pk and self.instance.has_structured_object_data:
-                self.fields.pop('vehicle_info', None)
-                self.fields.pop('asset_status', None)
 
     def __getitem__(self, name):
         """Override to handle special cases for field values"""

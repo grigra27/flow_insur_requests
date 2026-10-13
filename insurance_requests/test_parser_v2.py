@@ -505,16 +505,26 @@ class IdenticalObjectGroupingTests(TestCase):
             f"Unexpected vehicle_info warning when object recognized: {result.warnings}",
         )
 
-    def test_vehicle_info_warning_when_no_object_recognized(self):
+    def test_form_condition_without_object_table_goes_to_structured_condition(self):
+        # Фаза D: «новое» из бланка без распознанной таблицы объектов — в condition, а не в asset_status
+        wb = self._build_workbook_with_object_rows([])
+        wb.active['K43'] = 'новое'
+        result = self._parse_workbook(wb)
+        self.assertFalse(result.data['parser_v2_payload']['insured_objects'])
+        self.assertEqual(result.data.get('condition'), 'new')
+        self.assertNotIn('asset_status', result.data)
+        self.assertNotIn('vehicle_info', result.data)
+
+    def test_object_warning_when_no_object_recognized(self):
         # Нет строк объекта → объект не распознан → предупреждение обязано быть.
         result = self._parse_workbook(self._build_workbook_with_object_rows([]))
         self.assertFalse(result.data['parser_v2_payload']['insured_objects'])
         self.assertTrue(
             any(
-                w.get('field') == 'vehicle_info' and w.get('level') == 'manual_required'
+                w.get('field') == 'object_description' and w.get('level') == 'manual_required'
                 for w in result.warnings
             ),
-            f"Expected a manual_required vehicle_info warning, got: {result.warnings}",
+            f"Expected a manual_required object_description warning, got: {result.warnings}",
         )
 
 
@@ -1164,7 +1174,7 @@ class ParserV2UploadTests(TestCase):
         self.assertFalse(form.is_valid())
         self.assertIn('branch', form.errors)
 
-    def test_parser_v2_keeps_raw_description_out_of_vehicle_info(self):
+    def test_parser_v2_keeps_raw_description_in_objects_only(self):
         self.client.login(username='parser_v2_root', password='pwd')
 
         response = self.client.post(
@@ -1172,9 +1182,9 @@ class ParserV2UploadTests(TestCase):
             {'excel_file': self._xlsx_upload_with_template_object_rows()},
         )
 
-        self.assertEqual(response.context['form'].initial['vehicle_info'], '')
+        # объекты распознаны — описание только у объекта, общее поле описания пустое
+        self.assertFalse(response.context['form'].initial.get('object_description'))
         object_form = response.context['object_formset'].forms[0]
-        self.assertNotIn('vehicle_info', object_form.fields)
         object_description = object_form.initial['object_description']
         self.assertIn('Lixiang L9', object_description)
         self.assertNotIn('Транспортные средства категории B', object_description)

@@ -61,13 +61,13 @@ class InsurerResponseUploadBase(TestCase):
         cls.superuser.groups.add(admins)
         # Имущество с перевозкой (по мотивам ОБ-20702-ЛО-КР): нужны оба блока
         cls.property_request = InsuranceRequest.objects.create(
-            client_name='ООО Тест', inn='1234567890', dfa_number='ОБ-20702-ЛО-КР', vehicle_info='GIANFRANCO',
+            client_name='ООО Тест', inn='1234567890', dfa_number='ОБ-20702-ЛО-КР', object_description='GIANFRANCO',
             insurance_type='страхование имущества', has_transportation=True,
             transportation_departure='Москва', transportation_destination='Армавир', transportation_days=3,
         )
         cls.property_summary = InsuranceSummary.objects.create(request=cls.property_request, status='collecting')
         cls.casco_request = InsuranceRequest.objects.create(
-            client_name='ООО Тест', inn='1234567890', dfa_number='ТС-20848-ЛА-КЗ', vehicle_info='Mercedes',
+            client_name='ООО Тест', inn='1234567890', dfa_number='ТС-20848-ЛА-КЗ', object_description='Mercedes',
             insurance_type='КАСКО',
         )
         cls.casco_summary = InsuranceSummary.objects.create(request=cls.casco_request, status='collecting')

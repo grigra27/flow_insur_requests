@@ -156,7 +156,7 @@ class SummaryExportV2ContentTests(SummaryExportV2Base):
 
     def test_long_text_goes_to_extra_row_and_year_rows_keep_height(self):
         request = InsuranceRequest.objects.create(client_name='ООО Тест', inn='3', dfa_number='ТС-3',
-                                                 vehicle_info='Самосвал', franchise_type='both_variants')
+                                                 object_description='Самосвал', franchise_type='both_variants')
         summary = InsuranceSummary.objects.create(request=request, status='collecting')
         long_territory = 'Российская Федерация, за исключением зон вооружённых конфликтов. ' * 6
         for year in (1, 2):
@@ -264,7 +264,7 @@ class SummaryExportV2ContentTests(SummaryExportV2Base):
 
     def test_single_variant_summary_has_no_offer_2_columns(self):
         request = InsuranceRequest.objects.create(client_name='ООО Тест', inn='1', dfa_number='ТС-1',
-                                                 vehicle_info='Экскаватор')
+                                                 object_description='Экскаватор')
         summary = InsuranceSummary.objects.create(request=request, status='collecting')
         self._offer('Альфа', 1, 1_000_000, 50_000, None, summary=summary)
         ws = self._workbook(summary)['Свод']
@@ -378,7 +378,7 @@ class SummaryExportV2ResponseColumnsTests(SummaryExportV2Base):
         super().setUpTestData()
         from summaries.models import InsurerResponse
         request = InsuranceRequest.objects.create(
-            client_name='ООО Склад', inn='2', dfa_number='ОБ-20702-ЛО-КР', vehicle_info='Компрессор',
+            client_name='ООО Склад', inn='2', dfa_number='ОБ-20702-ЛО-КР', object_description='Компрессор',
             insurance_type='страхование имущества', condition='used', has_transportation=True,
             transportation_departure='Москва', transportation_destination='Армавир',
         )

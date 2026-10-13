@@ -79,7 +79,7 @@ Sibling rows that come from the same upload are linked by `source_batch_id` (UUI
 
 The lifecycle is per-request, not per-batch: each row gets its own status, its own `InsuranceSummary`, its own selected insurer, its own outgoing PDF/JSON. For sending, staff may use either the per-request PDF or the batch PDF (`export_batch_application`, decided 2026-10-01): one insurer document with the common data and a table of every object in the batch, so one letter can cover the whole batch while offers are still entered per object.
 
-Historical V1 requests (201 on prod, loaded until 2026-06-10) keep their **"1 file → 1 request"** shape with all objects in `vehicle_info`. We do not split them; they display as before.
+Historical V1 requests (201 on prod, loaded until 2026-06-10) keep their **"1 file → 1 request"** shape: the whole object text lives in `object_description` (copied from the archived `vehicle_info` by `migrate_legacy_object_fields`), state in `condition`. We do not split them. `vehicle_info` / `asset_status` are a frozen V1 archive — never read or write them in code.
 
 JSON Schema v1 (`docs/insurance_request_format_package/insurance_request_schema_v1.json`) reflects this model: the schema carries `insured_object` (singular) per request, not an array.
 

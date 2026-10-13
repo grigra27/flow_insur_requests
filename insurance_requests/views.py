@@ -291,7 +291,6 @@ def _build_common_request_kwargs(request_fields, additional_data, user):
         'transportation_destination': request_fields.get('transportation_destination') or '',
         'transportation_days': request_fields.get('transportation_days'),
         'has_construction_work': request_fields['has_construction_work'],
-        'asset_status': request_fields['asset_status'],
         'key_completeness': request_fields['key_completeness'],
         'pts_psm': request_fields['pts_psm'],
         'creditor_bank': request_fields['creditor_bank'],
@@ -363,7 +362,7 @@ def _create_requests_with_splitting(*, request_fields, additional_data, object_k
     filtered out).
 
     - empty list → fall back to a single request using the form's
-      vehicle_info / manufacturing_year (the parser found no object row).
+      object_description / condition / manufacturing_year (the parser found no object row).
     - 1 entry → create a single request, no source_batch_id / item_no /
       item_count (these stay NULL; user-confirmed default in stage 4 design).
     - N ≥ 2 entries → one source_batch_id (UUID), N rows with item_no=1..N
@@ -392,9 +391,10 @@ def _create_requests_with_splitting(*, request_fields, additional_data, object_k
 
     with transaction.atomic():
         if not object_kwargs_list:
-            # Legacy fallback — no objects parsed, use the form values.
+            # Объектов не распознано — объект из полей общей формы (описание, состояние, год).
             instance = InsuranceRequest.objects.create(
-                vehicle_info=request_fields['vehicle_info'] or 'Предмет лизинга не указан',
+                object_description=request_fields['object_description'] or 'Предмет лизинга не указан',
+                condition=request_fields.get('condition') or None,
                 manufacturing_year=request_fields['manufacturing_year'],
                 manual_edits_count=_edit_count_for(1),
                 **common,

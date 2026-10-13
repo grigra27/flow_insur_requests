@@ -846,12 +846,8 @@ class ExcelExportService:
         """
         Определяет, является ли застрахованный объект новым.
 
-        Признак новизны хранится по-разному в двух флоу:
-        - V2: в структурированном поле ``condition`` (значения 'new'/'used').
-        - V1 (legacy): свободным текстом в ``asset_status`` ('новое').
-
-        Приоритет у ``condition``; при его отсутствии (исторические V1-заявки)
-        используется legacy-сравнение по ``asset_status``.
+        Признак новизны — структурное поле ``condition`` ('new'/'used'); у исторических V1-заявок
+        оно заполнено из архивного ``asset_status`` командой migrate_legacy_object_fields.
 
         Args:
             request: Объект InsuranceRequest
@@ -869,8 +865,7 @@ class ExcelExportService:
         - Если объект новый, примечание не добавляется.
         - Во всех остальных случаях примечание добавляется.
 
-        Новизна определяется через :meth:`_is_new_object` с учётом обоих флоу:
-        V2 (поле ``condition``) и legacy V1 (поле ``asset_status``).
+        Новизна определяется через :meth:`_is_new_object` (поле ``condition``).
 
         Args:
             summary: Объект свода
@@ -886,8 +881,7 @@ class ExcelExportService:
             logger.debug(
                 f"Свод ID {summary.id}: объект новый "
                 f"(condition='{getattr(request, 'condition', None)}', "
-                f"condition_label='{getattr(request, 'condition_label', '')}', "
-                f"asset_status='{getattr(request, 'asset_status', '')}'), "
+                f"condition_label='{getattr(request, 'condition_label', '')}'), "
                 "дополнительное примечание не требуется"
             )
             return None
@@ -895,8 +889,7 @@ class ExcelExportService:
         logger.info(
             f"Свод ID {summary.id}: добавляем примечание по статусу имущества "
             f"(condition='{getattr(request, 'condition', None)}', "
-            f"condition_label='{getattr(request, 'condition_label', '')}', "
-            f"asset_status='{getattr(request, 'asset_status', '')}')"
+            f"condition_label='{getattr(request, 'condition_label', '')}')"
         )
         return self.ASSET_STATUS_ADDITIONAL_NOTE
 

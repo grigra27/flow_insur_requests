@@ -49,11 +49,11 @@ class ResponseTemplateV2RolloutTests(TestCase):
         cls.superuser = User.objects.create_superuser('root', password='p')
         cls.superuser.groups.add(admins)
         cls.new_request = InsuranceRequest.objects.create(
-            client_name='ООО Новая', inn='1', dfa_number='ОБ-1', vehicle_info='Станок',
+            client_name='ООО Новая', inn='1', dfa_number='ОБ-1', object_description='Станок',
             insurance_type='страхование имущества', condition='used',
         )
         cls.old_request = InsuranceRequest.objects.create(
-            client_name='ООО Старая', inn='2', dfa_number='ОБ-2', vehicle_info='Станок',
+            client_name='ООО Старая', inn='2', dfa_number='ОБ-2', object_description='Станок',
             insurance_type='страхование имущества', condition='used',
         )
         InsuranceRequest.objects.filter(pk=cls.new_request.pk).update(

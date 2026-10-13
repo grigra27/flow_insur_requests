@@ -43,7 +43,7 @@ class ExcelExportServiceTests(TestCase):
             client_name='ООО "ТЕСТОВАЯ КОМПАНИЯ"',
             inn='1234567890',
             insurance_type='КАСКО',
-            vehicle_info='б/у грузовой тягач седельный SCANIA R440A4X2NA',
+            object_description='б/у грузовой тягач седельный SCANIA R440A4X2NA',
             dfa_number='ТС-19827-ГА-ВН',
             branch='Тестовый филиал'
         )
@@ -108,7 +108,7 @@ class ExcelExportServiceValidationTests(TestCase):
         request = InsuranceRequest.objects.create(
             client_name='ООО "ТЕСТОВАЯ КОМПАНИЯ"',
             inn='1234567890',
-            vehicle_info='б/у грузовой тягач седельный SCANIA R440A4X2NA',
+            object_description='б/у грузовой тягач седельный SCANIA R440A4X2NA',
             dfa_number='ТС-19827-ГА-ВН'
         )
         
@@ -140,7 +140,7 @@ class ExcelExportServiceValidationTests(TestCase):
         request = InsuranceRequest.objects.create(
             client_name='ООО "ТЕСТОВАЯ КОМПАНИЯ"',
             inn='1234567890',
-            vehicle_info='б/у грузовой тягач седельный SCANIA R440A4X2NA',
+            object_description='б/у грузовой тягач седельный SCANIA R440A4X2NA',
             dfa_number=''  # Пустой номер ДФА
         )
         
@@ -159,7 +159,7 @@ class ExcelExportServiceValidationTests(TestCase):
         request = InsuranceRequest.objects.create(
             client_name='ООО "ТЕСТОВАЯ КОМПАНИЯ"',
             inn='1234567890',
-            vehicle_info='',  # Пустая информация о предмете лизинга
+            object_description='',  # Пустая информация о предмете лизинга
             dfa_number='ТС-19827-ГА-ВН'
         )
         
@@ -177,7 +177,7 @@ class ExcelExportServiceValidationTests(TestCase):
         request = InsuranceRequest.objects.create(
             client_name='ООО "ТЕСТОВАЯ КОМПАНИЯ"',
             inn='1234567890',
-            vehicle_info='',
+            object_description='',
             brand='SCANIA',
             model='R440A4X2NA',
             condition='used',
@@ -196,7 +196,7 @@ class ExcelExportServiceValidationTests(TestCase):
         request = InsuranceRequest.objects.create(
             client_name='',  # Пустое название клиента
             inn='1234567890',
-            vehicle_info='б/у грузовой тягач седельный SCANIA R440A4X2NA',
+            object_description='б/у грузовой тягач седельный SCANIA R440A4X2NA',
             dfa_number='ТС-19827-ГА-ВН'
         )
         
@@ -215,7 +215,7 @@ class ExcelExportServiceValidationTests(TestCase):
         request = InsuranceRequest.objects.create(
             client_name='',  # Пустое название клиента
             inn='1234567890',
-            vehicle_info='',  # Пустая информация о предмете лизинга
+            object_description='',  # Пустая информация о предмете лизинга
             dfa_number='ТС-19827-ГА-ВН'
         )
         
@@ -236,7 +236,7 @@ class ExcelExportServiceValidationTests(TestCase):
         request = InsuranceRequest.objects.create(
             client_name='   ',  # Только пробелы
             inn='1234567890',
-            vehicle_info='б/у грузовой тягач седельный SCANIA R440A4X2NA',
+            object_description='б/у грузовой тягач седельный SCANIA R440A4X2NA',
             dfa_number='ТС-19827-ГА-ВН'
         )
         
@@ -272,7 +272,7 @@ class ExcelExportServiceExcelOperationsTests(TestCase):
         self.insurance_request = InsuranceRequest.objects.create(
             client_name='ООО "ТЕСТОВАЯ КОМПАНИЯ"',
             inn='1234567890',
-            vehicle_info='б/у грузовой тягач седельный SCANIA R440A4X2NA',
+            object_description='б/у грузовой тягач седельный SCANIA R440A4X2NA',
             dfa_number='ТС-19827-ГА-ВН'
         )
         
@@ -384,7 +384,7 @@ class ExcelExportServiceExcelOperationsTests(TestCase):
         request = InsuranceRequest.objects.create(
             client_name='ООО "СТРУКТУРНАЯ КОМПАНИЯ"',
             inn='1234567890',
-            vehicle_info='',
+            object_description='',
             brand='LADA',
             model='Largus KS045L',
             condition='used',
@@ -436,7 +436,7 @@ class ExcelExportServiceIntegrationTests(TestCase):
         self.insurance_request = InsuranceRequest.objects.create(
             client_name='ООО "ТЕСТОВАЯ КОМПАНИЯ"',
             inn='1234567890',
-            vehicle_info='б/у грузовой тягач седельный SCANIA R440A4X2NA',
+            object_description='б/у грузовой тягач седельный SCANIA R440A4X2NA',
             dfa_number='ТС-19827-ГА-ВН'
         )
         
@@ -470,7 +470,7 @@ class ExcelExportServiceIntegrationTests(TestCase):
         invalid_request = InsuranceRequest.objects.create(
             client_name='',  # Пустое название клиента
             inn='1234567890',
-            vehicle_info='б/у грузовой тягач седельный SCANIA R440A4X2NA',
+            object_description='б/у грузовой тягач седельный SCANIA R440A4X2NA',
             dfa_number='ТС-19827-ГА-ВН'
         )
         

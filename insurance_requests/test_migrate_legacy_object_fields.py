@@ -4,7 +4,7 @@ from io import StringIO
 from django.core.management import call_command
 from django.test import SimpleTestCase, TestCase
 
-from insurance_requests.management.commands.migrate_legacy_object_fields import condition_from_asset_status
+from insurance_requests.object_condition import condition_from_asset_status
 from insurance_requests.models import InsuranceRequest, RequestFieldEdit
 
 
@@ -64,8 +64,8 @@ class MigrateLegacyObjectFieldsTests(TestCase):
         for request in (v1, v1_used, v2, odd):
             self.assertEqual(request.updated_at, self.updated_at[request.pk])
         self.assertEqual(RequestFieldEdit.objects.count(), 0)
-        # сводка объекта теперь из структуры и с состоянием
-        self.assertEqual(summary_before, 'Haval Jolion 2024')
+        # до переноса архив не читается (сводка пустая), после — из структуры и с состоянием
+        self.assertEqual(summary_before, '')
         self.assertEqual(v1.object_summary, 'Haval Jolion 2024, Новое')
 
     def test_second_run_has_nothing_to_do(self):

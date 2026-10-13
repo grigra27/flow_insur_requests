@@ -142,7 +142,7 @@ class RequestDatabaseExportTest(TestCase):
             branch='Москва',
             manager_name='Петров Петр',
             deal_status='new',
-            vehicle_info='Линия по производству тестов',
+            object_description='Линия по производству тестов',
             franchise_type='with_franchise',
             has_transportation=True,
             transportation_departure='Москва',
@@ -480,7 +480,7 @@ class RequestV1V2DisplayCompatibilityTest(TestCase):
             insurance_type='КАСКО',
             insurance_period='1 год',
             dfa_number='V1-001',
-            vehicle_info='Старое описание предмета лизинга V1',
+            object_description='Старое описание предмета лизинга V1',
             created_by=self.user,
         )
         self.legacy_installment_request = InsuranceRequest.objects.create(
@@ -498,7 +498,7 @@ class RequestV1V2DisplayCompatibilityTest(TestCase):
             insurance_type='КАСКО',
             insurance_period='1 год',
             dfa_number='V2-001',
-            vehicle_info='Автомобиль LADA Largus KS045L 2024 б/у',
+            object_description='Автомобиль LADA Largus KS045L 2024 б/у',
             brand='LADA',
             model='Largus KS045L',
             condition='used',
@@ -596,8 +596,9 @@ class RequestV1V2DisplayCompatibilityTest(TestCase):
         self.assertEqual(v1_response.status_code, 200)
         self.assertContains(v1_response, 'Старое описание предмета лизинга V1')
         self.assertContains(v1_response, 'Объект страхования')
-        # У V1 поле описания предмета лизинга остаётся — в блоке старого формата.
-        self.assertContains(v1_response, 'Поля старого формата заявки (V1)')
+        # описание объекта правится в поле «Описание объекта», блока старого формата больше нет
+        self.assertContains(v1_response, 'name="object_description"')
+        self.assertNotContains(v1_response, 'Поля старого формата заявки (V1)')
         self.assertContains(v1_response, 'Сохранить изменения')
 
         v2_response = self.client.get(
@@ -659,7 +660,7 @@ class InsuranceRequestObjectPropertiesTest(SimpleTestCase):
             acquisition_cost_currency='RUB',
             manufacturing_year='2024',
             source_object_count=2,
-            vehicle_info='legacy value',
+            object_description='legacy value',
         )
 
         self.assertEqual(
@@ -686,12 +687,12 @@ class InsuranceRequestObjectPropertiesTest(SimpleTestCase):
         request = InsuranceRequest(
             object_description='Линия порошковой окраски с конвейером',
             manufacturing_year='2020',
-            asset_status='б/у',
+            condition='used',
         )
 
         self.assertEqual(
             request.object_summary,
-            'Линия порошковой окраски с конвейером, 2020 г., б/у',
+            'Линия порошковой окраски с конвейером, 2020 г., Б/у',
         )
         self.assertEqual(
             request.object_display_name,
@@ -699,18 +700,18 @@ class InsuranceRequestObjectPropertiesTest(SimpleTestCase):
         )
 
     def test_object_summary_falls_back_to_vehicle_info_for_legacy_v1(self):
-        request = InsuranceRequest(vehicle_info='Старое описание предмета лизинга')
+        request = InsuranceRequest(object_description='Старое описание предмета лизинга')
 
         self.assertEqual(request.object_summary, 'Старое описание предмета лизинга')
 
-    def test_condition_helpers_support_v2_and_legacy(self):
+    def test_condition_helpers_use_structured_condition_only(self):
         structured_request = InsuranceRequest(condition='new')
-        legacy_request = InsuranceRequest(asset_status='новое')
+        archived_only = InsuranceRequest(asset_status='новое')  # архив V1 не читается (фаза D)
 
         self.assertEqual(structured_request.condition_label, 'Новое')
         self.assertTrue(structured_request.is_new_object)
-        self.assertEqual(legacy_request.condition_label, 'новое')
-        self.assertTrue(legacy_request.is_new_object)
+        self.assertEqual(archived_only.condition_label, '')
+        self.assertFalse(archived_only.is_new_object)
 
 
 class EmailTemplateGeneratorTest(TestCase):
@@ -738,7 +739,7 @@ class EmailTemplateGeneratorTest(TestCase):
             insurance_period='1 год',
             brand='LADA',
             model='Vesta Cross',
-            vehicle_info='Очень длинное legacy-описание, которое не должно попасть в тему письма',
+            object_description='Очень длинное legacy-описание, которое не должно попасть в тему письма',
         )
 
         subject = EmailTemplateGenerator().generate_subject(request.to_dict())

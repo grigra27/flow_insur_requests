@@ -27,7 +27,7 @@ class ResponseV2Base(TestCase):
         cls.staff = User.objects.create_user('staff', password='p')
         cls.staff.groups.add(users)
         request = InsuranceRequest.objects.create(
-            client_name='ООО Тест', inn='1234567890', dfa_number='ОБ-20702-ЛО-КР', vehicle_info='GIANFRANCO',
+            client_name='ООО Тест', inn='1234567890', dfa_number='ОБ-20702-ЛО-КР', object_description='GIANFRANCO',
             insurance_type='страхование имущества', has_transportation=True,
             transportation_departure='Москва', transportation_destination='Армавир',
         )

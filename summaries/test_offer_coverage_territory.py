@@ -46,7 +46,7 @@ class OfferCoverageTerritoryImportTests(TestCase):
             client_name='ООО Тест',
             inn='1234567890',
             dfa_number='ТЕСТ-1',
-            vehicle_info='Тестовый объект',
+            object_description='Тестовый объект',
         )
         cls.summary = InsuranceSummary.objects.create(request=request, status='collecting')
 
@@ -100,7 +100,7 @@ class OfferCoverageTerritoryExportTests(TestCase):
             client_name='ООО Экспорт',
             inn='1234567890',
             dfa_number='ТЕСТ-2',
-            vehicle_info='Складской комплекс',
+            object_description='Складской комплекс',
             insurance_type='страхование имущества',
             insurance_territory='Российская Федерация',
         )
@@ -241,7 +241,7 @@ class OfferCoverageTerritoryInterfaceAndTemplateTests(TestCase):
             client_name='ООО Интерфейс',
             inn='1234567890',
             dfa_number='ТЕСТ-3',
-            vehicle_info='Тестовый объект',
+            object_description='Тестовый объект',
             created_by=cls.user,
         )
         cls.summary = InsuranceSummary.objects.create(request=request, status='collecting')

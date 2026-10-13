@@ -29,13 +29,13 @@ class InsurerKitTests(TestCase):
         cls.staff = User.objects.create_user('staff', password='p')
         cls.staff.groups.add(users)
         cls.request_obj = InsuranceRequest.objects.create(
-            client_name='ООО Тест', inn='1234567890', dfa_number='ОБ-20702-ЛО-КР', vehicle_info='Станок',
+            client_name='ООО Тест', inn='1234567890', dfa_number='ОБ-20702-ЛО-КР', object_description='Станок',
             insurance_type='страхование имущества', has_transportation=True,
         )
         batch_id = uuid.uuid4()
         cls.batch = [
             InsuranceRequest.objects.create(
-                client_name='ООО Партия', inn='1', dfa_number='ТС-18022-2-3', vehicle_info=f'Автобус {n}',
+                client_name='ООО Партия', inn='1', dfa_number='ТС-18022-2-3', object_description=f'Автобус {n}',
                 insurance_type='КАСКО', source_batch_id=batch_id, item_no=n, item_count=3,
             ) for n in (1, 2, 3)
         ]
@@ -108,7 +108,7 @@ class SummarySectionRefreshTests(TestCase):
         users = Group.objects.get_or_create(name='Пользователи')[0]
         staff = User.objects.create_user('s', password='p')
         staff.groups.add(users)
-        obj = InsuranceRequest.objects.create(client_name='ООО', inn='1', dfa_number='ОБ-9', vehicle_info='Станок',
+        obj = InsuranceRequest.objects.create(client_name='ООО', inn='1', dfa_number='ОБ-9', object_description='Станок',
                                               status='email_generated')
         self.client.force_login(staff)
         url = reverse('insurance_requests:request_detail', args=[obj.pk])

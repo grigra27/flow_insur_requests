@@ -314,10 +314,10 @@ def classify(text: str, insurance_type: str = '', dfa_number: str = '') -> Objec
 
 
 def request_object_text(insurance_request) -> str:
-    """Текст объекта заявки для классификации: описание, марка и модель (V2) или vehicle_info (V1)."""
+    """Текст объекта заявки для классификации: описание, марка и модель (у заявок V1 описание перенесено
+    из архивного vehicle_info командой migrate_legacy_object_fields)."""
     parts = [
         getattr(insurance_request, 'object_description', '') or '',
-        getattr(insurance_request, 'vehicle_info', '') or '',
         getattr(insurance_request, 'brand', '') or '',
         getattr(insurance_request, 'model', '') or '',
     ]

@@ -38,7 +38,7 @@ class ManualExcelVerificationTest(TestCase):
             insurance_type='Имущественное страхование',
             branch='Великий Новгород',
             dfa_number='ТС-19827-ГА-ВН',
-            vehicle_info='б/у грузовой тягач седельный SCANIA R440A4X2NA',
+            object_description='б/у грузовой тягач седельный SCANIA R440A4X2NA',
             status='uploaded',
             created_by=self.user,
             insurance_period='1 год'
@@ -310,7 +310,7 @@ class ManualExcelVerificationTest(TestCase):
             insurance_type='Имущественное страхование',
             branch='Санкт-Петербург',
             dfa_number='ТС-2025-КИРИЛЛ-001',
-            vehicle_info='Автомобиль марки "Лада" модель "Гранта"',
+            object_description='Автомобиль марки "Лада" модель "Гранта"',
             status='uploaded',
             created_by=self.user,
             insurance_period='2 года'
@@ -342,7 +342,7 @@ class ManualExcelVerificationTest(TestCase):
             insurance_type='Имущественное страхование',
             branch='Екатеринбург',
             dfa_number='ТС-2025-ДЛИННЫЕ-ДАННЫЕ-001',
-            vehicle_info='Б' * 500,  # Очень длинное описание
+            object_description='Б' * 500,  # Очень длинное описание
             status='uploaded',
             created_by=self.user,
             insurance_period='1 год'
@@ -373,7 +373,7 @@ class ManualExcelVerificationTest(TestCase):
             insurance_type='Имущественное страхование',
             branch='Новосибирск',
             dfa_number='ТС/2025-СПЕЦ#001',
-            vehicle_info='Автомобиль с доп. оборудованием: GPS, сигнализация & др.',
+            object_description='Автомобиль с доп. оборудованием: GPS, сигнализация & др.',
             status='uploaded',
             created_by=self.user,
             insurance_period='3 года'

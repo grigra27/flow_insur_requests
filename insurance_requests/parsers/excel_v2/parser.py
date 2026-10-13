@@ -17,6 +17,7 @@ from openpyxl.utils import get_column_letter
 
 from core.business_time import response_deadline
 from core.excel_utils import AVAILABLE_BRANCHES, map_branch_name
+from insurance_requests.object_condition import condition_from_asset_status
 from insurance_requests.franchise import parse_amounts as parse_franchise_amounts
 
 logger = logging.getLogger(__name__)
@@ -39,7 +40,6 @@ logger = logging.getLogger(__name__)
 PARSER_V2_VERSION = "2.1.0"
 MISSING_CLIENT = "Клиент не указан"
 MISSING_DFA = "Номер ДФА не указан"
-MISSING_VEHICLE = "Предмет лизинга не указан"
 CLIENT_COORDINATES = ("D7", "D8")
 CLIENT_MAX_LABEL_ROW = 10
 # Подписи полей в бланках короткие; более длинный текст считается значением.
@@ -795,7 +795,6 @@ class ExcelRequestParserV2:
         insured_objects = self._extract_objects(cells, rows)
         insured_objects, object_grouping = group_identical_objects(insured_objects)
         if insured_objects:
-            data["vehicle_info"] = ""
             source_map["insured_objects"] = ", ".join(
                 obj["source"] for obj in insured_objects[:10] if obj.get("source")
             )
@@ -856,18 +855,20 @@ class ExcelRequestParserV2:
             data["creditor_bank"] = creditor_value
             source_map["creditor_bank"] = creditor_source
 
-        # asset_status — legacy свободнотекстовое «новое/б/у». В V2 состояние
-        # хранится структурно в condition (пообъектно), поэтому при распознанных
-        # объектах с condition мы asset_status НЕ заполняем (депрекейт). Запись
-        # остаётся только как fallback: когда объектов нет вообще либо ни у
-        # одного объекта condition не распознан — иначе состояние было бы
-        # потеряно (см. Risk A в legacy_object_fields_deprecation.md).
+
+        # «Новое / б/у» из бланка — в структурное состояние: объектам, у которых оно не распознано
+        # в таблице, и общей форме, если объектов нет (поле condition). Свободным текстом
+        # (asset_status) больше не храним — фаза D депрекейта, backlog.md п. 1.
         asset_value, asset_source = self._extract_asset_status(cells, rows, application_type)
-        if asset_value:
-            objects_have_condition = any(obj.get("condition") for obj in insured_objects)
-            if not insured_objects or not objects_have_condition:
-                data["asset_status"] = asset_value
-                source_map["asset_status"] = asset_source
+        asset_condition = condition_from_asset_status(asset_value)
+        if asset_condition:
+            if insured_objects:
+                for obj in insured_objects:
+                    if not obj.get("condition"):
+                        obj["condition"] = asset_condition
+            else:
+                data["condition"] = asset_condition
+                source_map["condition"] = asset_source
 
         telematics_value, telematics_source = self._extract_telematics_complex(cells, rows)
         if telematics_value:
@@ -1043,7 +1044,6 @@ class ExcelRequestParserV2:
             "inn": "",
             "insurance_type": "другое",
             "insurance_period": "",
-            "vehicle_info": MISSING_VEHICLE,
             "dfa_number": MISSING_DFA,
             "branch": "",
             "manager_name": "",
@@ -1058,7 +1058,6 @@ class ExcelRequestParserV2:
             "transportation_days": None,
             "has_construction_work": False,
             "manufacturing_year": "",
-            "asset_status": "",
             "key_completeness": "",
             "pts_psm": "",
             "creditor_bank": "",
@@ -2545,16 +2544,12 @@ class ExcelRequestParserV2:
             if data.get(field_name) == missing_value or not data.get(field_name):
                 warnings.append({"level": "manual_required", "field": field_name, "message": message, "source": ""})
 
-        # Объект распознан, если есть хотя бы один insured_object (структура)
-        # либо непустой legacy vehicle_info (старый путь без таблицы объектов).
-        # Со времён депрекейта vehicle_info парсер при распознанных объектах
-        # намеренно оставляет его пустым, поэтому проверять нужно insured_objects,
-        # а не само поле — иначе предупреждение срабатывает ложно.
-        vehicle_info = (data.get("vehicle_info") or "").strip()
-        if not insured_objects and (not vehicle_info or vehicle_info == MISSING_VEHICLE):
+        # Объект распознан, если есть хотя бы один insured_object; иначе оператор вписывает
+        # описание объекта вручную на превью (поле object_description).
+        if not insured_objects and not (data.get("object_description") or "").strip():
             warnings.append({
                 "level": "manual_required",
-                "field": "vehicle_info",
+                "field": "object_description",
                 "message": "Предмет лизинга не распознан.",
                 "source": "",
             })
@@ -2637,40 +2632,6 @@ class ExcelRequestParserV2:
             bool(data.get("insurance_period")),
         ]
         return round(sum(checks) / len(checks), 2)
-
-    def _vehicle_summary(self, insured_objects: List[Dict[str, str]]) -> str:
-        if not insured_objects:
-            return MISSING_VEHICLE
-        lines = [self._format_object_summary(obj) for obj in insured_objects[:8]]
-        lines = [line for line in lines if line]
-        if not lines:
-            return MISSING_VEHICLE
-        if len(lines) == 1:
-            return lines[0][:1000]
-        return "\n".join(lines)[:1000]
-
-    def _format_object_summary(self, obj: Dict[str, Any]) -> str:
-        """Build a one-line summary of an insured object for vehicle_info.
-
-        If the description is short (property layout — column C only),
-        append year and cost so the email body has the full picture.
-        For KASKO/equipment the description is the whole row_text and
-        already contains year/cost — keep it as-is to avoid duplicates.
-        """
-        description = (obj.get("description") or "").strip()
-        if not description:
-            return ""
-        if len(description) > 80:
-            return description
-        parts = [description]
-        year = (obj.get("year") or "").strip()
-        if year:
-            parts.append(f"{year} г.")
-        cost = (obj.get("acquisition_cost_value") or "").strip()
-        currency = (obj.get("acquisition_cost_currency") or "").strip()
-        if cost:
-            parts.append(f"{cost} {currency}".strip())
-        return ", ".join(parts)
 
     def _detect_application_format(self, data: Dict[str, Any]) -> str:
         if data.get("insurance_type") == "страхование имущества":

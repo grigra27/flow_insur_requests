@@ -21,7 +21,7 @@ FILTERS = {'start_date': None, 'end_date': None, 'branch': '', 'insurance_type':
 def make_deal(dfa, winner, prices, branch='Краснодар', insurance_type='КАСКО', client='ООО Клиент', status='completed_accepted'):
     request = InsuranceRequest.objects.create(
         client_name=client, inn='7707083893', dfa_number=dfa, branch=branch, insurance_type=insurance_type,
-        vehicle_info='Тягач', manufacturing_year='2024', condition='new',
+        object_description='Тягач', manufacturing_year='2024', condition='new',
     )
     summary = InsuranceSummary.objects.create(request=request, status=status, selected_company=winner,
                                               selected_franchise_variant=1 if winner else None)

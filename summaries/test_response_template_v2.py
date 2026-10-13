@@ -45,7 +45,7 @@ def _snapshot(source):
 
 def _request(**kwargs):
     defaults = dict(client_name='ООО Тест', inn='1234567890', dfa_number='ОБ-20702-ЛО-КР',
-                    vehicle_info='GIANFRANCO', insurance_type='КАСКО')
+                    object_description='GIANFRANCO', insurance_type='КАСКО')
     defaults.update(kwargs)
     return InsuranceRequest(**defaults)
 
@@ -216,7 +216,7 @@ class InsurerResponseModelTests(TestCase):
     @classmethod
     def setUpTestData(cls):
         request = InsuranceRequest.objects.create(
-            client_name='ООО Тест', inn='1234567890', dfa_number='ОБ-1', vehicle_info='Станок',
+            client_name='ООО Тест', inn='1234567890', dfa_number='ОБ-1', object_description='Станок',
             insurance_type='страхование имущества',
         )
         cls.summary = InsuranceSummary.objects.create(request=request, status='collecting')

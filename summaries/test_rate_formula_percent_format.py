@@ -82,7 +82,7 @@ class RateExportInvariantTests(RateFormulaAssertionsMixin, TestCase):
             client_name='ООО Тариф',
             inn='1234567890',
             dfa_number='ТС-20276-ЛА-ПС',
-            vehicle_info='Haval F7X',
+            object_description='Haval F7X',
         )
         cls.summary = InsuranceSummary.objects.create(request=request, status='ready')
         for year, insurance_sum in ((1, '3549000'), (2, '3016650'), (3, '2564153')):

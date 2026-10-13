@@ -41,7 +41,7 @@ class ExcelExportServiceCompanyDataTests(TestCase):
         self.insurance_request = InsuranceRequest.objects.create(
             client_name='ООО "ТЕСТОВАЯ КОМПАНИЯ"',
             inn='1234567890',
-            vehicle_info='б/у грузовой тягач седельный SCANIA R440A4X2NA',
+            object_description='б/у грузовой тягач седельный SCANIA R440A4X2NA',
             dfa_number='ТС-19827-ГА-ВН'
         )
         
@@ -816,7 +816,7 @@ class AssetStatusNotesTests(ExcelExportServiceCompanyDataTests):
 
     def test_get_additional_note_for_new_asset_status(self):
         """Если статус имущества 'новое', доп. примечание не добавляется"""
-        self.insurance_request.asset_status = 'новое'
+        self.insurance_request.condition = 'new'
 
         result = self.service._get_additional_note_for_asset_status(self.insurance_summary)
 
@@ -829,14 +829,6 @@ class AssetStatusNotesTests(ExcelExportServiceCompanyDataTests):
         result = self.service._get_additional_note_for_asset_status(self.insurance_summary)
 
         self.assertEqual(result, self.service.ASSET_STATUS_ADDITIONAL_NOTE)
-
-    def test_get_additional_note_for_new_asset_status_with_whitespace_and_case(self):
-        """Пробелы/регистр не должны влиять на распознавание статуса 'новое'"""
-        self.insurance_request.asset_status = '  НоВоЕ  '
-
-        result = self.service._get_additional_note_for_asset_status(self.insurance_summary)
-
-        self.assertIsNone(result)
 
     def test_get_additional_note_for_new_object_via_condition(self):
         """V2: новизна объекта в condition='new' — примечание не добавляется,
@@ -867,14 +859,15 @@ class AssetStatusNotesTests(ExcelExportServiceCompanyDataTests):
 
         self.assertIsNone(result)
 
-    def test_legacy_asset_status_used_when_condition_empty(self):
-        """V1: при пустом condition признак новизны берётся из asset_status='новое'"""
+    def test_archived_asset_status_is_not_read(self):
+        """Фаза D: архивный asset_status не читается — состояние только из condition
+        (у заявок V1 оно заполнено командой migrate_legacy_object_fields)"""
         self.insurance_request.condition = None
         self.insurance_request.asset_status = 'новое'
 
         result = self.service._get_additional_note_for_asset_status(self.insurance_summary)
 
-        self.assertIsNone(result)
+        self.assertEqual(result, self.service.ASSET_STATUS_ADDITIONAL_NOTE)
 
     def test_build_export_notes_combines_offer_and_additional_notes(self):
         """Доп. примечание должно добавляться к комментарию страховщика"""
@@ -1007,7 +1000,7 @@ class IntegrationTests(ExcelExportServiceCompanyDataTests):
         """При статусе 'новое' передается только комментарий о согласовании франшизы"""
         workbook = Workbook()
         companies_data = {'ВСК': [self.offer3]}
-        self.insurance_request.asset_status = 'новое'
+        self.insurance_request.condition = 'new'
 
         with patch.object(self.service, '_get_companies_sorted_data', return_value=companies_data), \
              patch.object(self.service, '_validate_companies_data', return_value=companies_data), \
@@ -1023,7 +1016,7 @@ class IntegrationTests(ExcelExportServiceCompanyDataTests):
     def test_fill_company_data_adds_franchise_note_only_for_target_company(self):
         """Комментарий о франшизе добавляется только компаниям с ненулевой франшизой"""
         workbook = Workbook()
-        self.insurance_request.asset_status = 'новое'
+        self.insurance_request.condition = 'new'
 
         offer_without_franchise = Mock()
         offer_without_franchise.insurance_year = 1

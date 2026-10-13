@@ -258,10 +258,6 @@
         },
         "telematics_complex": {
           "type": ["string", "null"]
-        },
-        "asset_status": {
-          "type": ["string", "null"],
-          "description": "Текстовое описание состояния (сохранено для совместимости с V1). Структурированное состояние объекта живёт в insured_object.condition."
         }
       }
     },

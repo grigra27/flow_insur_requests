@@ -48,7 +48,7 @@ class ComprehensiveIntegrationTest(TestCase):
             client_name='ООО "Интеграционный Тест"',
             inn='1234567890',
             insurance_type='КАСКО',
-            vehicle_info='Тестовый автомобиль',
+            object_description='Тестовый автомобиль',
             branch='Москва',
             dfa_number='DFA-2025-001',
             status='uploaded',

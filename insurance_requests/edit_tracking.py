@@ -39,11 +39,9 @@ _PLACEHOLDER_VALUES = {
 _SCALAR_FIELDS_EXCLUDED = {'draft_id'}
 # При наличии распознанных объектов эти поля отслеживаются на уровне
 # объекта (в формсете), а не на общем уровне — иначе на превью партии они
-# дублировали бы объектные правки. Сюда входят и legacy-поля объекта
-# (vehicle_info, asset_status): их современные эквиваленты (object_description,
-# condition) отслеживаются пообъектно, поэтому на скалярном уровне их учитывать
-# не нужно — иначе получили бы дубль/ложные правки после депрекейта.
-_SCALAR_FIELDS_OBJECT_LEVEL = {'vehicle_info', 'manufacturing_year', 'asset_status'}
+# дублировали бы объектные правки. Описание и состояние объекта в общей форме нужны
+# только когда парсер не нашёл таблицу объектов.
+_SCALAR_FIELDS_OBJECT_LEVEL = {'object_description', 'manufacturing_year', 'condition'}
 # Поля объектной формы, не участвующие в сравнении.
 _OBJECT_FIELDS_EXCLUDED = {'skip'}
 
@@ -220,7 +218,7 @@ def build_edit_tracking(
             СОЗДАВАЕМОГО объекта (пропущенные через skip уже отфильтрованы),
             в порядке создания. Позиция в списке соответствует item_no.
         has_objects: были ли распознаны объекты лизинга (влияет на то,
-            отслеживаются ли vehicle_info/manufacturing_year на общем уровне).
+            отслеживаются ли object_description/condition/manufacturing_year на общем уровне).
 
     Returns:
         dict со структурой:

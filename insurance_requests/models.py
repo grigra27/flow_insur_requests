@@ -112,7 +112,9 @@ class InsuranceRequest(models.Model):
         blank=True,
         verbose_name='Срок страхования'
     )
-    vehicle_info = models.TextField(blank=True, verbose_name='Информация о предмете лизинга')
+    # Архив загрузчика V1 (до 2026-06-10): не читается и не пишется — данные перенесены в
+    # object_description / condition командой migrate_legacy_object_fields (фаза D, backlog.md п. 1)
+    vehicle_info = models.TextField(blank=True, verbose_name='Предмет лизинга (архив V1, не используется)')
     dfa_number = models.CharField(max_length=100, blank=True, verbose_name='Номер ДФА')
     branch = models.CharField(max_length=255, blank=True, verbose_name='Филиал')
     
@@ -235,10 +237,11 @@ class InsuranceRequest(models.Model):
     )
 
     # Статус имущества предмета лизинга (для КАСКО/спецтехника)
+    # Архив V1 — см. vehicle_info
     asset_status = models.CharField(
         max_length=255,
         blank=True,
-        verbose_name='Статус имущества'
+        verbose_name='Статус имущества (архив V1, не используется)'
     )
     
     # ФИО Менеджера
@@ -707,22 +710,15 @@ class InsuranceRequest(models.Model):
         parts = [part.strip() for part in [self.brand or '', self.model or ''] if part and part.strip()]
         if parts:
             return ' '.join(parts)
-        fallback = (self.object_description or '').strip()
-        if fallback:
-            return fallback
-        return self.vehicle_info or ''
+        return (self.object_description or '').strip()
 
     @property
     def condition_label(self):
-        if self.condition:
-            return self.get_condition_display()
-        return (self.asset_status or '').strip()
+        return self.get_condition_display() if self.condition else ''
 
     @property
     def is_new_object(self):
-        if self.condition:
-            return self.condition == 'new'
-        return (self.asset_status or '').strip().lower() == 'новое'
+        return self.condition == 'new'
 
     @property
     def object_summary(self):
@@ -779,10 +775,6 @@ class InsuranceRequest(models.Model):
             summary = ', '.join(part for part in parts if part).strip()
             if summary:
                 return summary[:1000]
-
-        fallback = (self.vehicle_info or '').strip()
-        if fallback:
-            return fallback[:1000]
 
         fallback = (self.object_description or '').strip()
         if fallback:
@@ -887,7 +879,7 @@ class InsuranceRequest(models.Model):
     def __str__(self):
         return f"{self.get_display_name()} - {self.client_name} ({self.get_status_display()})"
     
-    OBJECT_CATALOG_SOURCE_FIELDS = ('object_description', 'vehicle_info', 'brand', 'model', 'insurance_type', 'dfa_number')
+    OBJECT_CATALOG_SOURCE_FIELDS = ('object_description', 'brand', 'model', 'insurance_type', 'dfa_number')
     OBJECT_CATALOG_FIELDS = ('object_brand', 'object_class', 'machine_kind')
 
     def refresh_object_catalog(self):
@@ -938,7 +930,6 @@ class InsuranceRequest(models.Model):
             'inn': self.inn,
             'insurance_type': self.insurance_type,
             'insurance_period': self.insurance_period or 'не указан',
-            'vehicle_info': self.vehicle_info,
             'object_display_name': self.object_display_name,
             'object_summary': self.object_summary,
             'object_description': self.object_description,
@@ -970,8 +961,6 @@ class InsuranceRequest(models.Model):
             'insurance_territory': self.insurance_territory or 'не указано',
             # Год выпуска предмета лизинга
             'manufacturing_year': self.manufacturing_year or 'не указан',
-            # Статус имущества предмета лизинга
-            'asset_status': self.asset_status or 'не указан',
             'condition_label': self.condition_label or 'не указан',
             # ФИО Менеджера
             'manager_name': self.manager_name or 'не указано',

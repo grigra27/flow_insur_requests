@@ -72,8 +72,7 @@
     "construction_work_required": false,
     "key_completeness": "2 ключа",
     "title_document": "ПТС",
-    "telematics_complex": null,
-    "asset_status": "новое"
+    "telematics_complex": null
   },
   "notes": []
 }

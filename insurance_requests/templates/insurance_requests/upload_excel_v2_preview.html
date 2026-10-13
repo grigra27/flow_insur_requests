@@ -81,14 +81,14 @@
                     {% endfor %}
                 </div>
             </div>
-            <div class="d-none">{{ form.vehicle_info }}{{ form.manufacturing_year }}{{ form.asset_status }}</div>
+            <div class="d-none">{{ form.object_description }}{{ form.manufacturing_year }}{{ form.condition }}</div>
             {% else %}
             <div class="card rf-card">
                 <div class="card-header"><h6 class="mb-0">Предмет лизинга</h6></div>
                 <div class="card-body rf-grid">
-                    {% include "insurance_requests/includes/_rf_field.html" with f=form.vehicle_info span=4 %}
+                    {% include "insurance_requests/includes/_rf_field.html" with f=form.object_description span=4 %}
                     {% include "insurance_requests/includes/_rf_field.html" with f=form.manufacturing_year %}
-                    {% include "insurance_requests/includes/_rf_field.html" with f=form.asset_status span=3 %}
+                    {% include "insurance_requests/includes/_rf_field.html" with f=form.condition span=3 %}
                 </div>
             </div>
             {% endif %}

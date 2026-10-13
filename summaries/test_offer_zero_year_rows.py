@@ -50,7 +50,7 @@ class ZeroYearRowTests(TestCase):
             client_name='ООО Тест',
             inn='1234567890',
             dfa_number='ТЕСТ-0',
-            vehicle_info='Полуприцеп',
+            object_description='Полуприцеп',
         )
         cls.summary = InsuranceSummary.objects.create(request=request, status='collecting')
 

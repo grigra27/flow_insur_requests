@@ -11,28 +11,13 @@
 """
 from __future__ import annotations
 
-import re
 from collections import Counter
 
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from insurance_requests.models import InsuranceRequest
-
-NEW_WORDS = {'новое', 'новый', 'новая', 'new'}
-USED_WORDS = {'бу', 'used', 'подержанное'}
-
-
-def condition_from_asset_status(value) -> str | None:
-    """«новое», «новое новое» → new; «б/у», «БУ», «б.у.» → used; иначе None."""
-    words = set(re.sub(r'[/.\-]', '', (value or '').lower()).split())
-    if not words:
-        return None
-    if words <= NEW_WORDS:
-        return 'new'
-    if words <= USED_WORDS:
-        return 'used'
-    return None
+from insurance_requests.object_condition import condition_from_asset_status
 
 
 def build_plan():

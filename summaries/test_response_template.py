@@ -98,7 +98,7 @@ class ResponseTemplateImportTests(TestCase):
                 name=name, defaults={'display_name': name, 'sort_order': order, 'is_active': True},
             )
         request = InsuranceRequest.objects.create(
-            client_name='ООО Тест', inn='1234567890', dfa_number='ТЕСТ-1', vehicle_info='Автобус',
+            client_name='ООО Тест', inn='1234567890', dfa_number='ТЕСТ-1', object_description='Автобус',
         )
         cls.summary = InsuranceSummary.objects.create(request=request, status='collecting')
 

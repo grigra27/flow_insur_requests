@@ -57,18 +57,19 @@ class ObjectCatalogTests(SimpleTestCase):
 class ObjectCatalogOnRequestTests(TestCase):
     def test_saved_request_gets_catalog_fields_and_updates_on_edit(self):
         request = InsuranceRequest.objects.create(client_name='ООО Тест', inn='7707083893', insurance_type='КАСКО',
-                                                  vehicle_info='Автомобиль Haval M6', brand='Автомобиль')
+                                                  object_description='Автомобиль Haval M6', brand='Автомобиль')
         self.assertEqual((request.object_brand, request.object_class), ('Haval', 'passenger'))
 
-        request.vehicle_info = 'Экскаватор SANY SY75C'
+        request.object_description = 'Экскаватор SANY SY75C'
+        request.brand = ''
         request.insurance_type = 'страхование спецтехники'
-        request.save(update_fields=['vehicle_info', 'insurance_type'])
+        request.save(update_fields=['object_description', 'brand', 'insurance_type'])
         request.refresh_from_db()
         self.assertEqual((request.object_brand, request.object_class, request.machine_kind),
                          ('SANY', 'special', 'Экскаватор'))
 
     def test_command_reports_and_applies(self):
-        request = InsuranceRequest.objects.create(client_name='ООО Тест', inn='7707083893', vehicle_info='Geely Monjaro')
+        request = InsuranceRequest.objects.create(client_name='ООО Тест', inn='7707083893', object_description='Geely Monjaro')
         InsuranceRequest.objects.filter(pk=request.pk).update(object_brand='', object_class='')
         out = StringIO()
         call_command('classify_objects', stdout=out)

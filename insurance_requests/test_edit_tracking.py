@@ -116,14 +116,14 @@ class BuildEditTrackingTests(SimpleTestCase):
         self.assertEqual(tracking['summary']['total_field_edits'], 2)
 
     def test_vehicle_info_skipped_at_scalar_level_when_objects(self):
-        parse_result = self._parse_result(vehicle_info='старое', manufacturing_year='2020')
-        scalar_after = {'vehicle_info': 'новое', 'manufacturing_year': '2021'}
+        parse_result = self._parse_result(object_description='старое', manufacturing_year='2020')
+        scalar_after = {'object_description': 'новое', 'manufacturing_year': '2021'}
         tracking = build_edit_tracking(parse_result, scalar_after, [], has_objects=True)
         self.assertEqual(tracking['summary']['total_field_edits'], 0)
 
     def test_vehicle_info_tracked_at_scalar_level_without_objects(self):
-        parse_result = self._parse_result(vehicle_info='старое')
-        scalar_after = {'vehicle_info': 'новое'}
+        parse_result = self._parse_result(object_description='старое')
+        scalar_after = {'object_description': 'новое'}
         tracking = build_edit_tracking(parse_result, scalar_after, [], has_objects=False)
         self.assertEqual(tracking['summary']['total_field_edits'], 1)
 

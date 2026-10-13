@@ -47,12 +47,12 @@ class InsuranceRequestAdmin(admin.ModelAdmin):
     # Расширенный поиск по ключевым полям
     search_fields = [
         'dfa_number', 'client_name', 'inn', 'branch', 
-        'email_subject', 'vehicle_info', 'brand', 'model'
+        'email_subject', 'object_description', 'brand', 'model'
     ]
     
     # Поля только для чтения
     readonly_fields = [
-        'created_at', 'updated_at',
+        'created_at', 'updated_at', 'vehicle_info', 'asset_status',
         'get_attachments_count', 'manual_edits_count', 'get_manual_edits'
     ]
     
@@ -78,9 +78,11 @@ class InsuranceRequestAdmin(admin.ModelAdmin):
                 'power_or_capacity', 'acquisition_cost_value',
                 'acquisition_cost_currency', 'manufacturing_year',
                 'object_description',
-                # legacy-поля храним до полной миграции потребителей
-                'vehicle_info', 'asset_status',
             )
+        }),
+        ('Архив загрузчика V1 (не используется)', {
+            'classes': ('collapse',),
+            'fields': ('vehicle_info', 'asset_status'),
         }),
         ('Параметры', {
             'fields': (

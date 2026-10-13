@@ -29,7 +29,7 @@ class ColorCodingTest(TestCase):
             client_name='Test Client',
             inn='1234567890',
             insurance_type='КАСКО',
-            vehicle_info='Test Vehicle',
+            object_description='Test Vehicle',
             created_by=self.user
         )
         

@@ -41,7 +41,7 @@ class OfferTableRenderingTests(TestCase):
         user.groups.add(Group.objects.get_or_create(name='Пользователи')[0])
         self.client.login(username='table_user', password='pwd')
         request = InsuranceRequest.objects.create(client_name='ООО Тест', inn='7707083893', dfa_number='ТС-1',
-                                                  vehicle_info='Haval F7X')
+                                                  object_description='Haval F7X')
         self.summary = InsuranceSummary.objects.create(request=request)
         for company, territory in (('Альфа', 'РФ'), ('ВСК', 'РФ, Европа и СНГ')):
             for year in (1, 2):

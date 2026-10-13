@@ -16,7 +16,7 @@ from .services import analytics_tariffs as tariffs
 def make(text, offers, insurance_type='КАСКО', winner='', condition='new'):
     """offers: {СК: (премия-1, франшиза-1)} или {СК: премия-1}; страховая сумма 1 000 000."""
     request = InsuranceRequest.objects.create(client_name='ООО Тест', inn='7707083893', insurance_type=insurance_type,
-                                              vehicle_info=text, dfa_number='ТС-1', condition=condition)
+                                              object_description=text, dfa_number='ТС-1', condition=condition)
     summary = InsuranceSummary.objects.create(request=request, status='completed_accepted' if winner else 'sent',
                                               selected_company=winner or None)
     for company, value in offers.items():
@@ -78,7 +78,7 @@ class TariffServiceTests(TestCase):
         self.assertEqual(payload['model_rows'][0]['label'], 'M6')
 
     def test_hint_uses_brand_then_falls_back_to_class(self):
-        haval = InsuranceSummary.objects.filter(request__vehicle_info='Автомобиль Haval M6').first()
+        haval = InsuranceSummary.objects.filter(request__object_description='Автомобиль Haval M6').first()
         hint = tariffs.hint_for_request(haval.request, exclude_summary_id=haval.pk)
         self.assertEqual(hint['level'], 'class')  # без текущего свода по Haval остаётся 2 заявки из 3
         extra = make('Haval Jolion', {'Зетта': 21000})

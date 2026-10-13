@@ -1102,7 +1102,7 @@ def deal_summary(request, summary_id):
         'insurance_type': insurance_request.get_insurance_type_display(),
         'object_summary': insurance_request.object_summary,
         'manufacturing_year': insurance_request.manufacturing_year,
-        'asset_status': insurance_request.condition_label,
+        'condition_label': insurance_request.condition_label,
         'insurance_period': getattr(insurance_request, 'insurance_period', ''),
 
         # Условия договора

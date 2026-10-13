@@ -44,15 +44,9 @@
                         {% include "insurance_requests/includes/_rf_field.html" with f=form.acquisition_cost_currency %}
                         {% include "insurance_requests/includes/_rf_field.html" with f=form.source_object_count span=2 show_help=True %}
                     </div>
-                    {% if form.vehicle_info or form.asset_status %}
-                    <details class="rf-legacy"{% if request.vehicle_info or request.asset_status %} open{% endif %}>
-                        <summary>Поля старого формата заявки (V1)</summary>
-                        <div class="rf-grid mt-2">
-                            {% if form.vehicle_info %}{% include "insurance_requests/includes/_rf_field.html" with f=form.vehicle_info span=3 %}{% endif %}
-                            {% if form.asset_status %}{% include "insurance_requests/includes/_rf_field.html" with f=form.asset_status help="Статус имущества предмета лизинга" %}{% endif %}
-                        </div>
-                    </details>
-                    {% endif %}
+                    <div class="rf-grid mt-2">
+                        {% include "insurance_requests/includes/_rf_field.html" with f=form.object_description span=4 help="Исходное описание объекта из заявки" %}
+                    </div>
                 </div>
             </div>
 
