@@ -190,7 +190,10 @@ class ExcelExportService:
             # Сохранение в память
             excel_buffer = BytesIO()
             workbook.save(excel_buffer)
-            excel_buffer.seek(0)
+            # Готовые значения ИТОГО и тарифов: файл с прода открывается в «защищённом просмотре»,
+            # где Excel формулы не пересчитывает
+            from core.excel_cached_values import with_cached_values
+            excel_buffer = BytesIO(with_cached_values(excel_buffer.getvalue()))
             
             logger.info(f"{version_type.capitalize()} Excel-файл успешно сгенерирован для свода ID: {summary.id}")
             return excel_buffer

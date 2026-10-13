@@ -107,6 +107,30 @@ class SummaryExportV2ContentTests(SummaryExportV2Base):
         self.assertEqual(ws['C11'].value, '=SUM(L11:L12)')
         self.assertIn('B11:B12', {str(r) for r in ws.merged_cells.ranges})
 
+    def test_totals_and_rates_have_cached_values_for_protected_view(self):
+        # Файл с прода открывается в «защищённом просмотре», где Excel не пересчитывает формулы
+        data = SummaryExportV2Service().generate(self.summary, is_client_version=True).getvalue()
+        ws = load_workbook(BytesIO(data), data_only=True)['Свод']
+        self.assertEqual(ws['B11'].value, 357_773 * 2)  # ИТОГО Альфы
+        self.assertEqual(ws['C11'].value, 285_120 * 2)
+        self.assertAlmostEqual(ws['G11'].value, 357_773 / 17_600_000)
+        self.assertEqual(load_workbook(BytesIO(data))['Свод']['B11'].value, '=SUM(H11:H12)')
+
+    def test_v1_summary_formulas_have_cached_values_too(self):
+        from summaries.services import get_excel_export_service
+
+        for client in (True, False):
+            data = get_excel_export_service().generate_summary_excel(self.summary, is_client_version=client).getvalue()
+            formulas, values = load_workbook(BytesIO(data)), load_workbook(BytesIO(data), data_only=True)
+            cells = [(ws.title, c.coordinate) for ws in formulas for row in ws.iter_rows() for c in row
+                     if isinstance(c.value, str) and c.value.startswith('=')]
+            self.assertTrue(cells)
+            missing = [cell for cell in cells if values[cell[0]][cell[1]].value is None]
+            self.assertEqual(missing, [])
+            # в V1 формулами остались тарифы (ИТОГО пишется числом); тариф Альфы, предложение 1
+            rates = [values[t][c].value for t, c in cells if formulas[t][c].value.startswith('=IF(AND(')]
+            self.assertTrue(any(abs(rate - 357_773 / 17_600_000) < 1e-12 for rate in rates))
+
     def test_variant_captions_and_column_titles(self):
         ws = self._workbook()['Свод']
         self.assertEqual(ws['B9'].value, 'ИТОГО')

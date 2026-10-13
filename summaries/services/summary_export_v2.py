@@ -45,6 +45,8 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.datavalidation import DataValidation
 
+from core.excel_cached_values import with_cached_values
+
 from ..models import InsuranceSummary, InsurerResponse
 from ..response_sections import SECTIONS, required_sections
 from .excel_services import ExcelExportService, ExcelExportServiceError
@@ -152,8 +154,8 @@ class SummaryExportV2Service(ExcelExportService):
             workbook.properties.title = 'Свод котировок'
             output = BytesIO()
             workbook.save(output)
-            output.seek(0)
-            return output
+            # готовые значения ИТОГО и тарифов — видны и в «защищённом просмотре» Excel
+            return BytesIO(with_cached_values(output.getvalue()))
         except ExcelExportServiceError:
             raise
         except Exception as e:
