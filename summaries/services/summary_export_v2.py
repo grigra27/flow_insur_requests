@@ -21,8 +21,10 @@
 Таблица (2026-10-12): сетка, тёмные линии между СК и между смысловыми блоками колонок, рамка, зебра
 по СК; индиго — предложение 1, бирюза — предложение 2, терракота — условия.
 
-Печать почти не настраивается (решение владельца 2026-10-12): только альбомная ориентация листа «Свод»;
-ни области, ни масштаба, ни разрывов — менеджер печатает как ему удобно. На экране закреплены СК и ценники.
+Печать — «мягкие» стандартные настройки (решение владельца 2026-10-13), каждая меняется в окне печати Excel
+в один клик: A4 альбомная, «вписать все столбцы на одну страницу» (высота — сколько получится), узкие поля,
+центрирование, повтор шапки таблицы, номер страницы. Ни области печати, ни фиксированного масштаба, ни ручных
+разрывов. На экране закреплены СК и ценники.
 
 Правила данных (примечания, системные комментарии, территория, отказы) берутся у
 ExcelExportService, чтобы V1 и V2 не расходились. Старый свод этот модуль не меняет.
@@ -227,7 +229,7 @@ class SummaryExportV2Service(ExcelExportService):
             row += 2
 
         ws.freeze_panes = f'{cols["year"]}{FIRST_DATA_ROW}'  # СК и ценники остаются на экране при прокрутке
-        ws.page_setup.orientation = 'landscape'  # единственная настройка печати — остальное на усмотрение менеджера
+        self._setup_print(ws, cols)
 
     def _sorted_companies(self, summary: InsuranceSummary) -> List[tuple]:
         companies = self._validate_companies_data(self._get_companies_sorted_data(summary))
@@ -644,6 +646,24 @@ class SummaryExportV2Service(ExcelExportService):
                 right = frame if c == last_col else (separator if c + 1 in group_starts else grid)
                 ws.cell(row=r, column=c).border = Border(
                     left=left, right=right, top=top_side, bottom=frame if r == last_row else bottom)
+
+    @staticmethod
+    def _setup_print(ws, cols) -> None:
+        """Мягкая подготовка к печати: только стандартные параметры, которые менеджер видит и меняет
+        в окне печати. Вся таблица — в ширину одного листа, по высоте — сколько получится."""
+        ws.page_setup.paperSize = ws.PAPERSIZE_A4
+        ws.page_setup.orientation = 'landscape'
+        ws.sheet_properties.pageSetUpPr.fitToPage = True
+        ws.page_setup.fitToWidth = 1
+        ws.page_setup.fitToHeight = 0  # 0 — «автоматически»: столько листов в высоту, сколько нужно
+        # поля «Узкие» — как одноимённый пункт списка полей в Excel
+        ws.page_margins.left = ws.page_margins.right = 0.25
+        ws.page_margins.top = ws.page_margins.bottom = 0.75
+        ws.page_margins.header = ws.page_margins.footer = 0.3
+        ws.print_options.horizontalCentered = True
+        ws.print_title_rows = f'{FIRST_DATA_ROW - 2}:{FIRST_DATA_ROW - 1}'  # шапка таблицы — на каждом листе
+        ws.oddFooter.center.text = 'Стр. &P из &N'
+        ws.oddFooter.center.size = 8
 
     def _write_transport_footnote(self, ws, row, cols) -> None:
         """Сноска к «ИТОГО*» — под таблицей, под колонками цифр."""

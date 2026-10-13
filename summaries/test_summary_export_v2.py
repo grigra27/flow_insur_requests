@@ -278,21 +278,29 @@ class SummaryExportV2ContentTests(SummaryExportV2Base):
 
 
 class SummaryExportV2TableLookTests(SummaryExportV2Base):
-    def test_only_landscape_print_setting_and_frozen_panes(self):
+    def test_soft_print_setup_and_frozen_panes(self):
         wb = self._workbook(client=False)
         ws = wb['Свод']
         self.assertEqual(ws.freeze_panes, 'D11')  # СК и ценники на экране при прокрутке
-        self.assertEqual(ws.page_setup.orientation, 'landscape')
-        self.assertIsNone(wb['Параметры запроса'].page_setup.orientation)
-        for sheet in wb:
-            self.assertFalse(sheet.print_area)
-            self.assertFalse(sheet.print_title_rows)
-            self.assertFalse(sheet.print_title_cols)
-            self.assertEqual(list(sheet.col_breaks.brk), [])
-            self.assertEqual(list(sheet.row_breaks.brk), [])
-            self.assertIsNone(sheet.page_setup.scale)
-            self.assertFalse(sheet.sheet_properties.pageSetUpPr and sheet.sheet_properties.pageSetUpPr.fitToPage)
-            self.assertFalse(sheet.oddFooter.center.text)
+        setup = ws.page_setup
+        self.assertEqual(setup.orientation, 'landscape')
+        self.assertEqual(str(setup.paperSize), str(ws.PAPERSIZE_A4))
+        # «Вписать все столбцы на одну страницу»: ширина — 1 лист, высота — автоматически
+        self.assertTrue(ws.sheet_properties.pageSetUpPr.fitToPage)
+        self.assertEqual((setup.fitToWidth, setup.fitToHeight), (1, 0))
+        self.assertIsNone(setup.scale)  # без фиксированного масштаба
+        self.assertEqual((ws.page_margins.left, ws.page_margins.top), (0.25, 0.75))  # «Узкие»
+        self.assertTrue(ws.print_options.horizontalCentered)
+        self.assertEqual(ws.print_title_rows, '$9:$10')
+        self.assertEqual(ws.oddFooter.center.text, 'Стр. &P из &N')
+        # ничего жёсткого: ни области печати, ни ручных разрывов, ни повтора колонок
+        self.assertFalse(ws.print_area)
+        self.assertFalse(ws.print_title_cols)
+        self.assertEqual((list(ws.col_breaks.brk), list(ws.row_breaks.brk)), ([], []))
+        # лист «Параметры запроса» не настраивается
+        tech = wb['Параметры запроса']
+        self.assertIsNone(tech.page_setup.orientation)
+        self.assertFalse(tech.sheet_properties.pageSetUpPr and tech.sheet_properties.pageSetUpPr.fitToPage)
 
     def test_grid_separators_between_companies_and_column_groups(self):
         ws = self._workbook()['Свод']
