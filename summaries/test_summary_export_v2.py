@@ -167,8 +167,10 @@ class SummaryExportV2ContentTests(SummaryExportV2Base):
         self.assertGreater(ws.row_dimensions[13].height, 0)
         merged = {str(r) for r in ws.merged_cells.ranges}
         self.assertIn('N11:N13', merged)  # территория — с добавочной строкой
-        self.assertIn('A11:A12', merged)  # СК и ценник — только по строкам лет
-        self.assertIn('B11:B12', merged)
+        self.assertIn('A11:A13', merged)  # СК и ценник — на весь блок, вместе с добавочной строкой
+        self.assertIn('B11:B13', merged)
+        self.assertEqual(ws['B11'].alignment.vertical, 'center')
+        self.assertEqual(ws['F10'].alignment.vertical, 'center')  # шапка таблицы — по центру
 
     def test_selection_fields_are_manual_yellow_with_lists_and_highlight(self):
         ws = self._workbook()['Свод']

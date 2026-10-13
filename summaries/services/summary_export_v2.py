@@ -357,7 +357,7 @@ class SummaryExportV2Service(ExcelExportService):
                             for v in variants)
         ws.row_dimensions[sub].height = max(30, caption_lines * TEXT_LINE_HEIGHT + 6)
         accent = self.palette['title']
-        center = dict(horizontal='center', vertical='bottom', wrap_text=True)
+        center = dict(horizontal='center', vertical='center', wrap_text=True)
 
         def title(letter, text, color, size, merged=True):
             if merged:
@@ -368,7 +368,7 @@ class SummaryExportV2Service(ExcelExportService):
             cell.alignment = Alignment(**center)
 
         title('A', 'Страховая компания', accent, 9)
-        ws['A' + str(top)].alignment = Alignment(vertical='bottom', wrap_text=True)
+        ws['A' + str(top)].alignment = Alignment(vertical='center', wrap_text=True)
         first_total, last_total = cols['total_1'], cols['totals_last']
         if first_total != last_total:
             ws.merge_cells(f'{first_total}{top}:{last_total}{top}')
@@ -466,18 +466,18 @@ class SummaryExportV2Service(ExcelExportService):
                 c.font = detail
                 c.border = Border(bottom=self.hair if r == end else None)
 
-        # Компания и ценники — на уровне строк лет (добавочная строка их не сдвигает)
-        self._merge_block(ws, cols['company'], start, last_year, name,
+        # Компания и ценники — на весь блок, вместе с добавочной строкой: общая заливка, значение по центру
+        self._merge_block(ws, cols['company'], start, end, name,
                           _font(self.fs['company'], bold=True), Alignment(vertical='center', wrap_text=True, indent=1))
         white = Side(style='thick', color='FFFFFF')
         for v in variants:
             letter = cols[f'total_{v}']
             p_col = cols[f'premium_{v}']
             value = f'=SUM({p_col}{start}:{p_col}{last_year})' if any(p is not None for p in premiums[v]) else None
-            self._merge_block(ws, letter, start, last_year, value,
+            self._merge_block(ws, letter, start, end, value,
                               _font(self.fs['total'], bold=True, color=self.palette['header' if v == 1 else 'header_2']),
                               Alignment(horizontal='center', vertical='center'), MONEY)
-            for r in range(start, last_year + 1):
+            for r in range(start, end + 1):
                 ws[f'{letter}{r}'].fill = self._fill('tag' if v == 1 else 'tag_2')
                 ws[f'{letter}{r}'].border = Border(left=white, right=white, top=white, bottom=white)
 
@@ -511,7 +511,7 @@ class SummaryExportV2Service(ExcelExportService):
         for v in variants:
             chosen = f'AND({company_ref}="{quoted}",{variant_ref}="Предложение {v}")'
             letter = cols[f'total_{v}']
-            ws.conditional_formatting.add(f'{letter}{start}:{letter}{last_year}', FormulaRule(
+            ws.conditional_formatting.add(f'{letter}{start}:{letter}{end}', FormulaRule(
                 formula=[chosen], fill=self._fill('chosen_total'), stopIfTrue=True))
             ws.conditional_formatting.add(
                 f'{cols[f"franchise_{v}"]}{start}:{cols[f"payments_{v}"]}{last_year}',
