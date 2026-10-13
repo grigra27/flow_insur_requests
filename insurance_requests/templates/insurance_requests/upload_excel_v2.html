@@ -42,9 +42,6 @@
             </div>
             <div class="rf-head__sub">Загрузка Excel · формат и тип заявки определятся автоматически.</div>
         </div>
-        <div class="rf-head__actions">
-            <a href="{% url 'insurance_requests:upload_excel_legacy' %}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left"></i> Старый загрузчик</a>
-        </div>
     </div>
 
     {% include "insurance_requests/includes/_upload_steps.html" with step=1 %}

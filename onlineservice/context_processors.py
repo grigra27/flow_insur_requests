@@ -18,7 +18,7 @@ MAIN_NAV_ITEMS = [
         'icon': 'bi-upload',
         'route': 'insurance_requests:upload_excel',
         'match_app': 'insurance_requests',
-        'include_urls': {'upload_excel', 'upload_excel_v2', 'upload_excel_legacy'},
+        'include_urls': {'upload_excel', 'upload_excel_v2'},
         'nav_style': 'action',
     },
     {
@@ -26,7 +26,7 @@ MAIN_NAV_ITEMS = [
         'icon': 'bi-list-ul',
         'route': 'insurance_requests:request_list',
         'match_app': 'insurance_requests',
-        'exclude_urls': {'upload_excel', 'upload_excel_v2', 'upload_excel_legacy'},
+        'exclude_urls': {'upload_excel', 'upload_excel_v2'},
     },
     {
         'label': 'Своды',
@@ -150,7 +150,6 @@ PAGE_LABELS = {
     ('insurance_requests', 'request_list'): 'Список заявок',
     ('insurance_requests', 'upload_excel'): 'Загрузить заявку',
     ('insurance_requests', 'upload_excel_v2'): 'Загрузить заявку',
-    ('insurance_requests', 'upload_excel_legacy'): 'Старый загрузчик',
     ('insurance_requests', 'request_detail'): 'Карточка заявки',
     ('insurance_requests', 'edit_request'): 'Редактирование заявки',
     ('insurance_requests', 'preview_email'): 'Предпросмотр письма',
@@ -186,10 +185,6 @@ BREADCRUMB_TEMPLATES = {
     ('insurance_requests', 'upload_excel_v2'): [
         ('Заявки', 'insurance_requests:request_list'),
         ('Загрузить заявку', None),
-    ],
-    ('insurance_requests', 'upload_excel_legacy'): [
-        ('Заявки', 'insurance_requests:request_list'),
-        ('Старый загрузчик', None),
     ],
     ('insurance_requests', 'request_detail'): [
         ('Заявки', 'insurance_requests:request_list'),
@@ -291,7 +286,6 @@ LAYOUT_MODE_BY_PAGE = {
     ('insurance_requests', 'request_list'): 'wide',
     ('insurance_requests', 'upload_excel'): 'wide',
     ('insurance_requests', 'upload_excel_v2'): 'wide',
-    ('insurance_requests', 'upload_excel_legacy'): 'wide',
     ('insurance_requests', 'request_detail'): 'wide',
     ('summaries', 'summary_list'): 'wide',
     ('summaries', 'deal_list'): 'wide',

@@ -1072,14 +1072,13 @@ class ParserV2UploadTests(TestCase):
         self.assertEqual(superuser_response.status_code, 200)
         self.assertTemplateUsed(superuser_response, 'insurance_requests/upload_excel_v2.html')
 
-    def test_old_loader_has_dedicated_fallback_route(self):
+    def test_old_loader_route_is_gone(self):
+        # Фаза D (2026-10-13): загрузчик V1 удалён, новые заявки — только через парсер V2
+        from django.urls import NoReverseMatch
+        with self.assertRaises(NoReverseMatch):
+            reverse('insurance_requests:upload_excel_legacy')
         self.client.login(username='parser_v2_user', password='pwd')
-
-        response = self.client.get(reverse('insurance_requests:upload_excel_legacy'))
-
-        self.assertEqual(response.status_code, 200)
-        self.assertTemplateUsed(response, 'insurance_requests/upload_excel.html')
-        self.assertContains(response, 'Старый загрузчик')
+        self.assertEqual(self.client.get('/requests/upload-old/').status_code, 404)
 
     def test_request_list_uses_primary_upload_route_without_extra_parser_v2_button(self):
         request_list_url = reverse('insurance_requests:request_list')
@@ -1123,13 +1122,13 @@ class ParserV2UploadTests(TestCase):
         self.assertEqual(response.context['form'].initial['client_name'], 'ООО Ромашка')
         self.assertEqual(response.context['form'].initial['manager_name'], 'Иванов Иван')
 
-    def test_primary_upload_page_links_to_old_loader(self):
+    def test_primary_upload_page_has_no_old_loader_link(self):
         self.client.login(username='parser_v2_user', password='pwd')
 
         response = self.client.get(reverse('insurance_requests:upload_excel'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, reverse('insurance_requests:upload_excel_legacy'))
+        self.assertNotContains(response, 'Старый загрузчик')
 
     def test_primary_upload_page_uses_magic_context_label(self):
         self.client.login(username='parser_v2_user', password='pwd')

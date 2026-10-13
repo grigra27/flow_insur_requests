@@ -50,7 +50,7 @@ python manage.py backup_db --format pgdump --output-dir /app/backups --keep 10
 - `onlineservice/` — project config: settings, root URL conf, custom middleware (domain routing + HTTPS), landing view, context processors.
 - `insurance_requests/` — incoming requests: model, Excel ingestion entrypoint, email body generation, auth middleware, role decorators.
 - `summaries/` — quote summaries and individual offers, Excel exports, multiple-file response upload, analytics dashboards.
-- `core/` — shared services: `excel_utils.ExcelReader` (parses incoming applications), `templates.py` (email body templater), branch-name normalization map.
+- `core/` — shared services: `excel_utils.BRANCH_MAPPING` (branch-name normalization), `templates.py` (email body templater), `business_time.py`, `excel_cached_values.py`.
 - `backup/` — admin-only DB backup management command (`backup_db`); the model is `managed = False` and exists purely so the action shows up in Django admin.
 
 ### Domain routing (important)
@@ -69,12 +69,7 @@ Access is gated by two Django groups: **`Администраторы`** and **`
 
 ### Excel ingestion
 
-`core.excel_utils.ExcelReader` is parameterised on two axes:
-
-- `application_format`: `casco_equipment` (КАСКО / спецтехника) vs `property` (имущество).
-- `application_type`: `legal_entity` vs `individual_entrepreneur` — the IP variant applies a row offset to the same template.
-
-Invalid values fall back to `legal_entity` / `casco_equipment` with a warning. Branch names are normalized via the `BRANCH_MAPPING` dict at the top of `excel_utils.py` — extend that dict when new full-form branch names appear.
+Incoming applications are parsed only by parser V2 (`insurance_requests/parsers/excel_v2/parser.py`, upload at `/requests/upload/`): it detects the form (КАСКО / спецтехника vs имущество, юрлицо vs ИП) by itself and shows an editable preview before saving. The old fixed-cell loader V1 (`core.excel_utils.ExcelReader`, `/upload-old/`) was removed on 2026-10-13 (phase D, `docs/improvement_plans/backlog.md`). Branch names are normalized via the `BRANCH_MAPPING` dict in `core/excel_utils.py` — extend that dict when new full-form branch names appear.
 
 ### One request = one insured object (V2 onwards)
 
@@ -84,7 +79,7 @@ Sibling rows that come from the same upload are linked by `source_batch_id` (UUI
 
 The lifecycle is per-request, not per-batch: each row gets its own status, its own `InsuranceSummary`, its own selected insurer, its own outgoing PDF/JSON. For sending, staff may use either the per-request PDF or the batch PDF (`export_batch_application`, decided 2026-10-01): one insurer document with the common data and a table of every object in the batch, so one letter can cover the whole batch while offers are still entered per object.
 
-V1 (`core.excel_utils.ExcelReader`) keeps its historical **"1 file → 1 request"** behaviour with all objects slipped into `vehicle_info`. We do not split historical V1 requests; they display as before. Splitting applies only to **new** uploads through the V2 flow.
+Historical V1 requests (201 on prod, loaded until 2026-06-10) keep their **"1 file → 1 request"** shape with all objects in `vehicle_info`. We do not split them; they display as before.
 
 JSON Schema v1 (`docs/insurance_request_format_package/insurance_request_schema_v1.json`) reflects this model: the schema carries `insured_object` (singular) per request, not an array.
 

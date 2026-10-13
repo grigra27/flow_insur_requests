@@ -36,7 +36,7 @@ EXAMPLES_LIMIT = 50
 EDIT_TYPE_LABELS = dict(RequestFieldEdit.EDIT_TYPE_CHOICES)
 SCOPE_LABELS = dict(RequestFieldEdit.SCOPE_CHOICES)
 
-# Подписи сегментов шаблона заявки (см. core.excel_utils.ExcelReader).
+# Подписи сегментов шаблона заявки.
 FORMAT_LABELS = {
     'casco_equipment': 'КАСКО/спецтехника',
     'property': 'Имущество',
