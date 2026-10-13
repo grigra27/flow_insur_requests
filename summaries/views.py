@@ -23,7 +23,7 @@ from pathlib import Path
 
 from .models import InsuranceSummary, InsuranceOffer, SummaryCompanyStatus, SummaryTemplate
 from insurance_requests.models import InsuranceRequest
-from insurance_requests.decorators import admin_required, superuser_required, user_required
+from insurance_requests.decorators import admin_required, user_required
 from .forms import (
     OfferForm, SummaryForm, AddOfferToSummaryForm, DealListFilterForm, TERRITORY_REQUIRED_MESSAGE,
     clean_required_territory,
@@ -1527,10 +1527,11 @@ def generate_summary_file(request, summary_id):
         }, status=500)
 
 
-@superuser_required
+@user_required
 def generate_summary_file_v2(request, summary_id, version):
-    """Свод V2 (бета): клиентский (только лист «Свод») или полный (+ «Параметры запроса»).
-    Пока только суперпользователю, в любом статусе свода."""
+    """Свод V2 (тест): клиентский (только лист «Свод») или полный (+ «Параметры запроса»).
+    Открыт всем сотрудникам для параллельной проверки (2026-10-13), в любом статусе свода;
+    рабочим остаётся свод V1."""
     from .services.summary_export_v2 import SummaryExportV2Service, build_filename
     from .services import ExcelExportServiceError
 

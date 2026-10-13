@@ -342,8 +342,8 @@
 
     <div class="col-lg-4">
         <div class="sd-aside">
-            {% if user.is_superuser %}
-            <!-- Свод V2 — ТЕСТОВАЯ версия нового формата Excel-свода (пока только суперпользователю).
+            <!-- Свод V2 — ТЕСТОВАЯ версия нового формата Excel-свода. С 2026-10-13 открыта всем сотрудникам
+                 для параллельной проверки, в любом статусе свода; рабочий свод — по-прежнему V1.
                  Оформлена как «опасная зона», чтобы её не перепутали с рабочими кнопками
                  «Скачать клиентский/полный Excel» и не отправили клиенту. -->
             <div class="card mb-4 sd-v2-test" role="note" aria-label="Тестовая версия свода, не для отправки">
@@ -371,7 +371,6 @@
                 </div>
                 <div class="sd-v2-test__stripe" aria-hidden="true"></div>
             </div>
-            {% endif %}
             <!-- Сводная информация -->
             <div class="card mb-4">
                 <div class="card-header d-flex justify-content-between align-items-center">

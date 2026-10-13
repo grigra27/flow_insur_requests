@@ -319,40 +319,47 @@ class SummaryExportV2TableLookTests(SummaryExportV2Base):
 
 
 class SummaryExportV2AccessTests(SummaryExportV2Base):
+    """С 2026-10-13 тестовый свод V2 открыт всем сотрудникам (обе группы), в любом статусе свода."""
+
     def setUp(self):
         self.superuser = User.objects.create_superuser('root', password='p')
         # страница свода открыта группам; суперпользователи на проде состоят в «Администраторах»
         self.superuser.groups.add(Group.objects.get_or_create(name='Администраторы')[0])
         self.admin = User.objects.create_user('admin', password='p')
         self.admin.groups.add(Group.objects.get_or_create(name='Администраторы')[0])
+        self.staff = User.objects.create_user('staff', password='p')
+        self.staff.groups.add(Group.objects.get_or_create(name='Пользователи')[0])
+        self.outsider = User.objects.create_user('nogroup', password='p')
 
     def _url(self, version):
         return reverse('summaries:generate_summary_file_v2', args=[self.summary.pk, version])
 
-    def test_superuser_downloads_both_versions_in_any_status(self):
-        self.client.force_login(self.superuser)
-        for version, sheets in (('client', ['Свод']), ('full', ['Свод', 'Параметры запроса'])):
-            response = self.client.get(self._url(version))
-            self.assertEqual(response.status_code, 200)
-            self.assertIn(f'{version}_svod_v2_20848', response['Content-Disposition'])
-            self.assertEqual(load_workbook(BytesIO(response.content)).sheetnames, sheets)
+    def test_staff_and_admins_download_both_versions_in_any_status(self):
+        self.assertEqual(self.summary.status, 'collecting')  # не «Готов к отправке»
+        for user in (self.staff, self.admin, self.superuser):
+            self.client.force_login(user)
+            for version, sheets in (('client', ['Свод']), ('full', ['Свод', 'Параметры запроса'])):
+                response = self.client.get(self._url(version))
+                self.assertEqual(response.status_code, 200, (user.username, version))
+                self.assertIn(f'{version}_svod_v2_20848', response['Content-Disposition'])
+                self.assertEqual(load_workbook(BytesIO(response.content)).sheetnames, sheets)
 
-    def test_admin_group_without_superuser_is_denied(self):
-        self.client.force_login(self.admin)
+    def test_user_without_group_is_denied(self):
+        self.client.force_login(self.outsider)
         self.assertEqual(self.client.get(self._url('client')).status_code, 403)
 
     def test_unknown_version_is_404(self):
-        self.client.force_login(self.superuser)
+        self.client.force_login(self.staff)
         self.assertEqual(self.client.get(self._url('pdf')).status_code, 404)
 
-    def test_v2_card_visible_only_to_superuser(self):
+    def test_test_card_visible_to_staff_with_warning(self):
         detail = reverse('summaries:summary_detail', args=[self.summary.pk])
-        self.client.force_login(self.superuser)
-        self.assertContains(self.client.get(detail), 'ТЕСТ · Свод V2')
-        self.client.force_login(self.admin)
-        response = self.client.get(detail)
-        self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, 'Свод V2')
+        for user in (self.staff, self.admin, self.superuser):
+            self.client.force_login(user)
+            response = self.client.get(detail)
+            self.assertContains(response, 'ТЕСТ · Свод V2')
+            self.assertContains(response, 'Не отправлять')  # тестовый блок, не рабочие кнопки
+            self.assertContains(response, self._url('client'))
 
 
 class SummaryExportV2ResponseColumnsTests(SummaryExportV2Base):

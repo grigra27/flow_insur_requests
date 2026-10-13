@@ -111,7 +111,7 @@ class ResponseTemplateV2RolloutTests(TestCase):
                                            args=[self.new_request.pk]))
         self.assertEqual(download.status_code, 200)
 
-    def test_staff_summary_page_lines_generic_template_and_no_summary_v2(self):
+    def test_staff_summary_page_lines_generic_template_and_test_summary_v2(self):
         InsuranceOffer.objects.create(summary=self.new_summary, company_name='Согаз', insurance_year=1,
                                       insurance_sum=Decimal('1000000'), franchise_1=Decimal('0'),
                                       premium_with_franchise_1=Decimal('50000'), coverage_territory='РФ')
@@ -120,9 +120,10 @@ class ResponseTemplateV2RolloutTests(TestCase):
         self.assertIn('class="og-v2-lines"', page)
         self.assertNotIn('<span class="og-v2-tag">V2</span>', page)
         self.assertIn('Общий шаблон ответа (резерв)', page)
-        self.assertNotIn('Свод V2', page)
+        # тестовый свод V2 открыт сотрудникам с 2026-10-13 (параллельная проверка)
+        self.assertIn('ТЕСТ · Свод V2', page)
         url = reverse('summaries:generate_summary_file_v2', args=[self.new_summary.pk, 'client'])
-        self.assertEqual(self.client.get(url).status_code, 403)
+        self.assertEqual(self.client.get(url).status_code, 200)
 
     def test_new_request_rejects_old_template_old_request_accepts(self):
         rejected = self._upload(self.staff, self.new_summary, _filled(load_workbook(V1_TEMPLATE_PATH)))
