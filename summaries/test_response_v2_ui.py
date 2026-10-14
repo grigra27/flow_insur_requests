@@ -38,8 +38,8 @@ class ResponseV2Base(TestCase):
                 insurance_sum=Decimal('3000000'), franchise_1=Decimal('0'),
                 premium_with_franchise_1=Decimal('90000'), coverage_territory='РФ',
             )
-        InsurerResponse.objects.create(
-            summary=cls.summary, company_name='Согаз', template_version=InsurerResponse.TEMPLATE_V2,
+        InsurerResponse.objects.filter(summary=cls.summary, company_name='Согаз').update(  # создан с предложением
+            template_version=InsurerResponse.TEMPLATE_V2,
             inspection_status='photo', rnpk_status='included', transport_cost=Decimal('5330'),
         )
 
@@ -127,7 +127,8 @@ class InsurerResponseManualEditTests(ResponseV2Base):
                 response = self._post(self.superuser, company='ВСК', **data)
                 self.assertEqual(response.status_code, 400)
                 self.assertIn(expected, response.json()['error'])
-        self.assertFalse(InsurerResponse.objects.filter(company_name='ВСК').exists())
+        # «Ответ СК» есть у каждой СК с предложениями (территория, примечание) — блоки не записаны
+        self.assertFalse(InsurerResponse.objects.filter(company_name='ВСК').exclude(inspection_status='', rnpk_status='', ce_risks_status='', transport_cost__isnull=True).exists())
 
     def test_company_without_offers_rejected(self):
         response = self._post(self.superuser, company='Альфа', rnpk_status='included')
@@ -136,7 +137,8 @@ class InsurerResponseManualEditTests(ResponseV2Base):
 
     def test_not_available_outside_v2_contour(self):
         self.assertEqual(self._post(self.staff, company='ВСК', rnpk_status='included').status_code, 403)
-        self.assertFalse(InsurerResponse.objects.filter(company_name='ВСК').exists())
+        # «Ответ СК» есть у каждой СК с предложениями (территория, примечание) — блоки не записаны
+        self.assertFalse(InsurerResponse.objects.filter(company_name='ВСК').exclude(inspection_status='', rnpk_status='', ce_risks_status='', transport_cost__isnull=True).exists())
 
     def test_edit_form_on_page_for_superuser_only(self):
         self.client.force_login(self.superuser)
@@ -191,7 +193,7 @@ class ManualOfferWithV2BlocksTests(ResponseV2Base):
         self.assertNotContains(form_page, 'Дополнительные условия ответа')
         self._post(self.staff)
         self.assertEqual(self._offers().count(), 2)
-        self.assertFalse(InsurerResponse.objects.filter(company_name='Пари').exists())
+        self.assertFalse(InsurerResponse.objects.filter(company_name='Пари').exclude(inspection_status='', rnpk_status='', ce_risks_status='', transport_cost__isnull=True).exists())
 
     def test_form_has_existing_values_for_prefill(self):
         self.client.force_login(self.superuser)

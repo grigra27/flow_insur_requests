@@ -8,6 +8,7 @@ from django.contrib.auth.models import User, Group
 from django.urls import reverse
 
 from insurance_requests.models import InsuranceRequest
+from summaries.services.insurer_response import set_offer_company_fields
 from summaries.models import InsuranceSummary, InsuranceOffer
 
 
@@ -58,8 +59,8 @@ class BasicIntegrationTest(TestCase):
             premium_with_franchise_1=Decimal('50000.00'),
             franchise_2=Decimal('25000.00'),
             premium_with_franchise_2=Decimal('45000.00'),
-            notes='Тестовое примечание'
         )
+        set_offer_company_fields(self.offer, None, notes='Тестовое примечание')
 
     def test_summary_detail_page_loads(self):
         """Тест загрузки страницы детального свода"""

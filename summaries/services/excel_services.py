@@ -19,7 +19,6 @@ from openpyxl.workbook import Workbook
 from django.conf import settings
 from django.db import transaction
 from django.core.exceptions import ValidationError
-from django.core.files.base import ContentFile
 
 from ..models import InsuranceSummary, InsuranceOffer, InsurerResponse
 from ..exceptions import (
@@ -827,6 +826,7 @@ class ExcelExportService:
             
             # Используем существующий метод модели для получения сгруппированных данных
             companies_data = summary.get_offers_grouped_by_company()
+            self._apply_company_fields(summary, companies_data)
             
             logger.info(f"Найдено {len(companies_data)} компаний для свода ID: {summary.id}")
             
@@ -841,6 +841,21 @@ class ExcelExportService:
             error_msg = f"Ошибка при получении данных компаний для свода ID {summary.id}: {str(e)}"
             logger.error(error_msg, exc_info=True)
             raise ExcelExportServiceError(error_msg) from e
+
+    @staticmethod
+    def _apply_company_fields(summary, companies_data) -> None:
+        """Территория и примечание — одни на СК в своде, хранятся в «Ответе СК». Код выгрузки читает их
+        у предложений (offer.coverage_territory / offer.notes), поэтому они подставляются в загруженные для
+        выгрузки объекты в памяти — не сохраняются; поля годовых строк — архив и не читаются.
+        Примечание — только у первого года компании (как и было в данных: 660 из 661 — только в 1-м году)."""
+        if not isinstance(summary, InsuranceSummary):
+            return
+        responses = {r.company_name: r for r in InsurerResponse.objects.filter(summary=summary)}
+        for company_name, offers in companies_data.items():
+            response = responses.get(company_name)
+            for index, offer in enumerate(sorted(offers, key=lambda o: o.insurance_year)):
+                offer.coverage_territory = response.coverage_territory if response else None
+                offer.notes = (response.notes if response and index == 0 else '') or ''
 
     def _is_new_object(self, request) -> bool:
         """
@@ -2684,8 +2699,8 @@ class ExcelExportService:
         территория (остальные годы могут быть пустыми или созданными до сбора территории — в
         объединённой ячейке тогда эта территория, а не «Не указано страховщиком»).
 
-        Разные непустые тексты по годам (после синхронизации в summaries/services/offer_territory.py
-        не возникают) остаются в отдельных строках, чтобы различия не потерялись.
+        Территория берётся из «Ответа СК» (одна на СК, см. _apply_company_fields) — разных текстов по годам
+        не бывает; ветка для них оставлена на случай вызова с предложениями не из базы.
         """
         if end_row <= start_row:
             return
@@ -3213,7 +3228,7 @@ class ExcelResponseProcessor:
 
             # Дополнительные блоки шаблона V2 (риски РНПК, перевозка) — до записи в базу:
             # в контуре V2 пустой обязательный блок или старый шаблон отклоняют весь файл
-            from .insurer_response import attach_source_file, save_response, v2_strict
+            from .insurer_response import attach_source_file, save_response, save_upload_company_fields, v2_strict
             strict = v2_strict(user, summary.request)
             sections = self.extract_response_sections(
                 workbook, summary, company_data['company_name'], strict=strict,
@@ -3226,8 +3241,11 @@ class ExcelResponseProcessor:
                 if strict or sections['version'] == InsurerResponse.TEMPLATE_V2:
                     save_response(summary, company_data['company_name'], sections['values'],
                                   sections['version'], user=user)
-            stored_name = self._attach_source_file(file, created_offers)
-            attach_source_file(summary.pk, company_data['company_name'], stored_name)
+                save_upload_company_fields(
+                    summary.pk, company_data['company_name'], company_data.get('coverage_territory', ''),
+                    next((y.get('notes', '') for y in company_data['years'] if y.get('notes')), ''),
+                )
+            attach_source_file(summary.pk, company_data['company_name'], file)
 
             result = {
                 'success': True,
@@ -4049,31 +4067,6 @@ class ExcelResponseProcessor:
                 f'не больше страховой суммы ({year_data["insurance_sum"]})'
             )
     
-    def _attach_source_file(self, file, offers: List[InsuranceOffer]) -> Optional[str]:
-        """
-        Сохраняет загруженный файл страховщика и привязывает его ко всем созданным
-        предложениям (одна копия на диске на загрузку). Ошибка сохранения не отменяет
-        импорт — предложения уже созданы, файл нужен только для разбора спорных случаев.
-        Возвращает имя сохранённого файла (или None).
-        """
-        if not offers:
-            return None
-        try:
-            file.seek(0)
-            content = ContentFile(file.read())
-            first = offers[0]
-            first.attachment_file.save(Path(file.name).name, content, save=False)
-            InsuranceOffer.objects.filter(pk__in=[offer.pk for offer in offers]).update(
-                attachment_file=first.attachment_file.name
-            )
-            for offer in offers:
-                offer.attachment_file.name = first.attachment_file.name
-            self.logger.info(f"Исходный файл сохранён: {first.attachment_file.name}")
-            return first.attachment_file.name
-        except Exception as e:
-            self.logger.warning(f"Не удалось сохранить исходный файл '{getattr(file, 'name', '')}': {e}")
-            return None
-
     def create_offers(self, data: Dict[str, Any], summary: InsuranceSummary) -> List[InsuranceOffer]:
         """
         Создает записи предложений в базе данных
@@ -4167,7 +4160,6 @@ class ExcelResponseProcessor:
             # Для обратной совместимости
             'installment_available': installment_available,
             'payments_per_year': payments_per_year,
-            'coverage_territory': company_data.get('coverage_territory', ''),
             'is_valid': True
         }
         
@@ -4184,11 +4176,7 @@ class ExcelResponseProcessor:
             offer_data['installment_variant_2'] = installment_2_available
             offer_data['payments_per_year_variant_2'] = payments_per_year_2
         
-        # Добавляем примечания, если они есть
-        if year_data.get('notes'):
-            offer_data['notes'] = year_data['notes']
-        
-        
+        # Территория и примечания — одни на СК в своде, пишутся в «Ответ СК» (process_excel_file)
         offer = InsuranceOffer.objects.create(**offer_data)
         
         return offer

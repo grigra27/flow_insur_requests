@@ -10,6 +10,7 @@ from django.urls import reverse
 from django.test.utils import override_settings
 
 from insurance_requests.models import InsuranceRequest
+from summaries.services.insurer_response import set_offer_company_fields
 from summaries.models import InsuranceSummary, InsuranceOffer
 
 
@@ -107,8 +108,8 @@ class TestUIElements(TestCase):
             premium_with_franchise_2=Decimal("43000.00"),
             installment_variant_1=True,
             payments_per_year_variant_1=4,
-            notes="UI test notes"
         )
+        set_offer_company_fields(offer, None, notes="UI test notes")
         
         url = reverse('summaries:edit_offer', kwargs={'offer_id': offer.pk})
         response = self.client.get(url)

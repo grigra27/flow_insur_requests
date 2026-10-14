@@ -7,6 +7,7 @@ from django.utils import timezone
 from datetime import date, datetime
 
 from insurance_requests.models import InsuranceRequest
+from summaries.services.insurer_response import set_company_fields, set_offer_company_fields
 from summaries.models import InsuranceOffer, InsuranceSummary
 
 
@@ -49,8 +50,8 @@ class DealSummaryOfferNotesTests(TestCase):
             insurance_sum=Decimal('1000000.00'),
             franchise_1=Decimal('0'),
             premium_with_franchise_1=Decimal('50000.00'),
-            notes='Точечный комментарий по предложению',
         )
+        set_offer_company_fields(self.offer, notes='Точечный комментарий по предложению')
 
     def test_deal_summary_shows_selected_offer_notes(self):
         response = self.client.get(reverse('summaries:deal_summary', args=[self.summary.pk]))
@@ -60,15 +61,15 @@ class DealSummaryOfferNotesTests(TestCase):
         self.assertContains(response, 'Точечный комментарий по предложению')
 
     def test_deal_summary_merges_multiyear_notes_into_one_row(self):
-        InsuranceOffer.objects.create(
+        second = InsuranceOffer.objects.create(
             summary=self.summary,
             company_name='Абсолют',
             insurance_year=2,
             insurance_sum=Decimal('900000.00'),
             franchise_1=Decimal('0'),
             premium_with_franchise_1=Decimal('48000.00'),
-            notes='Комментарий по второму году',
         )
+        set_offer_company_fields(second, notes='Комментарий по второму году')  # примечание СК дописывается
 
         response = self.client.get(reverse('summaries:deal_summary', args=[self.summary.pk]))
 
@@ -79,8 +80,7 @@ class DealSummaryOfferNotesTests(TestCase):
         self.assertEqual(response.content.decode('utf-8').count('Комментарий предложения</span>'), 1)
 
     def test_deal_summary_hides_offer_note_block_for_empty_notes(self):
-        self.offer.notes = ''
-        self.offer.save(update_fields=['notes'])
+        set_company_fields(self.summary.pk, 'Абсолют', notes='')
 
         response = self.client.get(reverse('summaries:deal_summary', args=[self.summary.pk]))
 
@@ -135,8 +135,7 @@ class DealSummaryDetailsTests(DealSummaryOfferNotesTests):
             self.assertNotContains(response, text)
 
     def test_deal_summary_shows_selected_company_territory(self):
-        self.offer.coverage_territory = 'Российская Федерация, кроме новых территорий'
-        self.offer.save(update_fields=['coverage_territory'])
+        set_offer_company_fields(self.offer, 'Российская Федерация, кроме новых территорий')
 
         response = self.client.get(reverse('summaries:deal_summary', args=[self.summary.pk]))
 

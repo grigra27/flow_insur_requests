@@ -155,7 +155,7 @@
                                     {% if group.notes %}
                                     <div class="og-notes">
                                         <i class="bi bi-chat-left-text"></i> Комментарии:
-                                        {% for note in group.notes %}<span class="og-note">{{ note }}</span>{% endfor %}
+                                        {% for note in group.notes %}<span class="og-note">{{ note|linebreaksbr }}</span>{% endfor %}
                                     </div>
                                     {% endif %}
                                     <div class="og-territory-block">

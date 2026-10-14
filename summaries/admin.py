@@ -179,8 +179,9 @@ class InsuranceSummaryAdmin(admin.ModelAdmin):
 class InsuranceOfferAdmin(admin.ModelAdmin):
     list_display = ['company_name', 'insurance_year', 'summary', 'premium_with_franchise_1', 'premium_with_franchise_2', 'insurance_sum', 'installment_variant_1', 'installment_variant_2', 'is_valid', 'received_at']
     list_filter = ['is_valid', 'insurance_year', 'installment_variant_1', 'installment_variant_2', 'company_name', 'received_at']
-    search_fields = ['company_name', 'coverage_territory', 'summary__request__client_name']
-    readonly_fields = ['received_at']
+    search_fields = ['company_name', 'summary__request__client_name']
+    # Территория, примечание и файл — одни на СК в своде, теперь в «Ответе СК»; здесь — архив
+    readonly_fields = ['received_at', 'coverage_territory', 'notes', 'attachment_file']
     
     fieldsets = (
         ('Компания', {
@@ -197,7 +198,11 @@ class InsuranceOfferAdmin(admin.ModelAdmin):
             'fields': ('installment_variant_1', 'payments_per_year_variant_1', 'installment_variant_2', 'payments_per_year_variant_2', 'is_valid')
         }),
         ('Дополнительно', {
-            'fields': ('coverage_territory', 'notes', 'original_email_subject', 'attachment_file', 'received_at')
+            'fields': ('original_email_subject', 'received_at')
+        }),
+        ('Архив (до 2026-10): территория, примечание, файл — теперь в «Ответе СК»', {
+            'classes': ('collapse',),
+            'fields': ('coverage_territory', 'notes', 'attachment_file'),
         })
     )
 

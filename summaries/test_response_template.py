@@ -16,7 +16,7 @@ from openpyxl import load_workbook
 
 from insurance_requests.models import InsuranceRequest
 from summaries.exceptions import MissingDataError, RowProcessingError
-from summaries.models import InsuranceCompany, InsuranceOffer, InsuranceSummary
+from summaries.models import InsuranceCompany, InsuranceOffer, InsuranceSummary, InsurerResponse
 from summaries.services.excel_services import ExcelResponseProcessor
 
 TEMPLATE_PATH = Path(settings.BASE_DIR) / 'templates' / 'flow_answer_template.xlsx'
@@ -125,13 +125,13 @@ class ResponseTemplateImportTests(TestCase):
         self.assertEqual(offers[3].insurance_sum, Decimal('10778529.00'))
         self.assertEqual(offers[0].premium_with_franchise_2, Decimal('360666.00'))
         self.assertEqual(offers[0].payments_per_year_variant_1, 2)
-        self.assertEqual(offers[0].notes, 'Требуется осмотр ТС.')
-        self.assertTrue(all(o.coverage_territory == 'Российская Федерация' for o in offers))
-        # одна копия файла на загрузку, у всех лет одна ссылка
-        names = {o.attachment_file.name for o in offers}
-        self.assertEqual(len(names), 1)
-        stored = offers[0].attachment_file
-        self.assertTrue(stored.name.startswith('offers/'))
+        # территория, примечание и файл — одни на СК в своде, в «Ответе СК» (одна копия файла на загрузку)
+        response = InsurerResponse.objects.get(summary=self.summary, company_name=offers[0].company_name)
+        self.assertEqual(response.notes, 'Требуется осмотр ТС.')
+        self.assertEqual(response.coverage_territory, 'Российская Федерация')
+        self.assertFalse(any(o.attachment_file for o in offers))  # годовые строки — архив, не пишутся
+        stored = response.source_file
+        self.assertTrue(stored.name.startswith('responses/'))
         with stored.open('rb') as fh:
             self.assertEqual(fh.read(), content)
 

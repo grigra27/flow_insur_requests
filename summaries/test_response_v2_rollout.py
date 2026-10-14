@@ -16,6 +16,7 @@ from openpyxl import load_workbook
 
 from core.templates import EmailTemplateGenerator
 from insurance_requests.models import InsuranceRequest
+from summaries.services.insurer_response import set_offer_company_fields
 from summaries.models import InsuranceOffer, InsuranceSummary, InsurerResponse
 from summaries.response_template import V1_TEMPLATE_PATH, build_v2
 from summaries.services import get_excel_export_service
@@ -168,10 +169,10 @@ class ResponseTemplateV2RolloutTests(TestCase):
         self.assertNotIn('Обязателен осмотр предмета лизинга', comment)
 
     def test_v1_system_inspection_note_kept_without_answer(self):
-        InsuranceOffer.objects.create(summary=self.old_summary, company_name='ВСК', insurance_year=1,
-                                      insurance_sum=Decimal('1000000'), franchise_1=Decimal('0'),
-                                      premium_with_franchise_1=Decimal('50000'), coverage_territory='РФ',
-                                      notes='без ОСВР')
+        offer = InsuranceOffer.objects.create(summary=self.old_summary, company_name='ВСК', insurance_year=1,
+                                              insurance_sum=Decimal('1000000'), franchise_1=Decimal('0'),
+                                              premium_with_franchise_1=Decimal('50000'))
+        set_offer_company_fields(offer, 'РФ', 'без ОСВР')
         ws = load_workbook(BytesIO(get_excel_export_service().generate_summary_excel(
             self.old_summary, is_client_version=True).getvalue())).worksheets[0]
         notes_col = next(c.column_letter for c in ws[8] if c.value == 'Комментарии')
@@ -185,7 +186,8 @@ class ResponseTemplateV2RolloutTests(TestCase):
                 'rows-0-premium_with_franchise_1': '50000'}
         self.client.post(reverse('summaries:add_offer', args=[self.old_summary.pk]), data)
         self.assertTrue(InsuranceOffer.objects.filter(summary=self.old_summary, company_name='Пари').exists())
-        self.assertFalse(InsurerResponse.objects.filter(summary=self.old_summary, company_name='Пари').exists())
+        self.assertFalse(InsurerResponse.objects.filter(summary=self.old_summary, company_name='Пари')
+                         .exclude(inspection_status='', rnpk_status='', ce_risks_status='', transport_cost__isnull=True).exists())
         page = self.client.post(reverse('summaries:add_offer', args=[self.new_summary.pk]), data, follow=True)
         self.assertFalse(InsuranceOffer.objects.filter(summary=self.new_summary, company_name='Пари').exists())
         self.assertContains(page, 'Не заполнен блок «Осмотр»')

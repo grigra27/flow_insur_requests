@@ -14,6 +14,7 @@ from openpyxl import load_workbook
 
 from insurance_requests.models import InsuranceRequest
 from summaries.models import InsuranceCompany, InsuranceOffer, InsuranceSummary, SummaryCompanyStatus
+from summaries.services.insurer_response import set_offer_company_fields
 from summaries.services.summary_export_v2 import SummaryExportV2Service
 
 COMPANIES = ['Альфа', 'ВСК', 'Зетта', 'Согласие', 'Ингосстрах', 'Пари', 'Согаз', 'Ренессанс',
@@ -53,14 +54,15 @@ class SummaryExportV2Base(TestCase):
     @classmethod
     def _offer(cls, company, year, insurance_sum, premium_1, premium_2, territory=None, notes='',
                summary=None):
-        return InsuranceOffer.objects.create(
+        offer = InsuranceOffer.objects.create(
             summary=summary or cls.summary, company_name=company, insurance_year=year,
             insurance_sum=Decimal(str(insurance_sum)),
             franchise_1=Decimal('0'), premium_with_franchise_1=Decimal(str(premium_1)),
             franchise_2=Decimal('100000') if premium_2 else None,
             premium_with_franchise_2=Decimal(str(premium_2)) if premium_2 else None,
-            coverage_territory=territory, notes=notes,
         )
+        set_offer_company_fields(offer, territory, notes)
+        return offer
 
     def _workbook(self, summary=None, client=True):
         data = SummaryExportV2Service().generate(summary or self.summary, is_client_version=client)
@@ -392,8 +394,8 @@ class SummaryExportV2ResponseColumnsTests(SummaryExportV2Base):
         cls.property_summary = InsuranceSummary.objects.create(request=request, status='collecting')
         cls._offer('Согаз', 1, 3_000_000, 90_000, None, territory='РФ', summary=cls.property_summary)
         cls._offer('Альфа', 1, 3_000_000, 95_000, None, territory='РФ', summary=cls.property_summary)
-        InsurerResponse.objects.create(
-            summary=cls.property_summary, company_name='Согаз', rnpk_status='included',
+        InsurerResponse.objects.filter(summary=cls.property_summary, company_name='Согаз').update(
+            rnpk_status='included',
             inspection_status='photo', transport_cost=Decimal('5330'), transport_terms='на время перевозки',
         )
 

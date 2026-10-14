@@ -8,29 +8,25 @@ from django.urls import reverse
 from insurance_requests.models import InsuranceRequest
 
 from .models import InsuranceOffer, InsuranceSummary
-from .views import _territory_lines, _year_ranges, _years_label
+from .services.insurer_response import set_offer_company_fields
+from .views import _territory_lines, _years_label
 
 
-class Offer:
-    def __init__(self, year, territory):
-        self.insurance_year, self.coverage_territory = year, territory
+class Response:
+    def __init__(self, territory):
+        self.coverage_territory = territory
 
 
 class TerritoryLinesTests(SimpleTestCase):
-    def test_same_territory_shown_once(self):
-        lines = _territory_lines([Offer(year, 'РФ') for year in (1, 2, 3, 4)])
-        self.assertEqual(lines, [{'label': 'Территория', 'kind': 'text', 'text': 'РФ'}])
+    """Территория — одна на СК в своде, из «Ответа СК»."""
 
-    def test_first_year_only_and_missing_rest(self):
-        lines = _territory_lines([Offer(1, 'РФ и СНГ'), Offer(2, ''), Offer(3, ''), Offer(4, '')])
-        self.assertEqual([(line['label'], line['kind']) for line in lines],
-                         [('Территория (1 год)', 'text'), ('Территория (2–4 год)', 'missing')])
-
-    def test_legacy_offers_without_territory_field(self):
-        self.assertEqual(_territory_lines([Offer(1, None)])[0]['kind'], 'legacy')
+    def test_text_missing_and_legacy(self):
+        self.assertEqual(_territory_lines(Response(' РФ ')), [{'label': 'Территория', 'kind': 'text', 'text': 'РФ'}])
+        self.assertEqual(_territory_lines(Response(''))[0]['kind'], 'missing')
+        self.assertEqual(_territory_lines(Response(None))[0]['kind'], 'legacy')
+        self.assertEqual(_territory_lines(None)[0]['kind'], 'legacy')
 
     def test_helpers(self):
-        self.assertEqual(_year_ranges([1, 2, 3, 5]), '1–3, 5')
         self.assertEqual([_years_label(n) for n in (1, 2, 4, 5, 11, 21)],
                          ['1 год', '2 года', '4 года', '5 лет', '11 лет', '21 год'])
 
@@ -45,9 +41,10 @@ class OfferTableRenderingTests(TestCase):
         self.summary = InsuranceSummary.objects.create(request=request)
         for company, territory in (('Альфа', 'РФ'), ('ВСК', 'РФ, Европа и СНГ')):
             for year in (1, 2):
-                InsuranceOffer.objects.create(summary=self.summary, company_name=company, insurance_year=year,
-                                              insurance_sum=Decimal('3000000'), franchise_1=Decimal('0'),
-                                              premium_with_franchise_1=Decimal('70000'), coverage_territory=territory)
+                offer = InsuranceOffer.objects.create(summary=self.summary, company_name=company, insurance_year=year,
+                                                      insurance_sum=Decimal('3000000'), franchise_1=Decimal('0'),
+                                                      premium_with_franchise_1=Decimal('70000'))
+            set_offer_company_fields(offer, territory)
 
     def page(self):
         return self.client.get(reverse('summaries:summary_detail', args=[self.summary.pk]))

@@ -11,6 +11,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.exceptions import ValidationError
 
 from insurance_requests.models import InsuranceRequest
+from summaries.services.insurer_response import company_fields
 from summaries.models import InsuranceSummary, InsuranceOffer
 from summaries.forms import OfferForm, AddOfferToSummaryForm
 
@@ -334,7 +335,7 @@ class TestOfferViews(TestCase):
         self.assertEqual(offer.franchise_2, Decimal('30000.00'))
         self.assertEqual(offer.premium_with_franchise_2, Decimal('58000.00'))
         self.assertEqual(offer.payments_per_year_variant_1, 12)
-        self.assertEqual(offer.notes, 'Added via POST')
+        self.assertEqual(company_fields(offer.summary_id, offer.company_name)['notes'], 'Added via POST')  # «Ответ СК»
     
     def test_edit_offer_view(self):
         """Test edit offer view functionality"""
@@ -406,7 +407,7 @@ class TestOfferViews(TestCase):
         self.assertEqual(offer.franchise_2, Decimal('25000.00'))
         self.assertEqual(offer.premium_with_franchise_2, Decimal('47000.00'))
         self.assertEqual(offer.payments_per_year_variant_1, 2)
-        self.assertEqual(offer.notes, 'Updated via POST')
+        self.assertEqual(company_fields(offer.summary_id, offer.company_name)['notes'], 'Updated via POST')  # «Ответ СК»
 
 
 class TestDataDisplayAndFormatting(TestCase):

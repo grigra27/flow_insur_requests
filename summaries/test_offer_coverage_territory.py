@@ -13,7 +13,7 @@ from openpyxl import load_workbook
 
 from insurance_requests.models import InsuranceRequest
 from summaries.forms import AddOfferToSummaryForm, OfferForm
-from summaries.models import InsuranceCompany, InsuranceOffer, InsuranceSummary
+from summaries.models import InsuranceCompany, InsuranceOffer, InsuranceSummary, InsurerResponse
 from summaries.exceptions import MissingDataError
 from summaries.services.excel_services import ExcelExportService, ExcelResponseProcessor
 
@@ -66,19 +66,22 @@ class OfferCoverageTerritoryImportTests(TestCase):
             'F7': 1,
         })
 
-    def test_import_copies_common_territory_to_every_year(self):
+    def test_import_keeps_common_territory_once_per_company(self):
+        from summaries.services.insurer_response import save_upload_company_fields
+
         processor = ExcelResponseProcessor()
         data = processor.extract_company_data(
             self._worksheet('Российская Федерация, кроме новых территорий')
         )
 
         offers = processor.create_offers(data, self.summary)
+        save_upload_company_fields(self.summary.pk, data['company_name'], data['coverage_territory'], '')
 
         self.assertEqual(len(offers), 2)
-        self.assertEqual(
-            {offer.coverage_territory for offer in offers},
-            {'Российская Федерация, кроме новых территорий'},
-        )
+        response = InsurerResponse.objects.get(summary=self.summary, company_name='Абсолют')
+        self.assertEqual(response.coverage_territory, 'Российская Федерация, кроме новых территорий')
+        # годовые строки — архив, территория в них не пишется
+        self.assertEqual({offer.coverage_territory for offer in offers}, {''})
 
     def test_response_without_territory_is_rejected(self):
         processor = ExcelResponseProcessor()
@@ -114,7 +117,6 @@ class OfferCoverageTerritoryExportTests(TestCase):
             premium_with_franchise_1=Decimal('50000'),
             franchise_2=Decimal('50000'),
             premium_with_franchise_2=Decimal('45000'),
-            coverage_territory='Российская Федерация',
         )
         cls.offer2 = InsuranceOffer.objects.create(
             summary=cls.summary,
@@ -125,8 +127,13 @@ class OfferCoverageTerritoryExportTests(TestCase):
             premium_with_franchise_1=Decimal('45000'),
             franchise_2=Decimal('50000'),
             premium_with_franchise_2=Decimal('40000'),
-            coverage_territory='Российская Федерация',
         )
+        cls._territory('Российская Федерация')
+
+    @classmethod
+    def _territory(cls, value, **fields):
+        InsurerResponse.objects.filter(summary=cls.summary, company_name='Абсолют').update(
+            coverage_territory=value, **fields)
 
     def setUp(self):
         self.service = ExcelExportService(
@@ -164,29 +171,17 @@ class OfferCoverageTerritoryExportTests(TestCase):
             self.assertEqual(sheet['J10'].value, 'Российская Федерация')
             self.assertIn('J10:J11', {str(cell_range) for cell_range in sheet.merged_cells.ranges})
 
-    def test_changing_one_year_changes_company_territory(self):
-        # Территория одна на компанию в своде (2026-09-27): правка у одного года обновляет все годы.
-        self.offer2.coverage_territory = 'Российская Федерация и Республика Беларусь'
-        self.offer2.save(update_fields=['coverage_territory'])
+    def test_company_territory_is_one_merged_cell(self):
+        # Территория одна на СК в своде («Ответ СК») — одна объединённая ячейка на все годы
+        self._territory('Российская Федерация и Республика Беларусь')
 
         sheet = self._generate()['summary_template_sheet']
 
         self.assertIn('P10:P11', {str(cell_range) for cell_range in sheet.merged_cells.ranges})
         self.assertEqual(sheet['P10'].value, 'Российская Федерация и Республика Беларусь')
 
-    def test_different_territories_in_old_data_are_not_merged(self):
-        InsuranceOffer.objects.filter(pk=self.offer2.pk).update(
-            coverage_territory='Российская Федерация и Республика Беларусь'
-        )
-
-        sheet = self._generate()['summary_template_sheet']
-
-        self.assertNotIn('P10:P11', {str(cell_range) for cell_range in sheet.merged_cells.ranges})
-        self.assertEqual(sheet['P10'].value, 'Российская Федерация')
-        self.assertEqual(sheet['P11'].value, 'Российская Федерация и Республика Беларусь')
-
     def test_missing_territory_is_explicit_in_export(self):
-        InsuranceOffer.objects.filter(summary=self.summary).update(coverage_territory='')
+        self._territory('')
 
         sheet = self._generate()['summary_template_sheet']
 
@@ -194,29 +189,25 @@ class OfferCoverageTerritoryExportTests(TestCase):
         self.assertIn('P10:P11', {str(cell_range) for cell_range in sheet.merged_cells.ranges})
 
     def test_legacy_territory_is_distinct_from_explicitly_missing(self):
-        InsuranceOffer.objects.filter(summary=self.summary).update(coverage_territory=None)
+        self._territory(None)
 
         sheet = self._generate()['summary_template_sheet']
 
         self.assertEqual(sheet['P10'].value, 'Нет данных: территория ранее не собиралась')
         self.assertIn('P10:P11', {str(cell_range) for cell_range in sheet.merged_cells.ranges})
 
-    def test_mixed_legacy_and_missing_is_one_missing_cell(self):
-        InsuranceOffer.objects.filter(pk=self.offer1.pk).update(coverage_territory=None)
-        InsuranceOffer.objects.filter(pk=self.offer2.pk).update(coverage_territory='')
+    def test_notes_once_per_company_in_first_year_row(self):
+        self._territory('РФ', notes='Осмотр обязателен')
 
         sheet = self._generate()['summary_template_sheet']
 
-        self.assertEqual(sheet['P10'].value, 'Не указано страховщиком')
-        self.assertIn('P10:P11', {str(cell_range) for cell_range in sheet.merged_cells.ranges})
+        self.assertTrue(sheet['Q10'].value.startswith('Осмотр обязателен'))  # дальше — системные примечания
+        self.assertNotIn('Осмотр обязателен', sheet['Q11'].value or '')
 
     def test_export_sanitizes_illegal_characters_and_truncates_text(self):
         self.offer2.delete()
-        self.offer1.coverage_territory = (
-            'Россия\x03\x08\x0b\x0e\x1f\r\n' + 'А' * 32768
-        )
-        self.offer1.notes = 'Комментарий\x03\x08\x0b\x0e\x1f ' + 'Б' * 1100
-        self.offer1.save(update_fields=['coverage_territory', 'notes'])
+        self._territory('Россия\x03\x08\x0b\x0e\x1f\r\n' + 'А' * 32768,
+                        notes='Комментарий\x03\x08\x0b\x0e\x1f ' + 'Б' * 1100)
 
         sheet = self._generate()['summary_template_sheet']
 
@@ -260,8 +251,7 @@ class OfferCoverageTerritoryInterfaceAndTemplateTests(TestCase):
             self.assertFalse(form.fields['coverage_territory'].required)
 
     def test_summary_page_warns_when_territory_is_missing(self):
-        self.offer.coverage_territory = None
-        self.offer.save(update_fields=['coverage_territory'])
+        InsurerResponse.objects.filter(summary=self.summary).update(coverage_territory=None)
         self.client.force_login(self.user)
 
         response = self.client.get(
@@ -273,8 +263,7 @@ class OfferCoverageTerritoryInterfaceAndTemplateTests(TestCase):
         self.assertContains(response, 'Скачать актуальный шаблон ответа')
 
     def test_summary_page_distinguishes_explicitly_missing_territory(self):
-        self.offer.coverage_territory = ''
-        self.offer.save(update_fields=['coverage_territory'])
+        InsurerResponse.objects.filter(summary=self.summary).update(coverage_territory='')
         self.client.force_login(self.user)
 
         response = self.client.get(
@@ -377,30 +366,28 @@ class OfferCoverageTerritoryInterfaceAndTemplateTests(TestCase):
             company_name='Абсолют',
             insurance_year=2,
         )
-        self.assertEqual(added_offer.coverage_territory, 'Россия и Беларусь')
+        def territory():
+            return InsurerResponse.objects.get(summary=self.summary, company_name='Абсолют').coverage_territory
+
+        self.assertEqual(territory(), 'Россия и Беларусь')
 
         edit_response = self.client.post(
             reverse('summaries:edit_offer', args=[added_offer.pk]),
             self._offer_form_data(2, 'Российская Федерация'),
         )
         self.assertEqual(edit_response.status_code, 302)
-        added_offer.refresh_from_db()
-        self.assertEqual(added_offer.coverage_territory, 'Российская Федерация')
+        self.assertEqual(territory(), 'Российская Федерация')
 
         copy_response = self.client.post(
             reverse('summaries:copy_offer', args=[added_offer.pk]),
             self._offer_form_data(3, 'Российская Федерация, кроме Крыма'),
         )
         self.assertEqual(copy_response.status_code, 302)
-        copied_offer = InsuranceOffer.objects.get(
-            summary=self.summary,
-            company_name='Абсолют',
-            insurance_year=3,
-        )
-        self.assertEqual(
-            copied_offer.coverage_territory,
-            'Российская Федерация, кроме Крыма',
-        )
+        self.assertTrue(InsuranceOffer.objects.filter(summary=self.summary, company_name='Абсолют',
+                                                      insurance_year=3).exists())
+        self.assertEqual(territory(), 'Российская Федерация, кроме Крыма')
+        # годовые строки — архив: формы его не пишут
+        self.assertFalse(InsuranceOffer.objects.filter(summary=self.summary).exclude(coverage_territory='').exists())
 
     def test_multiple_upload_endpoint_returns_territory_metadata(self):
         self.client.force_login(self.user)
@@ -419,11 +406,7 @@ class OfferCoverageTerritoryInterfaceAndTemplateTests(TestCase):
         self.assertEqual(result['coverage_territory'], 'Российская Федерация')
         self.assertNotIn('coverage_territory_missing', result)
         self.assertEqual(
-            InsuranceOffer.objects.get(
-                summary=self.summary,
-                company_name='Абсолют',
-                insurance_year=4,
-            ).coverage_territory,
+            InsurerResponse.objects.get(summary=self.summary, company_name='Абсолют').coverage_territory,
             'Российская Федерация',
         )
 

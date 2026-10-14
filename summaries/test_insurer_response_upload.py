@@ -104,9 +104,7 @@ class StrictContourTests(InsurerResponseUploadBase):
         self.assertEqual(response.transport_cost, Decimal('5330.00'))
         self.assertEqual(response.transport_terms, 'на время перевозки')
         self.assertEqual(response.created_by, self.superuser)
-        offer = InsuranceOffer.objects.filter(summary=self.property_summary, company_name='Согаз').first()
-        self.assertTrue(response.source_file.name)
-        self.assertEqual(response.source_file.name, offer.attachment_file.name)
+        self.assertTrue(response.source_file.name.startswith('responses/'))
 
     def test_empty_required_block_rejects_file(self):
         content = self._v2(self.property_summary, {'resp_transport_cost': 5330})
@@ -207,10 +205,12 @@ class StrictContourTests(InsurerResponseUploadBase):
 class StaffContourTests(InsurerResponseUploadBase):
     """Контур V1 — сотрудники: загрузка как раньше, ничего нового не отклоняется."""
 
-    def test_old_template_works_as_before_without_response_row(self):
+    def test_old_template_works_as_before_without_block_values(self):
         result = self._process(self._v1(), self.property_summary, self.staff)
         self.assertEqual(result['offers_created'], 1)
-        self.assertFalse(InsurerResponse.objects.exists())
+        response = InsurerResponse.objects.get(summary=self.property_summary)  # территория, примечание, файл
+        self.assertEqual(response.template_version, InsurerResponse.TEMPLATE_V1)
+        self.assertFalse(InsurerResponse.objects.exclude(inspection_status='', rnpk_status='', ce_risks_status='', transport_cost__isnull=True).exists())
 
     def test_v2_file_with_empty_blocks_is_accepted(self):
         result = self._process(self._v2(self.property_summary), self.property_summary, self.staff)

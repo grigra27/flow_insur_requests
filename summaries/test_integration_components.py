@@ -13,6 +13,7 @@ from django.core.exceptions import ValidationError
 from django.contrib.messages import get_messages
 
 from insurance_requests.models import InsuranceRequest
+from summaries.services.insurer_response import set_offer_company_fields
 from summaries.models import InsuranceSummary, InsuranceOffer
 
 
@@ -66,8 +67,8 @@ class SummariesUIIntegrationTest(TestCase):
             premium_with_franchise_1=Decimal('50000.00'),
             franchise_2=Decimal('25000.00'),
             premium_with_franchise_2=Decimal('45000.00'),
-            notes='Тестовое примечание для компании 1'
         )
+        set_offer_company_fields(self.offer1, None, notes='Тестовое примечание для компании 1')
         
         self.offer2 = InsuranceOffer.objects.create(
             summary=self.summary,
@@ -78,8 +79,8 @@ class SummariesUIIntegrationTest(TestCase):
             premium_with_franchise_1=Decimal('52000.00'),
             franchise_2=Decimal('25000.00'),
             premium_with_franchise_2=Decimal('47000.00'),
-            notes='Тестовое примечание для компании 1 год 2'
         )
+        set_offer_company_fields(self.offer2, None, notes='Тестовое примечание для компании 1 год 2')
         
         self.offer3 = InsuranceOffer.objects.create(
             summary=self.summary,
@@ -221,7 +222,9 @@ class SummariesUIIntegrationTest(TestCase):
         # Проверяем группировку примечаний по компаниям
         company_notes = self.summary.get_company_notes()
         self.assertIn('Абсолют', company_notes)
-        self.assertEqual(len(company_notes['Абсолют']), 2)
+        # примечание одно на СК в своде («Ответ СК»): примечания лет — строками одного текста
+        self.assertEqual(company_notes['Абсолют'],
+                         ['Тестовое примечание для компании 1\nТестовое примечание для компании 1 год 2'])
         
         # Проверяем, что примечания отображаются в правильном месте
         content = response.content.decode()

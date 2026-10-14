@@ -28,7 +28,26 @@ def clean_required_territory(value):
     return text
 
 
-class OfferForm(forms.ModelForm):
+class CompanyLevelFields(forms.Form):
+    """Территория и примечание — одни на СК в своде, хранятся в «Ответе СК» (InsurerResponse), а не в годовой
+    строке: поля формы без привязки к модели, записывает их представление (insurer_response.set_company_fields)."""
+
+    coverage_territory = forms.CharField(
+        required=False,  # обязательность — в clean_coverage_territory, со своим текстом ошибки
+        label='Территория страхования и территориальные ограничения',
+        widget=forms.Textarea(attrs={
+            'class': 'form-control', 'rows': 2,
+            'placeholder': 'Например: Российская Федерация, кроме новых территорий',
+        }),
+    )
+    notes = forms.CharField(required=False, label='Комментарии',
+                            widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 3}))
+
+    def clean_coverage_territory(self):
+        return clean_required_territory(self.cleaned_data.get('coverage_territory'))
+
+
+class OfferForm(CompanyLevelFields, forms.ModelForm):
     """Форма для добавления/редактирования предложения от страховщика"""
     
     # Поле для выбора страховщика из предопределенного списка
@@ -79,7 +98,6 @@ class OfferForm(forms.ModelForm):
             'franchise_2', 'premium_with_franchise_2',
             'installment_variant_1', 'payments_per_year_variant_1',
             'installment_variant_2', 'payments_per_year_variant_2',
-            'coverage_territory', 'notes', 'attachment_file'
         ]
         widgets = {
             'insurance_year': forms.NumberInput(attrs={
@@ -112,18 +130,8 @@ class OfferForm(forms.ModelForm):
             }),
             'installment_variant_1': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'installment_variant_2': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-            'coverage_territory': forms.Textarea(attrs={
-                'class': 'form-control',
-                'rows': 2,
-                'placeholder': 'Например: Российская Федерация, кроме новых территорий'
-            }),
-            'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
-            'attachment_file': forms.FileInput(attrs={'class': 'form-control'}),
         }
     
-    def clean_coverage_territory(self):
-        return clean_required_territory(self.cleaned_data.get('coverage_territory'))
-
     def clean_company_name(self):
         """Валидация выбора страховой компании"""
         company_name = self.cleaned_data.get('company_name')
@@ -374,7 +382,7 @@ class SummaryStatusForm(forms.Form):
         return cleaned_data
 
 
-class AddOfferToSummaryForm(forms.ModelForm):
+class AddOfferToSummaryForm(CompanyLevelFields, forms.ModelForm):
     """Форма для добавления предложения к существующему своду (без загрузки файла)"""
     
     # Поле для выбора страховщика из предопределенного списка
@@ -425,7 +433,6 @@ class AddOfferToSummaryForm(forms.ModelForm):
             'franchise_2', 'premium_with_franchise_2',
             'installment_variant_1', 'payments_per_year_variant_1',
             'installment_variant_2', 'payments_per_year_variant_2',
-            'coverage_territory', 'notes'
         ]
         widgets = {
             'insurance_year': forms.NumberInput(attrs={
@@ -459,17 +466,8 @@ class AddOfferToSummaryForm(forms.ModelForm):
             }),
             'installment_variant_1': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'installment_variant_2': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-            'coverage_territory': forms.Textarea(attrs={
-                'class': 'form-control',
-                'rows': 2,
-                'placeholder': 'Например: Российская Федерация, кроме новых территорий'
-            }),
-            'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
         }
     
-    def clean_coverage_territory(self):
-        return clean_required_territory(self.cleaned_data.get('coverage_territory'))
-
     def clean_company_name(self):
         """Валидация выбора страховщика"""
         company_name = self.cleaned_data.get('company_name')

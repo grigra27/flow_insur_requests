@@ -101,12 +101,84 @@ def save_response(summary: InsuranceSummary, company_name: str, values: Dict, te
     return response
 
 
-def attach_source_file(summary_id: int, company_name: str, stored_name: Optional[str]) -> None:
-    """Ссылка на уже сохранённый исходный файл (тот же, что у годовых предложений)."""
-    if stored_name:
-        InsurerResponse.objects.filter(summary_id=summary_id, company_name=company_name).update(
-            source_file=stored_name,
-        )
+def attach_source_file(summary_id: int, company_name: str, file) -> Optional[str]:
+    """Сохранить загруженный файл страховщика в «Ответ СК» (одна копия на загрузку). Ошибка сохранения
+    не отменяет импорт — предложения уже созданы, файл нужен для разбора спорных случаев.
+    Возвращает имя сохранённого файла (или None)."""
+    from pathlib import Path
+
+    from django.core.files.base import ContentFile
+
+    try:
+        file.seek(0)
+        response = ensure_response(summary_id, company_name)
+        response.source_file.save(Path(file.name).name, ContentFile(file.read()), save=False)
+        response.save(update_fields=['source_file', 'updated_at'])
+        logger.info("Исходный файл ответа сохранён: %s", response.source_file.name)
+        return response.source_file.name
+    except Exception as error:  # noqa: BLE001
+        logger.warning("Не удалось сохранить исходный файл '%s': %s", getattr(file, 'name', ''), error)
+        return None
+
+
+COMPANY_FIELDS = ('coverage_territory', 'notes')
+
+
+def ensure_response(summary_id: int, company_name: str, copy_from: Optional[InsurerResponse] = None) -> InsurerResponse:
+    """«Ответ СК» есть у каждой СК с предложениями в своде (создаётся сигналом при сохранении предложения).
+
+    copy_from — ответ прежней СК, если предложение перенесли на другую: новой СК достаются его территория
+    и примечание (только при создании ответа)."""
+    defaults = {}
+    if copy_from is not None:
+        defaults = {name: getattr(copy_from, name) for name in COMPANY_FIELDS}
+    response, _ = InsurerResponse.objects.get_or_create(summary_id=summary_id, company_name=company_name,
+                                                        defaults=defaults)
+    return response
+
+
+def company_responses(summary) -> Dict[str, InsurerResponse]:
+    """{компания: «Ответ СК»} свода."""
+    summary_id = getattr(summary, 'pk', summary)
+    return {r.company_name: r for r in InsurerResponse.objects.filter(summary_id=summary_id)}
+
+
+def company_fields(summary_id: int, company_name: str) -> Dict[str, str]:
+    """Территория и примечание СК в своде — начальные значения формы предложения."""
+    response = InsurerResponse.objects.filter(summary_id=summary_id, company_name=company_name).first()
+    return {name: (getattr(response, name) or '') if response else '' for name in COMPANY_FIELDS}
+
+
+def merge_notes(existing: str, new: str) -> str:
+    """Примечание при добавлении лет: пустое не стирает прежнее, новое дописывается с новой строки."""
+    existing, new = (existing or '').strip(), (new or '').strip()
+    if not new or ' '.join(new.split()) in ' '.join(existing.split()):
+        return existing
+    return f'{existing}\n{new}' if existing else new
+
+
+def set_company_fields(summary_id: int, company_name: str, **values) -> InsurerResponse:
+    """Записать территорию и/или примечание СК в своде (одни на все годы)."""
+    unknown = set(values) - set(COMPANY_FIELDS)
+    if unknown:
+        raise ValueError(f'Не поля уровня СК: {sorted(unknown)}')
+    response = ensure_response(summary_id, company_name)
+    for name, value in values.items():
+        setattr(response, name, value if value is None else str(value).strip())
+    response.save(update_fields=[*values, 'updated_at'])
+    return response
+
+
+def save_upload_company_fields(summary_id: int, company_name: str, territory: str, notes: str) -> InsurerResponse:
+    """Территория и примечание из файла ответа. Пустая территория в файле не стирает уже указанную
+    (другие годы СК могли прийти раньше), но «не указано» отличается от «до сбора территории» (NULL);
+    примечание дописывается к прежнему."""
+    current = ensure_response(summary_id, company_name)
+    territory = (territory or '').strip()
+    values = {'notes': merge_notes(current.notes, notes)}
+    if territory or current.coverage_territory is None:
+        values['coverage_territory'] = territory
+    return set_company_fields(summary_id, company_name, **values)
 
 
 def sync_after_offer_removed(summary_id: int, company_name: str) -> None:
@@ -247,3 +319,13 @@ def update_from_form(summary: InsuranceSummary, company_name: str, data, user=No
     if not required_sections(summary.request):
         raise ResponseFormError('По этой заявке дополнительные блоки ответа не нужны.')
     return apply_values(summary, company_name, parse_form_values(summary, data, strict=False), user=user)
+
+
+def set_offer_company_fields(offer, territory=None, notes='') -> InsurerResponse:
+    """Территория и примечание для СК предложения (для тестов и скриптов): territory=None не меняет
+    территорию, примечание дописывается к прежнему."""
+    current = company_fields(offer.summary_id, offer.company_name)
+    values = {'notes': merge_notes(current['notes'], notes)}
+    if territory is not None:
+        values['coverage_territory'] = territory
+    return set_company_fields(offer.summary_id, offer.company_name, **values)

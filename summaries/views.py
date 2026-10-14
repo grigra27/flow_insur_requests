@@ -836,6 +836,7 @@ def summary_detail(request, pk):
             ),
             selected_company=(summary.selected_company or '').strip(),
             response_lines=_response_lines(summary, sorted_companies, request.user),
+            responses=insurer_response.company_responses(summary),
         ),
         'response_v2_visible': insurer_response.v2_visible(request.user),
         'offers_have_variant_2': any(offer.premium_with_franchise_2 or offer.franchise_2 for offer in offers),
@@ -850,42 +851,19 @@ def _years_label(count):
     return f'{count} лет'
 
 
-def _year_ranges(years):
-    """[1, 2, 3, 5] → «1–3, 5»."""
-    ranges, start, previous = [], None, None
-    for year in sorted(years):
-        if start is None:
-            start = previous = year
-        elif year == previous + 1:
-            previous = year
-        else:
-            ranges.append((start, previous))
-            start = previous = year
-    if start is not None:
-        ranges.append((start, previous))
-    return ', '.join(str(a) if a == b else f'{a}–{b}' for a, b in ranges)
+def _territory_lines(response):
+    """Территория компании в своде — одна на все годы, из «Ответа СК».
 
-
-def _territory_lines(offers):
-    """Территория компании один раз: одинаковые значения по годам сворачиваются в одну строку.
-
-    kind: text — указана; missing — «Не указано страховщиком»; legacy — предложение создано до сбора территории.
+    kind: text — указана; missing — «Не указано страховщиком»; legacy — ответ получен до сбора территории.
     """
-    groups = {}
-    for offer in offers:
-        value = offer.coverage_territory
-        if value is None:
-            key = ('legacy', '')
-        elif value.strip():
-            key = ('text', value.strip())
-        else:
-            key = ('missing', '')
-        groups.setdefault(key, []).append(offer.insurance_year)
-    lines = []
-    for (kind, text), years in groups.items():
-        label = 'Территория' if len(groups) == 1 else f'Территория ({_year_ranges(years)} год)'
-        lines.append({'label': label, 'kind': kind, 'text': text})
-    return lines
+    value = response.coverage_territory if response else None
+    if value is None:
+        kind, text = 'legacy', ''
+    elif value.strip():
+        kind, text = 'text', value.strip()
+    else:
+        kind, text = 'missing', ''
+    return [{'label': 'Территория', 'kind': kind, 'text': text}]
 
 
 def _response_lines(summary, company_names, user):
@@ -900,7 +878,7 @@ def _response_lines(summary, company_names, user):
 
 
 def _offer_groups(sorted_companies, companies_with_offers, company_totals, company_notes,
-                  best_company_names=(), selected_company='', response_lines=None):
+                  best_company_names=(), selected_company='', response_lines=None, responses=None):
     """Предложения, сгруппированные по компаниям, для единой таблицы на карточке свода.
 
     is_best — компания с минимальной итоговой премией за срок (как «Лучшее» в сводной информации),
@@ -910,6 +888,7 @@ def _offer_groups(sorted_companies, companies_with_offers, company_totals, compa
     for company_name in sorted_companies:
         company_offers = companies_with_offers.get(company_name, [])
         totals = company_totals.get(company_name, {})
+        response = (responses or {}).get(company_name)
         groups.append({
             'name': company_name,
             'offers': company_offers,
@@ -920,8 +899,8 @@ def _offer_groups(sorted_companies, companies_with_offers, company_totals, compa
             'is_best': company_name in best_company_names,
             'is_selected': bool(selected_company) and company_name == selected_company,
             'notes': company_notes.get(company_name, []),
-            'territory_lines': _territory_lines(company_offers),
-            'territory_value': next((line['text'] for line in _territory_lines(company_offers) if line['kind'] == 'text'), ''),
+            'territory_lines': _territory_lines(response),
+            'territory_value': ((response.coverage_territory if response else '') or '').strip(),
             'response_v2': (response_lines or {}).get(company_name),
         })
     return groups
@@ -947,9 +926,7 @@ def _company_status_payload(summary):
 @require_http_methods(["POST"])
 @user_required
 def set_company_territory(request, summary_id):
-    """Территория страховой в своде — сразу для всех её лет (summaries/services/offer_territory.py)."""
-    from .services.offer_territory import set_company_territory as apply_territory
-
+    """Территория страховой в своде — одна на все её годы, хранится в «Ответе СК»."""
     summary = get_object_or_404(InsuranceSummary, pk=summary_id)
     company_name = (request.POST.get('company') or '').strip()
     if not company_name or not summary.offers.filter(company_name=company_name).exists():
@@ -958,9 +935,9 @@ def set_company_territory(request, summary_id):
         territory = clean_required_territory(request.POST.get('territory'))
     except ValidationError as error:
         return JsonResponse({'success': False, 'error': ' '.join(error.messages)}, status=400)
-    updated = apply_territory(summary.pk, company_name, territory)
-    logger.info(f"Summary {summary_id}: territory of '{company_name}' set for {updated} offers by {request.user.username}")
-    return JsonResponse({'success': True, 'updated': updated})
+    insurer_response.set_company_fields(summary.pk, company_name, coverage_territory=territory)
+    logger.info(f"Summary {summary_id}: territory of '{company_name}' set by {request.user.username}")
+    return JsonResponse({'success': True})
 
 
 @require_http_methods(["POST"])
@@ -1043,14 +1020,11 @@ def deal_summary(request, summary_id):
         ).order_by('insurance_year')
     )
 
-    # Собираем общий комментарий по выбранным предложениям (без дублей, с сохранением порядка)
-    selected_offer_notes = []
-    for offer in selected_offers:
-        note = (offer.notes or '').strip()
-        if note and note not in selected_offer_notes:
-            selected_offer_notes.append(note)
-
-    selected_offer_notes_summary = ' | '.join(selected_offer_notes)
+    # Комментарий и территория выбранной СК — одни на все годы, из «Ответа СК»
+    selected_response = insurer_response.company_responses(summary).get(summary.selected_company) \
+        if selected_offers else None
+    selected_offer_notes_summary = ' | '.join(
+        line.strip() for line in (selected_response.notes if selected_response else '').splitlines() if line.strip())
 
     # Менеджер Онлайна — форматируем имя
     created_by = insurance_request.created_by
@@ -1069,9 +1043,8 @@ def deal_summary(request, summary_id):
     is_casco_type = insurance_request.insurance_type in ['КАСКО', 'страхование спецтехники']
     is_property_type = insurance_request.insurance_type == 'страхование имущества'
 
-    # Территория по выбранной СК: одинаковые по годам значения сворачиваются в одну строку
     selected_territory_lines = [
-        line for line in _territory_lines(selected_offers) if line['kind'] == 'text'
+        line for line in _territory_lines(selected_response) if line['kind'] == 'text'
     ]
     transportation_route = ' → '.join(
         part for part in (
@@ -1261,6 +1234,8 @@ OFFER_COMMON_FIELDS = (
     'installment_variant_2', 'payments_per_year_variant_2',
     'coverage_territory', 'notes',
 )
+# Территория и примечание — одни на СК в своде, хранятся в «Ответе СК» (не в годовой строке)
+OFFER_COMPANY_LEVEL_FIELDS = ('coverage_territory', 'notes')
 OFFER_MONEY_FIELDS = ('insurance_sum', 'franchise_1', 'premium_with_franchise_1', 'franchise_2', 'premium_with_franchise_2')
 MAX_OFFER_ROWS = 10
 
@@ -1378,6 +1353,16 @@ def _offer_page(request, *, mode, summary, form, rows, row_errors=(), offer=None
     })
 
 
+def _save_company_fields(summary_id, company_name, cleaned_data, *, replace_notes):
+    """Территорию и примечание из формы — в «Ответ СК». При добавлении и копировании пустое примечание
+    не стирает прежнее, новое дописывается; при правке форма показывает текущее — оно заменяется."""
+    notes = cleaned_data.get('notes', '')
+    if not replace_notes:
+        notes = insurer_response.merge_notes(insurer_response.company_fields(summary_id, company_name)['notes'], notes)
+    insurer_response.set_company_fields(summary_id, company_name,
+                                        coverage_territory=cleaned_data['coverage_territory'], notes=notes)
+
+
 def _offer_values(offer_or_initial):
     get = offer_or_initial.get if isinstance(offer_or_initial, dict) else lambda field: getattr(offer_or_initial, field)
     return {field: get(field) for field in OFFER_ROW_FIELDS}
@@ -1427,6 +1412,8 @@ def add_offer(request, summary_id):
                         offer.summary = summary
                         offer.save()
                         saved.append(offer)
+                    _save_company_fields(summary.pk, saved[0].company_name, forms_by_row[0].cleaned_data,
+                                         replace_notes=False)
                     summary.update_total_offers_count()
                     if response_values and any(v not in (None, '') for v in response_values.values()):
                         insurer_response.apply_values(summary, saved[0].company_name, response_values,
@@ -1656,6 +1643,7 @@ def copy_offer(request, offer_id):
                     new_offer = form.save(commit=False)
                     new_offer.summary = summary
                     new_offer.save()
+                    _save_company_fields(summary.pk, new_offer.company_name, form.cleaned_data, replace_notes=False)
                     summary.update_total_offers_count()
                     logger.info(f"Offer copied: {original_offer.id} -> {new_offer.id} by user {request.user.username}")
                     messages.success(request, f'Предложение от {new_offer.company_name} ({new_offer.get_insurance_year_display()}) успешно скопировано')
@@ -1686,7 +1674,9 @@ def copy_offer(request, offer_id):
         return _offer_page(request, mode='copy', summary=summary, form=form, rows=[row],
                            row_errors=row_errors, original_offer=original_offer)
 
-    initial = {field: getattr(original_offer, field) for field in OFFER_ROW_FIELDS + OFFER_COMMON_FIELDS}
+    initial = {field: getattr(original_offer, field) for field in OFFER_ROW_FIELDS + OFFER_COMMON_FIELDS
+               if field not in OFFER_COMPANY_LEVEL_FIELDS}
+    initial.update(insurer_response.company_fields(summary.pk, original_offer.company_name))
     # Копия сразу получает первый свободный год этой компании — иначе сохранить её нельзя
     taken = set(_company_years(summary).get(original_offer.company_name, []))
     initial['insurance_year'] = _first_free_year(taken) or original_offer.insurance_year
@@ -1707,6 +1697,8 @@ def edit_offer(request, offer_id):
             try:
                 with transaction.atomic():
                     updated_offer = form.save()
+                    _save_company_fields(updated_offer.summary_id, updated_offer.company_name, form.cleaned_data,
+                                         replace_notes=True)
                     messages.success(request, f'Предложение от {updated_offer.company_name} ({updated_offer.get_insurance_year_display()}) обновлено')
                     return redirect('summaries:summary_detail', pk=updated_offer.summary.pk)
             except Exception as e:
@@ -1721,7 +1713,7 @@ def edit_offer(request, offer_id):
         return _offer_page(request, mode='edit', summary=offer.summary, form=form, rows=[row],
                            row_errors=row_errors, offer=offer)
 
-    form = OfferForm(instance=offer)
+    form = OfferForm(instance=offer, initial=insurer_response.company_fields(offer.summary_id, offer.company_name))
     return _offer_page(request, mode='edit', summary=offer.summary, form=form,
                        rows=[_offer_values(offer)], offer=offer)
 
