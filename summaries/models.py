@@ -855,6 +855,14 @@ class InsurerResponse(models.Model):
         help_text='Если в заявке требуется перевозка',
     )
     transport_terms = models.TextField(blank=True, default='', verbose_name='Условия перевозки')
+    coverage_territory = models.TextField(
+        blank=True,
+        null=True,
+        default=None,
+        verbose_name='Территория страхования и территориальные ограничения',
+        help_text='Одна на страховщика в своде (на весь полис). Пусто (NULL) — ответ получен до сбора территории',
+    )
+    notes = models.TextField(blank=True, default='', verbose_name='Комментарии страховщика')
     source_file = models.FileField(
         upload_to='responses/%Y/%m/%d/',
         null=True,

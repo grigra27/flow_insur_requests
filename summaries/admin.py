@@ -208,11 +208,12 @@ class InsurerResponseAdmin(admin.ModelAdmin):
 
     list_display = ['company_name', 'summary', 'template_version', 'inspection_status', 'rnpk_status', 'ce_risks_status', 'transport_cost', 'received_at']
     list_filter = ['template_version', 'inspection_status', 'rnpk_status', 'ce_risks_status', 'company_name', 'received_at']
-    search_fields = ['company_name', 'summary__request__dfa_number', 'summary__request__client_name']
+    search_fields = ['company_name', 'coverage_territory', 'summary__request__dfa_number', 'summary__request__client_name']
     raw_id_fields = ['summary']
     readonly_fields = ['received_at', 'updated_at', 'created_by']
     fieldsets = (
         ('Ответ', {'fields': ('summary', 'company_name', 'template_version', 'source_file')}),
+        ('Территория и комментарии', {'fields': ('coverage_territory', 'notes')}),
         ('Осмотр, риски РНПК, доп. риски C/E', {'fields': ('inspection_status', 'rnpk_status', 'ce_risks_status', 'ce_risks_comment')}),
         ('Перевозка', {'fields': ('transport_cost', 'transport_terms')}),
         ('Служебное', {'fields': ('received_at', 'updated_at', 'created_by')}),
