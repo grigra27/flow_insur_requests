@@ -413,7 +413,7 @@ class SummaryExportV2Service(ExcelExportService):
         last_year = start + len(offers) - 1
         variants = [1, 2] if has_variant_2 else [1]
         detail = _font(self.fs['detail'], color=self.palette['detail'])
-        right = Alignment(horizontal='right', vertical='center')
+        # Числа детализации — по центру колонок, чтобы разные по длине значения не «плыли» (отзыв сотрудников 2026-10-14)
         center = Alignment(horizontal='center', vertical='center')
 
         territories = self._block_territories(offers)
@@ -440,10 +440,10 @@ class SummaryExportV2Service(ExcelExportService):
         for i, offer in enumerate(offers):
             r = start + i
             ws[f'{cols["year"]}{r}'] = f'{offer.insurance_year} год'
-            ws[f'{cols["year"]}{r}'].alignment = Alignment(horizontal='left', vertical='center')
+            ws[f'{cols["year"]}{r}'].alignment = center
             ws[f'{cols["sum"]}{r}'] = self._format_insurance_sum(offer)
             ws[f'{cols["sum"]}{r}'].number_format = MONEY
-            ws[f'{cols["sum"]}{r}'].alignment = right
+            ws[f'{cols["sum"]}{r}'].alignment = center
             for v in variants:
                 premium = premiums[v][i]
                 p_col, s_col = cols[f'premium_{v}'], cols['sum']
@@ -457,7 +457,7 @@ class SummaryExportV2Service(ExcelExportService):
                 ws[f'{cols[f"rate_{v}"]}{r}'].number_format = RATE
                 ws[f'{p_col}{r}'].number_format = MONEY
                 for key in ('franchise', 'rate', 'premium'):
-                    ws[f'{cols[f"{key}_{v}"]}{r}'].alignment = right
+                    ws[f'{cols[f"{key}_{v}"]}{r}'].alignment = center
                 ws[f'{cols[f"payments_{v}"]}{r}'].alignment = center
 
         last_idx = ws[f'{cols["last"]}1'].column
@@ -472,9 +472,10 @@ class SummaryExportV2Service(ExcelExportService):
             for r in range(start, last_year + 1):
                 ws[f'{cols[f"rate_{v}"]}{r}'].font = _font(self.fs['detail'], bold=True)
 
-        # Компания и ценники — на весь блок, вместе с добавочной строкой: общая заливка, значение по центру
+        # Компания и ценники — на весь блок, вместе с добавочной строкой: общая заливка; значение у верхнего края
+        # блока — название видно сразу при прокрутке с закреплёнными строками (отзыв сотрудников 2026-10-14)
         self._merge_block(ws, cols['company'], start, end, name,
-                          _font(self.fs['company'], bold=True), Alignment(vertical='center', wrap_text=True, indent=1))
+                          _font(self.fs['company'], bold=True), Alignment(vertical='top', wrap_text=True, indent=1))
         white = Side(style='thick', color='FFFFFF')
         for v in variants:
             letter = cols[f'total_{v}']
@@ -482,7 +483,7 @@ class SummaryExportV2Service(ExcelExportService):
             value = f'=SUM({p_col}{start}:{p_col}{last_year})' if any(p is not None for p in premiums[v]) else None
             self._merge_block(ws, letter, start, end, value,
                               _font(self.fs['total'], bold=True, color=self.palette['header' if v == 1 else 'header_2']),
-                              Alignment(horizontal='center', vertical='center'), MONEY)
+                              Alignment(horizontal='center', vertical='top'), MONEY)
             for r in range(start, end + 1):
                 ws[f'{letter}{r}'].fill = self._fill('tag' if v == 1 else 'tag_2')
                 ws[f'{letter}{r}'].border = Border(left=white, right=white, top=white, bottom=white)

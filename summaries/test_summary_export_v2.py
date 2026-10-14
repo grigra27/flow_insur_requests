@@ -169,8 +169,13 @@ class SummaryExportV2ContentTests(SummaryExportV2Base):
         self.assertIn('N11:N13', merged)  # территория — с добавочной строкой
         self.assertIn('A11:A13', merged)  # СК и ценник — на весь блок, вместе с добавочной строкой
         self.assertIn('B11:B13', merged)
-        self.assertEqual(ws['B11'].alignment.vertical, 'center')
-        self.assertEqual(ws['F10'].alignment.vertical, 'center')  # шапка таблицы — по центру
+        # СК и ценник — у верхнего края блока (видно при закреплённых строках), шапка — по центру
+        self.assertEqual(ws['A11'].alignment.vertical, 'top')
+        self.assertEqual(ws['B11'].alignment.vertical, 'top')
+        self.assertEqual(ws['F10'].alignment.vertical, 'center')
+        # числа детализации — по центру колонок (отзыв сотрудников 2026-10-14)
+        for letter in 'DEFGHI':
+            self.assertEqual(ws[f'{letter}11'].alignment.horizontal, 'center', letter)
 
     def test_selection_fields_are_manual_yellow_with_lists_and_highlight(self):
         ws = self._workbook()['Свод']
