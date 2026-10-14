@@ -116,7 +116,7 @@ class SummaryExportV2Service(ExcelExportService):
     LEGACY_TERRITORY_V2 = '—'
 
     WIDTHS = {'company': 20, 'total': 17, 'year': 7, 'sum': 13, 'franchise': 10, 'rate': 8, 'premium': 11,
-              'payments': 8, 'territory': 40, 'notes': 48, 'inspection': 14, 'rnpk': 14, 'transport': 12}
+              'payments': 8, 'territory': 40, 'notes': 48, 'inspection': 14, 'rnpk': 14, 'ce_risks': 14, 'transport': 12}
     DETAIL_KEYS = ('franchise', 'rate', 'premium', 'payments')  # порядок: условие → результат
     DETAIL_TITLES = {'franchise': 'Франшиза', 'rate': 'Тариф', 'premium': 'Премия', 'payments': 'Платежей в год'}
 
@@ -264,6 +264,7 @@ class SummaryExportV2Service(ExcelExportService):
                 else:
                     row[section.key] = value
             row['transport_terms'] = response.transport_terms if response and 'transport' in extras else ''
+            row['ce_risks_comment'] = response.ce_risks_comment if response and 'ce_risks' in extras else ''
             values[name] = row
         return values
 
@@ -425,6 +426,8 @@ class SummaryExportV2Service(ExcelExportService):
             self._get_franchise_approval_note_for_company(offers, name),
             f"Условия перевозки: {extra['transport_terms']}" if extra.get('transport_terms') else None,
         )
+        if extra.get('ce_risks_comment'):
+            additional = self._combine_additional_notes(additional, f"Доп. риски C/E: {extra['ce_risks_comment']}")
         notes = self._consolidate_notes(offers, additional) or ''
         extra_keys = [key for key in self.EXTRA_TITLES if key in cols]
 

@@ -4,7 +4,7 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from insurance_requests.models import InsuranceRequest
-from .response_sections import INSPECTION_CHOICES, RNPK_CHOICES
+from .response_sections import CE_RISKS_CHOICES, INSPECTION_CHOICES, RNPK_CHOICES
 from decimal import Decimal
 
 
@@ -798,7 +798,7 @@ class InsurerResponse(models.Model):
 
     docs/improvement_plans/insurer_response_v2.md, §5. Одна строка на пару «свод + компания»
     (компания — по названию, как в InsuranceOffer.company_name). Цифры по годам остаются в годовых
-    InsuranceOffer. Поля дополнительных блоков (осмотр, риски РНПК, перевозка) описаны в реестре
+    InsuranceOffer. Поля дополнительных блоков (осмотр, риски РНПК, доп. риски C/E, перевозка) описаны в реестре
     summaries/response_sections.py; значения блока, который по заявке не нужен, не сохраняются.
     """
 
@@ -837,6 +837,15 @@ class InsurerResponse(models.Model):
         verbose_name='Риски РНПК',
         help_text='Для спецтехники и имущества',
     )
+    ce_risks_status = models.CharField(
+        max_length=20,
+        choices=list(CE_RISKS_CHOICES),
+        blank=True,
+        default='',
+        verbose_name='Доп. риски C/E',
+        help_text='Для КАСКО кат. C/E: включены ли расширенные риски (вне дорог, провал грунта, переворот, опрокидывание)',
+    )
+    ce_risks_comment = models.TextField(blank=True, default='', verbose_name='Доп. риски C/E: какие включены')
     transport_cost = models.DecimalField(
         max_digits=15,
         decimal_places=2,

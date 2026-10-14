@@ -10,6 +10,7 @@ docs/improvement_plans/insurer_response_v2.md, §4. Блок описывает�
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import date
 from typing import Callable, List, Optional, Tuple
 
 CHOICE = 'choice'
@@ -123,6 +124,45 @@ RNPK = ResponseSection(
     short_title='Риски РНПК',
 )
 
+# Доп. риски КАСКО C/E (решение владельца 2026-10-14): письмо просит расширенные риски, но ≈ 95% ответов
+# о них молчат — по своду не видно, включены ли они в цену. Подписи без запятых: в списке Excel/Numbers
+# запятая режет пункт на два. Обязателен только для заявок, созданных с даты выката блока: в шаблонах,
+# скачанных раньше, блока нет — такие ответы не должны отклоняться.
+CE_RISKS_ALL, CE_RISKS_PARTIAL, CE_RISKS_NONE = 'all', 'partial', 'none'
+CE_RISKS_CHOICES = (
+    (CE_RISKS_ALL, 'Включены все'),
+    (CE_RISKS_PARTIAL, 'Включены частично'),
+    (CE_RISKS_NONE, 'Не включены'),
+)
+CE_RISKS_SINCE = date(2026, 10, 15)
+
+
+def _ce_risks_needed(request) -> bool:
+    if not getattr(request, 'has_casco_ce', False):
+        return False
+    created = getattr(request, 'created_at', None)
+    return created is None or created.date() >= CE_RISKS_SINCE
+
+
+CE_RISKS = ResponseSection(
+    key='ce_risks',
+    title='Доп. риски КАСКО категории C/E',
+    condition=_ce_risks_needed,
+    condition_text='Заполняется, если техника категории C/E (запрошены расширенные риски)',
+    fields=(
+        SectionField('ce_risks_status', 'Расширенные риски', CHOICE, choices=CE_RISKS_CHOICES,
+                     hint='Вне дорог общего пользования, провал грунта, переворот, опрокидывание.',
+                     aliases=(
+                         ('все', CE_RISKS_ALL), ('включены', CE_RISKS_ALL), ('да', CE_RISKS_ALL),
+                         ('частично', CE_RISKS_PARTIAL), ('включены не все', CE_RISKS_PARTIAL),
+                         ('нет', CE_RISKS_NONE), ('не включено', CE_RISKS_NONE),
+                     )),
+        SectionField('ce_risks_comment', 'Какие риски включены (если частично)', TEXT, required=False),
+    ),
+    summary_column='Доп. риски C/E',
+    short_title='Доп. риски C/E',
+)
+
 TRANSPORT = ResponseSection(
     key='transport',
     title='Перевозка (транспортировка) предмета лизинга',
@@ -138,7 +178,7 @@ TRANSPORT = ResponseSection(
 )
 
 # Порядок — порядок блоков в шаблоне, колонок в своде V2 и строк на карточке свода
-SECTIONS: Tuple[ResponseSection, ...] = (INSPECTION, RNPK, TRANSPORT)
+SECTIONS: Tuple[ResponseSection, ...] = (INSPECTION, RNPK, CE_RISKS, TRANSPORT)
 
 
 def required_sections(request) -> List[ResponseSection]:
