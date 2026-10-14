@@ -206,8 +206,10 @@ class SummaryExportV2ContentTests(SummaryExportV2Base):
         self.assertTrue(ws['G11'].font.b)  # тариф выделен жирным, в обоих предложениях
         self.assertTrue(ws['K12'].font.b)
         self.assertFalse(ws['H11'].font.b)
-        self.assertEqual(ws['H11'].font.sz, 8.5)  # детализация — мелко и серым
-        self.assertEqual(ws['H11'].font.color.rgb, '004B5563')
+        self.assertEqual(ws['H11'].font.sz, 9)  # детализация — 9 pt, почти чёрным
+        self.assertEqual(ws['H11'].font.color.rgb, '001F2937')
+        self.assertEqual((ws['H10'].font.sz, ws['H10'].font.color.rgb), (8.5, '004B5563'))  # подпись колонки
+        self.assertEqual(ws.sheet_view.zoomScale, 115)  # крупнее на экране, печать не меняется
         self.assertEqual(ws['P4'].fill.fgColor.rgb, '00FFF2B3')  # поля менеджера — жёлтые
 
     def test_white_label(self):

@@ -67,7 +67,7 @@ INPUT_FILL = PatternFill('solid', fgColor='FFF2B3')  # ручные поля м�
 PALETTES = {
     'indigo': {
         'title': '312E81', 'header': '312E81', 'header_2': '0F766E', 'tag': 'EEF0FF', 'tag_2': 'E3F3F0',
-        'detail': '4B5563', 'hair': 'E0E3F0', 'block': 'A5ACD6', 'section': 'EEF0FF',
+        'detail': '1F2937', 'column': '4B5563', 'hair': 'E0E3F0', 'block': 'A5ACD6', 'section': 'EEF0FF',
         'chosen': 'EEF2FF', 'chosen_company': 'E0E7FF', 'chosen_total': 'C7D2FE', 'chosen_variant': 'E0E7FF',
         # таблица: сетка, разделитель СК, рамка, шапка, зебра; терракота — блок условий и франшиза
         'grid': 'D5D9E8', 'separator': '312E81', 'frame': '312E81', 'header_fill': 'F1F2F9',
@@ -81,7 +81,9 @@ RATE = '0.00%'
 
 HEADER_ROW = 4  # поля шапки: строки 4–8 (заявка, объект, лизингополучатель, цели, примечание)
 FIRST_DATA_ROW = 11  # шапка таблицы — строки 9–10
-FONT_SIZES = {'detail': 8.5, 'text': 8.5, 'column': 8, 'company': 12, 'total': 16, 'title': 18, 'field': 11}
+# Детализация чуть крупнее (9 / 8,5 pt) и темнее — отзыв сотрудников 2026-10-14 о мелком шрифте
+FONT_SIZES = {'detail': 9, 'text': 8.5, 'column': 8.5, 'company': 12, 'total': 16, 'title': 18, 'field': 11}
+SCREEN_ZOOM = 115  # масштаб листа «Свод» при открытии, %: крупнее на экране, на печать не влияет
 ROW_HEIGHT = 17  # строка года — всегда одной высоты
 TAG_MIN_HEIGHT = 30  # ценник шрифтом 16 pt: блок СК не ниже этого, даже если в нём один год
 TEXT_LINE_HEIGHT = 11  # pt на строку текста шрифтом 8.5
@@ -229,6 +231,7 @@ class SummaryExportV2Service(ExcelExportService):
             row += 2
 
         ws.freeze_panes = f'{cols["year"]}{FIRST_DATA_ROW}'  # СК и ценники остаются на экране при прокрутке
+        ws.sheet_view.zoomScale = SCREEN_ZOOM
         self._setup_print(ws, cols)
 
     def _sorted_companies(self, summary: InsuranceSummary) -> List[tuple]:
@@ -392,10 +395,10 @@ class SummaryExportV2Service(ExcelExportService):
             ws[f'{first}{top}'].font = _font(self.fs['detail'], bold=True, color=MUTED)
             ws[f'{first}{top}'].alignment = Alignment(horizontal='center', vertical='center')
             for key in self.DETAIL_KEYS:
-                title(cols[f'{key}_{v}'], self.DETAIL_TITLES[key], MUTED, self.fs['column'], merged=False)
+                title(cols[f'{key}_{v}'], self.DETAIL_TITLES[key], self.palette['column'], self.fs['column'], merged=False)
 
-        title(cols['year'], 'Год', MUTED, self.fs['column'])
-        title(cols['sum'], 'Страховая сумма', MUTED, self.fs['column'])
+        title(cols['year'], 'Год', self.palette['column'], self.fs['column'])
+        title(cols['sum'], 'Страховая сумма', self.palette['column'], self.fs['column'])
         title(cols['territory'], 'Территория страхования', accent, 9)
         for key, text in self.EXTRA_TITLES.items():
             if key in cols:
