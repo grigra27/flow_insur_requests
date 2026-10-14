@@ -286,7 +286,13 @@
                     <h6 class="mb-0">Сгенерированное письмо</h6>
                     {% if request.email_subject %}<div class="rq-card-sub">Тема: <b>{{ request.email_subject }}</b></div>{% endif %}
                 </div>
-                <div class="d-flex gap-2">
+                <div class="d-flex gap-2 flex-wrap">
+                    {% if request.email_subject %}
+                    <button type="button" class="btn btn-outline-secondary btn-sm js-copy" data-copy-source="rq-email-subject" title="Скопировать тему письма в буфер обмена"><i class="bi bi-clipboard"></i> <span>Копировать тему</span></button>
+                    {% endif %}
+                    {% if request.email_body %}
+                    <button type="button" class="btn btn-outline-secondary btn-sm js-copy" data-copy-source="rq-email-body" title="Скопировать текст письма в буфер обмена"><i class="bi bi-clipboard"></i> <span>Копировать текст</span></button>
+                    {% endif %}
                     {% if request.status == 'email_generated' %}
                     <a href="{% url 'insurance_requests:preview_email' request.pk %}" class="btn btn-primary btn-sm"><i class="bi bi-envelope"></i> Изменить</a>
                     {% endif %}
@@ -295,6 +301,9 @@
                     {% endif %}
                 </div>
             </div>
+            {# Точные тексты для кнопок «Копировать» — без HTML-экранирования, с переносами строк #}
+            {% if request.email_subject %}{{ request.email_subject|json_script:"rq-email-subject" }}{% endif %}
+            {% if request.email_body %}{{ request.email_body|json_script:"rq-email-body" }}{% endif %}
             {% if request.email_body %}
             <div class="card-body">
                 <div class="rq-letter" id="rq-letter">
@@ -751,7 +760,57 @@ document.addEventListener('DOMContentLoaded', function () {
     document.addEventListener('DOMContentLoaded', function () {
         initStatusChange();
         initLetterToggle();
+        initCopyButtons();
     });
+
+    // Кнопки «Копировать тему / текст письма»: текст — из json_script, в буфер обмена одной кнопкой
+    function initCopyButtons() {
+        document.querySelectorAll('.js-copy').forEach(function (button) {
+            const label = button.querySelector('span');
+            const initial = label.textContent;
+            button.addEventListener('click', function () {
+                const source = document.getElementById(button.dataset.copySource);
+                if (!source) { return; }
+                const text = JSON.parse(source.textContent);
+                copyText(text).then(function () {
+                    label.textContent = 'Скопировано ✓';
+                    button.classList.add('btn-success');
+                    button.classList.remove('btn-outline-secondary');
+                }).catch(function () {
+                    label.textContent = 'Не удалось скопировать';
+                }).finally(function () {
+                    setTimeout(function () {
+                        label.textContent = initial;
+                        button.classList.remove('btn-success');
+                        button.classList.add('btn-outline-secondary');
+                    }, 2000);
+                });
+            });
+        });
+    }
+
+    function copyText(text) {
+        if (navigator.clipboard && window.isSecureContext) {
+            return navigator.clipboard.writeText(text);
+        }
+        // Запасной путь (старый браузер или не HTTPS): временное поле + команда копирования
+        return new Promise(function (resolve, reject) {
+            const area = document.createElement('textarea');
+            area.value = text;
+            area.setAttribute('readonly', '');
+            area.style.position = 'fixed';
+            area.style.opacity = '0';
+            document.body.appendChild(area);
+            area.select();
+            try {
+                document.execCommand('copy') ? resolve() : reject();
+            } catch (error) {
+                reject(error);
+            } finally {
+                area.remove();
+            }
+        });
+    }
 
     // Смена статуса без перезагрузки страницы
     function initStatusChange() {

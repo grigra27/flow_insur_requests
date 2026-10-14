@@ -60,6 +60,28 @@ class RequestDetailViewTest(TestCase):
             response, reverse('summaries:create_summary', kwargs={'request_id': self.request.pk})
         )
 
+    def test_email_copy_buttons_with_exact_texts(self):
+        """Кнопки «Копировать тему / текст» и точные тексты письма для буфера обмена"""
+        self.request.email_subject = 'заявка ТС-1 - Казань - "Газель" <Next>'
+        self.request.email_body = 'Добрый день!\n\nПросим рассчитать & прислать.'
+        self.request.status = 'email_generated'
+        self.request.save()
+        response = self.client.get(reverse('insurance_requests:request_detail', kwargs={'pk': self.request.pk}))
+        self.assertContains(response, 'data-copy-source="rq-email-subject"')
+        self.assertContains(response, 'data-copy-source="rq-email-body"')
+        self.assertEqual(response.context['request'].email_body, self.request.email_body)
+        content = response.content.decode()
+        # json_script: в буфер уходит ровно сохранённый текст (переносы строк, кавычки, < > &)
+        import json, re
+        for element_id, expected in (('rq-email-body', self.request.email_body),
+                                     ('rq-email-subject', self.request.email_subject)):
+            raw = re.search(rf'<script id="{element_id}" type="application/json">(.*?)</script>', content, re.S).group(1)
+            self.assertEqual(json.loads(raw), expected)
+
+    def test_no_copy_buttons_without_email(self):
+        response = self.client.get(reverse('insurance_requests:request_detail', kwargs={'pk': self.request.pk}))
+        self.assertNotContains(response, 'data-copy-source=')
+
     def test_create_summary_locked_for_email_generated_status(self):
         """Письмо сгенерировано, но не отправлено — свод ещё нельзя создать"""
         self.request.status = 'email_generated'
