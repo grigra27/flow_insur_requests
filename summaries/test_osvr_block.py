@@ -188,3 +188,11 @@ class OsvrHistoryCommandTests(TestCase):
         ws = load_workbook(BytesIO(SummaryExportV2Service().generate(self.summary, True).getvalue()))['Свод']
         self.assertIn('ОСВР', [ws.cell(row=9, column=c).value for c in range(1, ws.max_column + 1)])
         self.assertIn("к заполнению: 0", self._run())
+
+    def test_terms_from_notes_not_repeated_in_comments(self):
+        InsurerResponse.objects.filter(summary=self.summary, company_name='Альфа').update(
+            notes='вариант 2 с ОСВР. Ограничения по ОСВР: - ДНР; - ЛНР.', osvr_status='')
+        self._run('--apply')
+        ws = load_workbook(BytesIO(SummaryExportV2Service().generate(self.summary, True).getvalue()))['Свод']
+        texts = ' '.join(str(c.value) for row in ws.iter_rows(min_row=11) for c in row if c.value)
+        self.assertEqual(texts.count('ДНР'), 1)

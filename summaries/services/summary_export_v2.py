@@ -274,7 +274,9 @@ class SummaryExportV2Service(ExcelExportService):
             if 'osvr' in extras and response:
                 if response.osvr_status:
                     row['osvr'] = OSVR_SHORT.get(response.osvr_status, row['osvr'])
-                row['osvr_terms'] = response.osvr_terms
+                # перенесённые из примечания ограничения (osvr_from_notes) в нём уже есть — второй раз не пишем
+                terms = ' '.join(response.osvr_terms.split())
+                row['osvr_terms'] = '' if terms and terms in ' '.join(response.notes.split()) else response.osvr_terms
             if 'smr' in extras and response:
                 # СМР отдельно — сумма в колонке рядом с ответом; условия — в комментарии
                 if response.smr_cost is not None and response.smr_status != 'declined':
