@@ -121,8 +121,10 @@ class ResponseTemplateV2RolloutTests(TestCase):
         self.assertIn('class="og-v2-lines"', page)
         self.assertNotIn('<span class="og-v2-tag">V2</span>', page)
         self.assertIn('Общий шаблон ответа (резерв)', page)
-        # тестовый свод V2 открыт сотрудникам с 2026-10-13 (параллельная проверка)
-        self.assertIn('ТЕСТ · Свод V2', page)
+        # свод V2 — в блоке «Excel-свод», как и V1, в статусе «Готов к отправке»
+        InsuranceSummary.objects.filter(pk=self.new_summary.pk).update(status='ready')
+        page = self.client.get(reverse('summaries:summary_detail', args=[self.new_summary.pk])).content.decode()
+        self.assertIn('Клиентский свод', page)
         url = reverse('summaries:generate_summary_file_v2', args=[self.new_summary.pk, 'client'])
         self.assertEqual(self.client.get(url).status_code, 200)
 

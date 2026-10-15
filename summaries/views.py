@@ -1516,9 +1516,8 @@ def generate_summary_file(request, summary_id):
 
 @user_required
 def generate_summary_file_v2(request, summary_id, version):
-    """Свод V2 (тест): клиентский (только лист «Свод») или полный (+ «Параметры запроса»).
-    Открыт всем сотрудникам для параллельной проверки (2026-10-13), в любом статусе свода;
-    рабочим остаётся свод V1."""
+    """Свод V2 — основной с 2026-10-19: клиентский (только лист «Свод») или полный (+ «Параметры запроса»).
+    Как и V1 (резерв на период перехода): всем — в статусе «Готов к отправке», суперпользователю — в любом."""
     from .services.summary_export_v2 import SummaryExportV2Service, build_filename
     from .services import ExcelExportServiceError
 
@@ -1526,6 +1525,10 @@ def generate_summary_file_v2(request, summary_id, version):
         raise Http404('Неизвестная версия свода')
 
     summary = get_object_or_404(InsuranceSummary.objects.select_related('request'), pk=summary_id)
+    if summary.status != 'ready' and not request.user.is_superuser:
+        logger.warning(f"Attempt to generate summary V2 for summary {summary_id} with status '{summary.status}'")
+        messages.error(request, 'Свод можно скачать только в статусе «Готов к отправке».')
+        return redirect('summaries:summary_detail', pk=summary_id)
     is_client_version = version == 'client'
     try:
         excel_file = SummaryExportV2Service().generate(summary, is_client_version=is_client_version)

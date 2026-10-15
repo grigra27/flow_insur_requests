@@ -352,7 +352,7 @@ class SummaryExportV2TableLookTests(SummaryExportV2Base):
 
 
 class SummaryExportV2AccessTests(SummaryExportV2Base):
-    """С 2026-10-13 тестовый свод V2 открыт всем сотрудникам (обе группы), в любом статусе свода."""
+    """Свод V2 — основной с 2026-10-19: обеим группам в «Готов к отправке», суперпользователю — в любом статусе."""
 
     def setUp(self):
         self.superuser = User.objects.create_superuser('root', password='p')
@@ -367,8 +367,12 @@ class SummaryExportV2AccessTests(SummaryExportV2Base):
     def _url(self, version):
         return reverse('summaries:generate_summary_file_v2', args=[self.summary.pk, version])
 
-    def test_staff_and_admins_download_both_versions_in_any_status(self):
+    def test_download_only_in_ready_status_except_superuser(self):
         self.assertEqual(self.summary.status, 'collecting')  # не «Готов к отправке»
+        for user in (self.staff, self.admin):
+            self.client.force_login(user)
+            self.assertEqual(self.client.get(self._url('client')).status_code, 302, user.username)
+        InsuranceSummary.objects.filter(pk=self.summary.pk).update(status='ready')
         for user in (self.staff, self.admin, self.superuser):
             self.client.force_login(user)
             for version, sheets in (('client', ['Свод']), ('full', ['Свод', 'Параметры запроса'])):
@@ -385,14 +389,18 @@ class SummaryExportV2AccessTests(SummaryExportV2Base):
         self.client.force_login(self.staff)
         self.assertEqual(self.client.get(self._url('pdf')).status_code, 404)
 
-    def test_test_card_visible_to_staff_with_warning(self):
+    def test_excel_card_in_ready_status(self):
         detail = reverse('summaries:summary_detail', args=[self.summary.pk])
+        self.client.force_login(self.staff)
+        self.assertNotContains(self.client.get(detail), self._url('client'))  # «Сбор предложений»
+        InsuranceSummary.objects.filter(pk=self.summary.pk).update(status='ready')
         for user in (self.staff, self.admin, self.superuser):
             self.client.force_login(user)
             response = self.client.get(detail)
-            self.assertContains(response, 'ТЕСТ · Свод V2')
-            self.assertContains(response, 'Не отправлять')  # тестовый блок, не рабочие кнопки
+            self.assertContains(response, 'Excel-свод')
             self.assertContains(response, self._url('client'))
+            self.assertContains(response, 'резерв на период перехода')
+            self.assertNotContains(response, 'Не отправлять')
 
 
 class SummaryExportV2ResponseColumnsTests(SummaryExportV2Base):

@@ -23,20 +23,6 @@
                 <i class="bi bi-plus-circle"></i> Добавить предложение вручную
             </a>
         {% endif %}
-        {% if summary.status == 'ready' or user.is_superuser %}
-            <!-- Excel-свод: в том же стиле, что «Скачать заявку (PDF)» в карточке заявки.
-                 Всем — в статусе «Готов к отправке», суперпользователю — в любом статусе. -->
-            <button type="button" class="sd-xls-btn sd-xls-btn--outline" onclick="generateClientSummaryFile({{ summary.id }})"
-                    title="Клиентская версия содержит только данные предложений без технического листа">
-                <i class="bi bi-person-lines-fill"></i>
-                <span><b>Скачать клиентский Excel</b><small>для клиента · без технического листа</small></span>
-            </button>
-            <button type="button" class="sd-xls-btn" onclick="generateSummaryFile({{ summary.id }})"
-                    title="Полный свод с техническим листом{% if summary.status != 'ready' %} · суперпользователь: доступно в любом статусе{% endif %}">
-                <i class="bi bi-file-earmark-excel-fill"></i>
-                <span><b>Скачать полный Excel</b><small>для работы · с техническим листом</small></span>
-            </button>
-        {% endif %}
     </div>
 </div>
 
@@ -342,35 +328,46 @@
 
     <div class="col-lg-4">
         <div class="sd-aside">
-            <!-- Свод V2 — ТЕСТОВАЯ версия нового формата Excel-свода. С 2026-10-13 открыта всем сотрудникам
-                 для параллельной проверки, в любом статусе свода; рабочий свод — по-прежнему V1.
-                 Оформлена как «опасная зона», чтобы её не перепутали с рабочими кнопками
-                 «Скачать клиентский/полный Excel» и не отправили клиенту. -->
-            <div class="card mb-4 sd-v2-test" role="note" aria-label="Тестовая версия свода, не для отправки">
-                <div class="sd-v2-test__stripe" aria-hidden="true"></div>
-                <div class="sd-v2-test__head">
-                    <i class="bi bi-exclamation-triangle-fill"></i>
-                    <div>
-                        <b>ТЕСТ · Свод V2</b>
-                        <small>тестовый вид свода, в разработке</small>
+            <!-- Excel-свод (с 2026-10-19 основной — V2; V1 — резерв на период перехода, затем удаляется,
+                 docs/improvement_plans/backlog.md п. 4). Всем — в статусе «Готов к отправке»,
+                 суперпользователю — в любом статусе (то же правило проверяют представления). -->
+            {% if summary.status == 'ready' or user.is_superuser %}
+            <div class="card mb-4 sd-xls-card">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="bi bi-file-earmark-excel"></i> Excel-свод</h6>
+                </div>
+                <div class="card-body">
+                    {% if summary.status != 'ready' %}
+                    <div class="sd-xls-card__su">Суперпользователь: доступно в любом статусе</div>
+                    {% endif %}
+                    <div class="sd-xls-card__group">
+                        <a class="sd-xls-btn sd-xls-btn--block" href="{% url 'summaries:generate_summary_file_v2' summary.pk 'client' %}"
+                           title="Лист «Свод» — для отправки клиенту">
+                            <i class="bi bi-person-lines-fill"></i>
+                            <span><b>Клиентский свод</b><small>для клиента · лист «Свод»</small></span>
+                        </a>
+                        <a class="sd-xls-btn sd-xls-btn--outline sd-xls-btn--block" href="{% url 'summaries:generate_summary_file_v2' summary.pk 'full' %}"
+                           title="Свод и лист «Параметры запроса» — для работы">
+                            <i class="bi bi-file-earmark-excel-fill"></i>
+                            <span><b>Полный свод</b><small>для работы · + «Параметры запроса»</small></span>
+                        </a>
+                    </div>
+                    <div class="sd-xls-card__reserve">
+                        <div class="sd-xls-card__label">Прежний формат (V1) · резерв на период перехода</div>
+                        <div class="sd-xls-card__row">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="generateClientSummaryFile({{ summary.id }})"
+                                    title="Прежний клиентский свод — без технического листа">
+                                <i class="bi bi-person-lines-fill"></i> Клиентский V1
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="generateSummaryFile({{ summary.id }})"
+                                    title="Прежний полный свод — с техническим листом">
+                                <i class="bi bi-file-earmark-excel"></i> Полный V1
+                            </button>
+                        </div>
                     </div>
                 </div>
-                <div class="sd-v2-test__body">
-                    <div class="sd-v2-test__warn">
-                        Только для проверки. <b>Не отправлять</b> клиенту и коллегам из лизинга.
-                        Рабочий свод — кнопки «Скачать клиентский / полный Excel» вверху страницы.
-                    </div>
-                    <a class="sd-v2-test__btn" href="{% url 'summaries:generate_summary_file_v2' summary.pk 'client' %}">
-                        <i class="bi bi-cone-striped"></i>
-                        <span><b>Тест: клиентский свод V2</b><small>лист «Свод»</small></span>
-                    </a>
-                    <a class="sd-v2-test__btn" href="{% url 'summaries:generate_summary_file_v2' summary.pk 'full' %}">
-                        <i class="bi bi-cone-striped"></i>
-                        <span><b>Тест: полный свод V2</b><small>+ лист «Параметры запроса»</small></span>
-                    </a>
-                </div>
-                <div class="sd-v2-test__stripe" aria-hidden="true"></div>
             </div>
+            {% endif %}
             <!-- Сводная информация -->
             <div class="card mb-4">
                 <div class="card-header d-flex justify-content-between align-items-center">
@@ -1394,21 +1391,14 @@
 .sd-xls-btn { display: inline-flex; align-items: center; gap: 0.55rem; padding: 0.42rem 0.9rem 0.42rem 0.7rem; border: 1px solid #ba122b; border-radius: 12px; background: #ba122b; color: #fff; text-align: left; box-shadow: 0 6px 16px -6px rgba(186, 18, 43, 0.55); transition: background-color 0.15s ease, transform 0.15s ease; }
 .sd-xls-btn:hover, .sd-xls-btn:focus-visible { background: #9e0f24; border-color: #9e0f24; color: #fff; transform: translateY(-1px); }
 .sd-xls-btn > .bi { font-size: 1.3rem; line-height: 1; }
-.sd-v2-test { border: 2px solid #111; border-radius: 10px; overflow: hidden; background: #fff8d6; }
-.sd-v2-test__stripe { height: 12px; background: repeating-linear-gradient(-45deg, #ffc400 0 12px, #111 12px 24px); }
-.sd-v2-test__head { display: flex; align-items: center; gap: 0.6rem; padding: 0.6rem 0.9rem; background: #ffc400; color: #111; border-bottom: 2px solid #111; }
-.sd-v2-test__head > .bi { font-size: 1.5rem; line-height: 1; }
-.sd-v2-test__head b { display: block; font-size: 1rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; }
-.sd-v2-test__head small { display: block; font-size: 0.78rem; font-weight: 600; }
-.sd-v2-test__body { display: grid; gap: 0.5rem; padding: 0.75rem 0.9rem; }
-.sd-v2-test__warn { font-size: 0.82rem; line-height: 1.35; color: #3d2f00; }
-.sd-v2-test__warn b { color: #b42318; text-transform: uppercase; }
-.sd-v2-test__btn { display: flex; align-items: center; gap: 0.55rem; padding: 0.42rem 0.8rem; border: 2px dashed #111; border-radius: 10px; background: #fff; color: #111; text-decoration: none; }
-.sd-v2-test__btn:hover, .sd-v2-test__btn:focus-visible { background: #111; color: #ffc400; border-style: solid; }
-.sd-v2-test__btn > .bi { font-size: 1.2rem; line-height: 1; }
-.sd-v2-test__btn span { display: flex; flex-direction: column; line-height: 1.15; }
-.sd-v2-test__btn b { font-size: 0.86rem; font-weight: 700; }
-.sd-v2-test__btn small { font-size: 0.72rem; opacity: 0.75; }
+.sd-xls-card .card-body { display: grid; gap: 0.85rem; }
+.sd-xls-card__group { display: grid; gap: 0.5rem; }
+.sd-xls-btn--block { display: flex; width: 100%; text-decoration: none; }
+.sd-xls-card__su { font-size: 0.75rem; color: var(--sd-muted-2); }
+.sd-xls-card__reserve { padding-top: 0.75rem; border-top: 1px solid var(--sd-line); }
+.sd-xls-card__label { margin-bottom: 0.45rem; font-size: 0.74rem; color: var(--sd-muted-2); }
+.sd-xls-card__row { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.sd-xls-card__row .btn { font-size: 0.8rem; }
 .og-v2-lines { margin-top: 0.3rem; display: grid; gap: 0.15rem; }
 .og-v2-line { display: flex; align-items: baseline; gap: 0.4rem; font-size: 0.8rem; }
 .og-v2-line--missing { color: #b42318; }

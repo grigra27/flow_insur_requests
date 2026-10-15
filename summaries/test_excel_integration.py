@@ -532,23 +532,30 @@ class SummaryStatusVerificationTests(ExcelExportIntegrationTestCase):
         response = self.client.get(reverse('summaries:generate_client_summary_file', args=[self.ready_summary.pk]))
         self.assertEqual(response.status_code, 400)
 
-    def test_excel_buttons_in_summary_header(self):
-        """Кнопки Excel в шапке карточки: всем — в «Готов к отправке», суперпользователю — всегда"""
+    def test_excel_card_with_v2_and_reserve_v1(self):
+        """Блок «Excel-свод» справа (с 2026-10-19): V2 — основной, V1 — резерв; всем — в «Готов к отправке»,
+        суперпользователю — всегда. В шапке карточки кнопок выгрузки больше нет."""
         url = reverse('summaries:summary_detail', args=[self.ready_summary.pk])
+        buttons = ('Клиентский свод', 'Полный свод', 'Клиентский V1', 'Полный V1')
         self.client.login(username='admin_test', password='test_password')
         response = self.client.get(url)
-        self.assertContains(response, 'Скачать полный Excel')
-        self.assertContains(response, 'Скачать клиентский Excel')
+        for text in buttons:
+            self.assertContains(response, text)
+        self.assertNotContains(response, 'Скачать клиентский Excel')
+        self.assertNotContains(response, 'ТЕСТ · Свод V2')
 
         self.ready_summary.status = 'collecting'
         self.ready_summary.save()
         response = self.client.get(url)
-        self.assertNotContains(response, 'Скачать полный Excel')
-        self.assertNotContains(response, 'Скачать клиентский Excel')
+        self.assertNotContains(response, 'Клиентский V1')
+        v2 = reverse('summaries:generate_summary_file_v2', args=[self.ready_summary.pk, 'client'])
+        self.assertRedirects(self.client.get(v2), url)  # V2 тоже только в «Готов к отправке»
 
-        response = self._superuser_client().get(url)
-        self.assertContains(response, 'Скачать полный Excel')
-        self.assertContains(response, 'Скачать клиентский Excel')
+        superuser = self._superuser_client()
+        response = superuser.get(url)
+        for text in buttons:
+            self.assertContains(response, text)
+        self.assertEqual(superuser.get(v2).status_code, 200)
 
     def test_excel_generation_only_for_ready_status(self):
         """Тест генерации Excel только для сводов со статусом 'ready'"""
