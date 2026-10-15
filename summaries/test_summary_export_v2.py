@@ -329,7 +329,14 @@ class SummaryExportV2TableLookTests(SummaryExportV2Base):
     def test_accent_colors_offer_2_teal_conditions_terracotta(self):
         ws = self._workbook()['Свод']
         self.assertEqual(ws['J9'].font.color.rgb, '000F766E')  # «Детализация · Предложение 2»
-        self.assertEqual(ws['F10'].font.color.rgb, '00B4532A')  # «Франшиза» — условие
+        self.assertEqual(ws['F10'].font.color.rgb, '00B4532A')  # подпись «Франшиза» — условие
+        # значения франшизы: ненулевая — красным полужирным, ноль — обычным (пожелание сотрудников 2026-10-15)
+        franchise_cells = [ws[f'{letter}{row}'] for letter in 'FJ' for row in range(11, 17)
+                           if isinstance(ws[f'{letter}{row}'].value, (int, float, Decimal))]
+        self.assertTrue(any(c.value for c in franchise_cells) and any(not c.value for c in franchise_cells))
+        for cell in franchise_cells:
+            red = cell.font.color is not None and cell.font.color.rgb == '00C00000'
+            self.assertEqual((red, bool(cell.font.b)), (bool(cell.value), bool(cell.value)), cell.coordinate)
         self.assertEqual(ws['N9'].fill.fgColor.rgb, '00FBEEE8')  # шапка блока условий
         self.assertEqual(ws['A13'].fill.fgColor.rgb, '00F8F9FD')  # зебра: вторая СК
         self.assertEqual(ws['A17'].fill.fgColor.rgb, '00F6F6F8')  # отказ

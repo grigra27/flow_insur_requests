@@ -69,9 +69,10 @@ PALETTES = {
         'title': '312E81', 'header': '312E81', 'header_2': '0F766E', 'tag': 'EEF0FF', 'tag_2': 'E3F3F0',
         'detail': '1F2937', 'column': '4B5563', 'hair': 'E0E3F0', 'block': 'A5ACD6', 'section': 'EEF0FF',
         'chosen': 'EEF2FF', 'chosen_company': 'E0E7FF', 'chosen_total': 'C7D2FE', 'chosen_variant': 'E0E7FF',
-        # таблица: сетка, разделитель СК, рамка, шапка, зебра; терракота — блок условий и франшиза
+        # таблица: сетка, разделитель СК, рамка, шапка, зебра; терракота — блок условий и подпись «Франшиза»; красный — ненулевая франшиза
         'grid': 'D5D9E8', 'separator': '312E81', 'frame': '312E81', 'header_fill': 'F1F2F9',
         'zebra': 'F8F9FD', 'declined_fill': 'F6F6F8', 'cond': 'B4532A', 'cond_fill': 'FBEEE8',
+        'franchise': 'C00000',
     },
 }
 DEFAULT_PALETTE = 'indigo'
@@ -473,10 +474,14 @@ class SummaryExportV2Service(ExcelExportService):
                 c = ws.cell(row=r, column=c_idx)
                 c.font = detail
                 c.border = Border(bottom=self.hair if r == end else None)
-        # Тариф — главная цифра детализации: жирным и темнее остальных
+        # Тариф — главная цифра детализации: жирным и темнее остальных; ненулевая франшиза — красным полужирным,
+        # чтобы клиент видел, что цена посчитана с франшизой (пожелание сотрудников 2026-10-15; ноль — как обычно)
         for v in variants:
             for r in range(start, last_year + 1):
                 ws[f'{cols[f"rate_{v}"]}{r}'].font = _font(self.fs['detail'], bold=True)
+                franchise_cell = ws[f'{cols[f"franchise_{v}"]}{r}']
+                if franchise_cell.value:
+                    franchise_cell.font = _font(self.fs['detail'], bold=True, color=self.palette['franchise'])
 
         # Компания и ценники — на весь блок, вместе с добавочной строкой: общая заливка; значение у верхнего края
         # блока — название видно сразу при прокрутке с закреплёнными строками (отзыв сотрудников 2026-10-14)
