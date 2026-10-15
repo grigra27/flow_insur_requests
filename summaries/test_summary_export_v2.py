@@ -140,8 +140,8 @@ class SummaryExportV2ContentTests(SummaryExportV2Base):
         self.assertEqual(ws['C10'].value, 'Предложение 2 · франшиза 100 000')
         self.assertEqual(ws['F9'].value, 'Детализация · Предложение 1')
         self.assertEqual(ws['J9'].value, 'Детализация · Предложение 2')
-        self.assertEqual([ws[f'{c}10'].value for c in 'FGHI'], ['Франшиза', 'Тариф', 'Премия', 'Платежей в год'])
-        self.assertEqual([ws[f'{c}10'].value for c in 'JKLM'], ['Франшиза', 'Тариф', 'Премия', 'Платежей в год'])
+        self.assertEqual([ws[f'{c}10'].value for c in 'FGHI'], ['Франшиза', 'Тариф', 'Премия', 'Платежей\nв год'])
+        self.assertEqual([ws[f'{c}10'].value for c in 'JKLM'], ['Франшиза', 'Тариф', 'Премия', 'Платежей\nв год'])
         self.assertEqual((ws['D9'].value, ws['E9'].value), ('Год', 'Страховая сумма'))
         self.assertEqual(ws['N9'].value, 'Территория страхования')
         self.assertEqual(ws['O9'].value, 'Осмотр')  # КАСКО: без РНПК и перевозки
@@ -277,7 +277,7 @@ class SummaryExportV2ContentTests(SummaryExportV2Base):
         summary = InsuranceSummary.objects.create(request=request, status='collecting')
         self._offer('Альфа', 1, 1_000_000, 50_000, None, summary=summary)
         ws = self._workbook(summary)['Свод']
-        self.assertEqual([ws[f'{c}10'].value for c in 'EFGH'], ['Франшиза', 'Тариф', 'Премия', 'Платежей в год'])
+        self.assertEqual([ws[f'{c}10'].value for c in 'EFGH'], ['Франшиза', 'Тариф', 'Премия', 'Платежей\nв год'])
         self.assertEqual(ws['I9'].value, 'Территория страхования')
         self.assertEqual(ws['J9'].value, 'Осмотр')
         self.assertEqual(ws['K9'].value, 'Комментарии')

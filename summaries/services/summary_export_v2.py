@@ -117,9 +117,9 @@ class SummaryExportV2Service(ExcelExportService):
     LEGACY_TERRITORY_V2 = '—'
 
     WIDTHS = {'company': 20, 'total': 17, 'year': 7, 'sum': 13, 'franchise': 10, 'rate': 8, 'premium': 11,
-              'payments': 8, 'territory': 40, 'notes': 48, 'inspection': 14, 'rnpk': 14, 'ce_risks': 14, 'transport': 12}
+              'payments': 9, 'territory': 40, 'notes': 48, 'inspection': 14, 'rnpk': 14, 'ce_risks': 14, 'transport': 12}
     DETAIL_KEYS = ('franchise', 'rate', 'premium', 'payments')  # порядок: условие → результат
-    DETAIL_TITLES = {'franchise': 'Франшиза', 'rate': 'Тариф', 'premium': 'Премия', 'payments': 'Платежей в год'}
+    DETAIL_TITLES = {'franchise': 'Франшиза', 'rate': 'Тариф', 'premium': 'Премия', 'payments': 'Платежей\nв год'}  # перенос задан явно: «Платежей» не рвётся
 
     # Колонки второй страницы между территорией и комментариями (этап 5 плана ответа V2) — блоки реестра,
     # нужные по заявке: «Осмотр» (всегда), «Риски РНПК», «Перевозка». Значения — только из ответа
