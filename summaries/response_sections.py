@@ -177,8 +177,48 @@ TRANSPORT = ResponseSection(
     short_title='Перевозка',
 )
 
+# СМР — страхование монтажных (строительно-монтажных) работ на площадке ЛП (решение владельца 2026-10-15).
+# Письмо просит его строкой «требуется страхование монтажных работ», ответ приходил только в примечании.
+# Подписи без запятых: запятая в списке Excel режет пункт на два.
+SMR_SEPARATE, SMR_INCLUDED, SMR_DECLINED = 'separate', 'included', 'declined'
+SMR_CHOICES = (
+    (SMR_SEPARATE, 'Страхуем — премия отдельно'),
+    (SMR_INCLUDED, 'Включено в премию по годам'),
+    (SMR_DECLINED, 'Не страхуем'),
+)
+# Обязателен для заявок со дня выката: ответы на шаблонах, скачанных раньше, не отклоняются
+SMR_SINCE = date(2026, 10, 16)
+
+
+def _smr_needed(request) -> bool:
+    if not getattr(request, 'has_construction_work', False):
+        return False
+    created = getattr(request, 'created_at', None)
+    return created is None or created.date() >= SMR_SINCE
+
+
+SMR = ResponseSection(
+    key='smr',
+    title='Страхование монтажных работ (СМР)',
+    condition=_smr_needed,
+    condition_text='Заполняется, если в запросе требуется страхование монтажных (строительно-монтажных) работ',
+    fields=(
+        SectionField('smr_status', 'Монтажные работы', CHOICE, choices=SMR_CHOICES,
+                     hint='Страхование монтажа предмета лизинга на площадке лизингополучателя.', aliases=(
+                         ('отдельно', SMR_SEPARATE), ('страхуем', SMR_SEPARATE), ('да', SMR_SEPARATE),
+                         ('включено', SMR_INCLUDED), ('включено в премию', SMR_INCLUDED),
+                         ('нет', SMR_DECLINED), ('не страхуем', SMR_DECLINED), ('отказ', SMR_DECLINED),
+                     )),
+        SectionField('smr_cost', 'Премия за СМР, ₽ (если отдельно)', MONEY, required=False,
+                     hint='Отдельная премия за страхование монтажа. Не включайте её в премию по годам.'),
+        SectionField('smr_terms', 'Условия СМР (необязательно)', TEXT, required=False),
+    ),
+    summary_column='СМР',
+    short_title='СМР',
+)
+
 # Порядок — порядок блоков в шаблоне, колонок в своде V2 и строк на карточке свода
-SECTIONS: Tuple[ResponseSection, ...] = (INSPECTION, RNPK, CE_RISKS, TRANSPORT)
+SECTIONS: Tuple[ResponseSection, ...] = (INSPECTION, RNPK, CE_RISKS, TRANSPORT, SMR)
 
 
 def required_sections(request) -> List[ResponseSection]:

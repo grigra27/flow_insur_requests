@@ -117,7 +117,7 @@ class SummaryExportV2Service(ExcelExportService):
     LEGACY_TERRITORY_V2 = '—'
 
     WIDTHS = {'company': 20, 'total': 17, 'year': 7, 'sum': 13, 'franchise': 10, 'rate': 8, 'premium': 11,
-              'payments': 9, 'territory': 40, 'notes': 48, 'inspection': 14, 'rnpk': 14, 'ce_risks': 14, 'transport': 12}
+              'payments': 9, 'territory': 40, 'notes': 48, 'inspection': 14, 'rnpk': 14, 'ce_risks': 14, 'transport': 12, 'smr': 16}
     DETAIL_KEYS = ('franchise', 'rate', 'premium', 'payments')  # порядок: условие → результат
     DETAIL_TITLES = {'franchise': 'Франшиза', 'rate': 'Тариф', 'premium': 'Премия', 'payments': 'Платежей\nв год'}  # перенос задан явно: «Платежей» не рвётся
 
@@ -266,6 +266,12 @@ class SummaryExportV2Service(ExcelExportService):
                     row[section.key] = value
             row['transport_terms'] = response.transport_terms if response and 'transport' in extras else ''
             row['ce_risks_comment'] = response.ce_risks_comment if response and 'ce_risks' in extras else ''
+            if 'smr' in extras and response:
+                # СМР отдельно — сумма в колонке рядом с ответом; условия — в комментарии
+                if response.smr_cost is not None and response.smr_status != 'declined':
+                    amount = f'{response.smr_cost:,.0f}'.replace(',', ' ')
+                    row['smr'] = f'{row["smr"]}: {amount} ₽' if response.smr_status else f'{amount} ₽'
+                row['smr_terms'] = response.smr_terms
             values[name] = row
         return values
 
@@ -439,6 +445,8 @@ class SummaryExportV2Service(ExcelExportService):
         )
         if extra.get('ce_risks_comment'):
             additional = self._combine_additional_notes(additional, f"Доп. риски C/E: {extra['ce_risks_comment']}")
+        if extra.get('smr_terms'):
+            additional = self._combine_additional_notes(additional, f"Условия СМР: {extra['smr_terms']}")
         notes = self._consolidate_notes(offers, additional) or ''
         extra_keys = [key for key in self.EXTRA_TITLES if key in cols]
 

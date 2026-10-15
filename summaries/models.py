@@ -4,7 +4,7 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from insurance_requests.models import InsuranceRequest
-from .response_sections import CE_RISKS_CHOICES, INSPECTION_CHOICES, RNPK_CHOICES
+from .response_sections import CE_RISKS_CHOICES, SMR_CHOICES, INSPECTION_CHOICES, RNPK_CHOICES
 from decimal import Decimal
 
 
@@ -852,6 +852,23 @@ class InsurerResponse(models.Model):
         help_text='Одна на страховщика в своде (на весь полис). Пусто (NULL) — ответ получен до сбора территории',
     )
     notes = models.TextField(blank=True, default='', verbose_name='Комментарии страховщика')
+    smr_status = models.CharField(
+        max_length=20,
+        choices=list(SMR_CHOICES),
+        blank=True,
+        default='',
+        verbose_name='СМР',
+        help_text='Если в заявке требуется страхование монтажных (строительно-монтажных) работ',
+    )
+    smr_cost = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name='Премия за СМР, ₽',
+        help_text='Если СМР страхуется отдельно от премии по годам',
+    )
+    smr_terms = models.TextField(blank=True, default='', verbose_name='Условия СМР')
     source_file = models.FileField(
         upload_to='responses/%Y/%m/%d/',
         null=True,

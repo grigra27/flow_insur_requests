@@ -218,7 +218,9 @@ def display_lines(summary: InsuranceSummary, company_names) -> Dict[str, dict]:
                     text = f'{value:,.0f} ₽'.replace(',', ' ')
                 else:
                     text = str(value)
-                details = [getattr(response, f.name, '') for f in extra if getattr(response, f.name, '')]
+                details = [f'{getattr(response, f.name):,.0f} ₽'.replace(',', ' ') if f.kind == MONEY
+                           else str(getattr(response, f.name)) for f in extra
+                           if getattr(response, f.name, None) not in (None, '')]
                 if details:
                     text = f"{text} · {' · '.join(details)}"
                 # Перевозка — отдельная сумма, в ИТОГО не входит: подчёркиваем на карточке
