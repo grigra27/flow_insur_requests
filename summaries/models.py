@@ -4,7 +4,7 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from insurance_requests.models import InsuranceRequest
-from .response_sections import CE_RISKS_CHOICES, SMR_CHOICES, INSPECTION_CHOICES, RNPK_CHOICES
+from .response_sections import CE_RISKS_CHOICES, OSVR_CHOICES, SMR_CHOICES, INSPECTION_CHOICES, RNPK_CHOICES
 from decimal import Decimal
 
 
@@ -826,6 +826,15 @@ class InsurerResponse(models.Model):
         verbose_name='Риски РНПК',
         help_text='Для спецтехники и имущества',
     )
+    osvr_status = models.CharField(
+        max_length=20,
+        choices=list(OSVR_CHOICES),
+        blank=True,
+        default='',
+        verbose_name='Риски ОСВР',
+        help_text='Филиал «Краснодар»: включены ли риски ОСВР (обстрелы, БПЛА, работа ПВО)',
+    )
+    osvr_terms = models.TextField(blank=True, default='', verbose_name='ОСВР: ограничения и лимит')
     ce_risks_status = models.CharField(
         max_length=20,
         choices=list(CE_RISKS_CHOICES),

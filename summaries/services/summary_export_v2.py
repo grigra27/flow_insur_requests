@@ -50,7 +50,7 @@ from openpyxl.worksheet.datavalidation import DataValidation
 from core.excel_cached_values import with_cached_values
 
 from ..models import InsuranceSummary, InsurerResponse
-from ..response_sections import SECTIONS, required_sections
+from ..response_sections import OSVR_SHORT, OSVR_VARIANT_2, SECTIONS, shown_sections
 from .excel_services import ExcelExportService, ExcelExportServiceError
 
 logger = logging.getLogger(__name__)
@@ -117,7 +117,7 @@ class SummaryExportV2Service(ExcelExportService):
     LEGACY_TERRITORY_V2 = '—'
 
     WIDTHS = {'company': 20, 'total': 17, 'year': 7, 'sum': 13, 'franchise': 10, 'rate': 8, 'premium': 11,
-              'payments': 9, 'territory': 40, 'notes': 48, 'inspection': 14, 'rnpk': 14, 'ce_risks': 14, 'transport': 12, 'smr': 16}
+              'payments': 9, 'territory': 40, 'notes': 48, 'inspection': 14, 'rnpk': 14, 'ce_risks': 14, 'transport': 12, 'smr': 16, 'osvr': 13}
     DETAIL_KEYS = ('franchise', 'rate', 'premium', 'payments')  # порядок: условие → результат
     DETAIL_TITLES = {'franchise': 'Франшиза', 'rate': 'Тариф', 'premium': 'Премия', 'payments': 'Платежей\nв год'}  # перенос задан явно: «Платежей» не рвётся
 
@@ -188,8 +188,10 @@ class SummaryExportV2Service(ExcelExportService):
         return cols
 
     @staticmethod
-    def extra_columns(request) -> List[str]:
-        return [section.key for section in required_sections(request)]
+    def extra_columns(summary) -> List[str]:
+        """Колонки ответов СК: нужные по заявке и те, на которые ответ уже есть (перенесённая история)."""
+        responses = list(InsurerResponse.objects.filter(summary=summary))
+        return [section.key for section in shown_sections(summary.request, responses)]
 
     def _fill(self, key: str):
         color = self.palette[key]
@@ -202,8 +204,11 @@ class SummaryExportV2Service(ExcelExportService):
     # ── лист «Свод» ──────────────────────────────────────────────────────────
 
     def _build_summary_sheet(self, ws, summary: InsuranceSummary, has_variant_2: bool) -> None:
-        extras = self.extra_columns(summary.request)
+        extras = self.extra_columns(summary)
         cols = self.columns(has_variant_2, extras)
+        # СК, у которых второй вариант — «с ОСВР», а не с франшизой: подпись предложения 2 это показывает
+        self._osvr_variant_2 = set(InsurerResponse.objects.filter(
+            summary=summary, osvr_status=OSVR_VARIANT_2).values_list('company_name', flat=True))
         for key, letter in cols.items():
             if key not in self.SERVICE_KEYS:
                 ws.column_dimensions[letter].width = self._width(key)
@@ -266,6 +271,10 @@ class SummaryExportV2Service(ExcelExportService):
                     row[section.key] = value
             row['transport_terms'] = response.transport_terms if response and 'transport' in extras else ''
             row['ce_risks_comment'] = response.ce_risks_comment if response and 'ce_risks' in extras else ''
+            if 'osvr' in extras and response:
+                if response.osvr_status:
+                    row['osvr'] = OSVR_SHORT.get(response.osvr_status, row['osvr'])
+                row['osvr_terms'] = response.osvr_terms
             if 'smr' in extras and response:
                 # СМР отдельно — сумма в колонке рядом с ответом; условия — в комментарии
                 if response.smr_cost is not None and response.smr_status != 'declined':
@@ -349,7 +358,21 @@ class SummaryExportV2Service(ExcelExportService):
     def _variant_caption(self, companies, variant: int) -> str:
         """Подпись над ценником: «Предложение 2 · франшиза 50 000». Нулевую франшизу не подчёркиваем —
         «Предложение 1» без «без франшизы», чтобы клиент не спрашивал о варианте с франшизой
-        (решение владельца 2026-10-15). При одном предложении подписи нет совсем (_build_table_header)."""
+        (решение владельца 2026-10-15). При одном предложении подписи нет совсем (_build_table_header).
+
+        Второй вариант «с ОСВР» (Краснодар, у Альфы) — не франшиза: такие СК в расчёт франшизы не идут,
+        к подписи добавляется «с ОСВР» (у всех СК варианта 2) или «с ОСВР — Альфа» (у части)."""
+        osvr = getattr(self, '_osvr_variant_2', set()) if variant == 2 else set()
+        caption = self._franchise_caption(
+            [(name, offers) for name, offers in companies if name not in osvr], variant)
+        if not osvr:
+            return caption
+        others = [name for name, offers in companies if name not in osvr
+                  and any(self._format_premium(o, 2) is not None for o in offers)]
+        suffix = 'с ОСВР' if not others else f"с ОСВР — {', '.join(sorted(osvr))}"
+        return f'{caption} / {suffix}' if ' · ' in caption else f'{caption} · {suffix}'
+
+    def _franchise_caption(self, companies, variant: int) -> str:
         values = set()
         for _, offers in companies:
             for offer in offers:
@@ -445,6 +468,8 @@ class SummaryExportV2Service(ExcelExportService):
         )
         if extra.get('ce_risks_comment'):
             additional = self._combine_additional_notes(additional, f"Доп. риски C/E: {extra['ce_risks_comment']}")
+        if extra.get('osvr_terms'):
+            additional = self._combine_additional_notes(additional, f"ОСВР: {extra['osvr_terms']}")
         if extra.get('smr_terms'):
             additional = self._combine_additional_notes(additional, f"Условия СМР: {extra['smr_terms']}")
         notes = self._consolidate_notes(offers, additional) or ''

@@ -54,7 +54,7 @@ class EmailTemplateGenerator:
     DEFAULT_TEMPLATE = """Коллеги, добрый день!
 
 Высылаем заявку на расчет тарифов ${ins_type}${casco_type_ce}
-${franshiza_text}${installment_text}${avtozapusk_text}${transportation_text}${construction_work_text}
+${franshiza_text}${installment_text}${avtozapusk_text}${transportation_text}${construction_work_text}${osvr_text}
 Необходимый период страхования: ${insurance_period_text}.
 ${lease_term_text}
 Просим указать в предложении территорию действия страхового покрытия и имеющиеся территориальные ограничения.
@@ -261,6 +261,14 @@ ${lease_term_text}
         else:
             template_data['transportation_text'] = ''
         
+        # ОСВР — только филиал «Краснодар» (решение владельца 2026-10-15), ответ — в блоке шаблона «Риски ОСВР»
+        from summaries.response_sections import OSVR_BRANCH
+        template_data['osvr_text'] = (
+            'Просим указать, включены ли в расчёт риски ОСВР, — в приложенном шаблоне ответа (блок «Риски ОСВР»). '
+            'Если ОСВР предлагается отдельным вариантом — дайте его во втором варианте.\n'
+            if (data.get('branch') or '').strip() == OSVR_BRANCH else ''
+        )
+
         template_data['construction_work_text'] = (
             'Обратите внимание, требуется страхование монтажных (строительно-монтажных) работ на площадке ЛП по установке оборудования.\n'
             if data.get('has_construction_work') else ''

@@ -217,13 +217,66 @@ SMR = ResponseSection(
     short_title='СМР',
 )
 
+# ОСВР — риски ущерба от военных действий (обстрелы, БПЛА, работа ПВО). Только филиал «Краснодар»
+# (решение владельца 2026-10-15): с 20.08.2026 там его указывают все СК, в других филиалах — вручную.
+# Альфа даёт ОСВР вторым вариантом (+16–23% к премии) — для этого отдельное значение.
+OSVR_INCLUDED, OSVR_LIMITED, OSVR_VARIANT_2, OSVR_NONE = 'included', 'limited', 'variant_2', 'none'
+OSVR_CHOICES = (
+    (OSVR_INCLUDED, 'Включены'),
+    (OSVR_LIMITED, 'Включены с ограничениями'),
+    (OSVR_VARIANT_2, 'Только во втором варианте'),
+    (OSVR_NONE, 'Не включены'),
+)
+# Короткие подписи для колонки свода V2
+OSVR_SHORT = {OSVR_INCLUDED: 'Включены', OSVR_LIMITED: 'С ограничениями', OSVR_VARIANT_2: 'Во 2-м варианте',
+              OSVR_NONE: 'Не включены'}
+OSVR_BRANCH = 'Краснодар'  # в т. ч. Ставропольское подразделение (BRANCH_MAPPING)
+OSVR_SINCE = date(2026, 10, 16)
+
+
+def _osvr_needed(request) -> bool:
+    if (getattr(request, 'branch', '') or '').strip() != OSVR_BRANCH:
+        return False
+    created = getattr(request, 'created_at', None)
+    return created is None or created.date() >= OSVR_SINCE
+
+
+OSVR = ResponseSection(
+    key='osvr',
+    title='Риски ОСВР',
+    condition=_osvr_needed,
+    condition_text='Заполняется по запросам филиала «Краснодар»',
+    fields=(
+        SectionField('osvr_status', 'ОСВР', CHOICE, choices=OSVR_CHOICES,
+                     hint='ОСВР отдельным вариантом — дайте его во втором варианте.',
+                     aliases=(
+                         ('с освр', OSVR_INCLUDED), ('да', OSVR_INCLUDED), ('включено', OSVR_INCLUDED),
+                         ('с ограничениями', OSVR_LIMITED), ('частично', OSVR_LIMITED),
+                         ('во втором варианте', OSVR_VARIANT_2), ('вариант 2', OSVR_VARIANT_2),
+                         ('без освр', OSVR_NONE), ('нет', OSVR_NONE), ('не включено', OSVR_NONE),
+                     )),
+        SectionField('osvr_terms', 'Ограничения и лимит по ОСВР (необязательно)', TEXT, required=False,
+                     hint='Регионы-исключения, без БПЛА / ПВО, лимит выплаты.'),
+    ),
+    summary_column='ОСВР',
+    short_title='ОСВР',
+)
+
 # Порядок — порядок блоков в шаблоне, колонок в своде V2 и строк на карточке свода
-SECTIONS: Tuple[ResponseSection, ...] = (INSPECTION, RNPK, CE_RISKS, TRANSPORT, SMR)
+SECTIONS: Tuple[ResponseSection, ...] = (INSPECTION, RNPK, OSVR, CE_RISKS, TRANSPORT, SMR)
 
 
 def required_sections(request) -> List[ResponseSection]:
     """Блоки, обязательные для ответа по этой заявке."""
     return [section for section in SECTIONS if section.is_required(request)]
+
+
+def shown_sections(request, responses=()) -> List[ResponseSection]:
+    """Блоки для показа (свод V2, карточка свода): нужные по заявке и те, на которые ответ уже есть —
+    например, ОСВР, перенесённый из примечаний старых сводов. Проверка загрузки смотрит только на нужные."""
+    def answered(section):
+        return any(getattr(r, section.fields[0].name, None) not in (None, '') for r in responses)
+    return [section for section in SECTIONS if section.is_required(request) or answered(section)]
 
 
 def all_fields() -> List[SectionField]:

@@ -211,8 +211,8 @@ class InsuranceOfferAdmin(admin.ModelAdmin):
 class InsurerResponseAdmin(admin.ModelAdmin):
     """Ответ СК целиком (шаблон ответа V2): риски РНПК, перевозка, файл ответа."""
 
-    list_display = ['company_name', 'summary', 'template_version', 'inspection_status', 'rnpk_status', 'ce_risks_status', 'transport_cost', 'smr_status', 'received_at']
-    list_filter = ['template_version', 'inspection_status', 'rnpk_status', 'ce_risks_status', 'smr_status', 'company_name', 'received_at']
+    list_display = ['company_name', 'summary', 'template_version', 'inspection_status', 'rnpk_status', 'osvr_status', 'ce_risks_status', 'transport_cost', 'smr_status', 'received_at']
+    list_filter = ['template_version', 'inspection_status', 'rnpk_status', 'osvr_status', 'ce_risks_status', 'smr_status', 'company_name', 'received_at']
     search_fields = ['company_name', 'coverage_territory', 'summary__request__dfa_number', 'summary__request__client_name']
     raw_id_fields = ['summary']
     readonly_fields = ['received_at', 'updated_at', 'created_by']
@@ -220,6 +220,7 @@ class InsurerResponseAdmin(admin.ModelAdmin):
         ('Ответ', {'fields': ('summary', 'company_name', 'template_version', 'source_file')}),
         ('Территория и комментарии', {'fields': ('coverage_territory', 'notes')}),
         ('Осмотр, риски РНПК, доп. риски C/E', {'fields': ('inspection_status', 'rnpk_status', 'ce_risks_status', 'ce_risks_comment')}),
+        ('Риски ОСВР (Краснодар)', {'fields': ('osvr_status', 'osvr_terms')}),
         ('Перевозка', {'fields': ('transport_cost', 'transport_terms')}),
         ('СМР', {'fields': ('smr_status', 'smr_cost', 'smr_terms')}),
         ('Служебное', {'fields': ('received_at', 'updated_at', 'created_by')}),

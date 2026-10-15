@@ -195,12 +195,12 @@ def display_lines(summary: InsuranceSummary, company_names) -> Dict[str, dict]:
     lines — строки для показа (если ответа СК или значения нет — «нет данных»); fields — поля формы
     ручной правки с текущими значениями. Только блоки, нужные по заявке свода.
     """
-    from ..response_sections import CHOICE, MONEY, required_sections
+    from ..response_sections import CHOICE, MONEY, shown_sections
 
-    sections = required_sections(summary.request)
+    responses = {r.company_name: r for r in InsurerResponse.objects.filter(summary=summary)}
+    sections = shown_sections(summary.request, responses.values())
     if not sections:
         return {}
-    responses = {r.company_name: r for r in InsurerResponse.objects.filter(summary=summary)}
     result = {}
     for company in company_names:
         response = responses.get(company)
@@ -247,11 +247,14 @@ def parse_form_values(summary: InsuranceSummary, data, strict: bool) -> Dict:
     добавлении предложения); без strict пустое значение очищает поле, а отсутствующее не меняется."""
     from decimal import Decimal, InvalidOperation
 
-    from ..response_sections import CHOICE, MONEY, required_sections
+    from ..response_sections import CHOICE, MONEY, required_sections, shown_sections
     from .excel_services import ExcelResponseProcessor
 
+    # правка на карточке — и блоки с уже имеющимся ответом (перенесённая история), как они показаны
+    sections = required_sections(summary.request) if strict else shown_sections(
+        summary.request, InsurerResponse.objects.filter(summary=summary))
     values = {}
-    for section in required_sections(summary.request):
+    for section in sections:
         for fld in section.fields:
             if not strict and fld.name not in data:
                 continue  # правка на карточке: поля, которых нет в запросе, не трогаем
