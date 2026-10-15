@@ -313,8 +313,10 @@ class SummaryExportV2Service(ExcelExportService):
             ws.row_dimensions[r].height = max(17, _text_lines(ws[f'B{r}'].value, chars) * 15)
 
         # Ручные поля выбора справа: подпись — в колонке перед комментариями, жёлтое поле — в комментариях
+        # Одно предложение — выбирать его не из чего: поля «Выбрано предложение» нет (решение владельца 2026-10-15)
         company_cell, variant_cell = self.selection_cells(cols)
-        for coord, label in ((company_cell, 'Выбрана СК:'), (variant_cell, 'Выбрано предложение:')):
+        fields = [(company_cell, 'Выбрана СК:')] + ([(variant_cell, 'Выбрано предложение:')] if has_variant_2 else [])
+        for coord, label in fields:
             row = ws[coord].row
             label_cell = ws[f'{cols["label"]}{row}']
             label_cell.value = label
@@ -326,10 +328,10 @@ class SummaryExportV2Service(ExcelExportService):
             target.alignment = Alignment(vertical='center')
 
         variants = ['Предложение 1'] + (['Предложение 2'] if has_variant_2 else [])
-        for coord, options, prompt in (
-            (company_cell, company_names, 'Выберите СК из списка или впишите вручную.'),
-            (variant_cell, variants, 'Выберите предложение из списка или впишите вручную.'),
-        ):
+        lists = [(company_cell, company_names, 'Выберите СК из списка или впишите вручную.')]
+        if has_variant_2:
+            lists.append((variant_cell, variants, 'Выберите предложение из списка или впишите вручную.'))
+        for coord, options, prompt in lists:
             formula = '"' + ','.join(name.replace(',', ' ') for name in options) + '"'
             if not options or len(formula) > 255:
                 continue
@@ -339,6 +341,9 @@ class SummaryExportV2Service(ExcelExportService):
             ws.add_data_validation(dv)
 
     def _variant_caption(self, companies, variant: int) -> str:
+        """Подпись над ценником: «Предложение 2 · франшиза 50 000». Нулевую франшизу не подчёркиваем —
+        «Предложение 1» без «без франшизы», чтобы клиент не спрашивал о варианте с франшизой
+        (решение владельца 2026-10-15). При одном предложении подписи нет совсем (_build_table_header)."""
         values = set()
         for _, offers in companies:
             for offer in offers:
@@ -352,7 +357,7 @@ class SummaryExportV2Service(ExcelExportService):
             return f'Предложение {variant} · франшиза по предложениям СК'
         value = values.pop()
         if value == 0:
-            return f'Предложение {variant} · без франшизы'
+            return f'Предложение {variant}'
         return f'Предложение {variant} · франшиза {value:,.0f}'.replace(',', ' ')
 
     def _build_table_header(self, ws, cols, companies, has_variant_2) -> None:
@@ -360,6 +365,7 @@ class SummaryExportV2Service(ExcelExportService):
         ws.row_dimensions[top].height = 18
         # подпись предложения над ценником («… · франшиза по предложениям СК») может занять три строки
         variants = [1, 2] if has_variant_2 else [1]
+        single = not has_variant_2
         caption_lines = max(_text_lines(self._variant_caption(companies, v), text_chars(self.WIDTHS['total']) - 3)
                             for v in variants)
         ws.row_dimensions[sub].height = max(30, caption_lines * TEXT_LINE_HEIGHT + 6)
@@ -383,17 +389,21 @@ class SummaryExportV2Service(ExcelExportService):
         ws[f'{first_total}{top}'].font = _font(9, bold=True, color=accent)
         ws[f'{first_total}{top}'].alignment = Alignment(horizontal='center', vertical='center')
         white = Side(style='medium', color='FFFFFF')
+        if single:
+            # одно предложение — без подписи под «ИТОГО»: тёмная плашка на обе строки шапки
+            ws.merge_cells(f'{first_total}{top}:{first_total}{sub}')
         for v in variants:
-            cell = ws[f'{cols[f"total_{v}"]}{sub}']
-            cell.value = self._variant_caption(companies, v)
-            cell.font = _font(self.fs['detail'], bold=True, color='FFFFFF')
+            cell = ws[f'{cols[f"total_{v}"]}{top if single else sub}']
+            if not single:
+                cell.value = self._variant_caption(companies, v)
+            cell.font = _font(9 if single else self.fs['detail'], bold=True, color='FFFFFF')
             cell.fill = self._fill('header' if v == 1 else 'header_2')
             cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
             cell.border = Border(left=white, right=white)
 
             first, last = cols[f'{self.DETAIL_KEYS[0]}_{v}'], cols[f'{self.DETAIL_KEYS[-1]}_{v}']
             ws.merge_cells(f'{first}{top}:{last}{top}')
-            ws[f'{first}{top}'] = f'Детализация · Предложение {v}'
+            ws[f'{first}{top}'] = 'Детализация' if single else f'Детализация · Предложение {v}'
             ws[f'{first}{top}'].font = _font(self.fs['detail'], bold=True, color=MUTED)
             ws[f'{first}{top}'].alignment = Alignment(horizontal='center', vertical='center')
             for key in self.DETAIL_KEYS:
@@ -527,7 +537,9 @@ class SummaryExportV2Service(ExcelExportService):
         variant_ref = '$' + re.sub(r'(\d+)', r'$\1', variant_cell)
         quoted = name.replace('"', '""')
         for v in variants:
-            chosen = f'AND({company_ref}="{quoted}",{variant_ref}="Предложение {v}")'
+            # одно предложение — поля выбора предложения нет, подсвечивается по выбранной СК
+            chosen = (f'AND({company_ref}="{quoted}",{variant_ref}="Предложение {v}")' if has_variant_2
+                      else f'{company_ref}="{quoted}"')
             letter = cols[f'total_{v}']
             ws.conditional_formatting.add(f'{letter}{start}:{letter}{end}', FormulaRule(
                 formula=[chosen], fill=self._fill('chosen_total'), stopIfTrue=True))
@@ -605,7 +617,7 @@ class SummaryExportV2Service(ExcelExportService):
         for r in (top, sub):
             for c in range(1, last_col + 1):
                 cell = ws.cell(row=r, column=c)
-                if r == sub and c in totals:
+                if c in totals and (r == sub or not has_variant_2):  # тёмные плашки ценников
                     continue
                 if c in conditions:
                     cell.fill = self._fill('cond_fill')

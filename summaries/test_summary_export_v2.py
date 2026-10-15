@@ -136,7 +136,7 @@ class SummaryExportV2ContentTests(SummaryExportV2Base):
     def test_variant_captions_and_column_titles(self):
         ws = self._workbook()['Свод']
         self.assertEqual(ws['B9'].value, 'ИТОГО')
-        self.assertEqual(ws['B10'].value, 'Предложение 1 · без франшизы')
+        self.assertEqual(ws['B10'].value, 'Предложение 1')  # нулевая франшиза не подчёркивается
         self.assertEqual(ws['C10'].value, 'Предложение 2 · франшиза 100 000')
         self.assertEqual(ws['F9'].value, 'Детализация · Предложение 1')
         self.assertEqual(ws['J9'].value, 'Детализация · Предложение 2')
@@ -281,8 +281,17 @@ class SummaryExportV2ContentTests(SummaryExportV2Base):
         self.assertEqual(ws['I9'].value, 'Территория страхования')
         self.assertEqual(ws['J9'].value, 'Осмотр')
         self.assertEqual(ws['K9'].value, 'Комментарии')
+        # одно предложение — без номера (решение владельца 2026-10-15): подписи без «Предложение 1»,
+        # поля «Выбрано предложение» нет, подсветка — по выбранной СК
+        # под «ИТОГО» подписи нет — франшиза не подчёркивается (видна в детализации)
+        self.assertEqual((ws['B9'].value, ws['B10'].value, ws['E9'].value), ('ИТОГО', None, 'Детализация'))
+        self.assertIn('B9:B10', {str(rng) for rng in ws.merged_cells.ranges})
+        self.assertEqual(ws['B9'].font.color.rgb, '00FFFFFF')
         lists = {str(dv.sqref): dv.formula1 for dv in ws.data_validations.dataValidation}
-        self.assertEqual(lists['K6'], '"Предложение 1"')
+        self.assertEqual(set(lists), {'K4'})
+        self.assertIsNone(ws['J6'].value)
+        rules = [rule.formula[0] for rng in ws.conditional_formatting for rule in rng.rules]
+        self.assertFalse(any('Предложение' in formula for formula in rules))
         self.assertGreaterEqual(ws.row_dimensions[11].height, 30)  # один год — ценник не обрезается
 
 
