@@ -10,33 +10,18 @@ UI, model labels, status names, and most user-facing strings are in **Russian** 
 
 ## Tech stack
 
-- Python 3.11 (Docker), Django 4.2
 - PostgreSQL in prod, SQLite for local dev (toggled via `DB_ENGINE`)
-- pandas + openpyxl + xlrd for Excel I/O
-- Gunicorn + Nginx + Certbot for production (docker-compose)
 
 ## Common commands
 
 ```bash
 # Local setup
-python3 -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
 cp .env.example .env
 
 # DB + auth groups (required — auth model depends on these groups)
 python manage.py migrate
 python manage.py setup_user_groups
 python manage.py create_default_users --create-test-user   # optional
-
-# Run dev server
-python manage.py runserver
-
-# Tests — full suite
-python manage.py test
-# Tests — CI smoke subset (matches .github/workflows/tests.yml)
-python manage.py test insurance_requests.tests summaries.test_company_matcher summaries.test_templatetags
-# Single test
-python manage.py test summaries.test_company_matcher.CompanyMatcherTests.test_exact_match
 
 # Maintenance commands
 python manage.py auto_close_stale_summaries [--dry-run] [--days=30]
@@ -47,10 +32,6 @@ python manage.py backup_db --format pgdump --output-dir /app/backups --keep 10
 
 ### Apps
 
-- `onlineservice/` — project config: settings, root URL conf, custom middleware (domain routing + HTTPS), landing view, context processors.
-- `insurance_requests/` — incoming requests: model, Excel ingestion entrypoint, email body generation, auth middleware, role decorators.
-- `summaries/` — quote summaries and individual offers, Excel exports, multiple-file response upload, analytics dashboards.
-- `core/` — shared services: `excel_utils.BRANCH_MAPPING` (branch-name normalization), `templates.py` (email body templater), `business_time.py`, `excel_cached_values.py`.
 - `backup/` — admin-only DB backup management command (`backup_db`); the model is `managed = False` and exists purely so the action shows up in Django admin.
 
 ### Domain routing (important)
