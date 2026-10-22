@@ -141,9 +141,9 @@ jobs:
         DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
       run: |
-        umask 077
+        # без точки в имени: scp-action (drone-scp) не берёт скрытые файлы — «tar: empty archive»
         mkdir -p server_env
-        cat > server_env/.env << EOF
+        cat > server_env/server.env << EOF
         SECRET_KEY=${TIMEWEB_SECRET_KEY}
         DB_NAME=${TIMEWEB_DB_NAME}
         DB_USER=${TIMEWEB_DB_USER}
@@ -203,7 +203,7 @@ jobs:
         username: ${{ secrets.TIMEWEB_USERNAME }}
         key: ${{ secrets.TIMEWEB_SSH_KEY }}
         port: ${{ secrets.TIMEWEB_PORT }}
-        source: server_env/.env,server_env/registry.env
+        source: server_env/server.env,server_env/registry.env
         target: ${{ env.PROJECT_PATH }}
         strip_components: 1
         overwrite: true
@@ -229,7 +229,8 @@ jobs:
           git fetch origin main
           git reset --hard origin/main
           
-          echo "➡️ Проверяем .env и registry.env (загружены шагом Upload server env files)..."
+          echo "➡️ Обновляем .env (server.env и registry.env загружены шагом Upload server env files)..."
+          mv server.env .env
           chmod 600 .env registry.env
           
           echo "➡️ Логинимся в GitHub Container Registry..."
