@@ -656,6 +656,14 @@ class LeaseTermDisplayTests(SimpleTestCase):
         self.assertEqual(self.make((2026, 10, 4), (2027, 10, 3)).lease_duration_label, '1 г.')
         self.assertEqual(self.make((2025, 3, 1), (2028, 2, 29)).lease_duration_label, '3 г.')
         self.assertEqual(self.make((2026, 1, 15), (2029, 1, 15)).lease_duration_label, '3 г.')
+        # ТС-20982-ГА-КЗ: окончание — день платежа, на 4 дня раньше ровной даты; остаток от 15 дней — полный месяц
+        self.assertEqual(self.make((2026, 10, 25), (2028, 10, 20)).lease_duration_label, '2 г.')
+        self.assertEqual(self.make((2026, 6, 22), (2029, 6, 20)).lease_duration_label, '3 г.')
+        self.assertEqual(self.make((2025, 10, 31), (2028, 8, 20)).lease_duration_label, '2 г. 10 мес.')
+        self.assertEqual(self.make((2026, 7, 21), (2029, 7, 5)).lease_duration_label, '3 г.')  # 35 мес. 15 дн.
+        self.assertEqual(self.make((2026, 9, 1), (2027, 8, 13)).lease_duration_label, '11 мес.')  # 11 мес. 13 дн.
+        self.assertEqual(self.make((2026, 1, 1), (2026, 1, 10)).lease_duration_label, '')
+        self.assertEqual(self.make((2026, 1, 1), (2026, 1, 20)).lease_duration_label, '1 мес.')
         self.assertEqual(self.make((2024, 9, 20)).lease_term_display, 'с 20.09.2024')
         self.assertEqual(self.make().lease_term_display, '')
 

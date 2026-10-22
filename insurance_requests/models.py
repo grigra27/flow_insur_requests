@@ -2,9 +2,10 @@ from django.db import models
 from django.core.validators import MinValueValidator
 from django.contrib.auth.models import User
 from django.utils import timezone
-from datetime import timedelta
+from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Dict, Any
+import calendar
 import json
 import pytz
 
@@ -784,7 +785,8 @@ class InsuranceRequest(models.Model):
 
     @property
     def lease_duration_label(self):
-        """Длительность договора лизинга: «4 г. 3 мес.», «1 г.»; пусто без обеих дат. Дата окончания — включительно."""
+        """Длительность договора лизинга: «4 г. 3 мес.», «1 г.»; пусто без обеих дат. Дата окончания — включительно,
+        срок округляется до ближайшего целого месяца."""
         start, end = self.lease_start_date, self.lease_end_date
         if not start or not end or end <= start:
             return ''
@@ -793,6 +795,13 @@ class InsuranceRequest(models.Model):
         months = (end.year - start.year) * 12 + (end.month - start.month)
         if end.day < start.day:
             months -= 1
+        # Окончание лизинга обычно — день платежа (5, 15, 20 число), начало — любой день: 25.10.2026 — 20.10.2028
+        # это 2 г., а не «1 г. 11 мес.» (письмо 2026-10-22). Остаток от 15 дней считаем полным месяцем.
+        year, month = divmod(start.month - 1 + months, 12)
+        anchor_year = start.year + year
+        anchor = date(anchor_year, month + 1, min(start.day, calendar.monthrange(anchor_year, month + 1)[1]))
+        if (end - anchor).days >= 15:
+            months += 1
         if months <= 0:
             return ''
         years, rest = divmod(months, 12)
