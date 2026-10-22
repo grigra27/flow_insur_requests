@@ -50,7 +50,7 @@ from openpyxl.worksheet.datavalidation import DataValidation
 from core.excel_cached_values import with_cached_values
 
 from ..models import InsuranceSummary, InsurerResponse
-from ..response_sections import OSVR_SHORT, OSVR_VARIANT_2, SECTIONS, shown_sections
+from ..response_sections import INSPECTION_SHORT, OSVR_SHORT, OSVR_VARIANT_2, SECTIONS, shown_sections
 from .excel_services import ExcelExportService, ExcelExportServiceError
 
 logger = logging.getLogger(__name__)
@@ -266,9 +266,11 @@ class SummaryExportV2Service(ExcelExportService):
                 if value in (None, ''):
                     row[section.key] = self.NO_DATA
                 elif main.kind == 'choice':
-                    row[section.key] = dict(main.choices).get(value, value)
+                    row[section.key] = dict(main.all_choices).get(value, value)
                 else:
                     row[section.key] = value
+            if 'inspection' in extras and response and response.inspection_status:
+                row['inspection'] = INSPECTION_SHORT.get(response.inspection_status, row['inspection'])
             row['transport_terms'] = response.transport_terms if response and 'transport' in extras else ''
             row['ce_risks_comment'] = response.ce_risks_comment if response and 'ce_risks' in extras else ''
             if 'osvr' in extras and response:

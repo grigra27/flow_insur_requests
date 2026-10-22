@@ -4,7 +4,7 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from insurance_requests.models import InsuranceRequest
-from .response_sections import CE_RISKS_CHOICES, OSVR_CHOICES, SMR_CHOICES, INSPECTION_CHOICES, RNPK_CHOICES
+from .response_sections import CE_RISKS_CHOICES, OSVR_CHOICES, SMR_CHOICES, INSPECTION_CHOICES, INSPECTION_LEGACY_CHOICES, RNPK_CHOICES
 from decimal import Decimal
 
 
@@ -812,7 +812,7 @@ class InsurerResponse(models.Model):
     )
     inspection_status = models.CharField(
         max_length=20,
-        choices=list(INSPECTION_CHOICES),
+        choices=list(INSPECTION_CHOICES + INSPECTION_LEGACY_CHOICES),
         blank=True,
         default='',
         verbose_name='Осмотр',

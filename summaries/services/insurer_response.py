@@ -213,7 +213,7 @@ def display_lines(summary: InsuranceSummary, company_names) -> Dict[str, dict]:
                 lines.append({'label': label, 'text': 'нет данных', 'missing': True})
             else:
                 if main.kind == CHOICE:
-                    text = dict(main.choices).get(value, value)
+                    text = dict(main.all_choices).get(value, value)
                 elif main.kind == MONEY:
                     text = f'{value:,.0f} ₽'.replace(',', ' ')
                 else:
@@ -230,7 +230,7 @@ def display_lines(summary: InsuranceSummary, company_names) -> Dict[str, dict]:
                 current = getattr(response, fld.name, None) if response else None
                 fields.append({
                     'name': fld.name, 'label': fld.label, 'kind': fld.kind, 'required': fld.required,
-                    'choices': fld.choices, 'section': label,
+                    'choices': fld.choices_for(current), 'section': label,
                     'value': '' if current is None else (f'{current:.0f}' if fld.kind == MONEY else current),
                 })
         result[company] = {'lines': lines, 'fields': fields}

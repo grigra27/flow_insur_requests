@@ -25,6 +25,8 @@ class SectionField:
     kind: str
     required: bool = True
     choices: Tuple[Tuple[str, str], ...] = ()  # (код в БД, подпись в шаблоне)
+    # прежние значения: принимаются и показываются, но в новых списках (шаблон, формы) не предлагаются
+    legacy_choices: Tuple[Tuple[str, str], ...] = ()
     aliases: Tuple[Tuple[str, str], ...] = ()  # (как пишут вручную, код) — для списка значений
     hint: str = ''
 
@@ -36,10 +38,19 @@ class SectionField:
     def choice_labels(self) -> Tuple[str, ...]:
         return tuple(label for _code, label in self.choices)
 
+    @property
+    def all_choices(self) -> Tuple[Tuple[str, str], ...]:
+        return self.choices + self.legacy_choices
+
+    def choices_for(self, value) -> Tuple[Tuple[str, str], ...]:
+        """Варианты для формы: прежнее значение — только если оно уже сохранено (иначе потеряется при правке)."""
+        legacy = tuple(choice for choice in self.legacy_choices if choice[0] == value)
+        return self.choices + legacy
+
     def match_choice(self, text: str) -> Optional[str]:
         """Код значения по подписи, коду или синониму без учёта регистра; None — не из списка."""
         key = ' '.join(str(text).split()).casefold().rstrip('.')
-        for code, label in self.choices:
+        for code, label in self.all_choices:
             if key in (code.casefold(), label.casefold()):
                 return code
         return next((code for alias, code in self.aliases if key == alias.casefold()), None)
@@ -63,13 +74,25 @@ class ResponseSection:
 
 
 # Осмотр — во всех ответах (решение владельца 2026-10-07): отвечает страховщик, правило «б/у → осмотр»
-# в своде V2 не используется (в своде V1 системная фраза про осмотр остаётся как была)
-INSPECTION_NOT_REQUIRED, INSPECTION_REQUIRED, INSPECTION_PHOTO = 'not_required', 'required', 'photo'
+# в своде V2 не используется (в своде V1 системная фраза про осмотр остаётся как была).
+# С 2026-10-22 (письма Н. Лазаревой) вместо «Требуется осмотр» — способ осмотра: фото, приложение СК, выезд
+# эксперта, приложение или эксперт, любой. Прежнее «Требуется осмотр» остаётся в старых ответах и шаблонах.
+# Все подписи списка вместе — не длиннее 255 символов (предел списка проверки данных Excel).
+(INSPECTION_NOT_REQUIRED, INSPECTION_REQUIRED, INSPECTION_PHOTO, INSPECTION_APP, INSPECTION_EXPERT,
+ INSPECTION_APP_EXPERT, INSPECTION_ANY) = 'not_required', 'required', 'photo', 'app', 'expert', 'app_expert', 'any'
 INSPECTION_CHOICES = (
     (INSPECTION_NOT_REQUIRED, 'Осмотр не требуется'),
-    (INSPECTION_REQUIRED, 'Требуется осмотр'),
     (INSPECTION_PHOTO, 'Требуется осмотр (возможен по фотографиям)'),
+    (INSPECTION_APP, 'Требуется осмотр (возможен через приложение СК)'),
+    (INSPECTION_EXPERT, 'Требуется осмотр (возможен через выезд эксперта)'),
+    (INSPECTION_APP_EXPERT, 'Требуется осмотр (приложение или выезд эксперта)'),
+    (INSPECTION_ANY, 'Требуется осмотр (возможен любой вариант)'),
 )
+INSPECTION_LEGACY_CHOICES = ((INSPECTION_REQUIRED, 'Требуется осмотр'),)
+# В колонке «Осмотр» свода V2 (узкой) — коротко
+INSPECTION_SHORT = {INSPECTION_NOT_REQUIRED: 'Не требуется', INSPECTION_REQUIRED: 'Требуется', INSPECTION_PHOTO: 'По фото',
+                    INSPECTION_APP: 'Через приложение СК', INSPECTION_EXPERT: 'Выезд эксперта',
+                    INSPECTION_APP_EXPERT: 'Приложение СК или выезд эксперта', INSPECTION_ANY: 'Любой вариант'}
 
 INSPECTION = ResponseSection(
     key='inspection',
@@ -77,7 +100,8 @@ INSPECTION = ResponseSection(
     condition=lambda request: True,
     condition_text='Заполняется во всех ответах',
     fields=(
-        SectionField('inspection_status', 'Осмотр', CHOICE, choices=INSPECTION_CHOICES, aliases=(
+        SectionField('inspection_status', 'Осмотр', CHOICE, choices=INSPECTION_CHOICES,
+                     legacy_choices=INSPECTION_LEGACY_CHOICES, aliases=(
             ('не требуется', INSPECTION_NOT_REQUIRED), ('без осмотра', INSPECTION_NOT_REQUIRED),
             ('нет', INSPECTION_NOT_REQUIRED),
             ('требуется', INSPECTION_REQUIRED), ('обязателен', INSPECTION_REQUIRED),
@@ -87,6 +111,17 @@ INSPECTION = ResponseSection(
             ('требуется осмотр (возможен по фото)', INSPECTION_PHOTO),
             # прежняя подпись (с запятой: в списке Excel/Numbers резалась на два пункта) — шаблоны до 2026-10-07 вечера
             ('требуется осмотр, возможен осмотр по фотографиям', INSPECTION_PHOTO),
+            ('приложение', INSPECTION_APP), ('через приложение', INSPECTION_APP),
+            ('приложение ск', INSPECTION_APP), ('через приложение ск', INSPECTION_APP),
+            ('мобильный осмотр', INSPECTION_APP), ('мобильное приложение', INSPECTION_APP),
+            ('требуется осмотр (возможен через мобильное приложение ск)', INSPECTION_APP),
+            ('эксперт', INSPECTION_EXPERT), ('выезд эксперта', INSPECTION_EXPERT),
+            ('вызов эксперта', INSPECTION_EXPERT), ('через выезд эксперта', INSPECTION_EXPERT),
+            ('приложение или эксперт', INSPECTION_APP_EXPERT), ('приложение или выезд эксперта', INSPECTION_APP_EXPERT),
+            ('приложение ск или выезд эксперта', INSPECTION_APP_EXPERT),
+            ('требуется осмотр (через приложение ск или выезд эксперта)', INSPECTION_APP_EXPERT),
+            ('любой', INSPECTION_ANY), ('любой вариант', INSPECTION_ANY), ('все варианты', INSPECTION_ANY),
+            ('требуется осмотр (возможен любой)', INSPECTION_ANY),
         )),
     ),
     summary_column='Осмотр',

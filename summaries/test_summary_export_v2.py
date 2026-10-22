@@ -462,7 +462,7 @@ class SummaryExportV2ResponseColumnsTests(SummaryExportV2Base):
         ws = self._sheet()
         rows = {ws[f'A{r}'].value: r for r in range(11, ws.max_row + 1) if ws[f'A{r}'].value}
         # объект б/у, но колонка — только ответ страховщика; системной фразы про осмотр нет
-        self.assertEqual(ws[f'J{rows["Согаз"]}'].value, 'Требуется осмотр (возможен по фотографиям)')
+        self.assertEqual(ws[f'J{rows["Согаз"]}'].value, 'По фото')  # узкая колонка — коротко
         self.assertEqual(ws[f'J{rows["Альфа"]}'].value, 'нет данных')
         for r in rows.values():
             self.assertNotIn('обязателен осмотр', (ws[f'M{r}'].value or '').lower())

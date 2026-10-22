@@ -98,6 +98,24 @@ class ResponseSectionsTests(SimpleTestCase):
         self.assertTrue(all(',' not in label for section in SECTIONS for f in section.fields
                             for label in f.choice_labels))
 
+    def test_inspection_methods(self):
+        # способ осмотра (письма Н. Лазаревой 2026-10-22); «Требуется осмотр» без способа — только прежний
+        field = INSPECTION.fields[0]
+        for text, code in (('Требуется осмотр (возможен через приложение СК)', 'app'),
+                           ('Требуется осмотр (возможен через мобильное приложение СК)', 'app'),
+                           ('мобильный осмотр', 'app'), ('выезд эксперта', 'expert'),
+                           ('Требуется осмотр (приложение или выезд эксперта)', 'app_expert'),
+                           ('Требуется осмотр (возможен любой вариант)', 'any'), ('все варианты', 'any')):
+            with self.subTest(text=text):
+                self.assertEqual(field.match_choice(text), code)
+        self.assertNotIn('Требуется осмотр', field.choice_labels)
+        self.assertEqual([code for code, _ in field.choices_for('required')][-1], 'required')
+        self.assertNotIn('required', [code for code, _ in field.choices_for('photo')])
+        # список проверки данных Excel, заданный строкой, — не длиннее 255 символов
+        for section in SECTIONS:
+            for f in section.fields:
+                self.assertLessEqual(len(','.join(f.choice_labels)), 255, f.name)
+
     def test_transport_route(self):
         request = _request(transportation_departure='Москва', transportation_destination='Армавир',
                            transportation_days=3)
@@ -157,9 +175,11 @@ class V2TemplateTests(SimpleTestCase):
         self.assertLess(row, self._block_pill(ws, RNPK.title)[0])
         ref = _name_ref(wb, 'resp_inspection_status')[1]
         self.assertFalse(ws[ref].protection.locked)
-        # ровно три пункта: в подписях нет запятых — Excel и Numbers режут список «через запятую» по каждой
-        self.assertEqual(_list_values(wb, ws, ref), ['Осмотр не требуется', 'Требуется осмотр',
-                                                     'Требуется осмотр (возможен по фотографиям)'])
+        # шесть пунктов: в подписях нет запятых — Excel и Numbers режут список «через запятую» по каждой
+        self.assertEqual(_list_values(wb, ws, ref), [
+            'Осмотр не требуется', 'Требуется осмотр (возможен по фотографиям)',
+            'Требуется осмотр (возможен через приложение СК)', 'Требуется осмотр (возможен через выезд эксперта)',
+            'Требуется осмотр (приложение или выезд эксперта)', 'Требуется осмотр (возможен любой вариант)'])
 
     def test_generic_template_shows_conditions_and_keeps_blocks_open(self):
         wb, ws = self._load(build_v2())

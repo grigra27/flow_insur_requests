@@ -161,7 +161,8 @@ class StrictContourTests(InsurerResponseUploadBase):
 
     def test_inspection_values_and_aliases(self):
         for text, code in (('Осмотр не требуется', 'not_required'), ('требуется', 'required'),
-                           ('по фото', 'photo')):
+                           ('по фото', 'photo'), ('Требуется осмотр (возможен через выезд эксперта)', 'expert'),
+                           ('Требуется осмотр (возможен любой вариант)', 'any')):
             with self.subTest(text=text):
                 InsuranceOffer.objects.filter(summary=self.casco_summary).delete()
                 self._process(self._v2(self.casco_summary, inspection=text), self.casco_summary, self.superuser)
