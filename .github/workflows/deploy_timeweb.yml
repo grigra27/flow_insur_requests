@@ -124,6 +124,90 @@ jobs:
             exit 1
           fi
 
+    # 5️⃣.1 Секреты — файлами по scp, а не в тексте script: (он виден в `ps` на сервере всё время деплоя)
+    - name: Render server env files
+      env:
+        TIMEWEB_SECRET_KEY: ${{ secrets.TIMEWEB_SECRET_KEY }}
+        TIMEWEB_DB_NAME: ${{ secrets.TIMEWEB_DB_NAME }}
+        TIMEWEB_DB_USER: ${{ secrets.TIMEWEB_DB_USER }}
+        TIMEWEB_DB_PASSWORD: ${{ secrets.TIMEWEB_DB_PASSWORD }}
+        TIMEWEB_ALLOWED_HOSTS: ${{ secrets.TIMEWEB_ALLOWED_HOSTS }}
+        TIMEWEB_MAIN_DOMAINS: ${{ secrets.TIMEWEB_MAIN_DOMAINS }}
+        TIMEWEB_SUBDOMAINS: ${{ secrets.TIMEWEB_SUBDOMAINS }}
+        VK_BACKUP_TOKEN: ${{ secrets.VK_BACKUP_TOKEN }}
+        VK_BACKUP_PEER_ID: ${{ secrets.VK_BACKUP_PEER_ID }}
+        GHCR_USER: ${{ github.actor }}
+        GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+        DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+      run: |
+        umask 077
+        mkdir -p server_env
+        cat > server_env/.env << EOF
+        SECRET_KEY=${TIMEWEB_SECRET_KEY}
+        DB_NAME=${TIMEWEB_DB_NAME}
+        DB_USER=${TIMEWEB_DB_USER}
+        DB_PASSWORD=${TIMEWEB_DB_PASSWORD}
+        DB_HOST=db
+        DB_PORT=5432
+        DB_ENGINE=django.db.backends.postgresql
+        ALLOWED_HOSTS=${TIMEWEB_ALLOWED_HOSTS}
+        DOCKER_IMAGE=${{ env.DOCKER_IMAGE }}
+
+        # Security settings for production (HTTPS enabled)
+        DEBUG=False
+        SESSION_COOKIE_SECURE=True
+        CSRF_COOKIE_SECURE=True
+        SECURE_HSTS_SECONDS=31536000
+        SECURE_HSTS_INCLUDE_SUBDOMAINS=True
+        SECURE_HSTS_PRELOAD=True
+        SECURE_SSL_REDIRECT=True
+
+        # Login security settings (anti-bruteforce / anti-enumeration)
+        LOGIN_RATE_LIMIT_ENABLED=True
+        LOGIN_MAX_ATTEMPTS=5
+        LOGIN_MAX_ATTEMPTS_PER_IP=20
+        LOGIN_ATTEMPT_WINDOW_SECONDS=900
+        LOGIN_LOCKOUT_SECONDS=900
+        LOGIN_RATE_LIMIT_TRUST_X_FORWARDED_FOR=True
+
+        # Domain-specific settings for landing page
+        MAIN_DOMAINS=${TIMEWEB_MAIN_DOMAINS}
+        SUBDOMAINS=${TIMEWEB_SUBDOMAINS}
+
+        # Static files configuration
+        STATIC_URL=/static/
+        MEDIA_URL=/media/
+
+        # SSL Certificate settings
+        SSL_ENABLED=True
+        SSL_EMAIL=${{ env.SSL_EMAIL }}
+
+        # VK backup delivery (daily pg_dump → VK community → user DM)
+        VK_BACKUP_TOKEN=${VK_BACKUP_TOKEN}
+        VK_BACKUP_PEER_ID=${VK_BACKUP_PEER_ID}
+        VK_API_VERSION=5.199
+        EOF
+        # Логины в реестры; на сервере читается и удаляется сразу после docker login
+        cat > server_env/registry.env << EOF
+        GHCR_USER=${GHCR_USER}
+        GHCR_TOKEN=${GHCR_TOKEN}
+        DOCKERHUB_USERNAME=${DOCKERHUB_USERNAME}
+        DOCKERHUB_TOKEN=${DOCKERHUB_TOKEN}
+        EOF
+
+    - name: Upload server env files
+      uses: appleboy/scp-action@v0.1.7
+      with:
+        host: ${{ secrets.TIMEWEB_HOST }}
+        username: ${{ secrets.TIMEWEB_USERNAME }}
+        key: ${{ secrets.TIMEWEB_SSH_KEY }}
+        port: ${{ secrets.TIMEWEB_PORT }}
+        source: server_env/.env,server_env/registry.env
+        target: ${{ env.PROJECT_PATH }}
+        strip_components: 1
+        overwrite: true
+
     # 6️⃣ Деплой на Timeweb через SSH
     - name: Deploy to Timeweb
       uses: appleboy/ssh-action@v1.0.0
@@ -132,73 +216,35 @@ jobs:
         username: ${{ secrets.TIMEWEB_USERNAME }}
         key: ${{ secrets.TIMEWEB_SSH_KEY }}
         port: ${{ secrets.TIMEWEB_PORT }}
+        # docker pull с GHCR на Timeweb бывает очень медленным (2026-10-22: 10 минут по умолчанию не хватило)
+        command_timeout: 30m
         script: |
           set -e  # остановить выполнение при любой ошибке
           
           echo "➡️ Переходим в проект..."
           cd ${{ env.PROJECT_PATH }}
+          trap 'rm -f registry.env' EXIT  # токены реестров не оставляем на сервере даже при ошибке
           
           echo "➡️ Проверяем, есть ли обновления в репозитории..."
           git fetch origin main
           git reset --hard origin/main
           
-          echo "➡️ Обновляем .env..."
-          cat > .env << EOF
-          SECRET_KEY=${{ secrets.TIMEWEB_SECRET_KEY }}
-          DB_NAME=${{ secrets.TIMEWEB_DB_NAME }}
-          DB_USER=${{ secrets.TIMEWEB_DB_USER }}
-          DB_PASSWORD=${{ secrets.TIMEWEB_DB_PASSWORD }}
-          DB_HOST=db
-          DB_PORT=5432
-          DB_ENGINE=django.db.backends.postgresql
-          ALLOWED_HOSTS=${{ secrets.TIMEWEB_ALLOWED_HOSTS }}
-          DOCKER_IMAGE=${{ env.DOCKER_IMAGE }}
-          
-          # Security settings for production (HTTPS enabled)
-          DEBUG=False
-          SESSION_COOKIE_SECURE=True
-          CSRF_COOKIE_SECURE=True
-          SECURE_HSTS_SECONDS=31536000
-          SECURE_HSTS_INCLUDE_SUBDOMAINS=True
-          SECURE_HSTS_PRELOAD=True
-          SECURE_SSL_REDIRECT=True
-
-          # Login security settings (anti-bruteforce / anti-enumeration)
-          LOGIN_RATE_LIMIT_ENABLED=True
-          LOGIN_MAX_ATTEMPTS=5
-          LOGIN_MAX_ATTEMPTS_PER_IP=20
-          LOGIN_ATTEMPT_WINDOW_SECONDS=900
-          LOGIN_LOCKOUT_SECONDS=900
-          LOGIN_RATE_LIMIT_TRUST_X_FORWARDED_FOR=True
-          
-          # Domain-specific settings for landing page
-          MAIN_DOMAINS=${{ secrets.TIMEWEB_MAIN_DOMAINS }}
-          SUBDOMAINS=${{ secrets.TIMEWEB_SUBDOMAINS }}
-          
-          # Static files configuration
-          STATIC_URL=/static/
-          MEDIA_URL=/media/
-          
-          # SSL Certificate settings
-          SSL_ENABLED=True
-          SSL_EMAIL=${{ env.SSL_EMAIL }}
-
-          # VK backup delivery (daily pg_dump → VK community → user DM)
-          VK_BACKUP_TOKEN=${{ secrets.VK_BACKUP_TOKEN }}
-          VK_BACKUP_PEER_ID=${{ secrets.VK_BACKUP_PEER_ID }}
-          VK_API_VERSION=5.199
-          EOF
+          echo "➡️ Проверяем .env и registry.env (загружены шагом Upload server env files)..."
+          chmod 600 .env registry.env
           
           echo "➡️ Логинимся в GitHub Container Registry..."
-          echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          # Токены — только через stdin (grep/cut), не в аргументах команд
+          registry_value() { grep "^$1=" registry.env | cut -d= -f2-; }
+          registry_value GHCR_TOKEN | docker login ghcr.io -u "$(registry_value GHCR_USER)" --password-stdin
           
           echo "➡️ Логинимся в Docker Hub для избежания rate limit..."
-          if [ -n "${{ secrets.DOCKERHUB_USERNAME }}" ] && [ -n "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
-            echo ${{ secrets.DOCKERHUB_TOKEN }} | docker login -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
+          if [ -n "$(registry_value DOCKERHUB_USERNAME)" ] && grep -q '^DOCKERHUB_TOKEN=.' registry.env; then
+            registry_value DOCKERHUB_TOKEN | docker login -u "$(registry_value DOCKERHUB_USERNAME)" --password-stdin
             echo "✅ Docker Hub login успешен"
           else
             echo "⚠️ Docker Hub credentials не настроены, возможны rate limit ошибки"
           fi
+          rm -f registry.env
           
           echo "➡️ Загружаем новый Docker-образ..."
           docker pull ${{ env.DOCKER_IMAGE }}
@@ -366,7 +412,7 @@ jobs:
           fi
 
           echo "➡️ Настраиваем cron для ежедневной отправки бэкапа в VK..."
-          if [ -n "${{ secrets.VK_BACKUP_TOKEN }}" ] && [ -n "${{ secrets.VK_BACKUP_PEER_ID }}" ]; then
+          if grep -q '^VK_BACKUP_TOKEN=.' .env && grep -q '^VK_BACKUP_PEER_ID=.' .env; then
             chmod +x scripts/backup-cron-setup.sh
             if bash scripts/backup-cron-setup.sh; then
               echo "✅ Cron задача для бэкапа в VK установлена"
