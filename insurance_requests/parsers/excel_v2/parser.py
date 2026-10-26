@@ -97,6 +97,19 @@ OBJECT_TEMPLATE_ROW_MARKERS = [
 ]
 
 
+# Буква категории ТС в подзаголовках таблицы объектов иногда набрана кириллицей
+# («категории С»), а маркеры выше — латиницей. Без замены подзаголовок
+# принимался за отдельный объект.
+_CYRILLIC_CATEGORY_LETTER_RE = re.compile(r"(категории )([вс])(?=$|[\s/])")
+_CYRILLIC_TO_LATIN_CATEGORY = {"в": "b", "с": "c"}
+
+
+def latinize_category_letter(row_norm: str) -> str:
+    return _CYRILLIC_CATEGORY_LETTER_RE.sub(
+        lambda match: match.group(1) + _CYRILLIC_TO_LATIN_CATEGORY[match.group(2)], row_norm
+    )
+
+
 @dataclass(frozen=True)
 class GridCell:
     row: int
@@ -1683,6 +1696,7 @@ class ExcelRequestParserV2:
         return objects[:50]
 
     def _object_section_category(self, row_norm: str) -> Optional[str]:
+        row_norm = latinize_category_letter(row_norm)
         if "транспортные средства категории c" in row_norm or "транспортные средства категории c/e" in row_norm:
             return "C"
         if "транспортные средства категории b" in row_norm:
@@ -2799,6 +2813,7 @@ class ExcelRequestParserV2:
         return sum(1 for item in header_hits if item in row_norm) >= 2
 
     def _is_object_template_row(self, row_norm: str) -> bool:
+        row_norm = latinize_category_letter(row_norm)
         return any(marker in row_norm for marker in OBJECT_TEMPLATE_ROW_MARKERS)
 
     def _is_object_stop_row(self, row_norm: str) -> bool:

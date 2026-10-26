@@ -317,6 +317,19 @@ class ObjectRowPayloadIntegrationTests(TestCase):
         self.assertTrue(result.data.get('has_casco_ce'))
         self.assertEqual(result.source_map.get('has_casco_ce'), 'B42:B42')
 
+    def test_category_header_with_cyrillic_letter_is_not_an_object(self):
+        # Prod 2026-10-26 (ООО «ФОРТ»): «категории С» с кириллической С стал
+        # отдельным объектом, и заявка разбилась на партию из двух.
+        wb = self._build_minimal_workbook_with_object_row()
+        sheet = wb.active
+        sheet['B42'] = 'Транспортные средства категории \u0421'
+
+        result = self._parse_workbook(wb)
+        objects = result.data['parser_v2_payload']['insured_objects']
+        self.assertEqual(len(objects), 1)
+        self.assertEqual(objects[0].get('vehicle_category'), 'C')
+        self.assertTrue(result.data.get('has_casco_ce'))
+
     def test_casco_ce_is_selected_when_any_object_is_under_category_c(self):
         wb = self._build_minimal_workbook_with_object_row()
         sheet = wb.active
