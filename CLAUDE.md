@@ -98,6 +98,8 @@ The default `response_deadline` is N working hours from upload (`core.business_t
 
 For DB backups before migrations, the workflow calls `python manage.py backup_db` inside the web container (pgdump, falls back to JSON).
 
+`backup_db` returns the exact committed filepath to `call_command`; final names are unique and files are published atomically from hidden `.part` files. Automatic `send_backup_to_vk` must send that returned path, including the current JSON fallback, never rescan the directory for a preferred older format. JSON excludes users/groups/permissions and is labeled as an emergency export. `--skip-create` is the explicit manual mode for selecting the latest nonempty existing file by mtime.
+
 ## Specs and historical context
 
 Open work lives in one place: `docs/improvement_plans/backlog.md` (created 2026-10-13; the other plans in that folder are closed or point to it). Add new tasks and decisions there.

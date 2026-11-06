@@ -371,7 +371,7 @@ class UploadRetryTests(VkCommandTestBase):
             _save_doc_response(), _messages_send_response(),
         ]
 
-        with patch.object(Command, '_create_backup') as mock_create:
+        with patch.object(Command, '_create_backup', return_value=self.dump_path) as mock_create:
             call_command(
                 'send_backup_to_vk',
                 f'--output-dir={self.tmp_dir}',

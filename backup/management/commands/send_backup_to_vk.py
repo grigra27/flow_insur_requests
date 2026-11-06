@@ -27,6 +27,7 @@ import random
 import re
 import shutil
 import time
+import tempfile
 
 import requests
 from django.conf import settings
@@ -172,15 +173,26 @@ class Command(BaseCommand):
 
         self._deadline = time.monotonic() + options['total_timeout']
         copy_ready = False
+        self._backup_is_json = False
 
         try:
-            if not options['skip_create']:
-                self._create_backup(output_dir, keep)
-
-            dump_path = self._select_file_to_send(output_dir)
-            if not dump_path:
+            if options['skip_create']:
+                source_path = self._select_file_to_send(output_dir)
+            else:
+                source_path = self._create_backup(output_dir, keep)
+            if not source_path:
                 raise CommandError(f'Не найден ни один бэкап в {output_dir}')
+            self._check_backup_path(source_path)
             copy_ready = True
+            self._backup_is_json = str(source_path).endswith('.json')
+            if self._backup_is_json:
+                self.stdout.write(self.style.WARNING(
+                    'ВНИМАНИЕ: отправляется аварийная JSON-выгрузка без пользователей, '
+                    'групп и прав; она не заменяет полный pg_dump.'
+                ))
+                dump_path = self._gzip_json(source_path)
+            else:
+                dump_path = source_path
 
             size = os.path.getsize(dump_path)
             if size > VK_FILE_SIZE_LIMIT:
@@ -196,8 +208,10 @@ class Command(BaseCommand):
                 dump_path,
                 size,
             )
+            label = 'Аварийная JSON-выгрузка' if self._backup_is_json else 'Бэкап'
+            sent = 'отправлена' if self._backup_is_json else 'отправлен'
             self.stdout.write(self.style.SUCCESS(
-                f'✓ Бэкап отправлен в VK: {os.path.basename(dump_path)} '
+                f'✓ {label} {sent} в VK: {os.path.basename(dump_path)} '
                 f'({size:,} байт)'
             ))
         except Exception as exc:
@@ -209,44 +223,66 @@ class Command(BaseCommand):
     # ----------------------------------------------------------- backup creation
 
     def _create_backup(self, output_dir, keep):
-        """Создаёт pg_dump; если pg_dump недоступен — JSON."""
+        """Возвращает точный файл текущего запуска; старые копии не подбирает."""
         try:
-            call_command(
+            path = call_command(
                 'backup_db',
                 '--format', 'pgdump',
                 '--output-dir', output_dir,
                 '--keep', str(keep),
             )
+            self._check_backup_path(path)
+            return path
         except Exception as exc:
             logger.warning(
                 'pg_dump не удался (%s), переключаемся на JSON-бэкап',
                 exc,
             )
-            call_command(
+            path = call_command(
                 'backup_db',
                 '--format', 'json',
                 '--output-dir', output_dir,
                 '--keep', str(keep),
             )
+            self._check_backup_path(path)
+            return path
+
+    @staticmethod
+    def _check_backup_path(path):
+        if not isinstance(path, (str, os.PathLike)) or not os.path.isfile(path):
+            raise CommandError('Не получен файл успешно созданной резервной копии.')
+        if os.path.getsize(path) == 0:
+            raise CommandError('Файл резервной копии пуст; отправка отменена.')
 
     def _select_file_to_send(self, output_dir):
-        """Возвращает путь к файлу для отправки.
+        """Только --skip-create: последний непустой финальный файл любого формата."""
+        candidates = []
+        for pattern in ('pgdump_*.dump', 'backup_*.json'):
+            for path in glob.glob(os.path.join(output_dir, pattern)):
+                try:
+                    stat = os.stat(path)
+                    if os.path.isfile(path) and stat.st_size > 0:
+                        candidates.append((stat.st_mtime_ns, path.endswith('.dump'), path))
+                except FileNotFoundError:
+                    pass
+        return max(candidates)[2] if candidates else None
 
-        Приоритет: свежайший pg_dump → свежайший JSON (gzip-обёртка для экономии).
-        """
-        pgdumps = sorted(glob.glob(os.path.join(output_dir, 'pgdump_*.dump')))
-        if pgdumps:
-            return pgdumps[-1]
-
-        jsons = sorted(glob.glob(os.path.join(output_dir, 'backup_*.json')))
-        if not jsons:
-            return None
-
-        latest = jsons[-1]
-        gz_path = latest + '.gz'
-        if not os.path.exists(gz_path):
-            with open(latest, 'rb') as src, gzip.open(gz_path, 'wb', compresslevel=9) as dst:
+    @staticmethod
+    def _gzip_json(path):
+        """Пересоздаёт gzip атомарно; старый .gz не подтверждает свежесть JSON."""
+        gz_path = str(path) + '.gz'
+        fd, temporary = tempfile.mkstemp(prefix='.backup-gzip-', suffix='.part',
+                                         dir=os.path.dirname(path))
+        os.close(fd)
+        try:
+            with open(path, 'rb') as src, gzip.open(temporary, 'wb', compresslevel=9) as dst:
                 shutil.copyfileobj(src, dst)
+            os.replace(temporary, gz_path)
+        finally:
+            try:
+                os.unlink(temporary)
+            except FileNotFoundError:
+                pass
         return gz_path
 
     # ----------------------------------------------------------- VK API
@@ -372,10 +408,17 @@ class Command(BaseCommand):
         attachment = f"doc{doc['owner_id']}_{doc['id']}"
 
         # 4. Отправляем сообщение с прикреплённым документом
-        message = (
-            f'📦 Резервная копия базы «{APP_NAME}» — {_human_datetime()}\n'
-            f'{_human_size(size)} · {os.path.basename(file_path)}'
-        )
+        if str(file_path).endswith('.json.gz'):
+            message = (
+                f'⚠️ Аварийная JSON-выгрузка «{APP_NAME}» — {_human_datetime()}\n'
+                f'{_human_size(size)} · {os.path.basename(file_path)}\n'
+                'Без пользователей, групп и прав. Не заменяет полный pg_dump.'
+            )
+        else:
+            message = (
+                f'📦 Резервная копия базы «{APP_NAME}» — {_human_datetime()}\n'
+                f'{_human_size(size)} · {os.path.basename(file_path)}'
+            )
         self._vk_call(
             'messages.send',
             token,
@@ -393,7 +436,15 @@ class Command(BaseCommand):
             return
         try:
             reason = _humanize_error(error_msg)
-            if copy_ready:
+            if copy_ready and getattr(self, '_backup_is_json', False):
+                body = (
+                    f'⚠️ Аварийная JSON-выгрузка «{APP_NAME}» за {_human_datetime(with_time=False)} '
+                    'не дошла в VK\n'
+                    'JSON сохранён на сервере, но не содержит пользователей, групп и прав '
+                    'и не заменяет полный pg_dump.\n'
+                    f'Причина: {reason}'
+                )
+            elif copy_ready:
                 body = (
                     f'⚠️ Копия базы «{APP_NAME}» за {_human_datetime(with_time=False)} '
                     f'не дошла в VK\n'

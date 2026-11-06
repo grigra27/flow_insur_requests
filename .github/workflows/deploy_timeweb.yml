@@ -50,6 +50,7 @@ jobs:
       run: >-
         python manage.py test
         onlineservice.test_protected_media
+        backup.tests
         insurance_requests.tests
         summaries.test_company_matcher
         summaries.test_templatetags

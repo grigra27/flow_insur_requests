@@ -15,7 +15,9 @@ import glob
 import os
 import shutil
 import subprocess
+import tempfile
 from datetime import datetime
+from uuid import uuid4
 
 from django.conf import settings
 from django.core.management import call_command
@@ -55,42 +57,70 @@ class Command(BaseCommand):
         keep = options['keep']
 
         os.makedirs(output_dir, exist_ok=True)
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f') + '_' + uuid4().hex[:8]
 
         if fmt == 'json':
-            self._backup_json(output_dir, timestamp)
+            filename = self._backup_json(output_dir, timestamp)
             pattern = os.path.join(output_dir, 'backup_*.json')
         elif fmt == 'sqlite':
-            self._backup_sqlite(output_dir, timestamp)
+            filename = self._backup_sqlite(output_dir, timestamp)
             pattern = os.path.join(output_dir, 'db_backup_*.sqlite3')
         else:
-            self._backup_pgdump(output_dir, timestamp)
+            filename = self._backup_pgdump(output_dir, timestamp)
             pattern = os.path.join(output_dir, 'pgdump_*.dump')
 
         if keep > 0:
-            self._rotate(pattern, keep)
+            self._rotate(pattern, keep, current_path=filename)
+
+        # call_command возвращает точный результат текущего запуска. Отправщик
+        # не должен искать его заново среди старых архивов других форматов.
+        return filename
 
     # ------------------------------------------------------------------ helpers
 
+    def _write_atomic(self, filename, write):
+        """Публикует только завершённую непустую копию; .part не попадает в glob."""
+        fd, temporary = tempfile.mkstemp(
+            prefix='.' + os.path.basename(filename) + '.', suffix='.part',
+            dir=os.path.dirname(filename),
+        )
+        os.close(fd)
+        try:
+            write(temporary)
+            if os.path.getsize(temporary) == 0:
+                raise CommandError('Создан пустой файл резервной копии; публикация отменена.')
+            os.replace(temporary, filename)
+        finally:
+            try:
+                os.unlink(temporary)
+            except FileNotFoundError:
+                pass
+        return filename
+
     def _backup_json(self, output_dir, timestamp):
         filename = os.path.join(output_dir, f'backup_{timestamp}.json')
-        with open(filename, 'w', encoding='utf-8') as f:
-            call_command(
-                'dumpdata',
-                '--natural-foreign',
-                '--natural-primary',
-                '--exclude', 'auth',
-                '--exclude', 'contenttypes',
-                '--exclude', 'sessions',
-                '--exclude', 'admin',
-                '--exclude', 'backup',
-                '--indent', '2',
-                stdout=f,
-            )
+
+        def write(temporary):
+            with open(temporary, 'w', encoding='utf-8') as f:
+                call_command(
+                    'dumpdata',
+                    '--natural-foreign',
+                    '--natural-primary',
+                    '--exclude', 'auth',
+                    '--exclude', 'contenttypes',
+                    '--exclude', 'sessions',
+                    '--exclude', 'admin',
+                    '--exclude', 'backup',
+                    '--indent', '2',
+                    stdout=f,
+                )
+
+        self._write_atomic(filename, write)
         size = os.path.getsize(filename)
         self.stdout.write(
             self.style.SUCCESS(f'✓ JSON-бекап сохранён: {filename} ({size:,} байт)')
         )
+        return filename
 
     def _backup_sqlite(self, output_dir, timestamp):
         db_config = settings.DATABASES['default']
@@ -106,11 +136,12 @@ class Command(BaseCommand):
             raise CommandError(f'Файл БД не найден: {db_path}')
 
         filename = os.path.join(output_dir, f'db_backup_{timestamp}.sqlite3')
-        shutil.copy2(db_path, filename)
+        self._write_atomic(filename, lambda temporary: shutil.copy2(db_path, temporary))
         size = os.path.getsize(filename)
         self.stdout.write(
             self.style.SUCCESS(f'✓ SQLite-бекап сохранён: {filename} ({size:,} байт)')
         )
+        return filename
 
     def _backup_pgdump(self, output_dir, timestamp):
         db_config = settings.DATABASES['default']
@@ -135,34 +166,48 @@ class Command(BaseCommand):
 
         filename = os.path.join(output_dir, f'pgdump_{timestamp}.dump')
 
-        cmd = ['pg_dump', '-h', host, '-p', port, '-F', 'c', '-f', filename]
-        if user:
-            cmd += ['-U', user]
-        cmd.append(dbname)
-
         env = os.environ.copy()
         if password:
             env['PGPASSWORD'] = password
 
         self.stdout.write(f'Запускаю pg_dump для базы "{dbname}" на {host}:{port}...')
-        result = subprocess.run(cmd, env=env, capture_output=True, text=True)
 
-        if result.returncode != 0:
-            # Убираем пароль из вывода на случай если он попал в stderr
-            err = result.stderr.replace(password, '***') if password else result.stderr
-            raise CommandError(f'pg_dump завершился с ошибкой:\n{err}')
+        def write(temporary):
+            cmd = ['pg_dump', '-h', host, '-p', port, '-F', 'c', '-f', temporary]
+            if user:
+                cmd += ['-U', user]
+            cmd.append(dbname)
+            result = subprocess.run(cmd, env=env, capture_output=True, text=True)
+            if result.returncode != 0:
+                # Убираем пароль из вывода на случай если он попал в stderr.
+                err = result.stderr.replace(password, '***') if password else result.stderr
+                raise CommandError(f'pg_dump завершился с ошибкой:\n{err}')
 
+        self._write_atomic(filename, write)
         size = os.path.getsize(filename)
         self.stdout.write(
             self.style.SUCCESS(f'✓ pg_dump сохранён: {filename} ({size:,} байт)')
         )
+        return filename
 
-    def _rotate(self, pattern, keep):
+    def _rotate(self, pattern, keep, current_path=None):
         """Удаляет старые файлы бекапа, оставляя последние `keep` штук."""
-        files = sorted(glob.glob(pattern))
-        to_delete = files[:-keep] if len(files) > keep else []
+        files = []
+        for path in glob.glob(pattern):
+            try:
+                if path != current_path and os.path.isfile(path) and os.path.getsize(path) > 0:
+                    files.append(path)
+            except FileNotFoundError:
+                pass
+        files.sort()
+        remaining = max(0, keep - (1 if current_path else 0))
+        to_delete = files[:max(0, len(files) - remaining)]
         for f in to_delete:
-            os.unlink(f)
+            try:
+                os.unlink(f)
+            except FileNotFoundError:
+                # Другой завершённый запуск мог уже удалить эту старую копию.
+                pass
             self.stdout.write(self.style.WARNING(f'  удалён старый бекап: {f}'))
         if to_delete:
             self.stdout.write(f'Ротация: удалено {len(to_delete)}, оставлено {keep}.')
