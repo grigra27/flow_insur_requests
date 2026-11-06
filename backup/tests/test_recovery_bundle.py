@@ -71,7 +71,8 @@ class RecoveryBundleTests(unittest.TestCase):
         if args[:2] == ['docker', 'inspect']:
             return json.dumps({'container_id': 'container-1', 'image_id': 'sha256:image',
                                'running': True, 'paused': False,
-                               'mounts': [{'Destination': '/app/backups', 'Source': '/private-docker-volume'}]}).encode()
+                               'mounts': [{'Destination': '/app/backups', 'Source': '/private-docker-volume',
+                                           'Type': 'volume', 'RW': True}]}).encode()
         if args[:3] == ['docker', 'image', 'inspect']:
             return b'["registry.invalid/image@sha256:digest"]'
         if args[:3] == ['docker', 'exec', bundle.NGINX]:
@@ -230,6 +231,49 @@ class RecoveryBundleTests(unittest.TestCase):
             return info
         with patch.object(bundle, 'runtime', side_effect=replaced), self.assertRaises(bundle.BundleError): self.create()
         self.assert_unpublished()
+
+    def test_mount_order_change_preserves_runtime_and_all_metadata(self):
+        mounts = [
+            {'Destination': '/app/media', 'Source': '/media-volume', 'Type': 'volume',
+             'RW': True, 'Mode': 'rw', 'Driver': 'local', 'Propagation': ''},
+            {'Destination': '/app/backups', 'Source': '/backup-volume', 'Type': 'volume',
+             'RW': True, 'Mode': 'rw', 'Driver': 'local', 'Propagation': ''},
+            {'Destination': '/app/staticfiles', 'Source': '/static-volume', 'Type': 'volume',
+             'RW': False, 'Mode': 'ro', 'Driver': 'local', 'Propagation': ''},
+        ]
+        calls = []
+        def reordered(args, output=None):
+            result = self.fake_run(args, output)
+            if args[:2] == ['docker', 'inspect']:
+                info = json.loads(result)
+                info['mounts'] = mounts if len(calls) % 2 == 0 else list(reversed(mounts))
+                calls.append(1)
+                return json.dumps(info).encode()
+            return result
+        with patch.object(bundle, 'run', side_effect=reordered):
+            before, after = bundle.runtime(), bundle.runtime()
+            self.assertEqual(before, after)
+            self.assertCountEqual(before['mounts'], mounts)
+            self.assertEqual(self.create()['status'], 'ready')
+
+    def test_changed_mount_source_or_access_still_prevents_publication(self):
+        for field, value in [('Source', '/replacement-volume'), ('RW', False)]:
+            with self.subTest(field=field):
+                calls = []
+                def changed(args, output=None):
+                    result = self.fake_run(args, output)
+                    if args[:2] == ['docker', 'inspect']:
+                        info = json.loads(result)
+                        if calls:
+                            info['mounts'][0][field] = value
+                        calls.append(1)
+                        return json.dumps(info).encode()
+                    return result
+                with patch.object(bundle, 'run', side_effect=changed), self.assertRaisesRegex(
+                    bundle.BundleError, 'Recovery sources changed before publication'
+                ):
+                    self.create()
+                self.assert_unpublished()
 
     def test_successful_cli_emits_only_safe_machine_json(self):
         out, err = StringIO(), StringIO()

@@ -70,6 +70,10 @@ def runtime():
                 '"running":{{json .State.Running}},"paused":{{json .State.Paused}},'
                 '"mounts":{{json .Mounts}}}')
     info = json.loads(run(['docker', 'inspect', '--format', template, WEB]))
+    # Docker does not guarantee inspect mount order; compare the full metadata
+    # in a stable order so ordinary inspections cannot invalidate a snapshot.
+    info['mounts'] = sorted(info['mounts'], key=lambda mount: (
+        mount['Destination'], mount['Source'], mount['Type']))
     if not info['running'] or info['paused']:
         raise BundleError('Application is not ready for a recovery snapshot.')
     if not any(item['Destination'] == '/app/backups' for item in info['mounts']):
