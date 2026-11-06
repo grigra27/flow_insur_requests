@@ -23,7 +23,12 @@ from .management.commands.send_backup_to_vk import (
 )
 
 AGE_HEADER = re.compile(
-    rb'\Aage-encryption.org/v1\n(?:-> X25519 [A-Za-z0-9+/]{43}\n[A-Za-z0-9+/]{43}\n)+'
+    rb'\Aage-encryption.org/v1\n(?:'
+    rb'(?:-> X25519 [A-Za-z0-9+/]{43}\n[A-Za-z0-9+/]{43}\n)+'
+    # Native age -p uses exactly one scrypt stanza, a 16-byte salt, and a
+    # 32-byte wrapped key. Bound logN to 1..20; the producer defaults to 18.
+    rb'|-> scrypt [A-Za-z0-9+/]{21}[AQgw] (?:[1-9]|1[0-9]|20)\n'
+    rb'[A-Za-z0-9+/]{42}[AEIMQUYcgkosw048]\n)'
     rb'--- [A-Za-z0-9+/]{43}\n'
 )
 RETRY_DEFAULTS = dict(upload_attempts=4, retry_base_delay=15.0,
@@ -197,12 +202,18 @@ class RecoveryVK(DatabaseSender):
                 attachment += '_' + document['access_key']
             moment = datetime.now(timezone.utc)
             local_moment = moment.astimezone(ZoneInfo('Europe/Moscow'))
+            with zipfile.ZipFile(path) as archive:
+                with archive.open('payload.tar.age') as payload:
+                    passphrase = payload.read(40).startswith(b'age-encryption.org/v1\n-> scrypt ')
+            recovery_hint = ('Для восстановления используйте «Открыть бэкап» на Mac и пароль архива. '
+                             'Отдельный ключ не нужен.' if passphrase else
+                             'Для восстановления нужен отдельный ключ владельца; в архиве и на сервере его нет.')
             message_id = self._vk_call('messages.send', self.token, {
                 'peer_id': self.peer, 'random_id': random_id(digest), 'attachment': attachment,
                 'message': '📦 Полная зашифрованная копия InsFlow: база данных, документы и настройки.\n'
                            + local_moment.strftime('%d.%m.%Y %H:%M МСК') + f' · {size} байт.\n'
                            + f'SHA-256: {digest}\n'
-                           'Для восстановления нужен отдельный ключ владельца; в архиве и на сервере его нет.',
+                           + recovery_hint,
             })
             if type(message_id) is not int or message_id <= 0:
                 raise RecoveryError('message_response_invalid')

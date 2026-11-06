@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import re
+import stat
 import subprocess
 import sys
 import tempfile
@@ -17,6 +18,7 @@ WEB = 'insflow-system-web-1'
 REMOTE = '/app/backups/recovery_delivery'
 LIMIT = 190 * 1024 * 1024
 SAFE_NAME = re.compile(r'^[A-Za-z0-9_.-]+$')
+ARCHIVE_SUFFIXES = {'.zip'}
 
 
 class JobError(Exception):
@@ -78,13 +80,32 @@ def management(command, arguments, stage):
 def load_config(path, project_dir):
     try:
         info = path.lstat()
-        if path.is_symlink() or info.st_mode & 0o077 or info.st_uid != os.geteuid():
+        if (not stat.S_ISREG(info.st_mode) or path.is_symlink()
+                or info.st_mode & 0o077 or info.st_uid != os.geteuid()):
             raise JobError('configuration')
         config = json.loads(path.read_text())
-        result = {name: Path(config[name]).expanduser().resolve()
-                  for name in ('age_binary', 'recipient_file', 'state_dir')}
-        if not result['age_binary'].is_file() or not result['recipient_file'].is_file():
+        archive_format = config.get('archive_format', 'age-zip')
+        if archive_format not in ('age-zip', 'age-passphrase'):
             raise JobError('configuration')
+        result = {'archive_format': archive_format,
+                  'state_dir': Path(config['state_dir']).expanduser().resolve()}
+        if archive_format == 'age-zip':
+            for name in ('age_binary', 'recipient_file'):
+                result[name] = Path(config[name]).expanduser().resolve()
+                if not result[name].is_file():
+                    raise JobError('configuration')
+        else:
+            result['age_binary'] = Path(config['age_binary']).expanduser().resolve()
+            password_file = Path(config['password_file']).expanduser()
+            secret_info = password_file.lstat()
+            if (not password_file.is_absolute() or not stat.S_ISREG(secret_info.st_mode)
+                    or password_file.is_symlink() or secret_info.st_uid != os.geteuid()
+                    or secret_info.st_mode & 0o077
+                    or not result['age_binary'].is_file()
+                    or not os.access(result['age_binary'], os.X_OK)):
+                raise JobError('configuration')
+            # Keep the original path so the producer's O_NOFOLLOW check remains effective.
+            result['password_file'] = password_file
         result['project_dir'] = project_dir.resolve()
         result['keep_local'] = int(config.get('keep_local', 14))
         if not 1 <= result['keep_local'] <= 60:
@@ -97,15 +118,23 @@ def load_config(path, project_dir):
 
 
 def produce(config):
-    result = read_json(run([
+    arguments = [
         sys.executable, str(config['project_dir'] / 'scripts/create_recovery_bundle.py'),
         '--project-dir', str(config['project_dir']), '--state-dir', str(config['state_dir']),
-        '--age-binary', str(config['age_binary']), '--recipient-file', str(config['recipient_file']),
-    ], 'bundle'), 'bundle')
+    ]
+    archive_format = config.get('archive_format', 'age-zip')
+    if archive_format == 'age-passphrase':
+        arguments.extend(['--archive-format', 'age-passphrase', '--age-binary',
+                          str(config['age_binary']), '--password-file', str(config['password_file'])])
+    else:
+        arguments.extend(['--age-binary', str(config['age_binary']),
+                          '--recipient-file', str(config['recipient_file'])])
+    result = read_json(run(arguments, 'bundle'), 'bundle')
     try:
         archive = Path(result['archive_path'])
         if (result['status'] != 'ready' or not SAFE_NAME.fullmatch(archive.name)
-                or archive.suffix != '.zip' or archive.is_symlink()
+                or archive.suffix != '.zip'
+                or archive.is_symlink()
                 or archive.resolve().parent != (config['state_dir'] / 'exports').resolve()
                 or not archive.is_file() or not 0 < archive.stat().st_size <= LIMIT
                 or archive.stat().st_size != result['size'] or digest(archive) != result['sha256']
@@ -170,7 +199,7 @@ def prune_verified(state, keep, current_archive=None):
     # A clock rollback must not prune the copy just recorded in last_success.
     for _, receipt_path, entry in sorted(others, key=lambda item: item[0], reverse=True)[remaining:]:
         name = entry.get('archive_name', '')
-        if SAFE_NAME.fullmatch(name) and Path(name).suffix == '.zip':
+        if SAFE_NAME.fullmatch(name) and Path(name).suffix in ARCHIVE_SUFFIXES:
             archive = state / 'exports' / name
             if archive.is_file() and not archive.is_symlink():
                 archive.unlink()
@@ -192,7 +221,7 @@ def bound_pending(state, current_archive):
             item = json.loads(path.read_text())
             name = item.get('archive_name', '')
             if (item.get('status') == 'failed' and name and name not in verified
-                    and SAFE_NAME.fullmatch(name) and Path(name).suffix == '.zip'
+                    and SAFE_NAME.fullmatch(name) and Path(name).suffix in ARCHIVE_SUFFIXES
                     and name != current_archive.name):
                 archive = state / 'exports' / name
                 if archive.is_file() and not archive.is_symlink():
@@ -226,7 +255,7 @@ def run_job(project_dir, config_path):
                           sha256=bundle['sha256'], bytes=bundle['size'])
             remote_zip = REMOTE + '/' + archive.name
             remote_receipt = REMOTE + '/' + bundle['backup_id'] + '.sent.json'
-            remote_verify = REMOTE + '/' + bundle['backup_id'] + '.verified.zip'
+            remote_verify = REMOTE + '/' + bundle['backup_id'] + '.verified' + archive.suffix
             remote_paths = [remote_zip, remote_receipt, remote_verify]
             stage = 'upload'
             copy_to_web(archive, remote_zip, bundle['sha256'])

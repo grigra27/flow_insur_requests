@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build one encrypted recovery ZIP as the deployment user; never send it."""
+"""Build one encrypted recovery archive as the deployment user; never send it."""
 import argparse
 from datetime import datetime, timezone
 import hashlib
@@ -16,6 +16,11 @@ import tempfile
 from uuid import uuid4
 import zipfile
 
+try:
+    from scripts.recovery_age import AgeProcessError, run_age_with_password
+except ModuleNotFoundError:  # Also support python scripts/create_recovery_bundle.py.
+    from recovery_age import AgeProcessError, run_age_with_password
+
 WEB = 'insflow-system-web-1'
 NGINX = 'insflow-system-nginx-1'
 SNAPSHOT_PARENT = PurePosixPath('/app/backups/recovery')
@@ -25,6 +30,11 @@ README = ('Encrypted InsFlow recovery bundle.\n'
           'Extract payload.tar.age and decrypt it using your separately stored age identity.\n'
           'The decrypted tar contains database, documents, configuration, source and integrity manifest.\n'
           'Keep the private identity separate. Verify all hashes before an isolated restore.\n')
+PASSWORD_README = ('Password-encrypted InsFlow recovery bundle.\n'
+                   'Open this backup using the owner application and your password.\n'
+                   'The ZIP contains payload.tar.age; no separate private identity is required.\n'
+                   'The decrypted tar contains database, documents, configuration, source and integrity manifest.\n'
+                   'Use a case-sensitive Linux filesystem when restoring documents.\n')
 
 
 class BundleError(RuntimeError):
@@ -207,19 +217,98 @@ def encrypt_payload(payload, destination, age_binary, recipient_file):
             raise BundleError('Recovery encryption output is invalid.')
 
 
-def create_bundle(project_dir, state_dir, age_binary, recipient_file):
-    """Return this exact finished ZIP; failures never select or replace old files."""
+def read_password_file(path):
+    """Read only a private owner-controlled regular file; never echo its value."""
+    try:
+        path = Path(path).absolute()  # Do not resolve away a final symlink.
+        before = path.lstat()
+        if (not stat.S_ISREG(before.st_mode) or before.st_uid != os.geteuid()
+                or stat.S_IMODE(before.st_mode) != 0o600):
+            raise BundleError('Recovery password file must be owner-only mode 0600.')
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        with os.fdopen(descriptor, 'rb') as source:
+            opened = os.fstat(source.fileno())
+            if (not stat.S_ISREG(opened.st_mode) or opened.st_uid != os.geteuid()
+                    or stat.S_IMODE(opened.st_mode) != 0o600
+                    or (opened.st_dev, opened.st_ino) != (before.st_dev, before.st_ino)):
+                raise BundleError('Recovery password file changed while reading.')
+            raw = source.read(4098)
+            after = os.fstat(source.fileno())
+        if (not stat.S_ISREG(after.st_mode) or after.st_uid != os.geteuid()
+                or stat.S_IMODE(after.st_mode) != 0o600
+                or (opened.st_size, opened.st_mtime_ns, opened.st_ctime_ns)
+                != (after.st_size, after.st_mtime_ns, after.st_ctime_ns)):
+            raise BundleError('Recovery password file changed while reading.')
+        if raw.endswith(b'\n'):
+            raw = raw[:-1]
+        if len(raw) > 4096:
+            raise BundleError('Recovery password file exceeds the size limit.')
+        text = raw.decode('utf-8')
+        if len(text) < 8 or any(ord(char) < 32 or ord(char) == 127 for char in text):
+            raise BundleError('Recovery password must have at least 8 characters without controls.')
+        return text
+    except BundleError:
+        raise
+    except Exception:
+        raise BundleError('Recovery password file is invalid.') from None
+
+
+def encrypt_passphrase_payload(payload, destination, age_binary, password):
+    """Encrypt a private tar and authenticate it fully before publication."""
+    serialized = payload.parent / 'payload.tar'
+    with serialized.open('xb') as target:
+        os.fchmod(target.fileno(), 0o600)
+        with tarfile.open(fileobj=target, mode='w') as archive:
+            for path in sorted(payload.iterdir()):
+                archive.add(path, arcname=path.name)
+        target.flush()
+        os.fsync(target.fileno())
+    try:
+        run_age_with_password([
+            str(age_binary), '--passphrase', '--output', str(destination), str(serialized),
+        ], password, expected_prompts=2, timeout=600)
+    except AgeProcessError:
+        raise BundleError('Recovery passphrase encryption failed.') from None
+    info = regular(destination)
+    if not 0 < info['size'] <= MAX_ARCHIVE_BYTES:
+        raise BundleError('Encrypted recovery archive exceeds the delivery size limit.')
+    os.chmod(destination, 0o600)
+    with destination.open('rb') as encrypted:
+        if encrypted.readline(128) != b'age-encryption.org/v1\n' or not encrypted.readline(256).startswith(b'-> scrypt '):
+            raise BundleError('Recovery passphrase encryption output is invalid.')
+    try:
+        # Sequential invocation: age scrypt uses substantial RAM. Decrypted
+        # bytes go directly to /dev/null, never the private terminal transcript.
+        run_age_with_password([
+            str(age_binary), '--decrypt', '--output', os.devnull, str(destination),
+        ], password, expected_prompts=1, timeout=600)
+    except AgeProcessError:
+        raise BundleError('Recovery passphrase archive authentication failed.') from None
+    with destination.open('rb') as verified:
+        os.fsync(verified.fileno())
+
+
+def create_bundle(project_dir, state_dir, age_binary=None, recipient_file=None, *,
+                  archive_format='age-zip', password_file=None):
+    """Return this exact finished archive; failures never select an old file."""
     snapshot_path = None
     partial = None
     try:
         os.umask(0o077)
         project, state = Path(project_dir).resolve(), Path(state_dir).resolve()
-        age, recipients = Path(age_binary).resolve(), Path(recipient_file).resolve()
+        if archive_format not in {'age-zip', 'age-passphrase'}:
+            raise BundleError('Recovery archive format is invalid.')
+        age = Path(age_binary).resolve()
         if not age.is_file() or not os.access(age, os.X_OK):
             raise BundleError('Recovery encryption executable is unavailable.')
-        recipient_lines = [line.strip() for line in recipients.read_text().splitlines() if line.strip() and not line.lstrip().startswith('#')]
-        if not recipient_lines or any(not re.fullmatch(r'age1[0-9a-z]{58}', line) for line in recipient_lines):
-            raise BundleError('Recovery public recipients file is invalid.')
+        if archive_format == 'age-zip':
+            recipients = Path(recipient_file).resolve()
+            recipient_lines = [line.strip() for line in recipients.read_text().splitlines() if line.strip() and not line.lstrip().startswith('#')]
+            if not recipient_lines or any(not re.fullmatch(r'age1[0-9a-z]{58}', line) for line in recipient_lines):
+                raise BundleError('Recovery public recipients file is invalid.')
+        else:
+            password_path = Path(password_file).absolute()
+            password = read_password_file(password_path)
         state.mkdir(parents=True, exist_ok=True, mode=0o700)
         if state.is_symlink() or state.stat().st_mode & 0o077:
             raise BundleError('Recovery state directory must be private.')
@@ -231,6 +320,17 @@ def create_bundle(project_dir, state_dir, age_binary, recipient_file):
             raise BundleError('Application and source release do not match.')
         if any(state.is_relative_to(Path(mount['Source'])) for mount in before['mounts']):
             raise BundleError('Private recovery staging must be outside application volumes.')
+        if archive_format == 'age-passphrase':
+            # Resolve only after no-follow/private-file validation above. The
+            # password itself must never become a project/config/media member.
+            secret_location = password_path.resolve(strict=True)
+            if secret_location.is_relative_to(project) or any(
+                secret_location.is_relative_to(Path(mount['Source']).resolve())
+                for mount in before['mounts']
+            ):
+                raise BundleError('Recovery password file must be outside application sources and volumes.')
+            if any(secret_location.samefile(path) for path in config_inputs(project).values()):
+                raise BundleError('Recovery password file must be separate from archived configuration.')
         initial_config = configuration_state(project); cron = insflow_cron()
         backup_id = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S_%fZ') + '_' + uuid4().hex
         with tempfile.TemporaryDirectory(prefix='build-', dir=state) as temporary:
@@ -260,28 +360,36 @@ def create_bundle(project_dir, state_dir, age_binary, recipient_file):
             manifest = {'schema_version': 'insflow.recovery-bundle.v1', 'backup_id': backup_id,
                         'created_at_utc': datetime.now(timezone.utc).isoformat(), 'app_build_sha': commit,
                         'files': inventory, 'media_files': data['media']['file_count'],
-                        'config_source_metadata': initial_config, 'encryption': 'age-X25519'}
+                        'config_source_metadata': initial_config,
+                        'encryption': 'age-X25519' if archive_format == 'age-zip' else 'age-scrypt'}
             (payload / 'manifest.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2))
-            encrypted = work / 'payload.tar.age'
-            encrypt_payload(payload, encrypted, age, recipients)
-            if runtime() != before or source_state(project) != commit or configuration_state(project) != initial_config or insflow_cron() != cron or tls_archive(work / 'tls-check.tar') != tls_hash:
-                raise BundleError('Recovery sources changed before publication.')
-            if encrypted.stat().st_size > MAX_ARCHIVE_BYTES:
-                raise BundleError('Encrypted recovery bundle exceeds the delivery size limit.')
             final = exports / ('insflow_recovery_' + backup_id + '.zip')
             partial = final.with_suffix('.zip.part')
+            encrypted = work / 'payload.tar.age'
+            if archive_format == 'age-zip':
+                encrypt_payload(payload, encrypted, age, recipients)
+            else:
+                encrypt_passphrase_payload(payload, encrypted, age, password)
+                if read_password_file(password_path) != password:
+                    raise BundleError('Recovery archive password changed before publication.')
+            if encrypted.stat().st_size > MAX_ARCHIVE_BYTES:
+                raise BundleError('Encrypted recovery bundle exceeds the delivery size limit.')
             with partial.open('xb') as target:
                 with zipfile.ZipFile(target, 'w', compression=zipfile.ZIP_STORED) as archive:
-                    archive.write(encrypted, 'payload.tar.age'); archive.writestr('README.txt', README)
+                    archive.write(encrypted, 'payload.tar.age')
+                    archive.writestr('README.txt', README if archive_format == 'age-zip' else PASSWORD_README)
                 target.flush(); os.fsync(target.fileno())
+            if runtime() != before or source_state(project) != commit or configuration_state(project) != initial_config or insflow_cron() != cron or tls_archive(work / 'tls-check.tar') != tls_hash:
+                raise BundleError('Recovery sources changed before publication.')
             if partial.stat().st_size > MAX_ARCHIVE_BYTES:
-                raise BundleError('Encrypted recovery ZIP exceeds the delivery size limit.')
+                raise BundleError('Encrypted recovery archive exceeds the delivery size limit.')
             archive_digest, archive_size = sha256(partial), partial.stat().st_size
             run(['docker', 'exec', WEB, 'rm', '-rf', '--', snapshot_path]); snapshot_path = None
             os.replace(partial, final); partial = None
             return {'status': 'ready', 'backup_id': backup_id, 'archive_path': str(final),
                     'sha256': archive_digest, 'size': archive_size,
-                    'created_at_utc': manifest['created_at_utc'], 'media_files': manifest['media_files']}
+                    'created_at_utc': manifest['created_at_utc'], 'media_files': manifest['media_files'],
+                    'archive_format': archive_format}
     except BundleError:
         raise
     except Exception:
@@ -299,10 +407,13 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--project-dir', default=str(Path(__file__).resolve().parent.parent))
     parser.add_argument('--state-dir', default=str(Path.home() / '.local/state/insflow-recovery'))
-    parser.add_argument('--age-binary', required=True); parser.add_argument('--recipient-file', required=True)
+    parser.add_argument('--archive-format', choices=['age-zip', 'age-passphrase'], default='age-zip')
+    parser.add_argument('--age-binary'); parser.add_argument('--recipient-file')
+    parser.add_argument('--password-file')
     args = parser.parse_args(argv)
     try:
-        result = create_bundle(args.project_dir, args.state_dir, args.age_binary, args.recipient_file)
+        result = create_bundle(args.project_dir, args.state_dir, args.age_binary, args.recipient_file,
+                               archive_format=args.archive_format, password_file=args.password_file)
     except BundleError as error:
         print(json.dumps({'status': 'error', 'error': str(error)})); return 1
     print(json.dumps(result)); return 0

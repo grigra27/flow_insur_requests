@@ -1,5 +1,5 @@
 """Host bundle tests use only temporary files, fake Docker/Git and a fake age CLI."""
-from contextlib import redirect_stderr, redirect_stdout
+from contextlib import contextmanager, redirect_stderr, redirect_stdout
 import hashlib
 from io import BytesIO, StringIO
 import json
@@ -117,6 +117,7 @@ class RecoveryBundleTests(unittest.TestCase):
             result = self.create()
         archive_path = Path(result['archive_path'])
         self.assertEqual(result['status'], 'ready')
+        self.assertEqual(result['archive_format'], 'age-zip')
         self.assertEqual(result['sha256'], bundle.sha256(archive_path))
         self.assertEqual(result['size'], archive_path.stat().st_size)
         self.assertEqual(archive_path.stat().st_mode & 0o777, 0o600)
@@ -283,6 +284,224 @@ class RecoveryBundleTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(json.loads(out.getvalue())['status'], 'ready')
         self.assertNotIn(self.canary, out.getvalue() + err.getvalue())
+
+    def password_fixture(self, raw=None, path=None):
+        self.password = 'Пароль-Canary8/' + self.canary
+        self.password_file = path or self.root / 'archive-password'
+        self.password_file.parent.mkdir(parents=True, exist_ok=True)
+        self.password_file.write_bytes(raw if raw is not None else (self.password + '\n').encode())
+        self.password_file.chmod(0o600)
+        return self.password_file
+
+    def create_password_bundle(self):
+        return bundle.create_bundle(self.project, self.state, age_binary=self.age,
+                                    archive_format='age-passphrase', password_file=self.password_file)
+
+    @contextmanager
+    def fake_passphrase_age(self, *, fail=None):
+        calls, observed = [], {}
+        existing_exports = set(self.state.glob('exports/*.zip'))
+
+        def invoke(arguments, password, **options):
+            calls.append((arguments, options))
+            self.assertNotIn(self.password, repr(arguments))
+            self.assertEqual(password, self.password)
+            self.assertEqual(options['timeout'], 600)
+            operation = arguments[1]
+            if operation == '--passphrase':
+                self.assertEqual(options['expected_prompts'], 2)
+                tar_path = Path(arguments[-1])
+                self.assertEqual(tar_path.name, 'payload.tar')
+                self.assertEqual(tar_path.stat().st_mode & 0o777, 0o600)
+                self.assertNotIn(self.password.encode(), tar_path.read_bytes())
+                observed['tar_size'] = tar_path.stat().st_size
+                with tarfile.open(tar_path) as archive:
+                    observed['names'] = archive.getnames()
+                    observed['manifest'] = json.load(archive.extractfile('manifest.json'))
+                destination = Path(arguments[arguments.index('--output') + 1])
+                self.assertEqual(destination.name, 'payload.tar.age')
+                self.assertEqual(set(self.state.glob('exports/*.zip')), existing_exports)
+                prefix = b'age-encryption.org/v1\n-> scrypt ' + b'A' * 22 + b' 18\n'
+                payload = prefix + hashlib.sha256(tar_path.read_bytes()).digest()
+                if fail == 'header':
+                    payload = b'not encrypted\n'
+                if fail == 'stanza':
+                    payload = b'age-encryption.org/v1\n-> X25519 ' + b'A' * 43 + b'\n'
+                if fail == 'empty':
+                    payload = b''
+                destination.write_bytes(payload)
+                if fail == 'exception':
+                    raise OSError(self.password)
+                if fail == 'encryption':
+                    raise bundle.AgeProcessError(self.password)
+                return None
+            self.assertEqual(operation, '--decrypt')
+            self.assertEqual(options['expected_prompts'], 1)
+            self.assertEqual(arguments[arguments.index('--output') + 1], os.devnull)
+            self.assertEqual(Path(arguments[-1]).name, 'payload.tar.age')
+            if fail == 'authentication':
+                raise bundle.AgeProcessError(self.password)
+            return None
+
+        with patch.object(bundle, 'run_age_with_password', side_effect=invoke):
+            yield calls, observed
+
+    def test_password_archive_contains_one_tar_and_is_fully_validated_before_publication(self):
+        self.password_fixture()
+        with self.fake_passphrase_age() as (calls, observed):
+            result = self.create_password_bundle()
+        archive = Path(result['archive_path'])
+        self.assertEqual(result['status'], 'ready')
+        self.assertEqual(result['archive_format'], 'age-passphrase')
+        self.assertEqual(archive.suffix, '.zip')
+        self.assertEqual(archive.stat().st_mode & 0o777, 0o600)
+        self.assertEqual(result['sha256'], bundle.sha256(archive))
+        self.assertEqual([args[1] for args, unused in calls], ['--passphrase', '--decrypt'])
+        self.assertEqual(observed['manifest']['schema_version'], 'insflow.recovery-bundle.v1')
+        self.assertEqual(observed['manifest']['encryption'], 'age-scrypt')
+        self.assertIn('media/document.bin', observed['names'])
+        self.assertIn('config/.env', observed['names'])
+        self.assertNotIn('archive-password', observed['names'])
+        self.assertNotIn(self.password, json.dumps(result))
+        with zipfile.ZipFile(archive) as outer:
+            self.assertEqual(outer.namelist(), ['payload.tar.age', 'README.txt'])
+            self.assertEqual(outer.read('README.txt').decode(), bundle.PASSWORD_README)
+            self.assertNotIn(self.password.encode(), outer.read('README.txt'))
+            self.assertTrue(all(item.compress_type == zipfile.ZIP_STORED for item in outer.infolist()))
+        self.assertFalse(list(self.state.glob('build-*')))
+        self.assertFalse(list(self.state.glob('exports/*.part')))
+
+    def test_password_archive_cli_works_without_recipient_and_omits_secret(self):
+        self.password_fixture()
+        out, err = StringIO(), StringIO()
+        with self.fake_passphrase_age(), redirect_stdout(out), redirect_stderr(err):
+            code = bundle.main(['--project-dir', str(self.project), '--state-dir', str(self.state),
+                                '--archive-format', 'age-passphrase', '--age-binary', str(self.age),
+                                '--password-file', str(self.password_file)])
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(out.getvalue())['archive_format'], 'age-passphrase')
+        self.assertNotIn(self.password, out.getvalue() + err.getvalue())
+
+    def test_password_validation_allows_unicode_and_only_one_optional_final_lf(self):
+        for suffix in ('', '\n'):
+            with self.subTest(final_lf=bool(suffix)):
+                value = 'Пароль8!'
+                path = self.password_fixture((value + suffix).encode('utf-8'))
+                self.assertEqual(bundle.read_password_file(path), value)
+        for raw in (b'', b'1234567', b'12345678\r\n', b'12345678\n\n', b'1234\n5678',
+                    b'1234\x005678', b'1234\t5678', b'12345678\xff', b'1234\x7f5678', b'x' * 4097):
+            with self.subTest(raw=raw):
+                path = self.password_fixture(raw)
+                with self.assertRaises(bundle.BundleError):
+                    bundle.read_password_file(path)
+        for value in ('1234\u20285678', '1234\u200d5678', 'x' * 4096):
+            path = self.password_fixture((value + '\n').encode())
+            self.assertEqual(bundle.read_password_file(path), value)
+
+    def test_password_file_requires_owner_mode_0600_regular_file_and_no_symlink(self):
+        path = self.password_fixture()
+        for mode in (0o644, 0o400, 0o700):
+            path.chmod(mode)
+            with self.subTest(mode=mode), self.assertRaises(bundle.BundleError):
+                bundle.read_password_file(path)
+        path.chmod(0o600)
+        with patch.object(bundle.os, 'geteuid', return_value=path.stat().st_uid + 1):
+            with self.assertRaises(bundle.BundleError):
+                bundle.read_password_file(path)
+        link = self.root / 'password-link'; link.symlink_to(path)
+        with self.assertRaises(bundle.BundleError):
+            bundle.read_password_file(link)
+        fifo = self.root / 'password-pipe'; os.mkfifo(fifo, mode=0o600)
+        with self.assertRaises(bundle.BundleError):
+            bundle.read_password_file(fifo)
+
+    def test_password_inside_project_is_rejected_before_snapshot_or_archiving(self):
+        self.password_fixture(path=self.project / 'password')
+        with self.fake_passphrase_age() as (calls, _), self.assertRaises(bundle.BundleError):
+            self.create_password_bundle()
+        self.assertFalse(calls)
+        self.assertFalse(any('create_recovery_snapshot' in args for args in self.commands))
+        self.assert_unpublished()
+
+    def test_password_permissions_changed_after_open_are_rejected(self):
+        path = self.password_fixture()
+        original = os.open
+        def opened_with_changed_permissions(*args, **kwargs):
+            descriptor = original(*args, **kwargs)
+            path.chmod(0o644)
+            return descriptor
+        with patch.object(bundle.os, 'open', side_effect=opened_with_changed_permissions):
+            with self.assertRaises(bundle.BundleError):
+                bundle.read_password_file(path)
+
+    def test_password_inside_web_mount_is_rejected_even_outside_project(self):
+        self.password_fixture(path=self.root / 'mounted-media' / 'password')
+        original = self.fake_run
+        def mounted(args, output=None):
+            result = original(args, output)
+            if args[:2] == ['docker', 'inspect']:
+                data = json.loads(result)
+                data['mounts'].append({'Destination': '/app/media', 'Source': str(self.password_file.parent),
+                                       'Type': 'bind', 'RW': True})
+                return json.dumps(data).encode()
+            return result
+        with patch.object(bundle, 'run', side_effect=mounted), self.fake_passphrase_age() as (calls, _):
+            with self.assertRaises(bundle.BundleError):
+                self.create_password_bundle()
+        self.assertFalse(calls)
+        self.assert_unpublished()
+
+    def test_password_hardlinked_to_archived_config_is_rejected(self):
+        self.password_fixture()
+        self.password_file.unlink()
+        (self.project / '.env').chmod(0o600)
+        os.link(self.project / '.env', self.password_file)
+        with self.assertRaises(bundle.BundleError):
+            self.create_password_bundle()
+        self.assert_unpublished()
+
+    def test_encryption_and_authentication_failures_clean_partial_plaintext_and_exports(self):
+        self.password_fixture()
+        for failure in ('encryption', 'exception', 'authentication', 'header', 'stanza', 'empty'):
+            with self.subTest(failure=failure), self.fake_passphrase_age(fail=failure):
+                with self.assertRaises(bundle.BundleError) as error:
+                    self.create_password_bundle()
+                self.assertNotIn(self.password, str(error.exception))
+                self.assert_unpublished()
+
+    def test_password_change_during_creation_prevents_publication(self):
+        self.password_fixture()
+        original = bundle.encrypt_passphrase_payload
+        def changed(*args):
+            original(*args)
+            self.password_file.write_text('different-password8')
+        with self.fake_passphrase_age(), patch.object(bundle, 'encrypt_passphrase_payload', side_effect=changed):
+            with self.assertRaises(bundle.BundleError):
+                self.create_password_bundle()
+        self.assert_unpublished()
+
+    def test_failed_password_export_preserves_previous_good_archive_without_fallback(self):
+        old = Path(self.create()['archive_path'])
+        old_hash = bundle.sha256(old)
+        self.password_fixture()
+        out, err = StringIO(), StringIO()
+        with self.fake_passphrase_age(fail='authentication'), redirect_stdout(out), redirect_stderr(err):
+            code = bundle.main(['--project-dir', str(self.project), '--state-dir', str(self.state),
+                                '--archive-format', 'age-passphrase', '--age-binary', str(self.age),
+                                '--password-file', str(self.password_file)])
+        self.assertEqual(code, 1)
+        self.assertNotIn('archive_path', json.loads(out.getvalue()))
+        self.assertNotIn(self.password, out.getvalue() + err.getvalue())
+        self.assertEqual(bundle.sha256(old), old_hash)
+        self.assertEqual([path.resolve() for path in (self.state / 'exports').iterdir()], [old])
+        self.assertFalse(list(self.state.glob('build-*')))
+
+    def test_password_archive_size_guard_cleans_part_without_publishing(self):
+        self.password_fixture()
+        with self.fake_passphrase_age(), patch.object(bundle, 'MAX_ARCHIVE_BYTES', 10):
+            with self.assertRaises(bundle.BundleError):
+                self.create_password_bundle()
+        self.assert_unpublished()
 
 
 class RecoveryCronSetupTests(unittest.TestCase):

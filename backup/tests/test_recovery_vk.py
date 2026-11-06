@@ -12,11 +12,16 @@ from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.test import SimpleTestCase, override_settings
 
-from backup.recovery_vk import atomic_json, sha256_file
+from backup.recovery_vk import atomic_json, sha256_file, validate_archive
 
 CANARY = 'SECRET_CANARY_NEVER_LOG'
 PAYLOAD = (b'age-encryption.org/v1\n-> X25519 ' + b'A' * 43 + b'\n' + b'B' * 43
            + b'\n--- ' + b'C' * 43 + b'\n' + b'\x00' * 16 + b'X' * 48)
+
+
+def passphrase_payload(factor=18, salt=b'A' * 22, body=b'B' * 42 + b'A'):
+    return (b'age-encryption.org/v1\n-> scrypt ' + salt + b' ' + str(factor).encode('ascii')
+            + b'\n' + body + b'\n--- ' + b'C' * 43 + b'\n' + b'\x00' * 16 + b'X' * 48)
 
 
 @override_settings(VK_BACKUP_TOKEN=CANARY, VK_BACKUP_PEER_ID='12345', VK_API_VERSION='5.199')
@@ -91,6 +96,51 @@ class RecoveryVKTests(SimpleTestCase):
         message = self.post.call_args.kwargs['data']['message']
         self.assertIn('база данных, документы и настройки', message)
         self.assertIn('отдельный ключ владельца', message)
+
+    def test_passphrase_archive_send_and_download_need_no_password_in_web(self):
+        self.archive_fixture(payload=passphrase_payload())
+        receipt = self.saved_receipt()
+        self.assertEqual(receipt['sha256'], sha256_file(self.archive))
+        message = self.post.call_args.kwargs['data']['message']
+        self.assertIn('пароль архива', message)
+        self.assertIn('Отдельный ключ не нужен', message)
+        self.assertNotIn('отдельный ключ владельца', message)
+        target, result, unused = self.download()
+        self.assertEqual(target.read_bytes(), self.archive.read_bytes())
+        self.assertEqual(result['status'], 'downloaded')
+        self.assertEqual(target.stat().st_mode & 0o777, 0o600)
+        self.assertNotIn(CANARY, self.output.getvalue() + self.log_output.getvalue())
+
+    def test_scrypt_work_factor_accepts_only_the_bounded_supported_range(self):
+        for factor in (1, 18, 20):
+            with self.subTest(factor=factor):
+                self.archive_fixture(payload=passphrase_payload(factor))
+                path, size, digest = validate_archive(self.archive, sha256_file(self.archive))
+                self.assertEqual(path, self.archive)
+                self.assertEqual(size, self.archive.stat().st_size)
+                self.assertEqual(digest, sha256_file(self.archive))
+        self.post.assert_not_called()
+
+    def test_malformed_or_mixed_scrypt_recipients_fail_before_network(self):
+        scrypt = passphrase_payload()
+        stanza = scrypt.split(b'\n', 1)[1].split(b'--- ', 1)[0]
+        cases = {str(factor): passphrase_payload(factor) for factor in (0, 21, 24, 99, -1, '018')}
+        cases.update({
+            'short_salt': passphrase_payload(salt=b'A' * 21),
+            'padded_salt': passphrase_payload(salt=b'A' * 22 + b'=='),
+            'noncanonical_salt': passphrase_payload(salt=b'A' * 21 + b'B'),
+            'short_wrapped_key': passphrase_payload(body=b'A' * 42),
+            'noncanonical_wrapped_key': passphrase_payload(body=b'A' * 42 + b'B'),
+            'multiple_scrypt': scrypt.replace(stanza, stanza + stanza, 1),
+            'mixed_recipients': PAYLOAD.replace(b'--- ', stanza + b'--- ', 1),
+        })
+        for name, payload in cases.items():
+            with self.subTest(case=name):
+                self.archive_fixture(payload=payload)
+                with self.assertRaises(CommandError):
+                    self.send(no_notify=False)
+        self.post.assert_not_called()
+        self.assertFalse(self.receipt.exists())
 
     def test_existing_matching_receipt_prevents_another_network_delivery(self):
         self.saved_receipt()

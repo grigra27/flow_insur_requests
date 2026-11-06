@@ -61,6 +61,68 @@ class RecoveryJobTests(SimpleTestCase):
                 mock.patch.object(job, 'run', return_value=json.dumps(receipt or self.receipt).encode()):
             return job.run_job(self.root, self.config)
 
+    def configure_password_mode(self):
+        self.age.chmod(0o700)
+        self.password = self.root / 'archive-password'
+        self.password.write_text('pwd-8-ok\n')
+        self.password.chmod(0o600)
+        self.config.write_text(json.dumps(dict(
+            archive_format='age-passphrase', age_binary=str(self.age),
+            password_file=str(self.password), state_dir=str(self.state), keep_local=1)))
+
+    def test_password_mode_requires_no_legacy_age_credentials(self):
+        self.configure_password_mode()
+        config = job.load_config(self.config, self.root)
+        self.assertEqual(config['archive_format'], 'age-passphrase')
+        self.assertEqual(config['password_file'], self.password)
+        self.assertIn('age_binary', config)
+        self.assertNotIn('recipient_file', config)
+
+    def test_password_is_not_part_of_builder_arguments(self):
+        self.configure_password_mode()
+        config = job.load_config(self.config, self.root)
+        with mock.patch.object(job, 'run', return_value=json.dumps(self.bundle).encode()) as command:
+            result = job.produce(config)
+        args = command.call_args.args[0]
+        self.assertIn('--password-file', args)
+        self.assertIn('--age-binary', args)
+        self.assertNotIn('pwd-8-ok', ' '.join(args))
+        self.assertEqual(result['archive_path'], str(self.archive))
+
+    def test_password_file_symlink_or_public_permissions_are_rejected(self):
+        self.configure_password_mode()
+        self.password.chmod(0o644)
+        with self.assertRaises(job.JobError):
+            job.load_config(self.config, self.root)
+        self.password.chmod(0o600)
+        actual = self.password.with_suffix('.real')
+        self.password.rename(actual)
+        self.password.symlink_to(actual)
+        with self.assertRaises(job.JobError):
+            job.load_config(self.config, self.root)
+
+    def test_verified_password_copy_rotates_legacy_only_after_readback(self):
+        self.configure_password_mode()
+        result = self.execute()
+        self.assertEqual(result['status'], 'success')
+        self.assertTrue(result['verified_download'])
+        self.assertTrue(self.archive.is_file())
+        self.assertFalse(self.old.exists())
+        self.assertNotIn('pwd-8-ok', json.dumps(result))
+
+    def test_failed_password_readback_preserves_previous_age_copy(self):
+        self.configure_password_mode()
+        def failing(command, arguments, stage):
+            if command == 'download_recovery_from_vk':
+                raise job.JobError('upload')
+            return {'status': 'sent', 'sha256': self.bundle['sha256']}
+        result = self.execute(management=failing)
+        self.assertEqual(result['status'], 'failed')
+        self.assertTrue(self.old.is_file())
+        self.assertTrue(self.archive.is_file())
+        self.assertEqual(json.loads((self.state / 'last_success.json').read_text()),
+                         {'backup_id': 'old'})
+
     def test_success_requires_external_readback_and_then_rotates_verified_copies(self):
         result = self.execute()
         self.assertEqual(result['status'], 'success')
