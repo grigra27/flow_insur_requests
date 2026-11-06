@@ -640,6 +640,9 @@ jobs:
           chmod +x scripts/log-rotate-cron-setup.sh
           bash scripts/log-rotate-cron-setup.sh || echo "log-rotate-cron-setup.sh failed"
 
+          echo "Install encrypted recovery backup cron..."
+          bash scripts/recovery-cron-setup.sh --allow-unconfigured
+
     # 6️⃣ Post-deployment notification and cleanup
     - name: Post-deployment notification
       if: always()
