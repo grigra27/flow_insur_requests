@@ -286,8 +286,7 @@ class CurrentDisplayValueTests(SimpleTestCase):
         self.assertEqual(current_display_value('dfa_number', 'Номер ДФА не указан', self.meta), '')
 
     def test_datetime_localized_and_formatted(self):
-        from django.utils import timezone as djtz
-        value = djtz.make_aware(dt.datetime(2025, 1, 2, 9, 30), djtz.utc)
+        value = dt.datetime(2025, 1, 2, 9, 30, tzinfo=dt.timezone.utc)
         # Europe/Moscow = UTC+3 → 12:30.
         self.assertEqual(current_display_value('response_deadline', value, self.meta), '02.01.2025 12:30')
 

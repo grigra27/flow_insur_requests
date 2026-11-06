@@ -10,11 +10,12 @@ from django.utils import timezone
 from .models import InsuranceRequest, RequestAttachment
 import os
 import re
-import pytz
 import logging
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 logger = logging.getLogger(__name__)
+MOSCOW_TZ = ZoneInfo('Europe/Moscow')
 
 
 DEFAULT_BRANCH = 'Санкт-Петербург'
@@ -465,8 +466,7 @@ class ParserV2PreviewForm(forms.Form):
         for date_format in ['%Y-%m-%dT%H:%M', '%Y-%m-%d %H:%M:%S', '%d.%m.%Y %H:%M']:
             try:
                 parsed = datetime.strptime(value, date_format)
-                moscow_tz = pytz.timezone('Europe/Moscow')
-                return timezone.make_aware(parsed, moscow_tz)
+                return timezone.make_aware(parsed, MOSCOW_TZ)
             except ValueError:
                 continue
         return None
@@ -627,8 +627,7 @@ class DateTimeLocalWidget(forms.DateTimeInput):
             # Convert timezone-aware datetime to local time if needed
             if hasattr(value, 'tzinfo') and value.tzinfo is not None:
                 # Convert to Moscow timezone for display
-                moscow_tz = pytz.timezone('Europe/Moscow')
-                value = value.astimezone(moscow_tz).replace(tzinfo=None)
+                value = value.astimezone(MOSCOW_TZ).replace(tzinfo=None)
             
             # Format for HTML5 datetime-local: YYYY-MM-DDTHH:MM
             return value.strftime('%Y-%m-%dT%H:%M')
@@ -957,12 +956,11 @@ class InsuranceRequestForm(forms.ModelForm):
         
         if deadline:
             # Преобразуем в московское время для сравнения
-            moscow_tz = pytz.timezone('Europe/Moscow')
-            moscow_now = timezone.now().astimezone(moscow_tz)
+            moscow_now = timezone.now().astimezone(MOSCOW_TZ)
             
             # Если время введено без часового пояса, считаем его московским
             if deadline.tzinfo is None:
-                deadline = moscow_tz.localize(deadline)
+                deadline = timezone.make_aware(deadline, MOSCOW_TZ)
             
             # Предупреждение, если срок в прошлом (но не блокируем)
             if deadline < moscow_now:

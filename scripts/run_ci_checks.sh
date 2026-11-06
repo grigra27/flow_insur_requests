@@ -10,6 +10,7 @@ export DB_NAME=:memory:
 export DEBUG=False
 export ENABLE_HTTPS=False
 
+"$PYTHON_BIN" -m pip check
 "$PYTHON_BIN" manage.py check
 "$PYTHON_BIN" manage.py makemigrations --check --dry-run
 
