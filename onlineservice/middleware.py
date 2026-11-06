@@ -28,7 +28,7 @@ class DomainRoutingMiddleware:
     """
     
     # Paths allowed on main domains
-    MAIN_DOMAIN_ALLOWED_PATHS = ['', 'landing', 'healthz', 'static', 'media']
+    MAIN_DOMAIN_ALLOWED_PATHS = ['', 'landing', 'healthz', 'static']
     
     # Paths that should always be accessible over HTTP (for health checks, etc.)
     HTTP_ALLOWED_PATHS = ['healthz', 'health', '.well-known']
@@ -109,8 +109,8 @@ class DomainRoutingMiddleware:
         elif path == 'healthz':
             # Allow health check on main domains
             return self.get_response(request)
-        elif first_segment == 'static' or first_segment == 'media':
-            # Allow static and media files
+        elif first_segment == 'static':
+            # Только публичная статика; документы доступны на рабочем поддомене.
             return self.get_response(request)
         else:
             # All other paths on main domains should return 404

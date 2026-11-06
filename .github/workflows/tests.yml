@@ -33,6 +33,7 @@ jobs:
       - name: Run regression tests
         run: >-
           python manage.py test
+          onlineservice.test_protected_media
           insurance_requests.tests
           backup.tests
           summaries.test_company_matcher

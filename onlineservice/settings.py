@@ -135,6 +135,11 @@ STORAGES = {
 # Media files
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+# Production Nginx выдаёт файл через internal location после проверки сессии.
+# Без Nginx (локальный runserver) используем защищённый FileResponse.
+PROTECTED_MEDIA_USE_X_ACCEL_REDIRECT = config(
+    'PROTECTED_MEDIA_USE_X_ACCEL_REDIRECT', default=False, cast=bool
+)
 
 # Шаблон ответа страховщика V2 (docs/improvement_plans/insurer_response_v2.md). False — всё новое (комплект
 # для страховщика, блоки «Осмотр / Риски РНПК / Перевозка», их проверки) видит только суперпользователь.

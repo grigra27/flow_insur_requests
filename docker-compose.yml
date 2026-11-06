@@ -30,6 +30,7 @@ services:
       - DB_HOST=db
       - DB_PORT=5432
       - ALLOWED_HOSTS=${ALLOWED_HOSTS}
+      - PROTECTED_MEDIA_USE_X_ACCEL_REDIRECT=True
       # HTTPS Security Settings (controlled by environment)
       - ENABLE_HTTPS=${ENABLE_HTTPS:-True}
       - SSL_REDIRECT=${SSL_REDIRECT:-True}

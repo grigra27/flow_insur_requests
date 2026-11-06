@@ -46,7 +46,9 @@ When changing URL routes, remember that root `/` is dispatched by `domain_aware_
 
 ### Auth model
 
-Access is gated by two Django groups: **`Администраторы`** and **`Пользователи`** (Cyrillic, exact match). Decorators in `insurance_requests/decorators.py` (`admin_required`, `user_required`) check group membership; `insurance_requests.middleware.AuthenticationMiddleware` blocks anonymous traffic except for a public allowlist (`/login/`, `/logout/`, `/admin/login/`, `/static/`, `/media/`, `/healthz/`, `/landing/`). Login rate limiting is configurable via `LOGIN_*` env vars.
+Access is gated by two Django groups: **`Администраторы`** and **`Пользователи`** (Cyrillic, exact match). Decorators in `insurance_requests/decorators.py` (`admin_required`, `user_required`) check group membership; `insurance_requests.middleware.AuthenticationMiddleware` blocks anonymous traffic except for a public allowlist (`/login/`, `/logout/`, `/admin/login/`, `/static/`, `/healthz/`, `/landing/`). Login rate limiting is configurable via `LOGIN_*` env vars.
+
+Documents keep their `/media/` URLs but require an active user in either app group (or an active superuser), on a staff subdomain. `onlineservice.views.protected_media` checks access and sends `X-Accel-Redirect` to Nginx's internal-only `/_protected_media/` location; Compose enables `PROTECTED_MEDIA_USE_X_ACCEL_REDIRECT`. Local development streams through the same protected view. Never add a public media alias or `static(MEDIA_URL)` route. Documents must use private/no-store caching.
 
 ### Excel ingestion
 

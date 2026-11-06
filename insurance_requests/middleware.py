@@ -2,6 +2,8 @@ from django.shortcuts import redirect
 from django.urls import reverse
 from django.conf import settings
 from django.http import HttpResponseRedirect
+from django.contrib.auth.views import redirect_to_login
+from django.utils.cache import add_never_cache_headers
 
 
 class AuthenticationMiddleware:
@@ -20,7 +22,6 @@ class AuthenticationMiddleware:
             '/login/',
             '/logout/',
             '/static/',
-            '/media/',
             '/healthz/',
             '/landing/',
         ]
@@ -32,7 +33,10 @@ class AuthenticationMiddleware:
             login_url = reverse('login')
             if request.path != login_url:
                 # Добавляем параметр next для перенаправления после входа
-                return HttpResponseRedirect(f"{login_url}?next={request.path}")
+                response = redirect_to_login(request.get_full_path(), login_url)
+                if request.path.startswith(settings.MEDIA_URL):
+                    add_never_cache_headers(response)
+                return response
             else:
                 return HttpResponseRedirect(login_url)
         

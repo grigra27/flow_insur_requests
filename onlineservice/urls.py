@@ -8,7 +8,7 @@ from django.conf.urls.static import static
 from django.shortcuts import redirect
 from django.http import HttpResponse
 from insurance_requests.views import login_view, logout_view, access_denied_view
-from .views import landing_view, landing_health_check
+from .views import landing_view, landing_health_check, protected_media
 
 
 def domain_aware_redirect(request):
@@ -50,6 +50,7 @@ urlpatterns = [
     path('access-denied/', access_denied_view, name='access_denied'),
     path('requests/', include('insurance_requests.urls')),
     path('summaries/', include('summaries.urls')),
+    path('media/<path:path>', protected_media, name='protected_media'),
     path('healthz/', lambda request: HttpResponse('OK'), name='health'),
     path('landing/', landing_view, name='landing'),
     path('landing/health/', landing_health_check, name='landing_health'),
@@ -97,7 +98,6 @@ def custom_404_handler(request, exception):
 # Set custom error handler
 handler404 = custom_404_handler
 
-# Для разработки - обслуживание медиа и статических файлов
+# Для разработки — публичная статика; документы всегда через protected_media.
 if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
