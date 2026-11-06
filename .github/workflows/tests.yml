@@ -1,4 +1,4 @@
-name: Django Checks and Smoke Tests
+name: Django Checks and Regression Tests
 
 on:
   pull_request:
@@ -24,19 +24,5 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run Django system check
-        run: python manage.py check
-
-      - name: Verify migration files are committed
-        run: python manage.py makemigrations --check --dry-run
-
-      - name: Run regression tests
-        run: >-
-          python manage.py test
-          onlineservice.test_protected_media
-          insurance_requests.tests
-          backup.tests
-          summaries.test_company_matcher
-          summaries.test_templatetags
-          summaries.test_offer_coverage_territory
-          summaries.test_excel_integration
+      - name: Run required Django checks and regression suite
+        run: bash scripts/run_ci_checks.sh

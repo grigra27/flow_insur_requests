@@ -23,10 +23,16 @@ python manage.py migrate
 python manage.py setup_user_groups
 python manage.py create_default_users --create-test-user   # optional
 
+# Required checks shared by PR and production CI (isolated SQLite database)
+SECRET_KEY=ci-only-test-key PYTHON_BIN=venv/bin/python bash scripts/run_ci_checks.sh
+
 # Maintenance commands
 python manage.py auto_close_stale_summaries [--dry-run] [--days=30]
 python manage.py backup_db --format pgdump --output-dir /app/backups --keep 10
 ```
+
+The mandatory regression suite is defined once in `scripts/ci_test_labels.txt`; both
+workflows invoke `scripts/run_ci_checks.sh`. See `docs/ci.md` before changing this gate.
 
 ## Architecture
 
