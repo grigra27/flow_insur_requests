@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% load tz %}
+{% load static tz %}
 {% load summary_extras %}
 
 {% block title %}Свод к {{ summary.request.get_display_name }} - {{ block.super }}{% endblock %}
@@ -25,6 +25,8 @@
         {% endif %}
     </div>
 </div>
+
+{% include 'summaries/policy_handoff.html' %}
 
 <!-- Прогресс-бар статусов -->
 <div class="sd-progress">
@@ -545,7 +547,6 @@
                     </div>
                     {% endif %}
 
-                    {% include 'summaries/policy_handoff.html' %}
                     <div class="collapse{% if summary.status != 'completed_accepted' and summary.status != 'completed_rejected' %} show{% endif %}" id="status-change-form">
                         <!-- Форма изменения статуса -->
                         <div class="mb-3">
@@ -784,6 +785,7 @@
 {% endblock %}
 
 {% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/policy-handoff.css' %}">
 <style>
 .summary-faq-link {
     padding: 0;

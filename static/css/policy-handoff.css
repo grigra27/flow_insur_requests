@@ -1,0 +1,78 @@
+.policy-handoff {
+    margin-bottom: 1.1rem;
+    padding: 1rem 1.25rem;
+    border: 1px solid var(--app-border);
+    border-radius: 14px;
+    background: var(--app-surface);
+}
+
+.policy-handoff--action {
+    border-color: #eac7cc;
+    border-inline-start: 4px solid #c02e47;
+    background: #fff7f7;
+}
+
+.policy-handoff__body {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem 2rem;
+}
+
+.policy-handoff__brand {
+    margin: 0;
+    color: var(--app-text);
+    font-size: 1.25rem;
+    font-weight: 500;
+    line-height: 1.25;
+}
+
+.policy-handoff__brand strong { font-weight: 800; }
+.policy-handoff__brand span { color: #8c6671; }
+
+.policy-handoff__description {
+    margin: 0.35rem 0 0;
+    color: var(--app-muted);
+    font-size: 0.9375rem;
+    line-height: 1.45;
+}
+
+.policy-handoff__body form { flex-shrink: 0; }
+
+.policy-handoff__button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.875rem;
+    min-height: 3.25rem;
+    padding: 0.7rem 1.4rem;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    background: #bd2942;
+    color: #fff;
+    font: inherit;
+    font-size: 1.125rem;
+    font-weight: 700;
+    line-height: 1.25;
+    cursor: pointer;
+}
+
+.policy-handoff__button span { font-size: 1.35em; line-height: 1; }
+.policy-handoff__button:hover { background: #a51e36; }
+.policy-handoff__button:active { background: #89182c; }
+.policy-handoff__button:focus-visible { outline: 3px solid #722034; outline-offset: 3px; }
+
+.policy-handoff__links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+}
+
+.policy-handoff__links a { max-width: 100%; overflow-wrap: anywhere; }
+
+@media (max-width: 767px) {
+    .policy-handoff { padding: 1rem; }
+    .policy-handoff__body { flex-direction: column; align-items: stretch; gap: 0.85rem; }
+    .policy-handoff__button { width: 100%; }
+}

@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% load tz %}
+{% load static tz %}
 {% load summary_extras %}
 
 {% block title %}Резюме по сделке — {{ client_name }} — {{ block.super }}{% endblock %}
@@ -26,6 +26,8 @@
         <a href="{% url 'summaries:summary_detail' summary.pk %}"><i class="bi bi-collection"></i> Свод</a>
     </div>
 </div>
+
+{% include 'summaries/policy_handoff.html' %}
 
 {# ── ИТОГ СДЕЛКИ ── #}
 <div class="ds-card ds-result">
@@ -62,8 +64,6 @@
     </div>
     {% endif %}
 </div>
-
-{% include 'summaries/policy_handoff.html' %}
 
 {% if deal_summary_note %}
 <div class="ds-summary-note">
@@ -306,6 +306,7 @@
 {% endblock %}
 
 {% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/policy-handoff.css' %}">
 <style>
     .ds-page {
         --ds-ink: #0f1b2d;

@@ -1,23 +1,40 @@
-{% if policy_handoff %}
-<div class="my-3">
-    {% if policy_handoff.unavailable %}
-        <div class="text-muted small">Не удалось проверить связь с «Полисами».
-            <a href="{% url 'summaries:summary_detail' summary.pk %}">Повторить</a>
+{% if policy_handoff.unavailable %}
+    <p class="text-muted small mb-3">
+        Не удалось проверить связь с «Полисами». <a href="">Повторить</a>
+    </p>
+{% elif policy_handoff %}
+    <section class="policy-handoff{% if policy_handoff.can_continue %} policy-handoff--action{% endif %}" aria-labelledby="policy-handoff-title">
+        <div class="policy-handoff__body">
+            <div>
+                <h2 id="policy-handoff-title" class="policy-handoff__brand"><strong>флоу</strong> <span>//</span> полисы</h2>
+                {% if policy_handoff.can_continue %}
+                    <p class="policy-handoff__description" id="policy-handoff-description">
+                        {% if policy_handoff.links %}
+                            Вы перейдёте в модуль «Полисы», чтобы оформить оставшиеся объекты.
+                        {% else %}
+                            Вы перейдёте в модуль «Полисы». Данные из акцептованного свода подставятся автоматически.
+                        {% endif %}
+                    </p>
+                {% endif %}
+            </div>
+            {% if policy_handoff.can_continue %}
+                <form method="post" action="{% url 'summaries:policy_start' summary.pk %}">
+                    {% csrf_token %}
+                    <button type="submit" class="policy-handoff__button" aria-describedby="policy-handoff-description">
+                        {% if policy_handoff.links %}Продолжить оформление{% else %}Создать полис{% endif %}
+                        <span aria-hidden="true">→</span>
+                    </button>
+                </form>
+            {% endif %}
         </div>
-    {% else %}
-        {% for link in policy_handoff.links %}
-            <a href="{{ link.url }}" class="btn btn-sm btn-outline-primary mb-1">
-                {% if policy_handoff.mode == 'separate' %}Объект {{ link.position }} из {{ policy_handoff.total }} · {% elif policy_handoff.total > 1 %}Общий полис (объектов: {{ policy_handoff.total }}) · {% endif %}Открыть полис № {{ link.number }}
-            </a>
-        {% endfor %}
-        {% if policy_handoff.can_continue %}
-            <form method="post" action="{% url 'summaries:policy_start' summary.pk %}">
-                {% csrf_token %}
-                <button type="submit" class="btn btn-sm btn-primary">
-                    {% if policy_handoff.links %}Продолжить оформление{% else %}Создать полис{% endif %}
-                </button>
-            </form>
+        {% if policy_handoff.links %}
+            <div class="policy-handoff__links">
+                {% for link in policy_handoff.links %}
+                    <a href="{{ link.url }}" class="btn btn-sm btn-outline-primary">
+                        {% if policy_handoff.mode == 'separate' %}Объект {{ link.position }} из {{ policy_handoff.total }} · {% elif policy_handoff.total > 1 %}Общий полис (объектов: {{ policy_handoff.total }}) · {% endif %}Открыть полис № {{ link.number }}
+                    </a>
+                {% endfor %}
+            </div>
         {% endif %}
-    {% endif %}
-</div>
+    </section>
 {% endif %}
