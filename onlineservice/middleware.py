@@ -16,6 +16,7 @@ PUBLIC_FILES = {
     '/favicon.ico': ('favicon.ico', 'image/x-icon'),
     '/landing-cover-v1.png': ('landing-cover-v1.png', 'image/png'),
     '/landing-cover-v2.png': ('landing-cover-v2.png', 'image/png'),
+    '/landing-cover-v3.png': ('landing-cover-v3.png', 'image/png'),
     '/case/': ('index.html', 'text/html; charset=utf-8'),
     '/case/cover-v1.png': ('cover-v1.png', 'image/png'),
     '/case/cover-v2.png': ('cover-v2.png', 'image/png'),

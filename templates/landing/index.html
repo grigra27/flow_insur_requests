@@ -2,12 +2,11 @@
 {% load static %}
 
 {% block page_metadata %}
-{% with title="InsFlow — корпоративное решение для страхования" description="В InsFlow брокер разбирает заявки, сравнивает предложения страховщиков, оформляет полисы и ведёт учёт комиссии. В кейсе можно пройти все этапы одной сделки." home_url="https://insflow.ru/" image_url="https://insflow.ru/landing-cover-v2.png" image_alt="InsFlow — «здесь есть флоу». Корпоративное решение для страхования." %}
+{% with title="InsFlow — Автоматизация страховых процессов" description="Проектируем и внедряем внутренние IT-системы для страховщиков, брокеров и финансовых команд. Автоматизируем согласования, обмен документами и финансовые сверки." home_url="https://insflow.ru/" image_url="https://insflow.ru/landing-cover-v3.png" image_alt="InsFlow — автоматизация страховых процессов" %}
 <title>{{ title }}</title>
 <meta name="description" content="{{ description }}">
 <link rel="canonical" href="{{ home_url }}">
 <meta name="robots" content="index, follow, max-image-preview:large">
-
 <meta property="og:type" content="website">
 <meta property="og:locale" content="ru_RU">
 <meta property="og:site_name" content="InsFlow">
@@ -19,7 +18,6 @@
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="627">
 <meta property="og:image:alt" content="{{ image_alt }}">
-
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="{{ title }}">
 <meta name="twitter:description" content="{{ description }}">
@@ -28,103 +26,108 @@
 <script type="application/ld+json">
 {
     "@context": "https://schema.org",
-    "@type": "WebSite",
+    "@type": "Organization",
     "name": "InsFlow",
     "url": "{{ home_url }}",
-    "inLanguage": "ru"
+    "email": "sales@insflow.ru",
+    "description": "{{ description }}"
 }
 </script>
 {% endwith %}
 {% endblock %}
 
-{% block extra_head %}
-<meta name="theme-color" content="#11182B">
-<meta name="msapplication-TileColor" content="#11182B">
-{% endblock %}
-
 {% block content %}
-<div class="landing-container">
-    <!-- Main Content Section -->
-    <section class="content-center" aria-labelledby="main-heading">
-        <header>
-            <h1 id="main-heading" class="main-heading">
-                здесь есть <span>флоу</span>
-            </h1>
-            <div class="accent-line" role="presentation" aria-hidden="true"></div>
-        </header>
+<header class="masthead">
+    <div class="shell masthead-inner">
+        <a class="brand" href="#top" aria-label="InsFlow, к началу страницы">
+            <img src="/favicon.svg" alt="" width="32" height="32">
+            <span>InsFlow</span>
+        </a>
+        <nav class="main-nav" aria-label="Навигация по странице">
+            <a href="#solutions">Направления</a>
+            <a href="#approach">Как работаем</a>
+            <a class="nav-contact" href="#contact">Связаться <span aria-hidden="true">↘</span></a>
+        </nav>
+    </div>
+</header>
 
-        <a class="case-link" href="/case/">Посмотреть кейс Flow <span aria-hidden="true">→</span></a>
+<main id="main-content">
+    <section class="hero shell" aria-labelledby="hero-title">
+        <div class="hero-copy">
+            <p class="eyebrow"><span aria-hidden="true"></span>Корпоративные IT-решения</p>
+            <h1 id="hero-title">Автоматизация<br>страховых<br>процессов<span class="period">.</span></h1>
+            <p class="hero-description">Проектируем внутренние системы для страховщиков, брокеров и финансовых команд. Связываем согласования, документы и учёт в одном рабочем процессе.</p>
+            <a class="button button-dark" href="#solutions">Что автоматизируем <span aria-hidden="true">↓</span></a>
+        </div>
+        <div class="hero-visual">
+            <img src="{% static 'img/landing/flow-sculpture.webp' %}" alt="" width="1254" height="1254" fetchpriority="high">
+        </div>
     </section>
 
-    <!-- Background Decorative Elements -->
-    <div class="background-effects" role="presentation" aria-hidden="true"></div>
-</div>
-{% endblock %}
+    <section class="solutions" id="solutions" aria-labelledby="solutions-title">
+        <div class="shell solutions-layout">
+            <div class="section-intro">
+                <h2 id="solutions-title">Что мы<br>автоматизируем<span class="period">.</span></h2>
+                <p>Начать можно с одного участка, где работа застревает между людьми и системами.</p>
+            </div>
+            <div class="service-list">
+                <details name="direction" open>
+                    <summary>Согласования и задачи<span class="toggle" aria-hidden="true"></span></summary>
+                    <div class="service-body">
+                        <p>Задаём правила маршрута, сроки и ответственных. Если условия договора выходят за лимит, он попадает к руководителю. Инициатор видит, у кого документ и какое решение принято.</p>
+                        <p class="example"><span>Пример</span>Согласование нестандартных условий договора</p>
+                    </div>
+                </details>
+                <details name="direction">
+                    <summary>Документы и интеграции<span class="toggle" aria-hidden="true"></span></summary>
+                    <div class="service-body">
+                        <p>Связываем кабинеты партнёров, внутренние базы и учётные программы. Данные вводятся один раз, а при изменении суммы или даты сотрудник видит расхождение до передачи в учёт.</p>
+                        <p class="example"><span>Пример</span>Передача изменений по договору в бухгалтерию</p>
+                    </div>
+                </details>
+                <details name="direction">
+                    <summary>Сверки и отчётность<span class="toggle" aria-hidden="true"></span></summary>
+                    <div class="service-body">
+                        <p>Сопоставляем реестры партнёров с платежами и начислениями. Финансовая команда разбирает расхождения и может перейти от итоговой суммы в отчёте к отдельной операции.</p>
+                        <p class="example"><span>Пример</span>Сверка ежемесячного реестра с платежами</p>
+                    </div>
+                </details>
+            </div>
+        </div>
+    </section>
 
-{% block extra_scripts %}
-<script>
-    // Progressive Enhancement - Add interaction effects if JS is enabled
-    document.addEventListener('DOMContentLoaded', function () {
-        // Add smooth scroll behavior
-        document.documentElement.style.scrollBehavior = 'smooth';
+    <section class="approach shell" id="approach" aria-labelledby="approach-title">
+        <h2 id="approach-title">Как строим проект<span class="period">.</span></h2>
+        <ol class="steps">
+            <li>
+                <h3>Разбираем процесс</h3>
+                <p>Проходим одну операцию вместе с командой. Фиксируем, кто передаёт данные, где ждут решения и сколько времени занимает ручная работа.</p>
+            </li>
+            <li>
+                <h3>Проверяем прототип</h3>
+                <p>Сотрудники пробуют привычный сценарий и исключения из правил. По результатам выбираем объём первого запуска и показатель, по которому оценим эффект.</p>
+            </li>
+            <li>
+                <h3>Внедряем и измеряем</h3>
+                <p>Подключаем нужные системы и сопровождаем первые операции. Сравниваем результат с исходной точкой — например, по сроку согласования или времени на сверку.</p>
+            </li>
+        </ol>
+    </section>
 
-        // Add focus management for accessibility
-        const mainHeading = document.getElementById('main-heading');
-        if (mainHeading) {
-            // Ensure heading is focusable for screen readers
-            mainHeading.setAttribute('tabindex', '-1');
-        }
-
-        // Preload critical resources
-        const criticalResources = [
-            '{% static "css/landing.css" %}'
-        ];
-
-        criticalResources.forEach(function (resource) {
-            const link = document.createElement('link');
-            link.rel = 'preload';
-            link.as = 'style';
-            link.href = resource;
-            document.head.appendChild(link);
-        });
-
-        // Add performance monitoring
-        if ('performance' in window) {
-            window.addEventListener('load', function () {
-                setTimeout(function () {
-                    const perfData = performance.getEntriesByType('navigation')[0];
-                    if (perfData && perfData.loadEventEnd > 0) {
-                        console.log('Landing page load time:', perfData.loadEventEnd - perfData.fetchStart, 'ms');
-                    }
-                }, 0);
-            });
-        }
-
-        // Add error handling for missing resources
-        const cssLink = document.querySelector('link[href*="landing.css"]');
-        if (cssLink) {
-            cssLink.addEventListener('error', function () {
-                console.warn('Landing CSS failed to load, applying fallback styles');
-                // Apply minimal fallback styles
-                document.body.style.cssText = `
-                    margin: 0;
-                    padding: 2rem;
-                    font-family: Arial, sans-serif;
-                    background: #11182B;
-                    color: white;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    min-height: 100vh;
-                    text-align: center;
-                `;
-            });
-        }
-    });
-
-    // Handle reduced motion preferences
-    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-        document.documentElement.style.setProperty('--animation-duration', '0s');
-    }
-</script>
+    <section class="contact" id="contact" aria-labelledby="contact-title">
+        <div class="shell contact-inner">
+            <div>
+                <h2 id="contact-title">Какой процесс<br>вы хотите упростить?</h2>
+                <p>Напишите, кто в нём участвует и на каком шаге уходит больше всего времени.</p>
+            </div>
+            <a class="email" href="mailto:sales@insflow.ru">sales@insflow.ru <span aria-hidden="true">↗</span></a>
+        </div>
+    </section>
+</main>
+<footer class="site-footer">
+    <div class="shell footer-inner">
+        <a class="brand" href="#top" aria-label="InsFlow, к началу страницы"><img src="/favicon.svg" alt="" width="32" height="32"><span>InsFlow</span></a>
+        <a class="to-top" href="#top">К началу <span aria-hidden="true">↑</span></a>
+    </div>
+</footer>
 {% endblock %}

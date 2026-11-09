@@ -7,50 +7,58 @@
     * { box-sizing: border-box; }
     body { margin: 0; font-family: "Helvetica Neue", Arial, sans-serif; }
     main {
+      display: grid;
+      grid-template-columns: 1.05fr 1fr;
       width: 1200px;
       height: 627px;
-      position: relative;
-      display: grid;
-      place-content: center;
-      padding-top: 62px;
-      background: #11182B;
-      color: #F8F8F3;
-      text-align: center;
+      overflow: hidden;
+      background: #F8F8F3;
+      color: #11182B;
+    }
+    .copy {
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      justify-content: space-between;
+      padding: 57px 0 52px 62px;
     }
     .wordmark {
-      position: absolute;
-      top: 44px;
-      left: 58px;
-      font-size: 52px;
+      display: inline-flex;
+      align-items: center;
+      gap: 13px;
       font-weight: 700;
+      font-size: 40px;
       line-height: 1;
-      letter-spacing: -.04em;
-      color: #FFFFFF;
+      letter-spacing: -.055em;
     }
-    span { color: #FF7046; }
+    .wordmark img { width: 44px; height: 44px; }
     h1 {
       margin: 0;
-      font-size: 108px;
       font-weight: 600;
-      line-height: 1.08;
-      letter-spacing: -.05em;
+      font-size: 71px;
+      letter-spacing: -.056em;
+      line-height: 1.04;
     }
-    h1::after {
-      content: "";
+    h1 span { display: block; }
+    .period { color: #FF7046; }
+    .domain { margin: 0; font-size: 28px; letter-spacing: -.02em; }
+    .sculpture {
       display: block;
-      width: 100px;
-      height: 4px;
-      margin: 33px auto 28px;
-      background: #FF7046;
+      width: 100%;
+      height: 627px;
+      object-fit: cover;
     }
-    p { margin: 0; font-size: 34px; line-height: 1.2; }
   </style>
 </head>
 <body>
   <main>
-    <div class="wordmark">Ins<span>Flow</span></div>
-    <h1>здесь есть <span>флоу</span></h1>
-    <p>Корпоративное решение для страхования</p>
+    <section class="copy">
+      <div class="wordmark"><img src="../favicon.svg" alt="">InsFlow</div>
+      <h1><span>Автоматизация</span> <span>страховых</span> <span>процессов<b class="period">.</b></span></h1>
+      <p class="domain">insflow.ru</p>
+    </section>
+    <img class="sculpture" src="../../../static/img/landing/flow-sculpture.webp" alt="">
   </main>
 </body>
 </html>

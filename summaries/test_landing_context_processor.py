@@ -24,7 +24,7 @@ class LandingContextProcessorTests(TestCase):
         response = self.client.get('/', HTTP_HOST='insflow.ru')
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'здесь есть флоу')
+        self.assertContains(response, 'Автоматизация страховых процессов')
 
 
 @override_settings(

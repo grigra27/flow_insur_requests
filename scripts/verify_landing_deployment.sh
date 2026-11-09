@@ -141,7 +141,7 @@ check_domain_routing() {
     
     # Check main domain serves landing page
     check_http_status "$PROTOCOL://$MAIN_DOMAIN/" "200" "Main domain root"
-    check_content "$PROTOCOL://$MAIN_DOMAIN/" "здесь есть флоу" "Landing page content"
+    check_content "$PROTOCOL://$MAIN_DOMAIN/" "Автоматизация страховых процессов" "Landing page content"
     
     # Check subdomain serves application
     check_http_status "$PROTOCOL://$SUBDOMAIN/" "200" "Subdomain root"
