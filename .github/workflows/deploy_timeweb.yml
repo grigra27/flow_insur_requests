@@ -133,7 +133,6 @@ jobs:
         DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
       run: |
-        # без точки в имени: scp-action (drone-scp) не берёт скрытые файлы — «tar: empty archive»
         umask 077
         mkdir -p server_env
         cat > server_env/server.env << EOF
@@ -194,16 +193,23 @@ jobs:
         EOF
 
     - name: Upload server env files
-      uses: appleboy/scp-action@v0.1.7
-      with:
-        host: ${{ secrets.TIMEWEB_HOST }}
-        username: ${{ secrets.TIMEWEB_USERNAME }}
-        key: ${{ secrets.TIMEWEB_SSH_KEY }}
-        port: ${{ secrets.TIMEWEB_PORT }}
-        source: server_env/server.env,server_env/registry.env
-        target: ${{ env.PROJECT_PATH }}
-        strip_components: 1
-        overwrite: true
+      env:
+        TIMEWEB_HOST: ${{ secrets.TIMEWEB_HOST }}
+        TIMEWEB_USERNAME: ${{ secrets.TIMEWEB_USERNAME }}
+        TIMEWEB_SSH_KEY: ${{ secrets.TIMEWEB_SSH_KEY }}
+        TIMEWEB_PORT: ${{ secrets.TIMEWEB_PORT }}
+      run: |
+        # Use the same runner user that created the 0600 files.
+        umask 077
+        ssh_dir=$(mktemp -d)
+        trap 'rm -rf -- "$ssh_dir" server_env' EXIT
+        printf '%s\n' "$TIMEWEB_SSH_KEY" > "$ssh_dir/key"
+        # Public host key verified through the existing trusted Timeweb SSH connection.
+        printf '%s\n' 'flow-timeweb ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAID48LakYYXdjzHPXe3Cxq1oDsc7QGcZVrWhpxI33Ub7v' > "$ssh_dir/known_hosts"
+        scp -B -p -P "${TIMEWEB_PORT:-22}" -i "$ssh_dir/key" \
+          -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlias=flow-timeweb \
+          -o UserKnownHostsFile="$ssh_dir/known_hosts" -o GlobalKnownHostsFile=/dev/null \
+          server_env/server.env server_env/registry.env "${TIMEWEB_USERNAME}@${TIMEWEB_HOST}:${PROJECT_PATH}/"
 
     # 6️⃣ Деплой на Timeweb через SSH
     - name: Deploy to Timeweb
