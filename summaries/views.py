@@ -4,6 +4,7 @@
 import re
 from urllib.parse import quote
 
+from .policy_views import handoff_context
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.contrib import messages
@@ -806,6 +807,7 @@ def summary_detail(request, pk):
         }
     
     return render(request, 'summaries/summary_detail.html', {
+        'policy_handoff': handoff_context(request.user, summary),
         'summary': summary,
         'offers': offers,
         'companies_with_offers': companies_with_offers,
@@ -1121,6 +1123,7 @@ def deal_summary(request, summary_id):
         'has_construction_work': insurance_request.has_construction_work if is_property_type else None,
     }
 
+    context['policy_handoff'] = handoff_context(request.user, summary)
     return render(request, 'summaries/deal_summary.html', context)
 
 

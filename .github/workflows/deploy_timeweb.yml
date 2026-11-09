@@ -124,12 +124,17 @@ jobs:
         TIMEWEB_SUBDOMAINS: ${{ secrets.TIMEWEB_SUBDOMAINS }}
         VK_BACKUP_TOKEN: ${{ secrets.VK_BACKUP_TOKEN }}
         VK_BACKUP_PEER_ID: ${{ secrets.VK_BACKUP_PEER_ID }}
+        FLOW_HANDOFF_ENABLED: ${{ vars.FLOW_HANDOFF_ENABLED }}
+        FLOW_SERVICE_TOKEN: ${{ secrets.FLOW_SERVICE_TOKEN }}
+        FLOW_HANDOFF_GROUP: ${{ vars.FLOW_HANDOFF_GROUP }}
+        FLOW_POLIS_BASE_URL: ${{ vars.FLOW_POLIS_BASE_URL }}
         GHCR_USER: ${{ github.actor }}
         GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
       run: |
         # без точки в имени: scp-action (drone-scp) не берёт скрытые файлы — «tar: empty archive»
+        umask 077
         mkdir -p server_env
         cat > server_env/server.env << EOF
         SECRET_KEY=${TIMEWEB_SECRET_KEY}
@@ -174,6 +179,10 @@ jobs:
         # VK backup delivery (daily pg_dump → VK community → user DM)
         VK_BACKUP_TOKEN=${VK_BACKUP_TOKEN}
         VK_BACKUP_PEER_ID=${VK_BACKUP_PEER_ID}
+        FLOW_HANDOFF_ENABLED=${FLOW_HANDOFF_ENABLED:-False}
+        FLOW_SERVICE_TOKEN=${FLOW_SERVICE_TOKEN}
+        FLOW_HANDOFF_GROUP=${FLOW_HANDOFF_GROUP}
+        FLOW_POLIS_BASE_URL=${FLOW_POLIS_BASE_URL:-https://polis.insflow.ru}
         VK_API_VERSION=5.199
         EOF
         # Логины в реестры; на сервере читается и удаляется сразу после docker login

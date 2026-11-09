@@ -7,6 +7,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.shortcuts import redirect
 from django.http import HttpResponse
+from summaries import policy_views
 from insurance_requests.views import login_view, logout_view, access_denied_view
 from .views import landing_view, landing_health_check, protected_media
 
@@ -44,6 +45,8 @@ def domain_aware_redirect(request):
 
 
 urlpatterns = [
+    path('internal/flow/v1/exchange/', policy_views.exchange, name='flow_exchange'),
+    path('internal/flow/v1/summaries/<int:summary_id>/', policy_views.current, name='flow_current'),
     path('admin/', admin.site.urls),
     path('login/', login_view, name='login'),
     path('logout/', logout_view, name='logout'),

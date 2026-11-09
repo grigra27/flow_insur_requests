@@ -316,35 +316,18 @@ class InsuranceSummary(models.Model):
         # companies уже отсортирован в get_unique_companies_list()
         return [('', 'Выберите страховую компанию')] + [(company, company) for company in companies]
 
-    def get_company_available_variants(self, company_name):
-        """Возвращает список доступных вариантов франшизы для выбранной компании"""
+    def get_company_available_variants(self, company_name, *, offers=None):
+        """Вариант доступен, когда его премия положительна во всех действительных годах."""
         if not company_name:
             return []
-        
-        company_offers = self.offers.filter(is_valid=True, company_name=company_name)
-        offers_count = company_offers.count()
-        if offers_count == 0:
-            return []
-        
-        # Вариант доступен, если для всех лет выбранной компании есть валидная премия по этому варианту
-        variant_1_count = company_offers.exclude(
-            premium_with_franchise_1__isnull=True
-        ).exclude(
-            premium_with_franchise_1__lte=0
-        ).count()
-        variant_2_count = company_offers.exclude(
-            premium_with_franchise_2__isnull=True
-        ).exclude(
-            premium_with_franchise_2__lte=0
-        ).count()
-        
-        available_variants = []
-        if variant_1_count == offers_count:
-            available_variants.append(1)
-        if variant_2_count == offers_count:
-            available_variants.append(2)
-        
-        return available_variants
+        if offers is None:
+            premiums = self.offers.filter(is_valid=True, company_name=company_name).values_list(
+                'premium_with_franchise_1', 'premium_with_franchise_2',
+            )
+        else:
+            premiums = [(offer.premium_with_franchise_1, offer.premium_with_franchise_2) for offer in offers]
+        rows = list(premiums)
+        return [variant for variant in (1, 2) if rows and all((row[variant - 1] or 0) > 0 for row in rows)]
 
     def requires_variant_choice(self, company_name):
         """Определяет, требуется ли ручной выбор варианта (когда доступны оба варианта)"""
@@ -1053,3 +1036,20 @@ class UserDailyActivity(models.Model):
 
     def __str__(self):
         return f'{self.user} · {self.date:%d.%m.%Y}: {self.active_minutes} мин'
+
+
+class PolicyHandoffCode(models.Model):
+    """Однократный переход сотрудника к оформлению полиса. Хранится только хеш кода."""
+    digest = models.CharField(max_length=64, unique=True)
+    summary = models.ForeignKey(InsuranceSummary, on_delete=models.CASCADE)
+    issued_by = models.ForeignKey(User, on_delete=models.CASCADE)
+    expires_at = models.DateTimeField(db_index=True)
+
+
+class PolicyVariantDecision(models.Model):
+    """Уточнение принятого варианта в историческом своде."""
+    summary = models.ForeignKey(InsuranceSummary, on_delete=models.CASCADE)
+    selected_company = models.CharField(max_length=255)
+    variant = models.PositiveSmallIntegerField()
+    user = models.ForeignKey(User, null=True, on_delete=models.SET_NULL)
+    created_at = models.DateTimeField(auto_now_add=True)

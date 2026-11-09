@@ -1,0 +1,23 @@
+{% if policy_handoff %}
+<div class="my-3">
+    {% if policy_handoff.unavailable %}
+        <div class="text-muted small">Не удалось проверить связь с «Полисами».
+            <a href="{% url 'summaries:summary_detail' summary.pk %}">Повторить</a>
+        </div>
+    {% else %}
+        {% for link in policy_handoff.links %}
+            <a href="{{ link.url }}" class="btn btn-sm btn-outline-primary mb-1">
+                {% if policy_handoff.mode == 'separate' %}Объект {{ link.position }} из {{ policy_handoff.total }} · {% elif policy_handoff.total > 1 %}Общий полис (объектов: {{ policy_handoff.total }}) · {% endif %}Открыть полис № {{ link.number }}
+            </a>
+        {% endfor %}
+        {% if policy_handoff.can_continue %}
+            <form method="post" action="{% url 'summaries:policy_start' summary.pk %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-sm btn-primary">
+                    {% if policy_handoff.links %}Продолжить оформление{% else %}Создать полис{% endif %}
+                </button>
+            </form>
+        {% endif %}
+    {% endif %}
+</div>
+{% endif %}

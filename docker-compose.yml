@@ -39,6 +39,10 @@ services:
       # Domain configuration
       - MAIN_DOMAINS=${MAIN_DOMAINS:-insflow.tw1.su,insflow.ru}
       - SUBDOMAINS=${SUBDOMAINS:-zs.insflow.tw1.su,zs.insflow.ru}
+      - FLOW_HANDOFF_ENABLED=${FLOW_HANDOFF_ENABLED:-false}
+      - FLOW_HANDOFF_GROUP=${FLOW_HANDOFF_GROUP:-}
+      - FLOW_POLIS_BASE_URL=${FLOW_POLIS_BASE_URL:-https://polis.insflow.ru}
+      - FLOW_SERVICE_TOKEN=${FLOW_SERVICE_TOKEN:-}
       # VK backup delivery
       - VK_BACKUP_TOKEN=${VK_BACKUP_TOKEN:-}
       - VK_BACKUP_PEER_ID=${VK_BACKUP_PEER_ID:-}

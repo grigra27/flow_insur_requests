@@ -41,3 +41,5 @@ summaries.test_deal_list
 summaries.test_deal_summary
 summaries.test_user_activity
 summaries.test_employee_timeline
+
+summaries.test_policy_handoff

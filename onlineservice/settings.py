@@ -432,6 +432,7 @@ DJANGO_EASY_AUDIT_UNREGISTERED_CLASSES_EXTRA = [
     'insurance_requests.RequestFieldEdit',
     # Дневной агрегат, который сам строится из журналов easy-audit.
     'summaries.UserDailyActivity',
+    'summaries.PolicyHandoffCode',
 ]
 
 # Не пишем RequestEvent на статику, healthcheck и landing-health,
@@ -442,6 +443,7 @@ DJANGO_EASY_AUDIT_UNREGISTERED_URLS_EXTRA = [
     r'^/healthz/',
     r'^/landing/health/',
     r'^/admin/jsi18n/',
+    r'^/internal/flow/v1/',
     r'^/favicon\.ico$',
 ]
 
@@ -454,3 +456,9 @@ ALL_SUPPORTED_DOMAINS = MAIN_DOMAINS + SUBDOMAINS
 
 # Development domains
 DEVELOPMENT_DOMAINS = ['localhost', '127.0.0.1', 'testserver']
+
+# Закрытый обмен ЗС → «Полисы». Включается после настройки обоих модулей.
+FLOW_HANDOFF_ENABLED = config('FLOW_HANDOFF_ENABLED', default=False, cast=bool)
+FLOW_SERVICE_TOKEN = config('FLOW_SERVICE_TOKEN', default='')
+FLOW_POLIS_BASE_URL = config('FLOW_POLIS_BASE_URL', default='https://polis.insflow.ru')
+FLOW_HANDOFF_GROUP = config('FLOW_HANDOFF_GROUP', default='')

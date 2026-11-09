@@ -1,3 +1,5 @@
+import re
+
 from django.shortcuts import redirect
 from django.urls import reverse
 from django.conf import settings
@@ -47,6 +49,9 @@ class AuthenticationMiddleware:
         """
         Проверяет, является ли URL публичным (не требующим аутентификации)
         """
+        # Только служебные представления со своей обязательной Bearer-аутентификацией.
+        if path == '/internal/flow/v1/exchange/' or re.fullmatch(r'/internal/flow/v1/summaries/[0-9]+/', path):
+            return True
         for public_url in self.public_urls:
             if path.startswith(public_url):
                 return True

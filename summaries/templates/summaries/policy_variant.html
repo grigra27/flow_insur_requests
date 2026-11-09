@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block title %}Вариант принятого предложения{% endblock %}
+{% block content %}
+<div class="container py-4">
+    <h1 class="h3">Вариант принятого предложения</h1>
+    <p>ДФА {{ snapshot.dfa_number }} · {{ snapshot.selected_company }}</p>
+    {% if message %}<div role="alert" class="alert alert-warning">{{ message }}</div>{% endif %}
+    {% if snapshot.variant %}
+        <p>Принят вариант {{ snapshot.variant }}.</p>
+    {% elif options %}
+        <form method="post" class="mb-3">
+            {% csrf_token %}<input type="hidden" name="revision" value="{{ snapshot.revision }}">
+            <fieldset>
+                <legend class="h5">Какие условия акцептованы?</legend>
+                {% for variant, years in options.items %}
+                    <label class="d-block mb-3">
+                        <input type="radio" name="variant" value="{{ variant }}" required>
+                        <b>Вариант {{ variant }}</b>
+                        {% for row in years %}<span class="d-block ms-4">Год {{ row.year }} · премия {{ row.premium }} ₽ · франшиза {{ row.franchise }} ₽ · платежей {{ row.installments }}</span>{% endfor %}
+                    </label>
+                {% endfor %}
+            </fieldset>
+            <button class="btn btn-primary">Подтвердить вариант</button>
+        </form>
+    {% else %}
+        <p>Проверьте предложение выбранной страховой компании. Доступных вариантов нет.</p>
+    {% endif %}
+    <a href="{% url 'summaries:summary_detail' summary.pk %}">Вернуться к своду</a>
+</div>
+{% endblock %}

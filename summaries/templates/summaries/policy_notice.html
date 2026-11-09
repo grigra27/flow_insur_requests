@@ -1,0 +1,9 @@
+{% extends 'base.html' %}
+{% block title %}Оформление полиса{% endblock %}
+{% block content %}
+<div class="container py-4">
+    <h1>Оформление полиса</h1>
+    <p role="alert">{{ message }}</p>
+    <a href="{% url 'summaries:summary_detail' summary.pk %}">Вернуться к своду</a>
+</div>
+{% endblock %}

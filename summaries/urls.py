@@ -3,11 +3,13 @@ URL маршруты для приложения summaries (Своды)
 """
 from django.urls import path
 from django.views.generic import RedirectView
-from . import views
+from . import policy_views, views
 
 app_name = 'summaries'
 
 urlpatterns = [
+    path('<int:summary_id>/policy/start/', policy_views.start, name='policy_start'),
+    path('<int:summary_id>/policy/variant/', policy_views.choose_variant, name='policy_variant'),
     # Основные страницы
     path('', views.summary_list, name='summary_list'),
     path('deals/', views.deal_list, name='deal_list'),
