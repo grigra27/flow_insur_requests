@@ -1,15 +1,11 @@
 /* Landing Page Styles - Corporate Design */
 
-/* CSS Variables for Color Palette */
+/* Grachev Navy & Coral */
 :root {
-  --primary-dark: #1a1a2e;      /* Основной темный */
-  --primary-blue: #16213e;      /* Темно-синий */
-  --accent-blue: #0f3460;       /* Акцентный синий */
-  --text-light: #e94560;        /* Акцентный красный для текста */
-  --background: #0f0f23;        /* Фон */
-  --text-secondary: #8892b0;    /* Вторичный текст */
-  --white: #ffffff;             /* Белый */
-  --gradient-primary: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary-blue) 50%, var(--accent-blue) 100%);
+  --primary-dark: #11182B;
+  --coral: #FF7046;
+  --milk: #F8F8F3;
+  --white: #FFFFFF;
 }
 
 /* Reset and Base Styles */
@@ -22,7 +18,7 @@
 html, body {
   height: 100%;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-  background: var(--gradient-primary);
+  background: var(--primary-dark);
   color: var(--white);
   overflow-x: hidden;
 }
@@ -30,6 +26,7 @@ html, body {
 /* Landing Container - Full Screen */
 .landing-container {
   min-height: 100vh;
+  min-height: 100svh;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -40,163 +37,71 @@ html, body {
 /* Content Center */
 .content-center {
   text-align: center;
-  max-width: 800px;
+  max-width: 72rem;
   width: 100%;
-  animation: fadeInUp 1.2s ease-out;
 }
 
 /* Main Heading Typography */
 .main-heading {
-  font-size: clamp(2.5rem, 8vw, 6rem);
-  font-weight: 300;
-  letter-spacing: -0.02em;
-  line-height: 1.1;
-  margin-bottom: 2rem;
-  background: linear-gradient(45deg, var(--white), var(--text-light));
-  background-clip: text;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  animation: pulse 3s ease-in-out infinite;
+  font-size: clamp(2.25rem, 10.7vw, 6.5rem);
+  font-weight: 600;
+  letter-spacing: -.05em;
+  line-height: 1.08;
+  text-wrap: balance;
+  margin-bottom: clamp(1.4rem, 2.6vw, 2.2rem);
+  color: var(--milk);
+}
+
+.main-heading span {
+  color: var(--coral);
 }
 
 /* Accent Line */
 .accent-line {
-  width: 100px;
+  width: clamp(2rem, 4.5vw, 4rem);
   height: 3px;
-  background: linear-gradient(90deg, var(--text-light), var(--accent-blue));
+  background: var(--coral);
   margin: 0 auto;
   border-radius: 2px;
-  animation: expandLine 1.5s ease-out 0.5s both;
 }
 
-/* Supporting Content */
-.supporting-content {
-  margin-top: 2rem;
+.case-link {
+  display: inline-flex;
+  align-items: center;
+  gap: .45em;
+  min-height: 44px;
+  margin-top: 1.1rem;
+  color: var(--milk);
+  font-size: .9375rem;
+  font-weight: 500;
+  text-underline-offset: .3em;
 }
 
-.supporting-text {
-  font-size: clamp(1rem, 2vw, 1.25rem);
-  font-weight: 400;
-  letter-spacing: 0.01em;
-  color: var(--text-secondary);
-  margin: 0;
-  opacity: 0;
-  animation: fadeIn 1s ease-out 1s both;
+.case-link span,
+.case-link:hover {
+  color: var(--coral);
 }
 
-/* Animations */
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes pulse {
-  0%, 100% { 
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% { 
-    opacity: 0.8;
-    transform: scale(1.02);
-  }
-}
-
-@keyframes expandLine {
-  from {
-    width: 0;
-    opacity: 0;
-  }
-  to {
-    width: 100px;
-    opacity: 1;
-  }
+.case-link:focus-visible {
+  outline: 2px solid var(--coral);
+  outline-offset: 3px;
 }
 
 /* Background Effects */
-.background-effects,
-.landing-container::before {
-  content: '';
+.background-effects {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: 
-    radial-gradient(circle at 20% 80%, rgba(233, 69, 96, 0.1) 0%, transparent 50%),
-    radial-gradient(circle at 80% 20%, rgba(15, 52, 96, 0.1) 0%, transparent 50%);
+  background: radial-gradient(ellipse at 50% 70%, rgba(255, 112, 70, .035), transparent 65%);
   pointer-events: none;
   z-index: -1;
 }
 
-/* Responsive Design */
-
-/* Mobile Devices */
 @media (max-width: 768px) {
   .landing-container {
     padding: 1rem;
-  }
-  
-  .main-heading {
-    font-size: clamp(2rem, 10vw, 3rem);
-    margin-bottom: 1.5rem;
-  }
-  
-  .accent-line {
-    width: 60px;
-  }
-  
-  .supporting-text {
-    font-size: 1rem;
-    margin-top: 1.5rem;
-  }
-}
-
-/* Tablets */
-@media (min-width: 769px) and (max-width: 1024px) {
-  .main-heading {
-    font-size: clamp(3rem, 6vw, 4.5rem);
-  }
-  
-  .accent-line {
-    width: 80px;
-  }
-}
-
-/* Desktop */
-@media (min-width: 1025px) {
-  .main-heading {
-    font-size: clamp(4rem, 6vw, 6rem);
-  }
-  
-  .content-center {
-    max-width: 900px;
-  }
-}
-
-/* Large Screens */
-@media (min-width: 1440px) {
-  .main-heading {
-    font-size: 6rem;
-  }
-  
-  .accent-line {
-    width: 120px;
-    height: 4px;
   }
 }
 
@@ -208,33 +113,9 @@ html, body {
   }
 }
 
-/* Reduced Motion Preference */
-@media (prefers-reduced-motion: reduce) {
-  .main-heading,
-  .accent-line,
-  .content-center,
-  .supporting-text {
-    animation: none;
-  }
-  
-  .main-heading {
-    opacity: 1;
-    transform: none;
-  }
-  
-  .accent-line {
-    width: 100px;
-    opacity: 1;
-  }
-  
-  .supporting-text {
-    opacity: 1;
-  }
-}
-
 /* Focus Styles for Accessibility */
 .main-heading:focus {
-  outline: 2px solid var(--text-light);
+  outline: 2px solid var(--coral);
   outline-offset: 4px;
 }
 
@@ -249,31 +130,10 @@ html, body {
   margin-bottom: 0;
 }
 
-/* Hover Effects for Interactive Elements */
-@media (hover: hover) {
-  .main-heading {
-    transition: transform 0.3s ease, opacity 0.3s ease;
-  }
-  
-  .main-heading:hover {
-    transform: scale(1.02);
-  }
-}
-
-/* Dark Mode Support */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0f;
-    --primary-dark: #151529;
-  }
-}
-
 /* High Contrast Mode */
-@media (prefers-contrast: high) {
+@media (prefers-contrast: more) {
   :root {
-    --text-light: #ffffff;
-    --text-secondary: #ffffff;
-    --accent-blue: #0066cc;
+    --milk: var(--white);
   }
   
   .accent-line {
@@ -290,7 +150,7 @@ html, body {
     padding: 2rem;
   }
   
-  .main-heading {
+  .main-heading, .main-heading span {
     background: none !important;
     -webkit-text-fill-color: initial !important;
     color: black !important;
@@ -303,14 +163,13 @@ html, body {
     animation: none !important;
   }
   
-  .supporting-text {
+  .case-link, .case-link span {
     color: black !important;
     animation: none !important;
     opacity: 1 !important;
   }
   
-  .background-effects,
-  .landing-container::before {
+  .background-effects {
     display: none !important;
   }
 }

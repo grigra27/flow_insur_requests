@@ -182,7 +182,7 @@ The scripts use the following configuration (can be modified in each script):
 EMAIL="admin@insflow.ru"
 
 # Domain groups
-DOMAINS_PRIMARY="insflow.ru,zs.insflow.ru"
+DOMAINS_PRIMARY="insflow.ru,zs.insflow.ru,www.insflow.ru"
 DOMAINS_TECHNICAL="insflow.tw1.su,zs.insflow.tw1.su"
 
 # Alert thresholds

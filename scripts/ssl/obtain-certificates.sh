@@ -7,7 +7,7 @@ set -e
 
 # Configuration
 EMAIL="admin@insflow.ru"
-DOMAINS_PRIMARY="insflow.ru,zs.insflow.ru"
+DOMAINS_PRIMARY="insflow.ru,zs.insflow.ru,www.insflow.ru"
 DOMAINS_TECHNICAL="insflow.tw1.su,zs.insflow.tw1.su"
 WEBROOT_PATH="/var/www/html"
 CERT_PATH="/etc/letsencrypt/live"

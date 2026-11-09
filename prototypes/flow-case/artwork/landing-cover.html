@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>InsFlow — обложка главной страницы</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Helvetica Neue", Arial, sans-serif; }
+    main {
+      width: 1200px;
+      height: 627px;
+      position: relative;
+      display: grid;
+      place-content: center;
+      padding-top: 62px;
+      background: #11182B;
+      color: #F8F8F3;
+      text-align: center;
+    }
+    .wordmark {
+      position: absolute;
+      top: 44px;
+      left: 58px;
+      font-size: 52px;
+      font-weight: 700;
+      line-height: 1;
+      letter-spacing: -.04em;
+      color: #FFFFFF;
+    }
+    span { color: #FF7046; }
+    h1 {
+      margin: 0;
+      font-size: 108px;
+      font-weight: 600;
+      line-height: 1.08;
+      letter-spacing: -.05em;
+    }
+    h1::after {
+      content: "";
+      display: block;
+      width: 100px;
+      height: 4px;
+      margin: 33px auto 28px;
+      background: #FF7046;
+    }
+    p { margin: 0; font-size: 34px; line-height: 1.2; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="wordmark">Ins<span>Flow</span></div>
+    <h1>здесь есть <span>флоу</span></h1>
+    <p>Корпоративное решение для страхования</p>
+  </main>
+</body>
+</html>

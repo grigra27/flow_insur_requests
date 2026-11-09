@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Оригинал обложки Flow · 1200 × 627</title>
+<style>
+/* Render the 1200 × 627 artboard at 1x to make the public PNG. */
+
+:root {
+  --navy: #11182b;
+  --coral: #ff7046;
+  --milk: #f8f8f3;
+  --white: #fff;
+  --slate: #56616d;
+  --line: #d8dcdf;
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+.cover {
+  width: 1200px; height: 627px; position: relative; overflow: hidden;
+  background: var(--navy); color: var(--white);
+  font-family: "Arial", sans-serif;
+}
+.wordmark { position: absolute; top: 40px; left: 60px; font: 700 58px/1 "Helvetica Neue", Arial, sans-serif; letter-spacing: -.04em; }
+.wordmark span { color: var(--coral); }
+.rule { position: absolute; top: 123px; left: 62px; right: 62px; height: 1px; background: var(--slate); }
+.cover-type { position: absolute; top: 70px; right: 63px; color: var(--milk); font-size: 22px; }
+h1 { position: absolute; left: 55px; top: 179px; margin: 0; font: 112px/.99 Georgia, serif; letter-spacing: -6px; }
+h1 em { display: block; color: var(--coral); font-size: 101px; font-weight: 400; }
+.byline { position: absolute; bottom: 50px; left: 64px; }
+.byline b { display: block; font-size: 33px; font-weight: 550; letter-spacing: -.9px; }
+.byline span { display: block; margin-top: 5px; color: var(--milk); font-size: 20px; }
+.sheet {
+  position: absolute; top: 184px; right: 57px; width: 438px; padding: 29px 29px 32px;
+  color: var(--navy); background: var(--white); transform: rotate(3deg);
+  border-bottom: 7px solid var(--line);
+}
+.sheet-type { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--slate); padding-bottom: 13px; }
+.sheet-type span { font: 16px/1.2 Menlo, Consolas, monospace; }
+.sheet-type strong { font: bold 17px/1.2 Arial, sans-serif; }
+h2 { margin: 19px 0 2px; font: bold 32px/1.2 Arial, sans-serif; letter-spacing: -1.2px; }
+.sheet p { margin: 0 0 20px; font: 18px/1.35 Georgia, serif; color: var(--slate); }
+table { width:100%; border-collapse: collapse; font-size: 19px; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 10px 4px; border-top: 1px solid var(--line); }
+thead { background:var(--milk); }
+thead th { font-size:15px; }
+tbody th { font-weight:400; }
+td { text-align:right; }
+th + th { text-align:right; }
+</style>
+</head>
+<body><main class="cover">
+  <div class="wordmark">Ins<span>Flow</span></div>
+  <div class="cover-type">Платформа страхового брокера</div>
+  <div class="rule"></div>
+  <h1>От заявки<em>до комиссии.</em></h1>
+  <div class="byline"><b>Grigorii Grachev</b><span>Продукт и разработка</span></div>
+  <section class="sheet"><div class="sheet-type"><strong>КАСКО</strong><span>DEMO–01</span></div>
+    <h2>Свод предложений</h2><p>Электрофургон · пример расчёта</p>
+    <table><thead><tr><th>Условия, ₽</th><th>СК А</th><th>СК Б</th></tr></thead>
+    <tbody><tr><th>Премия за год</th><td>100 000</td><td>112 000</td></tr>
+    <tr><th>Франшиза</th><td>30 000</td><td>15 000</td></tr></tbody></table>
+  </section>
+</main></body></html>

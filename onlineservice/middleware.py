@@ -2,7 +2,7 @@
 Custom middleware for domain-based routing with HTTPS support.
 """
 import logging
-from django.http import Http404, HttpResponseBadRequest, HttpResponsePermanentRedirect
+from django.http import FileResponse, Http404, HttpResponseBadRequest, HttpResponseNotAllowed, HttpResponsePermanentRedirect
 from django.shortcuts import render
 from django.conf import settings
 from django.urls import reverse
@@ -11,13 +11,24 @@ from django.utils.deprecation import MiddlewareMixin
 
 logger = logging.getLogger(__name__)
 
+PUBLIC_FILES = {
+    '/favicon.svg': ('favicon.svg', 'image/svg+xml'),
+    '/favicon.ico': ('favicon.ico', 'image/x-icon'),
+    '/landing-cover-v1.png': ('landing-cover-v1.png', 'image/png'),
+    '/landing-cover-v2.png': ('landing-cover-v2.png', 'image/png'),
+    '/case/': ('index.html', 'text/html; charset=utf-8'),
+    '/case/cover-v1.png': ('cover-v1.png', 'image/png'),
+    '/case/cover-v2.png': ('cover-v2.png', 'image/png'),
+    '/case/cover-v3.png': ('cover-v3.png', 'image/png'),
+}
+
 
 class DomainRoutingMiddleware:
     """
     Middleware for handling domain-based routing between main domains and subdomains with HTTPS support.
     
     Routes:
-    - Main domains (insflow.ru, insflow.tw1.su) -> Landing page only
+    - Main domains (insflow.ru, insflow.tw1.su) -> Public landing and portfolio case
     - Subdomains (zs.insflow.ru, zs.insflow.tw1.su) -> Main application
     - Development domains (localhost, 127.0.0.1) -> Main application
     
@@ -26,9 +37,6 @@ class DomainRoutingMiddleware:
     - Proper SSL header handling for reverse proxy setups
     - Security logging for HTTPS-related events
     """
-    
-    # Paths allowed on main domains
-    MAIN_DOMAIN_ALLOWED_PATHS = ['', 'landing', 'healthz', 'static']
     
     # Paths that should always be accessible over HTTP (for health checks, etc.)
     HTTP_ALLOWED_PATHS = ['healthz', 'health', '.well-known']
@@ -74,6 +82,16 @@ class DomainRoutingMiddleware:
         # Handle HTTPS redirect for production domains
         if self._should_redirect_to_https(request, host, is_secure):
             return self._redirect_to_https(request, host)
+
+        if host in self.main_domains or host in self.development_domains:
+            if request.path == '/case':
+                return HttpResponsePermanentRedirect(request.get_full_path(force_append_slash=True))
+            if request.path in PUBLIC_FILES:
+                if request.method not in ('GET', 'HEAD'):
+                    return HttpResponseNotAllowed(['GET', 'HEAD'])
+                filename, content_type = PUBLIC_FILES[request.path]
+                document = settings.BASE_DIR / 'prototypes' / 'flow-case' / filename
+                return FileResponse(document.open('rb'), content_type=content_type)
         
         # Handle main domains routing (insflow.ru, insflow.tw1.su)
         if host in self.main_domains:

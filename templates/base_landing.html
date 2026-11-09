@@ -3,38 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="InsFlow - Корпоративные решения для страхования">
-    <meta name="keywords" content="страхование, корпоративные решения, InsFlow">
-    <meta name="author" content="InsFlow">
-    
-    <!-- Open Graph Meta Tags -->
-    <meta property="og:title" content="InsFlow - Корпоративные решения">
-    <meta property="og:description" content="Здесь есть флоу - профессиональные решения для страхования">
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://insflow.tw1.su">
-    
-    <!-- Twitter Card Meta Tags -->
-    <meta name="twitter:card" content="summary">
-    <meta name="twitter:title" content="InsFlow - Корпоративные решения">
-    <meta name="twitter:description" content="Здесь есть флоу - профессиональные решения для страхования">
-    
+    {% block page_metadata %}{% endblock %}
+
     <!-- Favicon -->
-    <link rel="icon" type="image/png" sizes="32x32" href="{% load static %}{% static 'favicon-32x32.png' %}">
-    <link rel="icon" type="image/png" sizes="16x16" href="{% load static %}{% static 'favicon-16x16.png' %}">
-    <link rel="shortcut icon" href="{% load static %}{% static 'favicon.ico' %}">
+    <link rel="icon" type="image/x-icon" sizes="16x16 32x32 48x48" href="/favicon.ico">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" sizes="any">
     
     <!-- Preconnect to Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     
     <!-- Google Fonts - Inter -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- CSS -->
     {% load static %}
     <link rel="stylesheet" href="{% static 'css/landing.css' %}">
-    
-    <title>{% block title %}InsFlow - Здесь есть флоу{% endblock %}</title>
     
     <!-- Additional Head Content -->
     {% block extra_head %}{% endblock %}

@@ -1,0 +1,1501 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Продуктовый и инженерный кейс Grigorii Grachev. Как разговоры с пользователями и разбор сделок в Excel привели к запуску Flow, внутренней операционной платформы страхового брокера.">
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#11182B">
+<link rel="canonical" href="https://insflow.ru/case/">
+<meta name="author" content="Grigorii Grachev">
+<meta property="og:type" content="article">
+<meta property="og:locale" content="ru_RU">
+<meta property="og:site_name" content="Flow">
+<meta property="og:url" content="https://insflow.ru/case/">
+<meta property="og:title" content="Flow — от заявки до комиссии · Grigorii Grachev">
+<meta property="og:description" content="Как я создал платформу страхового брокера. По внутренней оценке команды, трудозатраты менеджеров на сделку в модуле заявок снизились в среднем на 70%.">
+<meta property="og:image" content="https://insflow.ru/case/cover-v3.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="627">
+<meta property="og:image:alt" content="Flow. От заявки до комиссии. Кейс Grigorii Grachev с примером сравнения двух предложений по КАСКО.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Flow — от заявки до комиссии · Grigorii Grachev">
+<meta name="twitter:description" content="Как я создал платформу страхового брокера. По внутренней оценке команды, трудозатраты менеджеров на сделку в модуле заявок снизились в среднем на 70%.">
+<meta name="twitter:image" content="https://insflow.ru/case/cover-v3.png">
+<meta name="twitter:image:alt" content="Flow. От заявки до комиссии. Кейс Grigorii Grachev с примером сравнения двух предложений по КАСКО.">
+<title>Flow — от заявки до комиссии · Продуктовый кейс Grigorii Grachev</title>
+<link rel="icon" type="image/x-icon" sizes="16x16 32x32 48x48" href="/favicon.ico">
+<link rel="icon" type="image/svg+xml" sizes="any" href="/favicon.svg">
+<style>
+#offers .offer-sheet {
+    margin-top: clamp(26px, 4vw, 42px);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    background: var(--white);
+    overflow: hidden;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+  #offers .offer-sheet-head {
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 18px 28px;
+    padding: clamp(18px, 3.5vw, 34px);
+    border-bottom: 1px solid var(--line);
+  }
+  #offers .offer-sheet-head h3 {
+    margin: 0 0 4px; color: var(--ink);
+    font-size: clamp(21px, 2.8vw, 32px); letter-spacing: -.035em; line-height: 1.13;
+  }
+  #offers .offer-sheet-head p {
+    margin: 0; color: var(--muted); font-size: .9rem;
+  }
+  #offers .offer-switch {
+    display: inline-flex; align-items: center; gap: 2px; position: relative;
+    margin: 0; min-width: 0; padding: 3px;
+    background: var(--paper); border: 1px solid var(--line);
+    border-radius: 12px;
+  }
+  #offers .offer-switch[hidden] { display: none; }
+  #offers .offer-sr {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0;
+  }
+  #offers .offer-switch label {
+    display: inline-grid; place-items: center; box-sizing: border-box;
+    min-height: 38px; padding: 6px clamp(9px, 1.3vw, 17px);
+    color: var(--ink); border-radius: 9px;
+    cursor: pointer; font-size: .9rem; font-weight: 600; line-height: 1.2;
+  }
+  #offers .offer-switch input:checked + label {
+    background: var(--coral); color: var(--ink);
+    box-shadow: inset 0 -2px var(--ink);
+  }
+  #offers .offer-switch input:focus-visible + label {
+    outline: 3px solid var(--ink); outline-offset: 3px;
+  }
+  #offers .offer-table {
+    width: 100%; margin: 0; border-collapse: collapse; table-layout: fixed;
+    border: 0; color: var(--ink); text-align: left;
+  }
+  #offers .offer-table col:first-child { width: 34%; }
+  #offers .offer-table tr > * {
+    padding: 16px clamp(14px, 3.5vw, 34px); font-weight: 500;
+    line-height: 1.35; text-align: left; vertical-align: middle;
+    border: 0; border-bottom: 1px solid var(--line);
+  }
+  #offers .offer-table tr > :not(:first-child) { border-left: 1px solid var(--line); }
+  #offers .offer-table thead th {
+    padding-top: 14px; padding-bottom: 14px; color: var(--muted);
+    font-size: .86rem; font-weight: 650;
+  }
+  #offers .offer-table tbody th { color: var(--muted); font-size: .94rem; }
+  #offers .offer-table tbody td { font-size: clamp(.96rem, 1.8vw, 1.15rem); }
+  #offers .offer-table .offer-premium td {
+    padding-top: clamp(17px, 2.6vw, 30px); padding-bottom: clamp(17px, 2.6vw, 30px);
+    color: var(--ink); font-size: clamp(1.55rem, 3.7vw, 3rem);
+    line-height: 1.05; font-weight: 620; letter-spacing: -.055em; white-space: nowrap;
+  }
+  #offers .offer-reading {
+    margin: 0; padding: clamp(16px, 3vw, 27px) clamp(18px, 3.5vw, 34px);
+    background: var(--paper); color: var(--ink);
+    font-size: clamp(.95rem, 1.5vw, 1.1rem); line-height: 1.55;
+  }
+  #offers .offer-reading strong {
+    font-weight: 650;
+    background-image: linear-gradient(transparent 70%, var(--coral) 70%);
+  }
+  @media (max-width: 600px) {
+    #offers .offer-sheet { border-radius: 13px; }
+    #offers .offer-table col:first-child { width: 29%; }
+    #offers .offer-table tr > * { padding: 13px 9px; }
+    #offers .offer-table thead th, #offers .offer-table tbody th { font-size: .78rem; }
+    #offers .offer-table tbody td { font-size: .85rem; }
+    #offers .offer-table .offer-premium td { font-size: clamp(.98rem, 4.4vw, 1.65rem); }
+    #offers .offer-switch label { min-height: 42px; }
+  }
+
+.offer-full{border-top:1px solid var(--line)}
+.offer-full summary{cursor:pointer;padding:16px clamp(18px,3.5vw,34px);font-weight:600}
+.offer-full summary:focus-visible{outline:2px solid var(--ink);outline-offset:-4px}
+.request-sheet{padding:0 clamp(18px,3.5vw,34px) 20px}
+.request-sheet h4{margin:8px 0 2px;font-size:18px}.request-sheet p{margin:0;color:var(--muted)}
+.request-sheet dl{display:flex;flex-wrap:wrap;gap:12px 34px;margin:16px 0 0}
+.request-sheet dt{font-size:13px;color:var(--muted)}.request-sheet dd{font-weight:600;margin:2px 0 0}
+
+#intake{border-top:1px solid var(--line)}
+#intake [hidden]{display:none!important}
+#intake .intake-sheet{border:1px solid var(--line);border-radius:16px;background:var(--white);overflow:hidden;margin-top:clamp(24px,3.5vw,42px)}
+#intake .intake-file{display:flex;align-items:center;gap:16px 22px;padding:clamp(18px,3vw,34px);flex-wrap:wrap}
+#intake .intake-filename{min-width:0;flex:1 1 200px}
+#intake h3,#intake h4,#intake p{overflow-wrap:break-word}
+#intake .intake-filename h3,#intake .intake-panel h3{font-size:clamp(21px,2.5vw,31px);line-height:1.16;letter-spacing:-.035em;font-weight:600;margin:0}
+#intake .intake-filename p,#intake .intake-panel>p{margin:4px 0 0;color:var(--muted)}
+#intake .intake-file-mark{border:1px solid var(--line);background:var(--paper);width:48px;height:56px;display:grid;align-items:end;padding:7px;color:var(--ink);border-radius:5px;font:600 11px/1.1 var(--mono)}
+#intake .intake-action{background:var(--ink);color:var(--white);border:0;border-radius:7px;padding:12px 18px;font-family:inherit;font-size:.94rem;line-height:1.35;font-weight:600;cursor:pointer;min-height:44px}
+#intake .intake-action:hover{background:var(--ink-hover)}
+#intake .intake-panel{border-top:1px solid var(--line);padding:clamp(18px,3vw,34px)}
+#intake .intake-shared{display:flex;flex-wrap:wrap;gap:4px 24px;margin:12px 0 18px;color:var(--muted);font-size:.92rem}
+#intake .intake-shared strong{color:var(--ink);font-weight:600}
+#intake .intake-objects{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+#intake .intake-object{border:1px solid var(--line);border-radius:9px;overflow:hidden}
+#intake .intake-object h4{margin:0;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--paper);font-size:1rem;line-height:1.3;font-weight:600}
+#intake .intake-object dl{display:grid;align-items:center;grid-template-columns:minmax(0,1fr) auto;gap:10px 12px;margin:0;padding:15px 16px}
+#intake .intake-object dt{font-size:.88rem;color:var(--muted)}
+#intake .intake-object dd{margin:0;text-align:right;font-variant-numeric:tabular-nums}
+#intake .intake-object input{width:5.2em;min-height:40px;border:1px solid var(--muted);border-radius:5px;background:var(--white);color:var(--ink);padding:5px 7px;font-family:inherit}
+#intake input:focus-visible{outline:3px solid var(--coral-ink);outline-offset:2px}
+#intake .intake-foot{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-top:20px}
+#intake .intake-note{color:var(--muted);font-size:.94rem;max-width:62ch;margin:12px 0 0}
+#intake .intake-reset{background:none;border:0;font:inherit;color:var(--muted);cursor:pointer;text-decoration:underline;text-underline-offset:4px;min-height:44px;padding:4px 0}
+#intake .intake-next{color:var(--ink);font-weight:650;text-underline-offset:4px}
+@media(max-width:680px){#intake .intake-objects{grid-template-columns:1fr}#intake .intake-action{max-width:100%}#intake .intake-file{gap:12px}#intake .intake-filename{flex-basis:160px}}
+
+#policy { background:var(--paper); border-block:1px solid var(--line); }
+#policy [hidden] { display:none !important; }
+#policy .policy-workspace { display:grid; grid-template-columns:minmax(0,.82fr) minmax(0,1.18fr); gap:clamp(18px,3vw,38px); margin-top:30px; align-items:start; }
+#policy .policy-file { background:var(--paper); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+#policy .policy-file-head { display:flex; gap:15px; align-items:center; padding:20px clamp(17px,2.1vw,27px); background:var(--mist); border-bottom:1px solid var(--line); }
+#policy .policy-file-icon { position:relative; flex:0 0 33px; height:39px; border:1.5px solid var(--muted); border-radius:3px; background:var(--white); }
+#policy .policy-file-icon::after { content:""; position:absolute; inset:12px 5px 6px; border:1px solid var(--muted); background:linear-gradient(to right,transparent 45%,var(--muted) 45% 51%,transparent 51%),repeating-linear-gradient(to bottom,transparent 0 4px,var(--muted) 4px 5px); }
+#policy .policy-file-head strong { display:block; font-size:17px; font-weight:630; overflow-wrap:anywhere; }
+#policy .policy-caption { display:block; color:var(--muted); font:12px/1.5 var(--mono); }
+#policy .policy-data { margin:0; padding:5px clamp(17px,2.1vw,27px) 12px; }
+#policy .policy-data div { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.25fr); gap:10px; padding:12px 0; border-bottom:1px solid var(--line); }
+#policy .policy-data div:last-child { border-bottom:0; }
+#policy dt { color:var(--muted); } #policy dd { margin:0; overflow-wrap:anywhere; font-weight:590; }
+#policy .policy-panel { min-width:0; border:1px solid var(--line); background:var(--white); border-radius:12px; padding:clamp(19px,2.2vw,30px); }
+#policy .policy-panel h3 { font-size:clamp(23px,2.4vw,34px); line-height:1.08; letter-spacing:-.045em; font-weight:590; margin:8px 0 12px; overflow-wrap:anywhere; }
+#policy .policy-panel h3:focus { outline:none; }
+#policy .policy-description { margin:0 0 17px; max-width:52ch; color:var(--muted); }
+#policy .policy-button { display:inline-flex; align-items:center; min-height:44px; padding:9px 15px; border:1px solid var(--ink); background:var(--ink); color:var(--white); border-radius:6px; cursor:pointer; line-height:1.4; font-family:inherit; font-size:15px; font-weight:600; }
+#policy .policy-button:hover { background:var(--ink-hover); }
+#policy .policy-actions { display:flex; align-items:center; justify-content:space-between; gap:8px 15px; flex-wrap:wrap; }
+#policy .policy-next { color:var(--ink); font-weight:650; padding:10px 0; text-underline-offset:3px; }
+#policy .policy-restart { min-height:44px; padding:7px 0; border:0; background:none; color:var(--ink); text-decoration:underline; text-underline-offset:4px; cursor:pointer; }
+#policy .policy-field { display:grid; gap:5px; margin-bottom:12px; font-size:14px; font-weight:600; }
+#policy input { min-width:0; width:min(100%,27ch); border:1px solid var(--muted); border-radius:5px; padding:9px 11px; font:500 16px var(--mono); color:var(--ink); background:var(--white); }
+#policy input:focus-visible { outline:3px solid var(--coral-ink); outline-offset:2px; }
+#policy .policy-terms { display:grid; grid-template-columns:1fr 1fr; gap:9px 13px; border-block:1px solid var(--line); margin:0 0 15px; padding:12px 0; }
+#policy .policy-terms dt { font-size:13px; } #policy .policy-terms dd { font-size:15px; }
+#policy .policy-schedule { width:100%; margin:14px 0 6px; border-collapse:collapse; text-align:left; font-size:14px; font-variant-numeric:tabular-nums; }
+#policy .policy-schedule caption { text-align:left; font-weight:650; margin-bottom:4px; }
+#policy .policy-schedule th,#policy .policy-schedule td { padding:7px 0; border-bottom:1px solid var(--line); }
+#policy .policy-schedule thead th { color:var(--muted); font-weight:480; }
+#policy .policy-schedule :is(th,td):last-child { text-align:right; white-space:nowrap; }
+@media(max-width:690px){#policy .policy-workspace{grid-template-columns:1fr;gap:13px}#policy .policy-file-head{padding-block:13px}#policy .policy-data div{padding:7px 0}}
+
+:root {
+  /* Grachev Navy & Coral */
+  --ink: #11182B;
+  --coral: #FF7046;
+  --paper: #F8F8F3;
+  --white: #FFFFFF;
+  --coral-ink: #C74A29;
+  --muted: #56616D;
+  --line: #D8DCDF;
+  --mist: #E5E7E4;
+  --ink-hover: #303C55;
+  --serif: Georgia, "Times New Roman", serif;
+  --mono: ui-monospace, Menlo, Consolas, monospace;
+  --gutter: clamp(18px, 5.4vw, 88px);
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { scroll-behavior: smooth; scroll-padding-top: 14px; }
+body {
+  margin: 0;
+  color: var(--ink);
+  background: var(--paper);
+  font: 16px/1.52 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; text-underline-offset: .2em; }
+button, input, select { font: inherit; }
+:focus-visible { outline: 3px solid var(--coral-ink); outline-offset: 4px; }
+::selection { background: var(--coral); color: var(--ink); }
+.wrap { width: min(calc(100% - var(--gutter) * 2), 1240px); margin-inline: auto; }
+.skip { position: absolute; left: 10px; top: -100px; z-index: 2; padding: 10px 16px; color: var(--ink); background: var(--white); }
+.skip:focus { top: 8px; }
+.mast, .foot { background: var(--ink); color: var(--white); }
+.mast .wrap, .foot .wrap {
+  min-height: 70px; display: flex; align-items: center; justify-content: space-between; gap: 16px;
+}
+.mast .wrap { border-bottom: 1px solid var(--line); }
+.brand { display: inline-flex; align-items: baseline; gap: 16px; text-decoration: none; }
+.brand-word { font: 700 36px/1 "Helvetica Neue", Arial, sans-serif; letter-spacing: -.04em; }
+.brand-word span { color: var(--coral); }
+.brand-sub { color: var(--mist); font-size: 13px; }
+.mast nav { display: flex; align-items: center; gap: clamp(16px, 3.1vw, 46px); }
+.mast nav a, .foot a { display: inline-flex; align-items:center; min-height:44px; text-decoration:none; font-size:14px; }
+.mast a:hover, .foot a:hover { text-decoration: underline; }
+.mast a:focus-visible,.foot a:focus-visible { outline-color: var(--white); }
+.foot small { color: var(--mist); }
+.scene { padding-block: clamp(52px, 6.1vw, 92px); }
+.kicker { margin: 0 0 15px; color: var(--muted); font: 500 12px/1.45 var(--mono); }
+.section-heading { margin: 0; font: 400 clamp(35px, 4.2vw, 67px)/1.03 var(--serif); letter-spacing: -.045em; text-wrap: balance; }
+.lede { color: var(--muted); font-size: clamp(16px, 1.23vw, 19px); line-height: 1.55; max-width: 64ch; margin: 16px 0 0; }
+.quiet-link, .role-back { color: var(--ink); font-weight: 600; text-underline-offset: 4px; }
+.scene-follow { margin: 18px 0 0; }
+.report-sr, .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; clip-path: inset(50%); overflow: hidden; white-space: nowrap; }
+
+/* The measured outcome and the questions the portfolio now answers. */
+.impact { background: var(--paper); }
+.impact-grid { display:grid; grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr); gap:clamp(40px,8vw,128px); }
+.impact-grid h3, .impact-title {
+  color:var(--muted); border-bottom:1px solid var(--muted);
+  font: 500 13px/1.4 var(--mono); margin:0; padding-bottom:10px;
+}
+.impact-headline { display:flex; align-items:center; flex-wrap:wrap; gap:5px 20px; color:var(--ink); margin:15px 0 20px; }
+.impact-headline strong { color:var(--coral-ink); font:400 clamp(70px,7.6vw,114px)/.97 var(--serif); letter-spacing:-.075em; }
+.impact-headline span { max-width:16ch; font:400 clamp(18px,1.78vw,26px)/1.15 var(--serif); }
+.effort-chart { margin:0; max-width:32rem; }
+.effort-chart figcaption { font-size:14px; margin-bottom:10px; }
+.effort-row { display:grid; grid-template-columns:4.3em 1fr 3.3em; align-items:center; gap:10px; margin:4px 0; font-size:14px; }
+.effort-row b { text-align:right; font-variant-numeric:tabular-nums; }
+.effort-track { height:5px; }
+.effort-track i { display:block; height:100%; background:var(--muted); }
+.effort-after .effort-track i { width:30%; background:var(--coral-ink); }
+.impact-note, .impact-method { color:var(--muted); max-width:54ch; font-size:.9rem; }
+.impact-method summary { cursor:pointer; color:var(--ink); text-decoration:underline; text-underline-offset:3px; }
+.impact-method p { margin:6px 0 0; }
+.impact-subtitle, .report-text h3 { margin:19px 0 12px; font:400 clamp(28px,2.8vw,43px)/1.09 var(--serif); letter-spacing:-.04em; max-width:24ch; }
+.impact-analytics p:not(.impact-subtitle) { margin:10px 0 0; color:var(--muted); }
+.impact-analytics .quiet-link { display:inline-block; margin-top:14px; }
+
+/* An index to the two modules, paired by the work each carries out. */
+.itinerary { background:var(--white); border-block:1px solid var(--line); }
+.itinerary .wrap { display:grid; grid-template-columns:1fr 1fr; }
+.itinerary .route-part { padding:18px 0; }
+.itinerary .route-part + .route-part { padding-left:clamp(18px,4vw,64px); border-left:1px solid var(--line); }
+.itinerary .route-part p { margin:0 0 3px; color:var(--muted); font:12px var(--mono); }
+.itinerary a { display:inline-block; padding:4px 0; font-weight:570; font-size:15px; }
+.route-join { color:var(--muted); margin-inline:8px; }
+
+.policy-heading { display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr); gap:30px; align-items:end; }
+.policy-heading .lede { margin:0; }
+#policy { background:var(--paper); border:0; }
+#policy .policy-workspace { gap:0; border-block:2px solid var(--ink); margin-top:clamp(24px,3.8vw,55px); align-items:stretch; }
+#policy .policy-file, #policy .policy-panel { border:0; border-radius:0; background:var(--white); }
+#policy .policy-file { background:transparent; border-right:1px solid var(--line); }
+#policy .policy-file-head { background:transparent; border-bottom:1px solid var(--line); }
+#policy .policy-panel { padding:clamp(20px,3.2vw,46px); }
+#policy .policy-panel h3 { font:400 clamp(26px,2.6vw,40px)/1.1 var(--serif); letter-spacing:-.038em; }
+#policy .policy-button, #policy input { border-radius:1px; }
+#policy .policy-file-icon { border-radius:0; background:var(--white); }
+
+/* Field notes on discovery and the author's closing remarks. */
+.discovery-grid, .role-layout, .role-outcome, .role-close {
+  display:grid; grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);
+  gap:clamp(30px,8vw,120px); align-items:start;
+}
+.discovery .section-heading,.role-intro .section-heading { max-width:16ch; }
+.discovery .lede,.role-intro .lede { max-width:42ch; }
+.discovery-findings, .role-decisions, .scope-columns dl { margin:0; }
+.discovery-findings div, .role-decision { padding:18px 0; border-top:1px solid var(--line); }
+.discovery-findings div:first-child, .role-decision:first-child { border-color:var(--ink); }
+.discovery-findings dt, .role-decision dt { font:400 clamp(22px,2vw,29px)/1.14 var(--serif); letter-spacing:-.028em; }
+.discovery-findings dd, .role-decision dd { margin:8px 0 0; color:var(--muted); line-height:1.56; }
+#scope { background:var(--paper); }
+.scope-columns { display:grid; grid-template-columns:1fr 1fr; gap:clamp(28px,6vw,96px); margin:28px 0 38px; }
+.scope-columns h3 { font-size:18px; margin:0 0 14px; border-top:2px solid var(--ink); padding-top:12px; }
+.scope-columns dt { font-weight:630; margin:14px 0 3px; }
+.scope-columns dd { color:var(--muted); margin:0; max-width:59ch; }
+.portfolio-report { display:grid; grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr); gap:clamp(20px,7vw,110px); padding:clamp(18px,3vw,42px); background:var(--white); border-block:2px solid var(--ink); }
+.report-text h3 { margin:0; }
+.report-text p:not(.kicker) { color:var(--muted); margin:12px 0; }
+.report-text label { display:block; font-size:14px; margin:0 0 4px; }
+.report-text select { min-height:40px; border:1px solid var(--muted); color:var(--ink); background:var(--white); border-radius:1px; padding:6px 9px; max-width:100%; }
+.report-total { margin:0 0 10px; }
+.report-total span, .report-panel small { display:block; font-size:13px; color:var(--muted); font-weight:400; }
+.report-total strong { font:400 clamp(39px,4.2vw,64px)/1.15 var(--serif); letter-spacing:-.055em; }
+.report-panel table { width:100%; border-collapse:collapse; font-size:14px; }
+.report-panel th,.report-panel td { text-align:left; border-top:1px solid var(--line); padding:8px 2px; }
+.report-panel tr > :last-child { text-align:right; white-space:nowrap; }
+.report-panel thead th { color:var(--muted); font-weight:550; }
+.role-back { display:inline-block; margin-top:16px; }
+.role-outcome,.role-close { padding-top:24px; margin-top:32px; border-top:1px solid var(--line); }
+.role-outcome h3,.role-close h3 { margin:0; font:400 clamp(24px,2.6vw,40px)/1.11 var(--serif); letter-spacing:-.04em; }
+.role-outcome p,.role-close p { margin:0; color:var(--muted); }
+.role-outcome p+p,.role-services p+p { margin-top:12px; }
+.role-contact { display:inline-flex; align-items:center; gap:16px; margin-top:20px; min-height:44px; padding:9px 16px; color:var(--white); background:var(--ink); font-weight:600; text-decoration:none; }
+.role-contact:hover { background:var(--ink-hover); }
+@media(max-width:760px) {
+  .mast .wrap { min-height:58px; }
+  .brand-word { font-size:29px; }
+  .brand-sub { display:none; }
+  .mast nav { gap:14px; }
+  .mast nav a { font-size:13px; }
+  .impact-grid,.policy-heading,.discovery-grid,.role-layout,.role-outcome,.role-close,.portfolio-report { grid-template-columns:1fr; gap:24px; }
+  .discovery .section-heading,.role-intro .section-heading { max-width:19ch; }
+  .role-close,.role-outcome { gap:14px; }
+}
+@media(max-width:690px) {
+  #policy .policy-file { border:0; border-bottom:1px solid var(--line); }
+  .scope-columns { grid-template-columns:1fr; }
+  .itinerary a { display:block; font-size:14px; }
+  .route-join { display:none; }
+  .itinerary .route-part+.route-part { padding-left:14px; }
+}
+@media(prefers-reduced-motion:reduce) { html { scroll-behavior:auto; } }
+
+.hero {
+  background: var(--ink);
+  color: var(--white);
+}
+.hero .hero-spread {
+  display: grid;
+  grid-template: "title sheet" auto "story sheet" auto / 1.03fr 1fr;
+  align-items: start;
+  column-gap: clamp(32px, 4.5vw, 84px);
+  row-gap: 24px;
+  padding-block: clamp(32px, 4.4vw, 72px) clamp(40px, 5.3vw, 84px);
+}
+.hero-heading { grid-area: title; align-self: end; }
+.hero-byline {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 13px;
+  margin: 0 0 clamp(22px, 2.2vw, 36px);
+  font-size: 14px;
+  line-height: 1.3;
+}
+.hero-byline a { color: var(--white); text-decoration: none; font-weight: 650; }
+.hero-byline span { color: var(--mist); }
+.hero-byline a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.hero h1 {
+  margin: 0;
+  font: 400 clamp(64px, 7.4vw, 111px)/.95 var(--serif, Georgia, serif);
+  letter-spacing: -.057em;
+}
+.hero h1 em { color: var(--coral); font-weight: inherit; }
+.hero-story { grid-area: story; }
+.hero-story p {
+  max-width: 43ch;
+  margin: 0;
+  color: var(--mist);
+  font-size: clamp(16px, 1.23vw, 19px);
+  line-height: 1.52;
+  text-wrap: pretty;
+}
+.hero-links { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 25px; margin-top: 22px; }
+.hero-links a { display: inline-flex; align-items: center; min-height: 44px; font-size: 15px; }
+.hero-start {
+  justify-content: space-between;
+  gap: 20px;
+  color: var(--ink);
+  background: var(--coral);
+  padding: 8px 15px;
+  font-weight: 650;
+  text-decoration: none;
+}
+.hero-start span { font-size: 1.15em; }
+.hero-start:hover { background: var(--paper); }
+.hero-discovery { color: var(--white); text-underline-offset: 5px; text-decoration-color: var(--mist); }
+.hero-story a:focus-visible,.hero-heading a:focus-visible { outline-color: var(--white); }
+.decision-sheet {
+  grid-area: sheet;
+  align-self: center;
+  position: relative;
+  background: var(--white);
+  color: var(--ink);
+  padding: clamp(20px, 2.2vw, 34px);
+  box-shadow: 4px 5px 0 var(--line);
+}
+.decision-register,.decision-foot { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.decision-register {
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+  font: 12px/1.25 var(--mono);
+  letter-spacing: .025em;
+}
+.decision-register span:first-child { font-weight: 650; }
+.decision-subject { display: flex; justify-content: space-between; align-items: center; gap: 9px; padding-block: 16px; }
+.decision-subject h2 {
+  margin: 4px 0 0;
+  color: var(--ink);
+  font: 400 clamp(25px, 2.35vw, 38px)/1.06 var(--serif, Georgia, serif);
+  letter-spacing: -.045em;
+  text-wrap: balance;
+}
+.decision-subject p { margin: 0; color: var(--muted); font-size: 13px; }
+.decision-subject canvas {
+  flex: 0 0 auto;
+  display: block;
+  width: clamp(60px, 6.7vw, 100px);
+  height: auto;
+}
+.decision-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.decision-table th,.decision-table td { border-bottom: 1px solid var(--line); }
+.decision-table thead { background: var(--paper); font-size: 12px; }
+.decision-table th { text-align: left; font-weight: 450; }
+.decision-table thead th { padding: 5px 8px; font-weight: 650; }
+.decision-table thead th + th,.decision-table td { text-align: right; }
+.decision-table tbody th { padding: 8px; font-size: 14px; }
+.decision-table td {
+  padding: 7px 8px;
+  font: 400 clamp(21px, 2vw, 30px)/1.15 var(--serif, Georgia, serif);
+  white-space: nowrap;
+  letter-spacing: -.035em;
+}
+.decision-sheet[data-priority="premium"] .decision-premium,
+.decision-sheet[data-priority="deductible"] .decision-deductible {
+  color: var(--coral-ink);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+.decision-priorities {
+  display: flex;
+  gap: 0 18px;
+  flex-wrap: wrap;
+  margin: 15px 0 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.decision-priorities[hidden] { display: none; }
+.decision-priorities legend { padding: 0; font-size: 14px; font-weight: 650; }
+.decision-priorities label { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; font-size: 14px; cursor: pointer; }
+.decision-priorities input { height: 16px; width: 16px; margin: 0; accent-color: var(--coral-ink); }
+.decision-priorities input:focus-visible { outline-offset: 3px; outline-color: var(--coral-ink); }
+.decision-verdict {
+  border-left: 2px solid var(--coral);
+  padding-left: 10px;
+  margin: 4px 0 15px;
+  min-height: 2.5em;
+  font: italic 400 clamp(17px, 1.45vw, 22px)/1.25 var(--serif, Georgia, serif);
+  color: var(--coral-ink);
+  text-wrap: pretty;
+}
+.decision-verdict strong { font-weight: 600; white-space: nowrap; }
+.decision-foot { border-top: 1px solid var(--line); padding-top: 10px; }
+.decision-foot > span { font-size: 12px; color: var(--muted); }
+.decision-foot a { font-size: 13px; font-weight: 600; text-underline-offset: 4px; }
+.decision-sr { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+@media (min-width: 761px) and (max-width: 960px) {
+  .hero .hero-spread { grid-template-columns: .91fr 1.1fr; column-gap: 26px; }
+  .hero h1 { font-size: clamp(54px, 7vw, 69px); }
+  .hero-links { column-gap: 14px; }
+}
+@media (max-width: 760px) {
+  .hero .hero-spread {
+    grid-template: "title" auto "sheet" auto "story" auto / minmax(0, 1fr);
+    gap: 24px;
+    padding-block: 30px 35px;
+    max-width: 540px;
+  }
+  .hero-byline { margin-bottom: 18px; }
+  .hero h1 { font-size: clamp(54px, 12.8vw, 80px); line-height: .95; }
+  .hero-links { margin-top: 13px; }
+  .decision-subject { padding-block: 13px; }
+  .decision-subject h2 { font-size: 29px; }
+  .decision-priorities label { min-height: 44px; }
+  .decision-verdict { min-height: 0; }
+  .decision-foot a { min-height: 32px; display: inline-flex; align-items: center; gap: 4px; }
+}
+@media (max-width: 380px) {
+  .hero .hero-spread { row-gap: 20px; }
+  .hero-byline { font-size: 12px; }
+  .hero h1 { font-size: clamp(47px, 14vw, 54px); }
+  .decision-sheet { padding: 15px; }
+  .decision-subject h2 { font-size: 25px; }
+  .decision-table th,.decision-table td,.decision-table tbody th { padding-inline: 4px; }
+  .decision-table tbody th { font-size: 13px; }
+}
+
+/* The source workbook and the comparison it produces. */
+#intake {
+  background: var(--paper);
+  border: 0;
+  padding-block: clamp(54px, 7vw, 110px);
+}
+#intake > .wrap {
+  display: grid;
+  grid-template-columns: minmax(0, .74fr) minmax(0, 1.26fr);
+  gap: clamp(32px, 7vw, 106px);
+  align-items: start;
+}
+.intake-brief .file-origin, #offers .offer-folio {
+  font: 600 12px/1.4 var(--mono);
+  margin: 0;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+#intake .intake-brief h2, #offers .offer-document-title h2 {
+  font-family: var(--serif, Georgia, serif);
+  font-weight: 400;
+  letter-spacing: -.052em;
+  line-height: .98;
+  color: var(--ink);
+}
+.intake-brief h2 { font-size: clamp(38px, 4.5vw, 70px); margin: 14px 0 19px; }
+.intake-brief > p:last-child { max-width: 43ch; margin: 0; color: var(--muted); }
+#intake .intake-sheet {
+  margin: 2px 0 0;
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--ink);
+  border-radius: 0;
+  box-shadow: 0 4px 0 -1px var(--mist), 0 5px 0 -1px var(--line);
+}
+#intake .intake-file {
+  gap: 14px;
+  padding: clamp(15px, 2.4vw, 27px) clamp(14px, 2.4vw, 29px);
+  border-bottom: 1px solid var(--line);
+}
+#intake .intake-filename { flex-basis: 0; }
+#intake .intake-filename h3 { font: 600 clamp(17px, 2.1vw, 26px)/1.15 var(--mono); }
+#intake .intake-filename p { margin-top: 5px; font-size: .84rem; }
+.workbook-icon {
+  flex: none;
+  width: 31px;
+  height: 36px;
+  border: 2px solid var(--ink);
+  background: repeating-linear-gradient(to bottom, transparent 0 6px, var(--ink) 6px 7px), linear-gradient(to right, transparent 8px, var(--ink) 8px 9px, transparent 9px);
+  border-top-width: 7px;
+}
+#intake .intake-preview table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+#intake .intake-preview th, #intake .intake-preview td {
+  border-bottom: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+  padding: 13px clamp(10px, 2vw, 27px);
+  text-align: right;
+  font-weight: 450;
+}
+#intake .intake-preview tr > :first-child { text-align: left; }
+#intake .intake-preview tr > :last-child { border-right: 0; }
+#intake .intake-preview thead th { font-size: .8rem; color: var(--ink); background: var(--paper); font-weight: 600; }
+#intake .intake-preview tbody th { font: 500 .9rem/1.4 var(--mono); }
+#intake .intake-preview tbody td { white-space: nowrap; }
+#intake .workbook-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 11px clamp(10px, 2vw, 27px);
+}
+#intake .sheet-tab {
+  border-bottom: 2px solid var(--ink);
+  padding-block: 6px;
+  color: var(--ink);
+  font-size: .8rem;
+}
+#intake .intake-action { border-radius: 2px; font-size: .85rem; }
+#intake .intake-sheet:has([data-intake-review]:not([hidden]), [data-intake-result]:not([hidden])) .intake-preview { display: none; }
+#intake .intake-panel { border-top: 0; padding: clamp(15px, 2.4vw, 29px); }
+#intake .intake-panel h3 { font: 400 clamp(21px, 2.2vw, 30px)/1.15 var(--serif, Georgia, serif); }
+#intake .intake-objects { gap: 0; grid-template-columns: 1fr; border-top: 1px solid var(--line); }
+#intake .intake-object { border: 0; border-bottom: 1px solid var(--line); border-radius: 0; }
+#intake .intake-object h4 { background: var(--paper); color: var(--ink); font-size: .87rem; }
+#intake .intake-object dl { font-size: .92rem; }
+#intake .intake-object input { border-radius: 1px; }
+#intake .intake-panel > .intake-note { margin-top: 15px; font-size: .85rem; }
+#offers {
+  padding-block: clamp(40px, 6vw, 88px);
+  border-top: 1px solid var(--line);
+  background: var(--white);
+}
+#offers .offer-folio {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 0;
+  border-top: 3px solid var(--ink);
+  border-bottom: 1px solid var(--ink);
+}
+#offers .offer-document-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  margin: clamp(20px, 3vw, 40px) 0 16px;
+}
+#offers .offer-document-title h2 { margin: 0; font-size: clamp(40px, 6.8vw, 104px); }
+#offers .offer-document-title p {
+  margin: 0;
+  color: var(--ink);
+  font: italic 400 clamp(18px, 2.1vw, 31px)/1.2 var(--serif, Georgia, serif);
+}
+#offers .offer-sheet { margin: 0; border: 0; background: transparent; border-radius: 0; overflow: visible; }
+#offers .offer-sheet-head { align-items: end; padding: 4px 0 clamp(20px, 3vw, 36px); border: 0; }
+#offers .offer-sheet-head > p { max-width: 48ch; margin: 0; font-size: .98rem; color: var(--muted); }
+#offers .offer-switch { border: 1px solid var(--muted); border-radius: 1px; background: transparent; padding: 0; gap: 0; }
+#offers .offer-switch label { border-radius: 0; min-height: 44px; padding-inline: clamp(10px, 1.6vw, 24px); }
+#offers .offer-table { border-block: 2px solid var(--ink); }
+#offers .offer-table col:first-child { width: 27%; }
+#offers .offer-table tr > * { padding: 16px clamp(12px, 2.6vw, 38px); }
+#offers .offer-table tr > :first-child { padding-left: 0; }
+#offers .offer-table thead th { background: transparent; color: var(--ink); font-weight: 600; border-bottom: 1px solid var(--ink); }
+#offers .offer-table thead th:first-child { color: var(--muted); }
+#offers .offer-table .offer-premium td {
+  font: 400 clamp(22px, 4.1vw, 65px)/1.15 var(--serif, Georgia, serif);
+  letter-spacing: -.045em;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+#offers:has(#flow-offer-with:checked) [data-offer="premium-a"],
+#offers:has(#flow-offer-without:checked) [data-offer="premium-b"] {
+  text-decoration: underline;
+  text-decoration-color: var(--coral-ink);
+  text-decoration-thickness: 2px;
+  text-underline-offset: .11em;
+}
+#offers .offer-reading {
+  max-width: 67ch;
+  margin: 24px 0;
+  padding: 0 0 0 16px;
+  border-left: 3px solid var(--coral-ink);
+  background: transparent;
+  font-size: 1rem;
+}
+#offers .offer-reading strong { background: none; }
+#offers .offer-full { border-block: 1px solid var(--line); }
+#offers .offer-full summary { padding: 14px 0; font-size: .9rem; color: var(--ink); }
+#offers .request-sheet { padding: 0 0 20px; }
+#offers .request-sheet h4 { font: 400 24px/1.2 var(--serif, Georgia, serif); margin-bottom: 8px; }
+#offers .scene-follow { margin: 18px 0 0; text-align: right; }
+
+@media (max-width: 790px) {
+  #intake > .wrap { grid-template-columns: 1fr; gap: 24px; }
+  #intake .intake-brief h2 br { display: none; }
+  #intake .intake-brief p { max-width: 56ch; }
+}
+@media (max-width: 600px) {
+  #intake .intake-preview th, #intake .intake-preview td { padding: 11px 9px; }
+  #intake .intake-preview tbody td { font-size: .9rem; }
+  #intake .intake-action { padding-inline: 11px; }
+  #offers .offer-document-title { display: block; }
+  #offers .offer-document-title p { margin-top: 8px; }
+  #offers .offer-sheet-head { align-items: flex-start; flex-direction: column; gap: 15px; }
+  #offers .offer-table tr > * { padding: 13px 7px; }
+  #offers .offer-table .offer-premium td { font-size: clamp(17px, 4.6vw, 28px); }
+  #offers .offer-table tbody td { overflow-wrap: break-word; }
+  #offers .offer-table thead th { font-size: .8rem; }
+}
+
+#commission {
+  --statement-paper: var(--white);
+  --statement-ink: var(--ink);
+  --statement-muted: var(--muted);
+  --statement-line: var(--line);
+  background: var(--ink);
+  color: var(--statement-paper);
+  padding-block: clamp(3rem, 6.6vw, 6rem);
+}
+#commission .statement-layout {
+  display: grid;
+  grid-template-columns: minmax(0,.72fr) minmax(0,1.28fr);
+  grid-template-rows: auto 1fr;
+  column-gap: clamp(2rem,6vw,6rem);
+}
+.statement-intro { grid-area: 1 / 1; }
+.statement-intro .statement-section {
+  margin: 0 0 clamp(1.1rem,2.8vw,2.3rem);
+  color: var(--mist);
+  font: .76rem/1.4 var(--mono);
+}
+.statement-intro h2 {
+  margin: 0;
+  font: normal clamp(2.65rem,4.7vw,4.65rem)/1 var(--serif,Georgia,serif);
+  letter-spacing: -.055em;
+}
+.statement-intro h2 em { display: block; font-weight: inherit; color: var(--coral); }
+.statement-intro > p:last-child {
+  max-width: 33ch;
+  margin: 1.25rem 0 0;
+  color: var(--mist);
+  line-height: 1.55;
+}
+.statement-margin {
+  grid-area: 2 / 1;
+  align-self: end;
+  max-width: 34ch;
+  margin-top: 2.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+.statement-margin p {
+  margin: 0 0 .85rem;
+  font: italic clamp(1.1rem,1.6vw,1.45rem)/1.35 var(--serif,Georgia,serif);
+}
+.statement-margin span { color: var(--mist); font-size: .79rem; }
+.statement-sheet {
+  grid-area: 1 / 2 / span 2;
+  position: relative;
+  padding: clamp(1.35rem,3.5vw,3rem);
+  color: var(--statement-ink);
+  background: var(--statement-paper);
+  border-bottom: 4px double var(--muted);
+  min-width: 0;
+}
+.statement-head p, .statement-accounts thead th {
+  margin: 0;
+  font: .75rem/1.45 var(--mono);
+  color: var(--statement-muted);
+}
+.statement-head p span { margin: 0 .3em; }
+.statement-head h3 {
+  margin: .6rem 0 .35rem;
+  font: normal clamp(1.9rem,3.3vw,3.2rem)/1.08 var(--serif,Georgia,serif);
+  letter-spacing: -.04em;
+}
+.statement-head div { color: var(--statement-muted); overflow-wrap: anywhere; font-size: .92rem; }
+.statement-basis {
+  display: flex;
+  gap: clamp(1.5rem,6vw,5.5rem);
+  padding: .85rem 0;
+  margin: 1.15rem 0;
+  border-block: 1px solid var(--statement-line);
+}
+.statement-basis dt { color: var(--statement-muted); font-size: .8rem; }
+.statement-basis dd { margin: .15rem 0 0; font: 500 1.2rem/1.3 var(--mono); }
+.statement-stages {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  min-width: 0;
+}
+.statement-stages legend { padding: 0 0 .5rem; font-size: .83rem; color: var(--statement-muted); }
+.statement-stages .commission-stage {
+  flex: 1 1 0;
+  min-height: 44px;
+  padding: .5rem .25rem;
+  margin: 0;
+  font-family: inherit;
+  font-weight: 550;
+  font-size: .85rem;
+  line-height: 1.25;
+  cursor: pointer;
+  border: 1px solid var(--muted);
+  border-radius: 0;
+  color: var(--statement-ink);
+  background: transparent;
+}
+.statement-stages .commission-stage + .commission-stage { border-left: 0; }
+.statement-stages .commission-stage:hover { background: var(--mist); }
+.statement-stages .commission-stage[aria-pressed=true] { background: var(--coral); color: var(--ink); box-shadow: inset 0 -2px var(--ink); }
+.statement-stages .commission-stage:focus-visible { position:relative; outline: 2px solid var(--coral-ink); outline-offset: 2px; }
+.statement-accounts {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1.5rem;
+  font-size: .97rem;
+}
+.statement-accounts :is(th,td) { padding: .62rem 0; text-align: left; }
+.statement-accounts :is(th,td):last-child { text-align: right; white-space: nowrap; }
+.statement-accounts tbody tr { border-top: 1px solid var(--statement-line); }
+.statement-accounts tbody th { font-weight: normal; }
+.statement-accounts td { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.statement-accounts .statement-earned {
+  border-top: 3px double var(--statement-ink);
+  border-bottom: 1px solid var(--statement-ink);
+}
+.statement-earned th, .statement-earned td {
+  font: normal clamp(1.45rem,2.4vw,2.2rem)/1.15 var(--serif,Georgia,serif);
+  letter-spacing: -.035em;
+}
+.statement-sheet:has([data-stage="approved"][aria-pressed="true"]) .commission-amount { color: var(--coral-ink); }
+#commission .commission-note {
+  margin: .85rem 0 0;
+  color: var(--statement-muted);
+  font-size: .88rem;
+  line-height: 1.45;
+  min-height: 2.9em;
+}
+.statement-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+@media (max-width: 760px) {
+  #commission .statement-layout { display: block; }
+  .statement-intro h2 em { display: inline; }
+  .statement-intro > p:last-child { max-width: 49ch; }
+  .statement-sheet { margin-top: 1.5rem; }
+  .statement-margin { margin-top: 1.5rem; max-width: 45ch; }
+}
+@media (max-width: 380px) {
+  .statement-sheet { padding: 1.1rem .85rem; }
+  .statement-stages .commission-stage { font-size: .78rem; }
+}
+</style>
+</head>
+<body id="top">
+<a href="#content" class="skip">К содержанию</a>
+<header class="mast"><div class="wrap">
+<a class="brand" href="#top" aria-label="InsFlow, к началу"><span class="brand-word">Ins<span>Flow</span></span><span class="brand-sub">страхование лизинга</span></a>
+<nav aria-label="Разделы кейса"><a href="#impact">Результаты</a><a href="#journey">Сделка</a><a href="#role">Автор</a></nav>
+</div></header>
+<main id="content">
+<section class="hero" aria-labelledby="hero-title">
+  <div class="wrap hero-spread">
+    <div class="hero-heading">
+      <p class="hero-byline"><a href="#role">Grigorii Grachev</a><span>Продукт и разработка</span></p>
+      <h1 id="hero-title">От заявки<br><em>до комиссии.</em></h1>
+    </div>
+    <section class="decision-sheet" aria-labelledby="decision-title" data-priority="premium">
+      <div class="decision-register"><span>КАСКО</span><span>Объект DEMO-01</span></div>
+      <div class="decision-subject">
+        <div>
+          <p>Электрофургон</p>
+          <h2 id="decision-title">Какой полис предложить?</h2>
+        </div>
+        <canvas id="van-drawing" width="1080" height="476" aria-hidden="true"></canvas>
+      </div>
+      <table class="decision-table">
+        <caption class="decision-sr">Сравнение вымышленных предложений по КАСКО, в рублях</caption>
+        <thead><tr><th scope="col">Условия, ₽</th><th scope="col">СК А</th><th scope="col">СК Б</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Премия за год</th><td class="decision-premium">100 000</td><td>112 000</td></tr>
+          <tr><th scope="row">Франшиза</th><td>30 000</td><td class="decision-deductible">15 000</td></tr>
+        </tbody>
+      </table>
+      <fieldset class="decision-priorities" hidden>
+        <legend>Что важнее клиенту?</legend>
+        <label><input type="radio" name="case-priority" value="premium" checked>Цена полиса</label>
+        <label><input type="radio" name="case-priority" value="deductible">Франшиза</label>
+      </fieldset>
+      <p class="decision-verdict" aria-live="polite" aria-atomic="true">У А полис дешевле на <strong>12 000 ₽</strong> в год. У Б вдвое ниже франшиза.</p>
+      <div class="decision-foot"><span>Данные вымышлены</span><a href="#offers" data-open-quoted-terms>К полному своду <span aria-hidden="true">↓</span></a></div>
+    </section>
+    <div class="hero-story">
+      <p>Я создал Flow — внутреннюю платформу страхового брокера. Из разговоров с клиентами и менеджерами выросли два модуля. Покажу на одной сделке, как менеджер сравнивает условия, оформляет полис и учитывает комиссию.</p>
+      <div class="hero-links">
+        <a class="hero-start cta" href="#intake">Пройти путь сделки <span aria-hidden="true">↓</span></a>
+        <a class="hero-discovery" href="#discovery">Как я нашёл задачу</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+(() => {
+  const sheet = document.querySelector('.decision-sheet');
+  const choices = sheet.querySelector('.decision-priorities');
+  const verdict = sheet.querySelector('.decision-verdict');
+  const reasons = {
+    premium: 'У А полис на 12 000 ₽ дешевле. Премию можно внести двумя платежами по 50 000 ₽.',
+    deductible: 'У Б франшиза вдвое ниже — 15 000 ₽ за страховой случай. Полис обойдётся на 12 000 ₽ дороже за год.'
+  };
+  function showPriority() {
+    const selected = choices.querySelector('input:checked').value;
+    sheet.dataset.priority = selected;
+    verdict.textContent = reasons[selected];
+  }
+  choices.addEventListener('change', showPriority);
+  showPriority();
+  choices.hidden = false;
+})();
+</script>
+<section class="scene impact" id="impact" aria-labelledby="impact-title">
+  <div class="wrap">
+    <h2 class="sr-only" id="impact-title">Результаты внедрения Flow</h2>
+    <div class="impact-grid">
+      <article class="impact-labor">
+        <h3>Заявки и своды · результат внедрения</h3>
+        <p class="impact-headline"><strong>−70%</strong> <span>трудозатрат менеджера<br>на одну сделку</span></p>
+        <figure class="effort-chart">
+          <figcaption>Среднее время на одинаковый набор задач</figcaption>
+          <div class="effort-row"><span>До Flow</span><span class="effort-track" aria-hidden="true"><i></i></span><b>100%</b></div>
+          <div class="effort-row effort-after"><span>С Flow</span><span class="effort-track" aria-hidden="true"><i></i></span><b>30%</b></div>
+        </figure>
+        <p class="impact-note">По внутренней оценке команды, сотрудники модуля в среднем тратят 30% прежнего времени на обработку сделки. У отдельных менеджеров результат различается.</p>
+        <details class="impact-method"><summary>Почему расчётная выработка выше в 3,3 раза</summary><p>Прежнее время принято за 100%. Для того же набора задач отношение 100 ÷ 30 даёт примерно 3,3. Это расчётный рост объёма такой работы за час.</p></details>
+      </article>
+      <article class="impact-analytics">
+        <h3>Полисы · результат внедрения</h3>
+        <p class="impact-subtitle">От реестра договоров к&nbsp;аналитике портфеля</p>
+        <p>До Flow у команды не было общей картины по взносам и комиссии. Я связал данные о полисах, платежах и актах. Теперь на дашборде руководитель видит заработанную комиссию, прогноз по действующим договорам и суммы, которые ещё ждут согласования.</p>
+        <p>Если сумма вызывает вопрос, её можно разложить по страховщикам, увидеть срок ожидания и открыть конкретные платежи. Нужную выборку можно выгрузить в Excel.</p>
+        <a class="quiet-link" href="#portfolio-report">Разобрать сумму в отчёте ↓</a>
+      </article>
+    </div>
+  </div>
+</section>
+
+
+<nav id="journey" class="itinerary" aria-label="Этапы сделки по модулям">
+  <div class="wrap">
+    <div class="route-part"><p>Заявки и своды</p><a href="#intake">Разобрать заявку</a><span class="route-join" aria-hidden="true">→</span><a href="#offers">Сравнить условия</a></div>
+    <div class="route-part"><p>Полисы</p><a href="#policy">Оформить полис</a><span class="route-join" aria-hidden="true">→</span><a href="#commission">Учесть комиссию</a></div>
+  </div>
+</nav>
+<section id="intake" class="scene" aria-labelledby="intake-title">
+  <div class="wrap">
+    <header class="intake-brief">
+      <p class="file-origin">Заявки и своды</p>
+      <h2 id="intake-title">Один файл, <br>две заявки</h2>
+      <p>Лизинговая компания прислала заявку на два электрофургона. Договор и условия страхования общие. Год выпуска и стоимость менеджер проверяет по каждому объекту отдельно.</p>
+    </header>
+    <div class="intake-sheet">
+      <div class="intake-file">
+        <span class="workbook-icon" aria-hidden="true"></span>
+        <div class="intake-filename"><h3>Заявка DEMO.xlsx</h3><p>Входящий файл лизинговой компании</p></div>
+      </div>
+      <div class="intake-preview">
+        <table aria-label="Две строки исходного файла">
+          <thead><tr><th scope="col">Объект</th><th scope="col">Год</th><th scope="col">Стоимость, ₽</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">DEMO-01</th><td>2026</td><td>4 800 000</td></tr>
+            <tr><th scope="row">DEMO-02</th><td>2025</td><td>4 500 000</td></tr>
+          </tbody>
+        </table>
+        <div class="workbook-controls">
+          <span class="sheet-tab">Лист «Заявка»</span>
+          <button type="button" class="intake-action" data-intake-open hidden>Разобрать пример</button>
+        </div>
+      </div>
+      <noscript><p class="intake-panel">В этой партии два объекта, DEMO-01 и DEMO-02. После проверки общего файла каждый получает свою карточку заявки. Чтобы пройти проверку вручную, включите JavaScript.</p></noscript>
+      <p class="intake-panel" data-intake-error role="alert" hidden></p>
+      <form class="intake-panel" data-intake-review hidden>
+        <h3 tabindex="-1">Проверьте данные из файла</h3>
+        <div class="intake-shared" data-intake-common></div>
+        <div class="intake-objects" data-intake-rows></div>
+        <p class="intake-note" id="intake-year-help">Если по документам год выпуска DEMO-02 отличается, его можно исправить здесь.</p>
+        <div class="intake-foot"><button type="submit" class="intake-action">Создать две заявки</button><button class="intake-reset" type="button" data-intake-reset>Начать заново</button></div>
+      </form>
+      <div class="intake-panel" data-intake-result hidden>
+        <h3 tabindex="-1">Созданы две заявки одной партии</h3>
+        <div class="intake-shared" data-intake-saved-common></div>
+        <div class="intake-objects" data-intake-cards></div>
+        <p class="intake-note">Для партии можно подготовить один PDF страховщику. Предложения и выбор компании менеджер ведёт отдельно по каждой машине.</p>
+        <div class="intake-foot"><a class="intake-next" href="#offers">Сравнить предложения по DEMO-01 ↓</a><button class="intake-reset" type="button" data-intake-reset>Начать заново</button></div>
+      </div>
+    </div>
+  </div>
+</section>
+<script>
+(() => {
+  const section = document.getElementById('intake');
+  const openButton = section.querySelector('[data-intake-open]');
+  const review = section.querySelector('[data-intake-review]');
+  const result = section.querySelector('[data-intake-result]');
+  const error = section.querySelector('[data-intake-error]');
+  const workbook = 'UEsDBBQAAAAAAAZvaV0cdPw49gEAAPYBAAATAAAAW0NvbnRlbnRfVHlwZXNdLnhtbDxUeXBlcyB4bWxucz0iaHR0cDovL3NjaGVtYXMub3BlbnhtbGZvcm1hdHMub3JnL3BhY2thZ2UvMjAwNi9jb250ZW50LXR5cGVzIj48RGVmYXVsdCBFeHRlbnNpb249InJlbHMiIENvbnRlbnRUeXBlPSJhcHBsaWNhdGlvbi92bmQub3BlbnhtbGZvcm1hdHMtcGFja2FnZS5yZWxhdGlvbnNoaXBzK3htbCIvPjxEZWZhdWx0IEV4dGVuc2lvbj0ieG1sIiBDb250ZW50VHlwZT0iYXBwbGljYXRpb24veG1sIi8+PE92ZXJyaWRlIFBhcnROYW1lPSIveGwvd29ya2Jvb2sueG1sIiBDb250ZW50VHlwZT0iYXBwbGljYXRpb24vdm5kLm9wZW54bWxmb3JtYXRzLW9mZmljZWRvY3VtZW50LnNwcmVhZHNoZWV0bWwuc2hlZXQubWFpbit4bWwiLz48T3ZlcnJpZGUgUGFydE5hbWU9Ii94bC93b3Jrc2hlZXRzL3NoZWV0MS54bWwiIENvbnRlbnRUeXBlPSJhcHBsaWNhdGlvbi92bmQub3BlbnhtbGZvcm1hdHMtb2ZmaWNlZG9jdW1lbnQuc3ByZWFkc2hlZXRtbC53b3Jrc2hlZXQreG1sIi8+PC9UeXBlcz5QSwMEFAAAAAAABm9pXf5bhnLwAAAA8AAAAAsAAABfcmVscy8ucmVsczxSZWxhdGlvbnNoaXBzIHhtbG5zPSJodHRwOi8vc2NoZW1hcy5vcGVueG1sZm9ybWF0cy5vcmcvcGFja2FnZS8yMDA2L3JlbGF0aW9uc2hpcHMiPjxSZWxhdGlvbnNoaXAgSWQ9InJJZDEiIFR5cGU9Imh0dHA6Ly9zY2hlbWFzLm9wZW54bWxmb3JtYXRzLm9yZy9vZmZpY2VEb2N1bWVudC8yMDA2L3JlbGF0aW9uc2hpcHMvb2ZmaWNlRG9jdW1lbnQiIFRhcmdldD0ieGwvd29ya2Jvb2sueG1sIi8+PC9SZWxhdGlvbnNoaXBzPlBLAwQUAAAAAAAGb2ld/ONjueoAAADqAAAADwAAAHhsL3dvcmtib29rLnhtbDx3b3JrYm9vayB4bWxucz0iaHR0cDovL3NjaGVtYXMub3BlbnhtbGZvcm1hdHMub3JnL3NwcmVhZHNoZWV0bWwvMjAwNi9tYWluIiB4bWxuczpyPSJodHRwOi8vc2NoZW1hcy5vcGVueG1sZm9ybWF0cy5vcmcvb2ZmaWNlRG9jdW1lbnQvMjAwNi9yZWxhdGlvbnNoaXBzIj48c2hlZXRzPjxzaGVldCBuYW1lPSLQl9Cw0Y/QstC60LAiIHNoZWV0SWQ9IjEiIHI6aWQ9InJJZDEiLz48L3NoZWV0cz48L3dvcmtib29rPlBLAwQUAAAAAAAGb2ldtlSqz/EAAADxAAAAGgAAAHhsL19yZWxzL3dvcmtib29rLnhtbC5yZWxzPFJlbGF0aW9uc2hpcHMgeG1sbnM9Imh0dHA6Ly9zY2hlbWFzLm9wZW54bWxmb3JtYXRzLm9yZy9wYWNrYWdlLzIwMDYvcmVsYXRpb25zaGlwcyI+PFJlbGF0aW9uc2hpcCBJZD0icklkMSIgVHlwZT0iaHR0cDovL3NjaGVtYXMub3BlbnhtbGZvcm1hdHMub3JnL29mZmljZURvY3VtZW50LzIwMDYvcmVsYXRpb25zaGlwcy93b3Jrc2hlZXQiIFRhcmdldD0id29ya3NoZWV0cy9zaGVldDEueG1sIi8+PC9SZWxhdGlvbnNoaXBzPlBLAwQUAAAAAAAGb2ldyE/e/T4FAAA+BQAAGAAAAHhsL3dvcmtzaGVldHMvc2hlZXQxLnhtbDx3b3Jrc2hlZXQgeG1sbnM9Imh0dHA6Ly9zY2hlbWFzLm9wZW54bWxmb3JtYXRzLm9yZy9zcHJlYWRzaGVldG1sLzIwMDYvbWFpbiI+PHNoZWV0RGF0YT48cm93IHI9IjEiPjxjIHI9IkExIiB0PSJpbmxpbmVTdHIiPjxpcz48dD7QntCx0YrQtdC60YI8L3Q+PC9pcz48L2M+PGMgcj0iQjEiIHQ9ImlubGluZVN0ciI+PGlzPjx0PtCi0LjQvzwvdD48L2lzPjwvYz48YyByPSJDMSIgdD0iaW5saW5lU3RyIj48aXM+PHQ+0JPQvtC0INCy0YvQv9GD0YHQutCwPC90PjwvaXM+PC9jPjxjIHI9IkQxIiB0PSJpbmxpbmVTdHIiPjxpcz48dD7QodGC0L7QuNC80L7RgdGC0Yw8L3Q+PC9pcz48L2M+PGMgcj0iRTEiIHQ9ImlubGluZVN0ciI+PGlzPjx0PtCU0L7Qs9C+0LLQvtGAINC70LjQt9C40L3Qs9CwPC90PjwvaXM+PC9jPjxjIHI9IkYxIiB0PSJpbmxpbmVTdHIiPjxpcz48dD7QktC40LQg0YHRgtGA0LDRhdC+0LLQsNC90LjRjzwvdD48L2lzPjwvYz48YyByPSJHMSIgdD0iaW5saW5lU3RyIj48aXM+PHQ+0KHRgNC+0Lo8L3Q+PC9pcz48L2M+PC9yb3c+PHJvdyByPSIyIj48YyByPSJBMiIgdD0iaW5saW5lU3RyIj48aXM+PHQ+REVNTy0wMTwvdD48L2lzPjwvYz48YyByPSJCMiIgdD0iaW5saW5lU3RyIj48aXM+PHQ+0K3Qu9C10LrRgtGA0L7RhNGD0YDQs9C+0L08L3Q+PC9pcz48L2M+PGMgcj0iQzIiIHQ9ImlubGluZVN0ciI+PGlzPjx0PjIwMjY8L3Q+PC9pcz48L2M+PGMgcj0iRDIiIHQ9ImlubGluZVN0ciI+PGlzPjx0PjQ4MDAwMDA8L3Q+PC9pcz48L2M+PGMgcj0iRTIiIHQ9ImlubGluZVN0ciI+PGlzPjx0PkRFTU88L3Q+PC9pcz48L2M+PGMgcj0iRjIiIHQ9ImlubGluZVN0ciI+PGlzPjx0PtCa0JDQodCa0J48L3Q+PC9pcz48L2M+PGMgcj0iRzIiIHQ9ImlubGluZVN0ciI+PGlzPjx0PjEg0LPQvtC0PC90PjwvaXM+PC9jPjwvcm93Pjxyb3cgcj0iMyI+PGMgcj0iQTMiIHQ9ImlubGluZVN0ciI+PGlzPjx0PkRFTU8tMDI8L3Q+PC9pcz48L2M+PGMgcj0iQjMiIHQ9ImlubGluZVN0ciI+PGlzPjx0PtCt0LvQtdC60YLRgNC+0YTRg9GA0LPQvtC9PC90PjwvaXM+PC9jPjxjIHI9IkMzIiB0PSJpbmxpbmVTdHIiPjxpcz48dD4yMDI1PC90PjwvaXM+PC9jPjxjIHI9IkQzIiB0PSJpbmxpbmVTdHIiPjxpcz48dD40NTAwMDAwPC90PjwvaXM+PC9jPjxjIHI9IkUzIiB0PSJpbmxpbmVTdHIiPjxpcz48dD5ERU1PPC90PjwvaXM+PC9jPjxjIHI9IkYzIiB0PSJpbmxpbmVTdHIiPjxpcz48dD7QmtCQ0KHQmtCePC90PjwvaXM+PC9jPjxjIHI9IkczIiB0PSJpbmxpbmVTdHIiPjxpcz48dD4xINCz0L7QtDwvdD48L2lzPjwvYz48L3Jvdz48L3NoZWV0RGF0YT48L3dvcmtzaGVldD5QSwECFAMUAAAAAAAGb2ldHHT8OPYBAAD2AQAAEwAAAAAAAAAAAAAAgAEAAAAAW0NvbnRlbnRfVHlwZXNdLnhtbFBLAQIUAxQAAAAAAAZvaV3+W4Zy8AAAAPAAAAALAAAAAAAAAAAAAACAAScCAABfcmVscy8ucmVsc1BLAQIUAxQAAAAAAAZvaV3842O56gAAAOoAAAAPAAAAAAAAAAAAAACAAUADAAB4bC93b3JrYm9vay54bWxQSwECFAMUAAAAAAAGb2ldtlSqz/EAAADxAAAAGgAAAAAAAAAAAAAAgAFXBAAAeGwvX3JlbHMvd29ya2Jvb2sueG1sLnJlbHNQSwECFAMUAAAAAAAGb2ldyE/e/T4FAAA+BQAAGAAAAAAAAAAAAAAAgAGABQAAeGwvd29ya3NoZWV0cy9zaGVldDEueG1sUEsFBgAAAAAFAAUARQEAAPQKAAAAAA==';
+  let rows = [];
+
+  // This specific offline example uses an XLSX with uncompressed ZIP members and inline strings.
+  function exampleRows() {
+    const archive = Uint8Array.from(atob(workbook), char => char.charCodeAt(0));
+    const view = new DataView(archive.buffer);
+    const decoder = new TextDecoder();
+    let offset = 0;
+    while (offset + 30 <= archive.length && view.getUint32(offset, true) === 0x04034b50) {
+      const size = view.getUint32(offset + 18, true);
+      const nameLength = view.getUint16(offset + 26, true);
+      const extraLength = view.getUint16(offset + 28, true);
+      const start = offset + 30;
+      const name = decoder.decode(archive.subarray(start, start + nameLength));
+      const content = start + nameLength + extraLength;
+      if (name === 'xl/worksheets/sheet1.xml') {
+        const xml = new DOMParser().parseFromString(decoder.decode(archive.subarray(content, content + size)), 'application/xml');
+        return Array.from(xml.getElementsByTagNameNS('*','row')).slice(1).map(row =>
+          Array.from(row.getElementsByTagNameNS('*','c')).map(cell => cell.textContent.trim()));
+      }
+      offset = content + size;
+    }
+    throw new Error('Worksheet missing');
+  }
+
+  function element(tag, value) {
+    const item = document.createElement(tag);
+    item.textContent = value;
+    return item;
+  }
+
+  function common(container) {
+    const [, , , , agreement, kind, term] = rows[0];
+    container.replaceChildren(...[['Договор лизинга', agreement], ['Страхование', kind + ', ' + term]].map(([label, value]) => {
+      const text = element('span', label + ' ');
+      text.append(element('strong', value));
+      return text;
+    }));
+  }
+
+  function card(row, editing, index) {
+    const [code, type, year, cost] = row;
+    const box = document.createElement('article');
+    box.className = 'intake-object';
+    box.append(element('h4', (editing ? type + ' ' : 'Заявка на электрофургон ') + code));
+    const fields = document.createElement('dl');
+    const yearLabel = element('dt', 'Год выпуска');
+    const yearValue = element('dd', year);
+    if (editing && index === 1) {
+      const label = element('label', 'Год выпуска');
+      label.htmlFor = 'intake-edit-year';
+      yearLabel.replaceChildren(label);
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.id = 'intake-edit-year';
+      input.name = 'year';
+      input.min = '1900';
+      input.max = '2026';
+      input.step = '1';
+      input.required = true;
+      input.value = year;
+      input.setAttribute('aria-describedby', 'intake-year-help');
+      yearValue.replaceChildren(input);
+    }
+    fields.append(yearLabel, yearValue, element('dt', 'Стоимость'), element('dd', Number(cost).toLocaleString('ru-RU') + ' ₽'));
+    box.append(fields);
+    return box;
+  }
+
+  function showPanel(panel) {
+    review.hidden = panel !== review;
+    result.hidden = panel !== result;
+    openButton.hidden = Boolean(panel);
+    if (panel) panel.querySelector('h3').focus();
+    else openButton.focus();
+  }
+
+  openButton.hidden = false;
+  openButton.addEventListener('click', () => {
+    error.hidden = true;
+    try {
+      rows = exampleRows();
+      if (rows.length !== 2 || rows.some(row => row.length !== 7)) throw new Error('Invalid worksheet');
+      common(review.querySelector('[data-intake-common]'));
+      review.querySelector('[data-intake-rows]').replaceChildren(...rows.map((row, i) => card(row, true, i)));
+      showPanel(review);
+    } catch {
+      error.textContent = 'Не удалось прочитать встроенный пример Excel. Обновите страницу и попробуйте снова.';
+      error.hidden = false;
+    }
+  });
+  review.addEventListener('submit', event => {
+    event.preventDefault();
+    if (!review.reportValidity() || rows.length !== 2) return;
+    rows[1][2] = review.elements.year.value;
+    common(result.querySelector('[data-intake-saved-common]'));
+    result.querySelector('[data-intake-cards]').replaceChildren(...rows.map(row => card(row, false)));
+    showPanel(result);
+  });
+  section.querySelectorAll('[data-intake-reset]').forEach(button => button.addEventListener('click', () => {
+    rows = [];
+    showPanel(null);
+  }));
+})();
+</script>
+<section id="offers" class="scene" aria-labelledby="offers-title">
+  <div class="wrap">
+    <header class="offer-document-head">
+      <div class="offer-folio"><span>КАСКО</span><span>DEMO-01</span></div>
+      <div class="offer-document-title">
+        <h2 id="offers-title">Свод предложений</h2>
+        <p>Электрофургон · 1 год</p>
+      </div>
+    </header>
+    <div class="offer-sheet">
+      <div class="offer-sheet-head">
+        <p>Два страховщика рассчитали КАСКО для первого фургона. Сравните цену за год, франшизу и график взносов.</p>
+        <fieldset class="offer-switch" hidden>
+          <legend class="offer-sr">Условия страхования</legend>
+          <input class="offer-sr" id="flow-offer-with" name="flow-offer-mode" type="radio" value="with" checked>
+          <label for="flow-offer-with">С франшизой</label>
+          <input class="offer-sr" id="flow-offer-without" name="flow-offer-mode" type="radio" value="without">
+          <label for="flow-offer-without">Без франшизы</label>
+        </fieldset>
+      </div>
+      <table class="offer-table">
+        <caption class="offer-sr">Предложения двух вымышленных страховщиков для объекта DEMO-01</caption>
+        <colgroup><col><col><col></colgroup>
+        <thead><tr><th scope="col">Условия</th><th scope="col">Страховщик А</th><th scope="col">Страховщик Б</th></tr></thead>
+        <tbody>
+          <tr class="offer-premium"><th scope="row">Премия за год</th><td data-offer="premium-a">100 000 ₽</td><td data-offer="premium-b">112 000 ₽</td></tr>
+          <tr><th scope="row">Франшиза</th><td data-offer="deductible-a">30 000 ₽</td><td data-offer="deductible-b">15 000 ₽</td></tr>
+          <tr><th scope="row">Оплата</th><td data-offer="payment-a">2 × 50 000 ₽</td><td data-offer="payment-b">Одним платежом</td></tr>
+        </tbody>
+      </table>
+      <p class="offer-reading" aria-live="polite" aria-atomic="true"><strong>У А полис дешевле на 12 000 ₽ в год.</strong> У Б франшиза на 15 000 ₽ меньше. При страховом случае эта часть убытка остаётся за клиентом.</p>
+      <details class="offer-full">
+        <summary>Открыть параметры исходной заявки</summary>
+        <div class="request-sheet">
+          <h4>Лист «Параметры запроса»</h4>
+          <p>Клиент получает сравнение условий. В полном Excel-своде менеджер также видит исходные параметры заявки.</p>
+          <dl><div><dt>Предмет лизинга</dt><dd>Электрофургон DEMO-01</dd></div><div><dt>Вид страхования</dt><dd>КАСКО</dd></div><div><dt>Срок страхования</dt><dd>1 год</dd></div></dl>
+        </div>
+      </details>
+    </div>
+    <p class="scene-follow"><a class="quiet-link" href="#policy">К оформлению полиса DEMO-01 ↓</a></p>
+  </div>
+</section>
+<script>
+  (() => {
+    const scene = document.getElementById('offers');
+    const modes = scene.querySelector('.offer-switch');
+    const reading = scene.querySelector('.offer-reading');
+    const terms = {
+      with: {
+        'premium-a': '100 000 ₽', 'premium-b': '112 000 ₽',
+        'deductible-a': '30 000 ₽', 'deductible-b': '15 000 ₽',
+        'payment-a': '2 × 50 000 ₽', 'payment-b': 'Одним платежом',
+        takeaway: 'У А полис дешевле на 12 000 ₽ в год.',
+        detail: 'У Б франшиза на 15 000 ₽ меньше. При страховом случае эта часть убытка остаётся за клиентом.'
+      },
+      without: {
+        'premium-a': '132 000 ₽', 'premium-b': '128 000 ₽',
+        'deductible-a': '0 ₽', 'deductible-b': '0 ₽',
+        'payment-a': '2 × 66 000 ₽', 'payment-b': 'Одним платежом',
+        takeaway: 'Без франшизы дешевле у Б.',
+        detail: 'Клиент экономит 4 000 ₽ за год и платит всю сумму сразу. У А можно разбить оплату на два взноса.'
+      }
+    };
+    function update(mode) {
+      const variant = terms[mode];
+      scene.querySelectorAll('[data-offer]').forEach(cell => {
+        cell.textContent = variant[cell.dataset.offer];
+      });
+      const lead = document.createElement('strong');
+      lead.textContent = variant.takeaway;
+      reading.replaceChildren(lead, ' ' + variant.detail);
+    }
+    modes.addEventListener('change', event => {
+      if (event.target.matches('input[type=radio]')) update(event.target.value);
+    });
+    document.querySelector('[data-open-quoted-terms]').addEventListener('click', () => {
+      // The opening sheet quotes both insurers with a deductible.
+      scene.querySelector('#flow-offer-with').checked = true;
+      update('with');
+    });
+    update(modes.querySelector('input:checked').value);
+    modes.hidden = false;
+  })();
+</script>
+<section id="policy" class="scene" aria-labelledby="policy-title">
+  <div class="wrap">
+    <header class="policy-heading">
+      <div><p class="kicker">Реестр полисов</p><h2 class="section-heading" id="policy-title">От акцепта к полису</h2></div>
+      <p class="lede">В этой сделке клиент выбрал страховщика А, франшизу 30 000 ₽ и два взноса по 50 000 ₽. Менеджер получает распоряжение на оформление и загружает его в реестр полисов.</p>
+    </header>
+    <div class="policy-workspace">
+      <div class="policy-file" aria-label="Содержимое учебного акцепта">
+        <div class="policy-file-head"><span class="policy-file-icon" aria-hidden="true"></span><div><span class="policy-caption">Распоряжение на оформление</span><strong>Акцепт_DEMO-01.xlsx</strong></div></div>
+        <dl class="policy-data">
+          <div><dt>Объект</dt><dd>Электрофургон DEMO-01</dd></div>
+          <div><dt>Вид страхования</dt><dd>КАСКО</dd></div>
+          <div><dt>Срок</dt><dd>1 год</dd></div>
+        </dl>
+      </div>
+      <div class="policy-panel">
+        <div data-policy-step="upload">
+          <span class="policy-caption">Реестр полисов</span><h3>Добавить из акцепта</h3>
+          <p class="policy-description">Из акцепта берём объект и вид страхования. Номер полиса, взносы и ставку комиссии сотрудник указывает при оформлении.</p>
+          <button type="button" class="policy-button" data-policy-action="import" hidden>Загрузить учебный акцепт</button>
+          <noscript><p>После проверки сотрудник вносит номер полиса, страховщика, комиссию и график из двух взносов по 50 000 ₽.</p></noscript>
+        </div>
+        <div data-policy-step="review" hidden>
+          <span class="policy-caption">Проверка акцепта</span><h3 tabindex="-1">Электрофургон DEMO-01</h3>
+          <p class="policy-description">Объект распознан, КАСКО найдено в справочнике. Теперь внесите номер выданного полиса, условия договора и комиссию брокера.</p>
+          <button type="button" class="policy-button" data-policy-action="fill">Внести данные полиса</button>
+        </div>
+        <div data-policy-step="draft" hidden>
+          <span class="policy-caption">Новая карточка · КАСКО</span><h3 tabindex="-1">Проверить условия</h3>
+          <form data-policy-form autocomplete="off">
+            <label class="policy-field">Учебный номер полиса<input type="text" required maxlength="36" value="DEMO-КАСКО-01" autocomplete="off" spellcheck="false"></label>
+            <dl class="policy-terms">
+              <div><dt>Страховщик</dt><dd>Страховщик А</dd></div><div><dt>Франшиза</dt><dd>30 000 ₽</dd></div>
+              <div><dt>Взносы по договору</dt><dd>2 × 50 000 ₽</dd></div><div><dt>Комиссия брокера</dt><dd>10% со взноса</dd></div>
+            </dl>
+            <button type="submit" class="policy-button">Оформить полис</button>
+          </form>
+        </div>
+        <div data-policy-step="registered" hidden>
+          <span class="policy-caption">Полис оформлен · КАСКО</span><h3 tabindex="-1" data-policy-number></h3>
+          <p class="policy-description">Электрофургон DEMO-01 · Страховщик А<br>Годовая премия 100 000 ₽, франшиза 30 000 ₽.</p>
+          <table class="policy-schedule">
+            <caption>График взносов</caption>
+            <thead><tr><th scope="col">Срок</th><th scope="col">Взнос</th><th scope="col">КВ 10%</th></tr></thead>
+            <tbody><tr><th scope="row">Начало срока</th><td>50 000 ₽</td><td>5 000 ₽</td></tr><tr><th scope="row">Через 6 месяцев</th><td>50 000 ₽</td><td>5 000 ₽</td></tr></tbody>
+          </table>
+          <div class="policy-actions"><a class="policy-next" href="#commission">Перейти к комиссии ↓</a><button type="button" class="policy-restart" data-policy-action="restart">Начать заново</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+<script>
+(() => {
+  const section = document.querySelector('#policy');
+  const steps = section.querySelectorAll('[data-policy-step]');
+  const upload = section.querySelector('[data-policy-action="import"]');
+  const form = section.querySelector('[data-policy-form]');
+  const number = form.querySelector('input');
+  const registeredNumber = section.querySelector('[data-policy-number]');
+  function show(stepName) {
+    for (const step of steps) {
+      step.hidden = step.dataset.policyStep !== stepName;
+      if (!step.hidden) (step.querySelector('h3[tabindex]') || upload).focus();
+    }
+  }
+  upload.hidden = false;
+  upload.addEventListener('click', () => show('review'));
+  section.querySelector('[data-policy-action="fill"]').addEventListener('click', () => show('draft'));
+  number.addEventListener('input', () => number.setCustomValidity(''));
+  form.addEventListener('submit', event => {
+    event.preventDefault();
+    if (!number.value.trim()) {
+      number.setCustomValidity('Введите учебный номер полиса.');
+      number.reportValidity();
+      return;
+    }
+    registeredNumber.textContent = number.value.trim();
+    document.getElementById('commission-contract').textContent = ' по полису ' + number.value.trim();
+    show('registered');
+  });
+  section.querySelector('[data-policy-action="restart"]').addEventListener('click', () => {
+    form.reset();
+    number.setCustomValidity('');
+    registeredNumber.textContent = '';
+    document.getElementById('commission-contract').textContent = '';
+    show('upload');
+  });
+})();
+</script>
+<section id="commission" class="scene" aria-labelledby="commission-title">
+  <div class="wrap statement-layout">
+    <div class="statement-intro">
+      <p class="statement-section">Полисы / Учёт комиссии</p>
+      <h2 id="commission-title">Когда комиссия <em>заработана?</em></h2>
+      <p>В графике уже видно, сколько брокер получит за первый взнос. Проследите по выписке, когда эти деньги попадут в отчёт о заработанном.</p>
+    </div>
+    <article class="statement-sheet" aria-labelledby="statement-title">
+      <header class="statement-head">
+        <p>КАСКО <span aria-hidden="true">/</span> Электрофургон DEMO-01</p>
+        <h3 id="statement-title">Выписка по взносу</h3>
+        <div>Первый взнос<span id="commission-contract"></span></div>
+      </header>
+      <dl class="statement-basis">
+        <div><dt>Сумма взноса</dt><dd>50 000 ₽</dd></div>
+        <div><dt>Ставка брокера</dt><dd>10%</dd></div>
+      </dl>
+      <fieldset class="statement-stages" hidden>
+        <legend>Выберите этап сделки</legend>
+        <button type="button" class="commission-stage" aria-controls="commission-result" aria-pressed="true" data-stage="scheduled">По графику</button>
+        <button type="button" class="commission-stage" aria-controls="commission-result" aria-pressed="false" data-stage="paid">Клиент оплатил</button>
+        <button type="button" class="commission-stage" aria-controls="commission-result" aria-pressed="false" data-stage="approved">Акт согласован</button>
+      </fieldset>
+      <div id="commission-result" aria-live="polite" aria-atomic="true">
+        <table class="statement-accounts">
+          <caption class="statement-sr">Распределение комиссии на выбранном этапе</caption>
+          <thead><tr><th scope="col">Категория в отчёте</th><th scope="col">Комиссия</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">По графику</th><td data-balance="scheduled">5 000 ₽</td></tr>
+            <tr><th scope="row">Ждёт акта</th><td data-balance="paid">0 ₽</td></tr>
+            <tr class="statement-earned"><th scope="row">Заработано</th><td data-balance="approved" class="commission-amount">0 ₽</td></tr>
+          </tbody>
+        </table>
+        <p class="commission-note">Срок оплаты впереди. В графике стоят ожидаемые 5 000 ₽.</p>
+      </div>
+      <noscript><p>После оплаты взноса 5 000 ₽ ждут акта. Согласование акта переносит комиссию в заработанное за период согласования.</p></noscript>
+    </article>
+    <aside class="statement-margin">
+      <p>Допустим, клиент оплатил взнос в марте. В выписке 5 000 ₽ появятся в строке «Ждёт акта». Если страховщик согласует акт в апреле, эти 5 000 ₽ войдут в заработанную комиссию за апрель.</p>
+      <span>Grigorii Grachev · автор Flow</span>
+    </aside>
+  </div>
+</section>
+<script>
+(() => {
+  const section = document.getElementById('commission');
+  const buttons = section.querySelectorAll('.commission-stage');
+  section.querySelector('.statement-stages').hidden = false;
+  const balances = section.querySelectorAll('[data-balance]');
+  const note = section.querySelector('.commission-note');
+  const explanations = {
+    scheduled: 'Срок оплаты впереди. В графике стоят ожидаемые 5 000 ₽.',
+    paid: 'Клиент оплатил взнос. Теперь 5 000 ₽ находятся в категории «Ждёт акта».',
+    approved: 'Страховщик согласовал акт. В отчёт за период согласования вошли 5 000 ₽.'
+  };
+  for (const button of buttons) {
+    button.addEventListener('click', () => {
+      const stage = button.dataset.stage;
+      for (const option of buttons) option.setAttribute('aria-pressed', String(option === button));
+      for (const balance of balances) balance.textContent = balance.dataset.balance === stage ? '5 000 ₽' : '0 ₽';
+      note.textContent = explanations[stage];
+    });
+  }
+})();
+</script>
+<section class="discovery scene" id="discovery" aria-labelledby="discovery-title"><div class="wrap">
+  <p class="kicker">Из практики · Product discovery</p>
+  <div class="discovery-grid">
+    <div>
+      <h2 class="section-heading" id="discovery-title">Почему я начал с&nbsp;разговора о&nbsp;сделке</h2>
+      <p class="lede">Заявка приходила по почте, расчёты жили в Excel, детали менеджеры уточняли напрямую. Чтобы понять, почему клиент выбрал конкретное предложение, приходилось заново собирать эту историю.</p>
+    </div>
+    <dl class="discovery-findings">
+      <div><dt>Customer development</dt>
+        <dd>Я разговаривал с клиентами о том, как они выбирают страховщика, а с менеджерами — о том, как они готовят сравнение и ведут договор после выбора. Смотрел входящие заявки и ответы страховых. В одном Excel могли быть две машины, а клиенту требовалось своё решение по каждой.</dd></div>
+      <div><dt>Продуктовая гипотеза</dt>
+        <dd>Я предположил, что менеджерам поможет система, в которой можно проследить решение по каждому объекту и расчёты по каждому взносу. Для обмена с клиентами и страховщиками я сохранил привычные Excel и PDF.</dd></div>
+      <div><dt>Приоритизация</dt>
+        <dd>В «Заявках и сводах» я сосредоточился на выборе условий по объекту. В «Полисах» — на следующей задаче брокера — вовремя запросить счёт на очередной взнос и понять, когда заработана комиссия. Так я определил границы двух модулей.</dd></div>
+    </dl>
+  </div>
+</div></section>
+<section class="scene" id="scope" aria-labelledby="scope-title"><div class="wrap">
+  <h2 id="scope-title" class="section-heading">Оба модуля целиком</h2>
+  <div class="scope-columns">
+    <div><h3>Заявки и своды</h3>
+      <dl><dt>Входящие заявки</dt><dd>Flow распознаёт формы для юрлиц и ИП по КАСКО, спецтехнике и имуществу. Менеджер проверяет поля до сохранения.</dd>
+      <dt>Документы и ответы</dt><dd>Из заявки можно подготовить письмо, PDF на объект или партию и шаблон ответа. Ответы нескольких страховщиков загружаются вместе.</dd>
+      <dt>Своды и сделки</dt><dd>Клиент получает сравнение условий по годам. Брокер видит выбранные варианты, сравнивает тарифы и разбирает результаты по менеджерам и страховщикам.</dd></dl>
+    </div>
+    <div><h3>Полисы</h3>
+      <dl><dt>Реестр и продления</dt><dd>Сотрудник видит полисы клиента, окончание договоров и предстоящие продления. Для ОСАГО предусмотрены свои правила оформления.</dd>
+      <dt>Очередные взносы</dt><dd>Менеджер видит срок взноса и может назначить ответственного за запрос счёта. В истории видно, когда счёт запросили у страховщика и когда передали в оплату.</dd>
+      <dt>Отчёты по портфелю</dt><dd>Из показателя можно перейти к записям, из которых он сложился. Для регулярных Excel-выгрузок сотрудник сохраняет свой шаблон.</dd></dl>
+    </div>
+  </div>
+  <article class="portfolio-report" id="portfolio-report" aria-labelledby="portfolio-title">
+    <div class="report-text">
+      <p class="kicker">Дашборд · Вымышленные данные</p>
+      <h3 id="portfolio-title">Какая комиссия ждёт акта?</h3>
+      <p>Клиенты оплатили взносы, а страховщики ещё согласуют акты. Выберите срок ожидания, чтобы увидеть сумму комиссии и платежи, из которых она сложилась.</p>
+      <label for="report-age">Время с оплаты взноса</label>
+      <select id="report-age"><option value="all">Любой срок</option><option value="over90">Больше 90 дней</option></select>
+    </div>
+    <div class="report-panel">
+      <p class="report-total" aria-live="polite" aria-atomic="true"><span>Ждёт акта</span> <strong id="report-sum">12 000 ₽</strong></p>
+      <table>
+        <caption class="report-sr">Оплаченные взносы, ожидающие согласования акта</caption>
+        <thead><tr><th scope="col">Полис</th><th scope="col">С оплаты</th><th scope="col">Комиссия</th></tr></thead>
+        <tbody id="report-rows">
+          <tr data-days="112" data-commission="4000"><th scope="row">DEMO-P12 <small>Страховщик А</small></th><td>112 дней</td><td>4 000 ₽</td></tr>
+          <tr data-days="55" data-commission="3000"><th scope="row">DEMO-P08 <small>Страховщик Б</small></th><td>55 дней</td><td>3 000 ₽</td></tr>
+          <tr data-days="18" data-commission="5000"><th scope="row">DEMO-P04 <small>Страховщик А</small></th><td>18 дней</td><td>5 000 ₽</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </article>
+</div></section>
+<script>
+(() => {
+  const age = document.getElementById('report-age');
+  const rows = Array.from(document.querySelectorAll('#report-rows tr'));
+  const sum = document.getElementById('report-sum');
+  const money = new Intl.NumberFormat('ru-RU');
+  function filterReport() {
+    let commission = 0;
+    for (const row of rows) {
+      row.hidden = age.value === 'over90' && Number(row.dataset.days) <= 90;
+      if (!row.hidden) commission += Number(row.dataset.commission);
+    }
+    sum.textContent = money.format(commission) + ' ₽';
+  }
+  age.addEventListener('change', filterReport);
+  filterReport();
+})();
+</script>
+<section class="scene" id="role" aria-labelledby="role-title">
+  <div class="wrap">
+    <div class="role-layout">
+      <div class="role-intro">
+        <p class="kicker">Grigorii Grachev · Product Manager &amp; Engineer</p>
+        <h2 class="section-heading" id="role-title">Что я довёл до&nbsp;запуска</h2>
+        <p class="lede">Я взял на себя весь цикл работы над Flow. Выявил потребность, определил, что войдёт в систему, разработал оба приложения и дорабатывал их вместе с пользователями после запуска.</p>
+        <a class="quiet-link role-back" href="#discovery">Как я изучал задачу ↑</a>
+      </div>
+      <dl class="role-decisions">
+        <div class="role-decision">
+          <dt>Обратная связь изменила свод</dt>
+          <dd>Сотрудники опробовали новый Excel-свод рядом с прежним. По их замечаниям я перенёс название страховщика и итоговую цену к верхнему краю таблицы, выделил ненулевую франшизу и уместил все столбцы на одной странице при печати. После этой проверки новый свод стал основным.</dd>
+        </div>
+        <div class="role-decision">
+          <dt>Продуктовая аналитика для следующей итерации</dt>
+          <dd>Я добавил учёт исправлений после распознавания Excel. Теперь видно, какие поля менеджеры чаще правят перед сохранением заявки. По этим данным можно выбрать, какую часть парсера доработать первой.</dd>
+        </div>
+        <div class="role-decision">
+          <dt>Инженерная реализация и эксплуатация</dt>
+          <dd>Я перенёс правила страхования в модель данных, реализовал разбор Excel и отчёты. Для обоих приложений на Django и PostgreSQL настроил автоматические проверки и раздельный выпуск. Для модуля заявок предусмотрел восстановление базы вместе с документами.</dd>
+        </div>
+      </dl>
+    </div>
+    <div class="role-outcome">
+      <h3>Основа для Data Science</h3>
+      <div><p>Я заложил в продукт сбор структурированных данных. В заявках это история тарифов, условий и выбора страховщика. Она уже помогает менеджеру оценить новое предложение. Для сопоставимой техники Flow показывает медианный тариф и диапазон, в который попала средняя половина предложений. Варианты с франшизой и без неё считаются отдельно.</p>
+      <p>В «Полисах» накапливается история плановых и фактических платежей и согласования актов. На ней можно проверять гипотезы, например выяснить, у каких страховщиков ожидание акта дольше при сопоставимых взносах.</p></div>
+    </div>
+    <div class="role-close">
+      <h3>Чем я могу помочь</h3>
+      <div class="role-services">
+        <p><strong>Продуктовой команде.</strong> Могу взять на себя discovery и запуск внутреннего продукта, определить границы первой версии и выстроить работу с обратной связью после релиза.</p>
+        <p><strong>Компании с похожим процессом.</strong> Могу разобрать с вашей командой реальную сделку, найти, где теряются данные или повторяется ручная работа, и довести подходящее решение до внедрения.</p>
+        <a class="cta role-contact" href="https://www.linkedin.com/in/grigra" target="_blank" rel="noopener noreferrer">Связаться в LinkedIn <span aria-hidden="true">↗</span></a>
+      </div>
+    </div>
+  </div>
+</section>
+</main>
+<footer class="foot"><div class="wrap"><small>Flow · Grigorii Grachev</small><a href="#top">К началу ↑</a></div></footer>
+<script>
+(() => {
+  // Side elevation of the fictional insured vehicle, in drawing coordinates.
+  const canvas = document.getElementById('van-drawing');
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  ctx.scale(2,2);
+  ctx.translate(0,-4);
+  ctx.lineCap='round'; ctx.lineJoin='round';
+  const style = getComputedStyle(canvas);
+  const color = name => style.getPropertyValue('--' + name).trim();
+  const navy = color('ink'), slate = color('muted'), line = color('line');
+  const white = color('white'), paper = color('paper'), mist = color('mist'), coral = color('coral');
+  function path(data, fill, stroke, width=1) {
+    const shape=new Path2D(data);
+    if(fill){ctx.fillStyle=fill;ctx.fill(shape)}
+    if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=width;ctx.stroke(shape)}
+  }
+  function circle(x,y,r,fill,stroke,width=1) {
+    ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);
+    if(fill){ctx.fillStyle=fill;ctx.fill()}
+    if(stroke){ctx.lineWidth=width;ctx.strokeStyle=stroke;ctx.stroke()}
+  }
+  function label(txt,x,y){
+    ctx.font='10px Menlo, monospace';ctx.fillStyle=slate;ctx.fillText(txt,x,y)
+  }
+  // Projection guides and registration crosses.
+  for(const [x,y] of [[32,27],[504,27],[32,193],[504,193]]) {
+    path('M'+(x-4)+' '+y+'h8 M'+x+' '+(y-4)+'v8',null,slate,.7)
+  }
+  ctx.setLineDash([3,5]);
+  path('M57 175H482 M80 32V205 M455 122V206 M142 126V203 M385 126V203',null,line,.7);
+  ctx.setLineDash([]);
+  // Rear and front wheels on the far side.
+  circle(157,147,22,navy,slate);
+  circle(401,147,22,navy,slate);
+  // Body, roof and front return in three-quarter projection.
+  path('M76 147 L77 82 Q77 65 88 57 L327 57 Q345 57 356 69 L390 102 L428 114 Q437 118 439 130 L441 150 L432 157 L409 158 Q409 132 388 130 Q364 128 360 158 L168 158 Q166 132 143 130 Q119 129 115 158 L84 156 Q76 155 76 147Z',slate,navy,3.2);
+  path('M88 57 L102 47 Q109 43 122 43 H342 Q355 43 369 57 L356 69 Q343 57 327 57Z',line,navy,1.6);
+  path('M358 70 L369 59 L401 90 L392 102Z',mist,navy,1.1);
+  path('M393 104 L402 92 L442 105 L428 115Z',white,navy,1.1);
+  path('M428 115 L442 105 Q449 106 451 115 L455 141 L441 151 L438 130 Q438 120 428 115Z',mist,navy,1);
+  // Cargo door, ribs, cab and window.
+  path('M96 68 Q98 65 103 65 H246 Q251 65 251 71 L249 120 H94Z',mist,navy,1.6);
+  path('M101 73H241 M102 112H239 M95 125H248 M94 133H118 M171 139H248',null,slate,.8);
+  path('M259 67H327 Q341 67 350 78 L372 104 L369 123 Q355 130 351 149 H257Z',line,navy,1.5);
+  path('M274 74 H321 Q330 74 336 80 L353 99 Q355 102 350 102 H272Z',slate,navy,1);
+  path('M322 76L337 98 M279 109H288 M261 144H348',null,slate,.9);
+  path('M359 95 L369 94 Q372 94 373 97 L374 102 L363 105 L358 103Z',navy,navy,1);
+  path('M82 79V126 M79 111H84V124H79 M84 147H109 M174 151H349 M413 150L434 146 M444 125L451 120',null,navy,1.3);
+  path('M418 117L429 121L434 126L420 125Z',coral,coral,.5);
+  // Wheel hubs and evenly spaced fasteners.
+  for(const x of [142,385]){
+    circle(x,153,24,navy,navy,1.6);circle(x,153,18.5,mist,slate,.9);
+    circle(x,153,12,paper,navy,1);circle(x,153,4,slate,navy,1);
+    for(let n=0;n<5;n++){
+      const theta=n*2*Math.PI/5-.32;
+      circle(x+7.2*Math.cos(theta),153+7.2*Math.sin(theta),1.25,coral,null)
+    }
+  }
+  path('M82 199H454 M78 203l8-8 M450 203l8-8',null,slate,.8);
+  label('Вид сбоку',82,220);
+  path('M407 216h46 M407 212v4 M430 212v4 M453 212v4',null,navy,.8)
+})();
+</script>
+</body></html>

@@ -72,26 +72,12 @@ def custom_404_handler(request, exception):
     
     logger.warning(f"404 error on {host}: {request.path}")
     
-    # Get domain configuration from settings
-    main_domains = getattr(settings, 'MAIN_DOMAINS', ['insflow.tw1.su'])
-    subdomains = getattr(settings, 'SUBDOMAINS', ['zs.insflow.tw1.su'])
-    
-    if host in main_domains:
-        # For main domains, suggest they use the corresponding subdomain
-        # Determine the correct subdomain based on the main domain
-        if host == 'insflow.ru':
-            suggested_subdomain = 'zs.insflow.ru'
-        elif host == 'insflow.tw1.su':
-            suggested_subdomain = 'zs.insflow.tw1.su'
-        else:
-            # Fallback to first subdomain
-            suggested_subdomain = subdomains[0] if subdomains else 'zs.insflow.tw1.su'
-        
+    if host in settings.MAIN_DOMAINS:
         from django.shortcuts import render
-        protocol = 'https' if request.is_secure() else 'http'
+        app_host = 'zs.insflow.ru'
         return render(request, 'errors/main_domain_404.html', {
-            'app_host': suggested_subdomain,
-            'app_url': f'{protocol}://{suggested_subdomain}',
+            'app_host': app_host,
+            'app_url': f'https://{app_host}',
         }, status=404)
     else:
         # For subdomains, use default 404 handling

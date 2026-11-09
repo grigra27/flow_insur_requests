@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <title>InsFlow</title>
+  <rect width="32" height="32" rx="6" fill="#11182B"/>
+  <path fill="#FFFFFF" d="M6 6h4v20H6z"/>
+  <path fill="#FF7046" d="M14 6h13v4h-9v4h7v4h-7v8h-4z"/>
+</svg>

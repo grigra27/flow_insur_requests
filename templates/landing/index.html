@@ -1,23 +1,45 @@
 {% extends 'base_landing.html' %}
 {% load static %}
 
-{% block title %}InsFlow - Здесь есть флоу{% endblock %}
+{% block page_metadata %}
+{% with title="InsFlow — корпоративное решение для страхования" description="В InsFlow брокер разбирает заявки, сравнивает предложения страховщиков, оформляет полисы и ведёт учёт комиссии. В кейсе можно пройти все этапы одной сделки." home_url="https://insflow.ru/" image_url="https://insflow.ru/landing-cover-v2.png" image_alt="InsFlow — «здесь есть флоу». Корпоративное решение для страхования." %}
+<title>{{ title }}</title>
+<meta name="description" content="{{ description }}">
+<link rel="canonical" href="{{ home_url }}">
+<meta name="robots" content="index, follow, max-image-preview:large">
+
+<meta property="og:type" content="website">
+<meta property="og:locale" content="ru_RU">
+<meta property="og:site_name" content="InsFlow">
+<meta property="og:url" content="{{ home_url }}">
+<meta property="og:title" content="{{ title }}">
+<meta property="og:description" content="{{ description }}">
+<meta property="og:image" content="{{ image_url }}">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="627">
+<meta property="og:image:alt" content="{{ image_alt }}">
+
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{{ title }}">
+<meta name="twitter:description" content="{{ description }}">
+<meta name="twitter:image" content="{{ image_url }}">
+<meta name="twitter:image:alt" content="{{ image_alt }}">
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "InsFlow",
+    "url": "{{ home_url }}",
+    "inLanguage": "ru"
+}
+</script>
+{% endwith %}
+{% endblock %}
 
 {% block extra_head %}
-<!-- Additional meta tags for landing page -->
-<meta name="theme-color" content="#1a1a2e">
-<meta name="msapplication-TileColor" content="#1a1a2e">
-
-<!-- Structured Data for SEO -->
-<script type="application/ld+json">
-    {
-        "@context": "https://schema.org",
-        "@type": "Organization",
-        "name": "InsFlow",
-        "url": "https://insflow.ru",
-        "description": "Корпоративные решения для страхования"
-    }
-    </script>
+<meta name="theme-color" content="#11182B">
+<meta name="msapplication-TileColor" content="#11182B">
 {% endblock %}
 
 {% block content %}
@@ -26,17 +48,12 @@
     <section class="content-center" aria-labelledby="main-heading">
         <header>
             <h1 id="main-heading" class="main-heading">
-                здесь есть флоу
+                здесь есть <span>флоу</span>
             </h1>
             <div class="accent-line" role="presentation" aria-hidden="true"></div>
         </header>
 
-        <!-- Supporting Content -->
-        <div class="supporting-content">
-            <p class="supporting-text" role="text">
-                <b>ins</b>urance <b>flow</b>
-            </p>
-        </div>
+        <a class="case-link" href="/case/">Посмотреть кейс Flow <span aria-hidden="true">→</span></a>
     </section>
 
     <!-- Background Decorative Elements -->
@@ -93,7 +110,7 @@
                     margin: 0;
                     padding: 2rem;
                     font-family: Arial, sans-serif;
-                    background: #1a1a2e;
+                    background: #11182B;
                     color: white;
                     display: flex;
                     align-items: center;
