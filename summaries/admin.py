@@ -223,6 +223,9 @@ class InsurerResponseAdmin(admin.ModelAdmin):
         ('Риски ОСВР (Краснодар)', {'fields': ('osvr_status', 'osvr_terms')}),
         ('Перевозка', {'fields': ('transport_cost', 'transport_terms')}),
         ('СМР', {'fields': ('smr_status', 'smr_cost', 'smr_terms')}),
+        ('Монтаж/демонтаж спецтехники', {'fields': ('equipment_assembly_status', 'equipment_assembly_rate',
+                                                  'equipment_assembly_cost', 'equipment_assembly_cost_basis',
+                                                  'equipment_assembly_terms')}),
         ('Служебное', {'fields': ('received_at', 'updated_at', 'created_by')}),
     )
 

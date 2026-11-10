@@ -24,6 +24,20 @@ jobs:
     runs-on: ubuntu-latest
     env:
       SECRET_KEY: ci-secret-key
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: insflow_ci
+          POSTGRES_USER: insflow_ci
+          POSTGRES_PASSWORD: ci-only-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U insflow_ci -d insflow_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
 
     steps:
     - name: Checkout code
@@ -42,6 +56,17 @@ jobs:
 
     - name: Run required Django checks and regression suite
       run: bash scripts/run_ci_checks.sh
+
+    - name: Check equipment assembly responses on PostgreSQL
+      env:
+        DB_ENGINE: django.db.backends.postgresql
+        DB_NAME: insflow_ci
+        DB_USER: insflow_ci
+        DB_PASSWORD: ci-only-password
+        DB_HOST: 127.0.0.1
+        DB_PORT: '5432'
+        ENABLE_HTTPS: 'False'
+      run: python manage.py test summaries.test_equipment_assembly_block --noinput
 
   build-and-deploy:
     needs: test
@@ -128,6 +153,7 @@ jobs:
         FLOW_SERVICE_TOKEN: ${{ secrets.FLOW_SERVICE_TOKEN }}
         FLOW_HANDOFF_GROUP: ${{ vars.FLOW_HANDOFF_GROUP }}
         FLOW_POLIS_BASE_URL: ${{ vars.FLOW_POLIS_BASE_URL }}
+        EQUIPMENT_ASSEMBLY_SINCE: ${{ vars.EQUIPMENT_ASSEMBLY_SINCE || '2026-11-10' }}
         GHCR_USER: ${{ github.actor }}
         GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -145,6 +171,7 @@ jobs:
         DB_ENGINE=django.db.backends.postgresql
         ALLOWED_HOSTS=${TIMEWEB_ALLOWED_HOSTS}
         DOCKER_IMAGE=${{ env.DOCKER_IMAGE }}
+        EQUIPMENT_ASSEMBLY_SINCE=${EQUIPMENT_ASSEMBLY_SINCE}
 
         # Security settings for production (HTTPS enabled)
         DEBUG=False

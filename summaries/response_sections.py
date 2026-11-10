@@ -4,8 +4,8 @@ docs/improvement_plans/insurer_response_v2.md, §4. Блок описывает�
 работают генератор шаблона (summaries/response_template.py), разбор и валидация ответа, карточка свода,
 ручная форма и свод V2. Новый блок — новая запись в SECTIONS.
 
-Модуль без зависимостей от Django: условие получает объект заявки (InsuranceRequest или любой объект
-с теми же атрибутами) и смотрит только на его поля.
+Реестр можно использовать без инициализации Django (в скрипте сборки шаблона). Условия получают
+объект заявки; дата начала сбора монтажа/демонтажа при наличии Django берётся из настройки.
 """
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ from typing import Callable, List, Optional, Tuple
 
 CHOICE = 'choice'
 MONEY = 'money'
+RATE = 'rate'  # в БД — процентные пункты: 0.15 означает 0,15%; в Excel — обычный формат процентов
 TEXT = 'text'
 
 
@@ -252,6 +253,55 @@ SMR = ResponseSection(
     short_title='СМР',
 )
 
+# Повреждение самой спецтехники при сборке/разборке — самостоятельный риск, не СМР.
+# Фиксированная дата локального выпуска. При развёртывании задаётся фактическая дата запуска.
+EQUIPMENT_ASSEMBLY_SINCE = date(2026, 11, 10)
+EQUIPMENT_ASSEMBLY_CHOICES = (
+    ('included', 'Включено в предложенную премию'),
+    ('separate', 'Страхуется за дополнительную плату'),
+    ('declined', 'Не страхуем'),
+    ('not_applicable', 'Не применимо к данному объекту'),
+)
+
+
+def _equipment_assembly_needed(request) -> bool:
+    if getattr(request, 'insurance_type', None) != 'страхование спецтехники':
+        return False
+    from django.conf import settings
+    from zoneinfo import ZoneInfo
+
+    since = EQUIPMENT_ASSEMBLY_SINCE
+    if settings.configured:
+        since = getattr(settings, 'EQUIPMENT_ASSEMBLY_SINCE', since)
+    if isinstance(since, str):
+        since = date.fromisoformat(since)
+    created = getattr(request, 'created_at', None)
+    if created is None:
+        return True
+    created_date = (created.astimezone(ZoneInfo('Europe/Moscow')).date()
+                    if created.tzinfo else created.date())
+    return created_date >= since
+
+
+EQUIPMENT_ASSEMBLY = ResponseSection(
+    key='equipment_assembly',
+    title='Монтаж/демонтаж спецтехники',
+    condition=_equipment_assembly_needed,
+    condition_text='Заполняется по новым запросам на страхование спецтехники',
+    fields=(
+        SectionField('equipment_assembly_status', 'Статус покрытия', CHOICE, choices=EQUIPMENT_ASSEMBLY_CHOICES),
+        SectionField('equipment_assembly_rate', 'Дополнительный тариф, %', RATE, required=False,
+                     hint='Например: 0,15% (со знаком %). Укажите базу расчёта ниже.'),
+        SectionField('equipment_assembly_cost', 'Дополнительная премия, ₽', MONEY, required=False,
+                     hint='Не включайте её в премию по годам. За доплату: укажите положительный тариф или премию.'),
+        SectionField('equipment_assembly_cost_basis', 'Порядок и база начисления', TEXT, required=False,
+                     hint='За доплату — обязательно: база тарифа; премия за год / весь срок / одну операцию / иной порядок.'),
+        SectionField('equipment_assembly_terms', 'Ограничения и условия', TEXT, required=False,
+                     hint='Франшиза, исключения, лимиты, период покрытия. Для «Не применимо» обязательно укажите причину.'),
+    ),
+    summary_column='Монтаж/демонтаж',
+)
+
 # ОСВР — риски ущерба от военных действий (обстрелы, БПЛА, работа ПВО). Только филиал «Краснодар»
 # (решение владельца 2026-10-15): с 20.08.2026 там его указывают все СК, в других филиалах — вручную.
 # Альфа даёт ОСВР вторым вариантом (+16–23% к премии) — для этого отдельное значение.
@@ -298,7 +348,7 @@ OSVR = ResponseSection(
 )
 
 # Порядок — порядок блоков в шаблоне, колонок в своде V2 и строк на карточке свода
-SECTIONS: Tuple[ResponseSection, ...] = (INSPECTION, RNPK, OSVR, CE_RISKS, TRANSPORT, SMR)
+SECTIONS: Tuple[ResponseSection, ...] = (INSPECTION, RNPK, OSVR, CE_RISKS, TRANSPORT, SMR, EQUIPMENT_ASSEMBLY)
 
 
 def required_sections(request) -> List[ResponseSection]:

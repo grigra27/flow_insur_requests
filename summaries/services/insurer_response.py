@@ -86,7 +86,12 @@ def save_response(summary: InsuranceSummary, company_name: str, values: Dict, te
                   user=None) -> InsurerResponse:
     """Создаёт или обновляет «Ответ СК». В values — только поля блоков, нужных по заявке;
     поля, которых нет в values, сбрасываются к пустым (новый файл заменяет прежний ответ)."""
-    defaults = {fld.name: values.get(fld.name, None if fld.kind == 'money' else '') for fld in all_fields()}
+    from ..equipment_assembly import clean_values
+    from ..response_sections import EQUIPMENT_ASSEMBLY
+
+    values = dict(values)
+    values.update(clean_values(values if EQUIPMENT_ASSEMBLY.is_required(summary.request) else {}))
+    defaults = {fld.name: values.get(fld.name, None if fld.kind in ('money', 'rate') else '') for fld in all_fields()}
     defaults['template_version'] = template_version
     if user is not None and getattr(user, 'is_authenticated', False):
         defaults['created_by'] = user
@@ -189,6 +194,15 @@ def sync_after_offer_removed(summary_id: int, company_name: str) -> None:
             logger.info("Ответ СК удалён вместе с последним предложением: свод #%s, %s", summary_id, company_name)
 
 
+def _form_value(fld, value):
+    if value is None:
+        return ''
+    if fld.kind == 'rate' or fld.name == 'equipment_assembly_cost':
+        from ..equipment_assembly import format_number
+        return format_number(value)
+    return f'{value:.0f}' if fld.kind == 'money' else str(value)
+
+
 def display_lines(summary: InsuranceSummary, company_names) -> Dict[str, dict]:
     """Блоки ответа V2 для карточки свода: {компания: {'lines': [...], 'fields': [...]}}.
 
@@ -196,6 +210,7 @@ def display_lines(summary: InsuranceSummary, company_names) -> Dict[str, dict]:
     ручной правки с текущими значениями. Только блоки, нужные по заявке свода.
     """
     from ..response_sections import CHOICE, MONEY, shown_sections
+    from ..equipment_assembly import coverage_text
 
     responses = {r.company_name: r for r in InsurerResponse.objects.filter(summary=summary)}
     sections = shown_sections(summary.request, responses.values())
@@ -221,17 +236,23 @@ def display_lines(summary: InsuranceSummary, company_names) -> Dict[str, dict]:
                 details = [f'{getattr(response, f.name):,.0f} ₽'.replace(',', ' ') if f.kind == MONEY
                            else str(getattr(response, f.name)) for f in extra
                            if getattr(response, f.name, None) not in (None, '')]
+                if section.key == 'equipment_assembly':
+                    text = coverage_text(response).replace('\n', ' · ')
+                    details = [getattr(response, name) for name in
+                               ('equipment_assembly_cost_basis', 'equipment_assembly_terms') if getattr(response, name)]
                 if details:
                     text = f"{text} · {' · '.join(details)}"
                 # Перевозка — отдельная сумма, в ИТОГО не входит: подчёркиваем на карточке
                 note = 'отдельно от премии' if section.key == 'transport' else ''
+                if section.key == 'equipment_assembly' and response.equipment_assembly_status == 'separate':
+                    note = 'не включено в ИТОГО'
                 lines.append({'label': label, 'text': text, 'missing': False, 'note': note})
             for fld in section.fields:
                 current = getattr(response, fld.name, None) if response else None
                 fields.append({
                     'name': fld.name, 'label': fld.label, 'kind': fld.kind, 'required': fld.required,
-                    'choices': fld.choices_for(current), 'section': label,
-                    'value': '' if current is None else (f'{current:.0f}' if fld.kind == MONEY else current),
+                    'choices': fld.choices_for(current), 'section': label, 'section_key': section.key, 'hint': fld.hint,
+                    'value': _form_value(fld, current),
                 })
         result[company] = {'lines': lines, 'fields': fields}
     return result
@@ -255,6 +276,17 @@ def parse_form_values(summary: InsuranceSummary, data, strict: bool) -> Dict:
         summary.request, InsurerResponse.objects.filter(summary=summary))
     values = {}
     for section in sections:
+        if section.key == 'equipment_assembly':
+            from ..equipment_assembly import FIELDS, EquipmentAssemblyError, clean_values
+            raw_values = {name: data.get(name) for name in FIELDS if strict or name in data}
+            # Частичная правка проверяется после объединения с ответом именно этой СК в apply_values.
+            if strict or len(raw_values) == len(FIELDS):
+                try:
+                    raw_values = clean_values(raw_values, required=section.is_required(summary.request))
+                except EquipmentAssemblyError as error:
+                    raise ResponseFormError(str(error)) from error
+            values.update(raw_values)
+            continue
         for fld in section.fields:
             if not strict and fld.name not in data:
                 continue  # правка на карточке: поля, которых нет в запросе, не трогаем
@@ -287,6 +319,20 @@ def parse_form_values(summary: InsuranceSummary, data, strict: bool) -> Dict:
 
 def apply_values(summary: InsuranceSummary, company_name: str, values: Dict, user=None) -> InsurerResponse:
     """Записать значения блоков в «Ответ СК» (создать строку, если её нет); версию шаблона не трогает."""
+    from ..equipment_assembly import FIELDS, EquipmentAssemblyError, clean_values
+    from ..response_sections import EQUIPMENT_ASSEMBLY
+
+    values = dict(values)
+    if set(values).intersection(FIELDS):
+        existing = InsurerResponse.objects.filter(summary=summary, company_name=company_name).first()
+        combined = {name: getattr(existing, name, None) for name in FIELDS}
+        combined.update(values)
+        if summary.request.insurance_type != 'страхование спецтехники':
+            combined = {}
+        try:
+            values.update(clean_values(combined, required=EQUIPMENT_ASSEMBLY.is_required(summary.request)))
+        except EquipmentAssemblyError as error:
+            raise ResponseFormError(str(error)) from error
     response, created = InsurerResponse.objects.get_or_create(summary=summary, company_name=company_name)
     for name, value in values.items():
         setattr(response, name, value)
@@ -306,7 +352,7 @@ def existing_values(summary: InsuranceSummary) -> Dict[str, Dict[str, str]]:
         for fld in all_fields():
             value = getattr(response, fld.name)
             if value not in (None, ''):
-                row[fld.name] = f'{value:.0f}' if fld.kind == 'money' else str(value)
+                row[fld.name] = _form_value(fld, value)
         result[response.company_name] = row
     return result
 

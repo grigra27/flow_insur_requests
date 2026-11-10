@@ -18,6 +18,7 @@ summaries.test_response_v2_ui
 summaries.test_response_v2_rollout
 summaries.test_osvr_block
 summaries.test_smr_block
+summaries.test_equipment_assembly_block
 summaries.test_ce_risks_block
 summaries.test_offer_form
 summaries.test_offer_table

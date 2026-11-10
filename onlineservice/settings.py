@@ -3,6 +3,7 @@ Django settings for onlineservice project.
 """
 
 from pathlib import Path
+from datetime import date
 from decouple import config
 import os
 import sys
@@ -150,6 +151,9 @@ RESPONSE_TEMPLATE_V2_FOR_ALL = config('RESPONSE_TEMPLATE_V2_FOR_ALL', default=no
 # Дата переключения (ГГГГ-ММ-ДД): строгие проверки блоков — только для заявок, созданных с этой даты;
 # ответы на запросы, разосланные раньше со старым шаблоном, загружаются как прежде. Пусто — для всех заявок.
 RESPONSE_TEMPLATE_V2_SINCE = config('RESPONSE_TEMPLATE_V2_SINCE', default='' if RUNNING_TESTS else '2026-10-08')
+# Монтаж/демонтаж самой спецтехники: обязательный блок для заявок с фактической даты запуска.
+# Не вычислять от сегодняшнего дня. Неверная/пустая дата останавливает запуск, а не ослабляет проверки.
+EQUIPMENT_ASSEMBLY_SINCE = config('EQUIPMENT_ASSEMBLY_SINCE', default='2026-11-10', cast=date.fromisoformat)
 
 # Срок ответа страховщика: N рабочих часов от загрузки заявки (core.business_time).
 # Рабочее время по Москве: начало дня и конец по дням недели (Пн=0); в сокращённый

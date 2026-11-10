@@ -3516,6 +3516,22 @@ class ExcelResponseProcessor:
             result['warnings'].append(warning)
 
         for section in required:
+            if section.key == 'equipment_assembly':
+                from ..equipment_assembly import EquipmentAssemblyError, clean_values
+                raw_values = {fld.name: self._defined_name_value(workbook, fld.cell_name) for fld in section.fields}
+                rate_name = workbook.defined_names.get('resp_equipment_assembly_rate')
+                percent_rate = False
+                if rate_name is not None:
+                    for sheet, ref in rate_name.destinations:
+                        if sheet in workbook.sheetnames:
+                            percent_rate = '%' in workbook[sheet][ref.replace('$', '')].number_format
+                            break
+                try:
+                    result['values'].update(clean_values(raw_values, required=strict, percent_rate=percent_rate))
+                except EquipmentAssemblyError as error:
+                    # Пустой старый ответ допустим вне strict. Заполненный противоречивый блок — никогда.
+                    raise MissingDataError(message=f'Ответ СК «{company_name}»: {error}') from error
+                continue
             for fld in section.fields:
                 raw = self._defined_name_value(workbook, fld.cell_name)
                 text = '' if raw is None else str(raw).strip()

@@ -176,7 +176,7 @@
                                         <div class="og-v2-form__title">Ответ {{ group.name }} — дополнительные блоки</div>
                                         {% for field in group.response_v2.fields %}
                                         <label class="og-v2-form__row">
-                                            <span class="og-territory-label">{{ field.label }}</span>
+                                            <span class="og-territory-label">{{ field.label }}{% if field.section_key == 'equipment_assembly' and field.hint %}<small class="d-block text-muted">{{ field.hint }}</small>{% endif %}</span>
                                             {% if field.kind == 'choice' %}
                                             <select class="form-select form-select-sm" name="{{ field.name }}">
                                                 <option value="">— нет данных —</option>
@@ -186,6 +186,8 @@
                                             </select>
                                             {% elif field.kind == 'money' %}
                                             <input class="form-control form-control-sm" name="{{ field.name }}" value="{{ field.value }}" inputmode="decimal" placeholder="например, 5 330">
+                                            {% elif field.kind == 'rate' %}
+                                            <input class="form-control form-control-sm" name="{{ field.name }}" value="{{ field.value }}" inputmode="decimal" placeholder="например, 0,15%">
                                             {% else %}
                                             <input class="form-control form-control-sm" name="{{ field.name }}" value="{{ field.value }}" placeholder="необязательно">
                                             {% endif %}

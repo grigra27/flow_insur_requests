@@ -23,12 +23,13 @@ from pathlib import Path
 from typing import List, Optional
 
 from openpyxl import Workbook
+from openpyxl.comments import Comment
 from openpyxl.drawing.image import Image as XLImage
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Protection, Side
 from openpyxl.workbook.defined_name import DefinedName
 from openpyxl.worksheet.datavalidation import DataValidation
 
-from .response_sections import CHOICE, MONEY as MONEY_FIELD, SECTIONS, TEXT, transport_route
+from .response_sections import CHOICE, MONEY as MONEY_FIELD, RATE, SECTIONS, TEXT, transport_route
 
 ROOT = Path(__file__).resolve().parent.parent
 V1_TEMPLATE_PATH = ROOT / "templates" / "flow_answer_template.xlsx"
@@ -105,7 +106,7 @@ INSTRUCTIONS = _BASE_INSTRUCTIONS + [
 def _instructions_v2(personal: bool) -> List[str]:
     return _BASE_INSTRUCTIONS + [
         "Обязательно укажите территорию и территориальные ограничения в поле «Территория страхования» — "
-        "без неё ответ не будет принят. Осмотр, риски РНПК, ОСВР, доп. риски C/E, перевозку и СМР — в отдельных блоках ниже; прочие "
+        "без неё ответ не будет принят. Осмотр, риски РНПК, ОСВР, доп. риски C/E, перевозку, СМР и монтаж/демонтаж спецтехники — в отдельных блоках ниже; прочие "
         "условия (согласование СБ и т. п.) — в «Примечании».",
         "Блок «Осмотр» заполняется во всех ответах. Остальные дополнительные блоки — "
         + ("только если блок отмечен «ЗАПОЛНИТЕ»; серые блоки к вашему запросу не относятся."
@@ -426,6 +427,16 @@ def _write_section(ws, row: int, section, state: str, request, names: dict, vali
     row += 1
     active = state != OFF
 
+    if section.key == 'equipment_assembly':
+        description = ('Повреждение или гибель самой застрахованной спецтехники при монтаже, демонтаже, сборке и разборке. '
+                       'За доплату: положительный тариф или премия и порядок/база начисления. '
+                       '«Не применимо»: объясните причину. Доплату не включайте в премию по годам.')
+        ws.merge_cells(f'A{row}:J{row}')
+        put(ws, f'A{row}', description, fnt=font(9, italic=True, color='595959'),
+            align=Alignment(vertical='center', wrap_text=True, indent=1))
+        ws.row_dimensions[row].height = _text_height(description, 105)
+        row += 1
+
     if section.key == 'transport':
         ws.merge_cells(f"A{row}:C{row}")
         put(ws, f"A{row}", "Маршрут из запроса", fnt=font(10, color="595959"),
@@ -447,16 +458,19 @@ def _write_section(ws, row: int, section, state: str, request, names: dict, vali
     for fld in section.fields:
         # Список без подсказки — на всю ширину: длинные значения («Требуется осмотр, возможен осмотр
         # по фотографиям») не помещаются в D:F
-        last_col = {CHOICE: "F" if fld.hint else "J", MONEY_FIELD: "E", TEXT: "J"}[fld.kind]
+        last_col = {CHOICE: "F" if fld.hint else "J", MONEY_FIELD: "E", RATE: "E", TEXT: "J"}[fld.kind]
         ws.merge_cells(f"A{row}:C{row}")
         put(ws, f"A{row}", fld.label,
             fnt=font(10, bold=active and fld.required, color="000000" if active else "9A9A9A"),
             align=Alignment(vertical="center", wrap_text=True, indent=1))
         ws.merge_cells(f"D{row}:{last_col}{row}")
         cells = [f"{chr(c)}{row}" for c in range(ord("D"), ord(last_col) + 1)]
+        field_format = {RATE: '0.00##%', MONEY_FIELD: MONEY}.get(fld.kind)
+        if fld.name == 'equipment_assembly_cost':
+            field_format = MONEY_KOP
         box_range(ws, cells, fill=INPUT_FILL if active else OFF_FILL, border=BOX,
                   align=Alignment(vertical="center", wrap_text=True), unlocked=active,
-                  fmt=MONEY if fld.kind == MONEY_FIELD else None)
+                  fmt=field_format)
         if not active:
             ws[cells[0]].value = "—"
             ws[cells[0]].font = font(10, color="9A9A9A")
@@ -466,6 +480,12 @@ def _write_section(ws, row: int, section, state: str, request, names: dict, vali
             put(ws, f"{hint_col}{row}", fld.hint, fnt=font(9, italic=True, color="7F7F7F"),
                 align=Alignment(vertical="center", wrap_text=True, indent=1))
         ws.row_dimensions[row].height = 34 if fld.kind == TEXT else 24
+        if section.key == 'equipment_assembly':
+            # Подсказки текстовых полей — в примечаниях ячеек, чтобы не сужать ввод условий.
+            if fld.kind == TEXT:
+                ws[cells[0]].comment = Comment(fld.hint, 'Flow')
+            ws.row_dimensions[row].height = max(ws.row_dimensions[row].height, _text_height(fld.label, 32),
+                                                 _text_height(fld.hint, 48) if last_col < 'J' else 0)
         names[fld.cell_name] = f"$D${row}"
         if active and fld.kind == CHOICE:
             dv = DataValidation(type="list", formula1='"' + ",".join(fld.choice_labels) + '"', allow_blank=True,
@@ -473,7 +493,7 @@ def _write_section(ws, row: int, section, state: str, request, names: dict, vali
                                 error="Выберите значение из списка.")
             dv.add(cells[0])
             validations.append(dv)
-        elif active and fld.kind == MONEY_FIELD:
+        elif active and fld.kind in (MONEY_FIELD, RATE):
             dv = DataValidation(type="decimal", operator="greaterThanOrEqual", formula1="0",
                                 allow_blank=True, showErrorMessage=True, errorTitle="Нужно число",
                                 error="Введите число без «руб.», букв и формул.")

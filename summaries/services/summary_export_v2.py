@@ -51,6 +51,7 @@ from core.excel_cached_values import with_cached_values
 
 from ..models import InsuranceSummary, InsurerResponse
 from ..response_sections import INSPECTION_SHORT, OSVR_SHORT, OSVR_VARIANT_2, SECTIONS, shown_sections
+from ..equipment_assembly import coverage_text
 from .excel_services import ExcelExportService, ExcelExportServiceError
 
 logger = logging.getLogger(__name__)
@@ -117,7 +118,8 @@ class SummaryExportV2Service(ExcelExportService):
     LEGACY_TERRITORY_V2 = '—'
 
     WIDTHS = {'company': 20, 'total': 17, 'year': 7, 'sum': 13, 'franchise': 10, 'rate': 8, 'premium': 11,
-              'payments': 9, 'territory': 40, 'notes': 48, 'inspection': 14, 'rnpk': 14, 'ce_risks': 14, 'transport': 12, 'smr': 16, 'osvr': 13}
+              'payments': 9, 'territory': 40, 'notes': 48, 'inspection': 14, 'rnpk': 14, 'ce_risks': 14, 'transport': 12, 'smr': 16, 'osvr': 13,
+              'equipment_assembly': 19}
     DETAIL_KEYS = ('franchise', 'rate', 'premium', 'payments')  # порядок: условие → результат
     DETAIL_TITLES = {'franchise': 'Франшиза', 'rate': 'Тариф', 'premium': 'Премия', 'payments': 'Платежей\nв год'}  # перенос задан явно: «Платежей» не рвётся
 
@@ -285,6 +287,11 @@ class SummaryExportV2Service(ExcelExportService):
                     amount = f'{response.smr_cost:,.0f}'.replace(',', ' ')
                     row['smr'] = f'{row["smr"]}: {amount} ₽' if response.smr_status else f'{amount} ₽'
                 row['smr_terms'] = response.smr_terms
+            if 'equipment_assembly' in extras:
+                row['equipment_assembly'] = coverage_text(response)
+                if response:
+                    row['equipment_assembly_basis'] = response.equipment_assembly_cost_basis
+                    row['equipment_assembly_terms'] = response.equipment_assembly_terms
             values[name] = row
         return values
 
@@ -476,6 +483,13 @@ class SummaryExportV2Service(ExcelExportService):
             additional = self._combine_additional_notes(additional, f"ОСВР: {extra['osvr_terms']}")
         if extra.get('smr_terms'):
             additional = self._combine_additional_notes(additional, f"Условия СМР: {extra['smr_terms']}")
+        if 'equipment_assembly' in cols:
+            assembly_notes = [extra.get('equipment_assembly_basis'), extra.get('equipment_assembly_terms')]
+            if extra.get('equipment_assembly', '').startswith('Доп.'):
+                assembly_notes.append('Дополнительная стоимость не включена в ИТОГО')
+            if any(assembly_notes):
+                additional = self._combine_additional_notes(
+                    additional, 'Монтаж/демонтаж: ' + '; '.join(note for note in assembly_notes if note))
         notes = self._consolidate_notes(offers, additional) or ''
         extra_keys = [key for key in self.EXTRA_TITLES if key in cols]
 

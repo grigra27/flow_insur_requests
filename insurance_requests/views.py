@@ -1334,6 +1334,8 @@ def generate_email(request, pk):
         # Генерируем письмо
         template_generator = EmailTemplateGenerator()
         request_data = insurance_request.to_dict()
+        from summaries.services.insurer_response import v2_visible
+        request_data['response_template_v2'] = v2_visible(request.user)
         
         email_subject = template_generator.generate_subject(request_data)
         email_body = template_generator.generate_email_body(request_data)
@@ -1401,6 +1403,8 @@ def preview_email(request, pk):
         if not insurance_request.email_body:
             template_generator = EmailTemplateGenerator()
             request_data = insurance_request.to_dict()
+            from summaries.services.insurer_response import v2_visible
+            request_data['response_template_v2'] = v2_visible(request.user)
             
             insurance_request.email_subject = template_generator.generate_subject(request_data)
             insurance_request.email_body = template_generator.generate_email_body(request_data)

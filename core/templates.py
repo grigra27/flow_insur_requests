@@ -54,7 +54,7 @@ class EmailTemplateGenerator:
     DEFAULT_TEMPLATE = """Коллеги, добрый день!
 
 Высылаем заявку на расчет тарифов ${ins_type}${casco_type_ce}
-${franshiza_text}${installment_text}${avtozapusk_text}${transportation_text}${construction_work_text}${osvr_text}
+${franshiza_text}${installment_text}${avtozapusk_text}${transportation_text}${construction_work_text}${osvr_text}${equipment_assembly_text}
 Необходимый период страхования: ${insurance_period_text}.
 ${lease_term_text}
 Просим указать в предложении территорию действия страхового покрытия и имеющиеся территориальные ограничения.
@@ -135,6 +135,14 @@ ${lease_term_text}
             # Создаем Template объект и выполняем подстановку
             template = Template(self.template)
             email_body = template.safe_substitute(template_data)
+            # Внешний текстовый шаблон мог быть создан до появления нового плейсхолдера.
+            assembly = template_data['equipment_assembly_text']
+            if assembly and 'Монтаж/демонтаж спецтехники.' not in email_body:
+                marker = 'Заранее благодарим.'
+                if marker in email_body:
+                    email_body = email_body.replace(marker, assembly + '\n' + marker, 1)
+                else:
+                    email_body += '\n\n' + assembly
             email_body = self._apply_response_template_v2(email_body)
             
             logger.info("Email body generated successfully")
@@ -273,6 +281,24 @@ ${lease_term_text}
             'Обратите внимание, требуется страхование монтажных (строительно-монтажных) работ на площадке ЛП по установке оборудования.\n'
             if data.get('has_construction_work') else ''
         )
+
+        template_data['equipment_assembly_text'] = ''
+        if insurance_type == 'страхование спецтехники':
+            from django.conf import settings
+
+            template_data['equipment_assembly_text'] = (
+                '\nМонтаж/демонтаж спецтехники.\n\n'
+                'Просим предусмотреть страховое покрытие на случай повреждения или гибели застрахованной '
+                'спецтехники в процессе её монтажа, демонтажа, сборки и разборки.\n\n'
+                'Просим указать, включён ли данный риск в предлагаемый тариф. Если покрытие предоставляется '
+                'за дополнительную плату, просим отдельно указать тариф или размер дополнительной страховой '
+                'премии, а также существенные ограничения и условия страхования.\n'
+            )
+            if data.get('response_template_v2', getattr(settings, 'RESPONSE_TEMPLATE_V2_FOR_ALL', False)):
+                template_data['equipment_assembly_text'] += (
+                    'Просим заполнить блок «Монтаж/демонтаж спецтехники» в приложенном Excel-файле '
+                    '«Ответ страховщика».\n'
+                )
         
         return template_data
     

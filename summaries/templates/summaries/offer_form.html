@@ -180,7 +180,7 @@
                     </select>
                     {% else %}
                     <input name="{{ field.name }}" id="v2_{{ field.name }}" value="{{ field.value }}"
-                           class="form-control of-control js-v2-field"{% if field.kind == 'money' %} inputmode="decimal" placeholder="например, 5 330"{% else %} placeholder="необязательно"{% endif %}>
+                           class="form-control of-control js-v2-field"{% if field.kind == 'money' %} inputmode="decimal" placeholder="например, 5 330"{% elif field.kind == 'rate' %} inputmode="decimal" placeholder="например, 0,15%"{% else %} placeholder="необязательно"{% endif %}>
                     {% endif %}
                     {% if field.hint %}<div class="form-text of-hint">{{ field.hint }}</div>{% endif %}
                 </div>

@@ -31,6 +31,7 @@ services:
       - DB_PORT=5432
       - ALLOWED_HOSTS=${ALLOWED_HOSTS}
       - PROTECTED_MEDIA_USE_X_ACCEL_REDIRECT=True
+      - EQUIPMENT_ASSEMBLY_SINCE=${EQUIPMENT_ASSEMBLY_SINCE:-2026-11-10}
       # HTTPS Security Settings (controlled by environment)
       - ENABLE_HTTPS=${ENABLE_HTTPS:-True}
       - SSL_REDIRECT=${SSL_REDIRECT:-True}

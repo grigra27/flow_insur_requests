@@ -4,7 +4,7 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from insurance_requests.models import InsuranceRequest
-from .response_sections import CE_RISKS_CHOICES, OSVR_CHOICES, SMR_CHOICES, INSPECTION_CHOICES, INSPECTION_LEGACY_CHOICES, RNPK_CHOICES
+from .response_sections import CE_RISKS_CHOICES, OSVR_CHOICES, SMR_CHOICES, INSPECTION_CHOICES, INSPECTION_LEGACY_CHOICES, RNPK_CHOICES, EQUIPMENT_ASSEMBLY_CHOICES
 from decimal import Decimal
 
 
@@ -861,6 +861,21 @@ class InsurerResponse(models.Model):
         help_text='Если СМР страхуется отдельно от премии по годам',
     )
     smr_terms = models.TextField(blank=True, default='', verbose_name='Условия СМР')
+    equipment_assembly_status = models.CharField(
+        max_length=20, choices=list(EQUIPMENT_ASSEMBLY_CHOICES), blank=True, default='',
+        verbose_name='Монтаж/демонтаж спецтехники: статус покрытия',
+    )
+    equipment_assembly_rate = models.DecimalField(
+        max_digits=9, decimal_places=4, null=True, blank=True,
+        verbose_name='Монтаж/демонтаж: дополнительный тариф, %',
+        help_text='Процентные пункты: 0,15 означает 0,15%.',
+    )
+    equipment_assembly_cost = models.DecimalField(
+        max_digits=15, decimal_places=2, null=True, blank=True,
+        verbose_name='Монтаж/демонтаж: дополнительная премия, ₽',
+    )
+    equipment_assembly_cost_basis = models.TextField(blank=True, default='', verbose_name='Монтаж/демонтаж: порядок и база начисления')
+    equipment_assembly_terms = models.TextField(blank=True, default='', verbose_name='Монтаж/демонтаж: ограничения и условия')
     source_file = models.FileField(
         upload_to='responses/%Y/%m/%d/',
         null=True,
@@ -888,6 +903,18 @@ class InsurerResponse(models.Model):
 
     def __str__(self):
         return f'{self.company_name} в своде #{self.summary_id}'
+
+    def clean(self):
+        super().clean()
+        from django.core.exceptions import ValidationError
+        from .equipment_assembly import FIELDS, EquipmentAssemblyError, clean_values
+
+        try:
+            values = clean_values({name: getattr(self, name) for name in FIELDS})
+        except EquipmentAssemblyError as error:
+            raise ValidationError(str(error)) from error
+        for name, value in values.items():
+            setattr(self, name, value)
 
 
 class SummaryTemplate(models.Model):
