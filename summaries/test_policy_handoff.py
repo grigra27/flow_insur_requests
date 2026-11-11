@@ -117,16 +117,15 @@ class PolicyHandoffTests(TestCase):
         self.assertEqual(InsuranceSummary.objects.get(pk=self.summary.pk).completed_at, self.summary.completed_at)
 
     @patch('summaries.services.policy_handoff.requests.post')
-    def test_registries_link_only_to_policies_in_force_for_any_employee(self, post):
+    def test_registries_show_all_linked_policies_for_any_employee(self, post):
         historical = InsuranceRequest.objects.create(client_name='Другой клиент', dfa_number='ДФА-2')
         InsuranceSummary.objects.create(request=historical, status='completed_accepted', selected_company='Абсолют')
         drafts = InsuranceRequest.objects.bulk_create([InsuranceRequest(client_name=f'Черновик {i}') for i in range(30)])
         InsuranceSummary.objects.bulk_create([InsuranceSummary(request=draft) for draft in drafts])
-        linked = {'mode': 'separate', 'total': 18, 'links': [
-            {'position': 1, 'policy_id': 6, 'policy_number': 'П-6', 'in_force': False},
-            {'position': 2, 'policy_id': 7, 'policy_number': 'П-7', 'in_force': True},
-            {'position': 3, 'policy_id': 8, 'policy_number': 'П-8'},
-        ]}
+        # Для полиса, сохранённого сегодня и вступающего в силу завтра,
+        # реестр сразу возвращает связь с in_force=False.
+        issued = {'position': 1, 'policy_id': 7, 'policy_number': 'П-7', 'in_force': False}
+        linked = {'mode': 'separate', 'total': 18, 'links': [issued]}
         def reply(url, *, json, **kwargs):
             self.assertEqual(url, 'http://127.0.0.1:8901/internal/flow/v1/summaries/links/')
             statuses = {str(pk): linked if pk == self.summary.pk else {'mode': None, 'total': 0, 'links': []}
@@ -150,15 +149,20 @@ class PolicyHandoffTests(TestCase):
             self.assertContains(page, 'class="policy-list-link"', count=1)
             self.assertNotContains(page, 'Проверить по ДФА')
             self.assertNotContains(page, self.start)
-        linked['links'][0]['in_force'] = True
+        linked['links'].extend([
+            {'position': 2, 'policy_id': 8, 'policy_number': 'П-8', 'in_force': True},
+            {'position': 3, 'policy_id': 9, 'policy_number': 'П-9', 'in_force': False},
+        ])
         with self.settings(FLOW_HANDOFF_GROUP='Другая группа', FLOW_HANDOFF_ENABLED=False):
             for route, params in [('summary_list', {'page': 2}), ('deal_list', {})]:
                 page = self.client.get(reverse('summaries:' + route), params)
-                group_url = f'http://127.0.0.1:8901/policies/by-summary/{self.summary.pk}/?in_force=1'
-                self.assertContains(page, f'<a class="policy-list-link" href="{group_url}">Полисы (2) <span aria-hidden="true">↗</span></a>', html=True)
-        for row in linked['links']:
-            row.pop('in_force', None)
-        self.assertNotContains(self.client.get(reverse('summaries:deal_list')), 'class="policy-list-link"')
+                group_url = f'http://127.0.0.1:8901/policies/by-summary/{self.summary.pk}/'
+                self.assertContains(page, f'<a class="policy-list-link" href="{group_url}">Полисы (3) <span aria-hidden="true">↗</span></a>', html=True)
+        # Прежний API отдаёт достоверные связи без поля in_force.
+        linked['links'] = [{'position': 1, 'policy_id': 7, 'policy_number': 'П-7'}]
+        for route, params in [('summary_list', {'page': 2}), ('deal_list', {})]:
+            page = self.client.get(reverse('summaries:' + route), params)
+            self.assertContains(page, f'<a class="policy-list-link" href="{direct_url}">Полис <span aria-hidden="true">↗</span></a>', html=True)
         post.side_effect = None
         post.return_value = Mock(status_code=503)
         unavailable = self.client.get(reverse('summaries:deal_list'))

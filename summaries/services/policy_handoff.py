@@ -110,26 +110,20 @@ def snapshot_and_options(summary):
     return data, options
 
 
-def _policy_destination(links, group_url):
-    if not links:
-        return None
-    return links[0]['url'] if len(links) == 1 else group_url
-
-
 def _link_state(summary, data, base, *, allow_start=False):
     mode, links, total = data['mode'], data['links'], data['total']
     if mode not in (None, 'common', 'separate') or not isinstance(links, list) or type(total) is not int:
         raise ValueError('Некорректный ответ реестра')
     result = [
         {'number': row['policy_number'], 'url': f"{base}/policies/{int(row['policy_id'])}/",
-         'position': int(row['position']), 'in_force': row.get('in_force') is True} for row in links
+         'position': int(row['position'])} for row in links
     ]
     if not result and not can_start(summary):
         return None
-    group_url = f'{base}/policies/by-summary/{summary.pk}/'
-    active = [link for link in result if link['in_force']]
+    open_url = result[0]['url'] if result else None
     open_label = 'Открыть полис'
     if len(result) > 1:
+        open_url = f'{base}/policies/by-summary/{summary.pk}/'
         noun = plural_form(len(result), 'полис', 'полиса', 'полисов')
         open_label = f'Открыть {len(result)} {noun}'
     # Пока полисов нет, количество в своде может измениться после создания плана.
@@ -148,9 +142,8 @@ def _link_state(summary, data, base, *, allow_start=False):
     return {
         'links': result, 'total': total, 'mode': mode, 'covered': covered, 'portal_host': urlsplit(base).netloc,
         'remaining': remaining, 'remaining_noun': plural_form(remaining, 'объект', 'объекта', 'объектов'),
-        'action_label': action_label, 'active_count': len(active),
-        'active_url': _policy_destination(active, group_url + '?in_force=1'),
-        'open_url': _policy_destination(result, group_url), 'open_label': open_label,
+        'action_label': action_label,
+        'open_url': open_url, 'open_label': open_label,
         'can_continue': allow_start and can_start(summary) and (
             not result or mode == 'separate' and remaining > 0
         ),
