@@ -69,10 +69,19 @@ async function run() {
       assert.equal(journal.status(), 200, 'reader keeps normal access to the policy register');
       await tab.context().clearCookies({domain: new URL(polis).hostname});
       await tab.goto(zs + '/summaries/1/');
-      await tab.getByRole('link', {name: /Открыть полис.*QA-NEW/}).click();
+      await tab.locator('.policy-handoff__open').click();
       await tab.waitForURL(url => url.origin === polis && url.pathname.endsWith('/login/'));
       await login(tab, 'polis-reader', process.env.FLOW_QA_POLIS_PASSWORD);
       await tab.waitForURL(linkedPolicy);
+      for (const filter of ['', '?in_force=1']) {
+        await tab.context().clearCookies({domain: new URL(polis).hostname});
+        const target = polis + '/policies/by-summary/4/' + filter;
+        await tab.goto(target);
+        assert.equal(new URL(tab.url()).searchParams.get('next'), new URL(target).pathname + filter);
+        await login(tab, 'polis-reader', process.env.FLOW_QA_POLIS_PASSWORD);
+        await tab.waitForURL(target);
+        await openGroupPolicy(tab, 15, target);
+      }
       console.log('Browser PASS: reader gets a permission message, cannot create or link by POST, and can open an existing policy after login');
     } finally {
       await tab.close();
@@ -81,7 +90,10 @@ async function run() {
   async function fillRequisites(number) {
     const first = new Date().getFullYear() + 1;
     await page.locator('#id_policy_number').fill(number);
-    await page.locator('#id_start_date').fill('01.01.' + first);
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const start = number === 'QA-NEW' ? tomorrow.toLocaleDateString('ru-RU') : '01.01.' + first;
+    await page.locator('#id_start_date').fill(start);
     await page.locator('#id_end_date').fill('31.12.' + (first + 1));
     const rows = page.locator('input[name^=payment_schedule-][name$="-due_date"]:not([name*=__prefix__])');
     assert.equal(await rows.count(), 3, 'all installment rows must be visible');
@@ -106,10 +118,11 @@ async function run() {
     const back = page.locator('a[href="' + zs + '/summaries/' + id + '/"]');
     await back.first().click();
     await page.waitForURL(zs + '/summaries/' + id + '/');
-    const policy = page.getByRole('link', {name: new RegExp('Открыть полис.*' + number)});
+    const policy = page.locator('.policy-handoff__open');
     assert.equal(await policy.getAttribute('href'), target);
     await policy.click();
     await page.waitForURL(target);
+    assert.ok((await page.locator('h1').innerText()).includes(number));
   }
 
   async function capture(label, action, desktopOnly = false) {
@@ -131,13 +144,64 @@ async function run() {
     }
   }
 
+  async function openGroupPolicy(tab, expected, groupUrl) {
+    assert.match(await tab.locator('h1').innerText(), /Полисы по своду №\s*4/);
+    const rows = tab.getByRole('table', {name: 'Полисы по своду'}).locator('tbody tr');
+    assert.equal(await rows.count(), expected);
+    for (let slot = 1; slot <= expected; slot++) {
+      const row = rows.nth(slot - 1);
+      assert.match(await row.innerText(), new RegExp('ДЕМО-ДФА-' + (Math.floor((slot - 1) / 5) + 1)));
+      assert.equal(await row.getByRole('link', {name: 'ДЕМО-26-' + String(slot).padStart(4, '0')}).count(), 1);
+    }
+    const number = 'ДЕМО-26-' + String(expected).padStart(4, '0');
+    const entry = rows.last().getByRole('link', {name: number});
+    const detailUrl = new URL(await entry.getAttribute('href'), polis).href;
+    await Promise.all([tab.waitForURL(detailUrl), entry.click()]);
+    assert.ok((await tab.locator('h1').innerText()).includes(number));
+    const guest = tab.getByRole('region', {name: /флоу.*заявки/i});
+    assert.equal(await guest.getByRole('link', {name: /Открыть свод/}).first().getAttribute('href'),
+                 zs + '/summaries/4/');
+    const previous = await guest.locator('xpath=preceding-sibling::*[1]').innerText();
+    const following = await guest.locator('xpath=following-sibling::*[1]').innerText();
+    assert.match(previous, /Статусы/);
+    assert.match(following, /Финансовая информация/);
+    if (tab === page && expected === 15) await capture('polis-linked-card', guest, true);
+    await tab.getByRole('link', {name: /К полисам по своду/}).click();
+    await tab.waitForURL(groupUrl);
+    await tab.locator('a[href="' + zs + '/summaries/4/"]').first().click();
+    await tab.waitForURL(zs + '/summaries/4/');
+  }
+
   async function groupListStatus(completed) {
     for (const list of ['summaries/', 'summaries/deals/']) {
       await page.goto(zs + '/' + list);
-      const statusInRow = id => page.locator('tr[data-href^="/summaries/' + id + '/"] .policy-list-status');
-      assert.match(await statusInRow(4).innerText(), new RegExp(completed + ' из 18'));
-      assert.match(await statusInRow(1).innerText(), /QA-NEW/);
+      const row = id => page.locator('tr[data-href^="/summaries/' + id + '/"]');
+      assert.equal(await row(7).count(), 1);
+      assert.equal(await row(7).locator('.policy-list-link, form').count(), 0);
+      for (const [id, number] of [[1, 'QA-NEW'], [2, 'QA-OLD'], [3, 'QA-SEPARATE'],
+                                  [5, 'QA-CURRENT'], [6, 'QA-TERMINATED']]) {
+        assert.equal(await row(id).locator('form').count(), 0);
+        const direct = row(id).locator('td').first().getByRole('link', {name: 'Полис', exact: true});
+        const url = new URL(await direct.getAttribute('href'));
+        assert.equal(url.origin, polis);
+        assert.match(url.pathname, /^\/policies\/\d+\/$/);
+        const policy = await page.request.get(url.href);
+        assert.equal(policy.status(), 200);
+        assert.match(await policy.text(), new RegExp('<title>[^<]*Полис ' + number + '[^<]*</title>'));
+      }
+      const active = row(5).locator('td').first().getByRole('link', {name: 'Полис', exact: true});
+      assert.equal(await active.count(), 1);
+      const grouped = row(4).locator('td').first().getByRole('link', {name: 'Полисы (' + completed + ')', exact: true});
+      assert.equal(await row(4).locator('.policy-list-link').count(), 1);
+      assert.equal(await grouped.getAttribute('href'), polis + '/policies/by-summary/4/');
       if (completed === 15) await capture(list.includes('deals') ? 'zs-deals-list' : 'zs-summaries-list', null, true);
+      await Promise.all([page.waitForURL(await active.getAttribute('href')), active.click()]);
+      assert.match(await page.locator('h1').innerText(), /QA-CURRENT/);
+      await page.goto(zs + '/' + list);
+      await grouped.click();
+      await page.waitForURL(polis + '/policies/by-summary/4/');
+      if (completed === 15) await capture('polis-linked-group', null, true);
+      await openGroupPolicy(page, completed, page.url());
     }
   }
 
@@ -145,8 +209,10 @@ async function run() {
     await page.goto(url);
     const card = page.locator(parent + ' > .policy-handoff');
     assert.equal(await card.count(), 1);
-    const box = await card.boundingBox();
-    assert.ok(box.x > page.viewportSize().width / 2, 'expected policy block in the desktop right column');
+    if (screenshots) { // Screenshot runs also load the application's public Bootstrap layout.
+      const box = await card.boundingBox();
+      assert.ok(box.x > page.viewportSize().width / 2, 'expected policy block in the desktop right column');
+    }
     await capture(image, card, true);
   }
 
@@ -222,11 +288,13 @@ async function run() {
     await groupListStatus(15);
     await checkSidebar(zs + '/summaries/4/', '.sd-page .col-lg-4 .sd-aside', 'zs-summary-sidebar');
     await checkSidebar(groupUrl, '.ds-page .col-lg-4', 'zs-deal-sidebar');
-    const linked = page.locator('.policy-handoff details');
+    const linked = page.locator('.policy-handoff__open');
+    const progress = page.locator('.policy-handoff h3');
     const status = page.locator('.policy-handoff__status');
-    assert.match(await status.innerText(), /Оформлено 15 из 18\s*·\s*Осталось 3/);
-    assert.equal(await linked.locator('a').count(), 15);
-    assert.equal(await linked.evaluate(el => el.open), false);
+    assert.equal((await progress.innerText()).trim(), 'Оформлено 15 из 18');
+    assert.match(await status.innerText(), /Осталось оформить 3 объекта/);
+    assert.match(await linked.innerText(), /Открыть 15 полисов/);
+    assert.equal(await linked.getAttribute('href'), polis + '/policies/by-summary/4/');
     await capture('zs-15-of-18');
     await page.getByRole('button', {name: 'Оформить оставшиеся 3', exact: true}).click();
     await assignGroupContracts();
@@ -322,14 +390,17 @@ async function run() {
     await page.waitForURL(url => /^\/policies\/\d+\/$/.test(url.pathname));
     assert.match(await page.locator('h1').innerText(), /ДЕМО-26-0018/);
     await page.goto(groupUrl);
-    assert.equal((await status.innerText()).trim(), 'Оформлено 18 из 18');
-    assert.equal(await linked.locator('a').count(), 18);
+    assert.equal((await progress.innerText()).trim(), 'Оформлено 18 из 18');
+    assert.match(await linked.innerText(), /Открыть 18 полисов/);
     assert.equal(await page.locator('.policy-handoff form').count(), 0);
     await capture('zs-completed');
-    await linked.locator('summary').click();
-    await page.getByRole('link', {name: /ДЕМО-26-0018/}).click();
-    assert.match(await page.locator('h1').innerText(), /ДЕМО-26-0018/);
+    await linked.click();
+    await page.waitForURL(polis + '/policies/by-summary/4/');
+    await openGroupPolicy(page, 18, page.url());
     await groupListStatus(18);
+    // Explicitly follow the historical date filter, independently of the new registry links.
+    await page.goto(polis + '/policies/by-summary/4/?in_force=1');
+    await openGroupPolicy(page, 15, page.url());
   }
 
   try {
@@ -344,13 +415,19 @@ async function run() {
     await checkFormWidgets();
     await checkDelayedRate();
     const created = await save('QA-NEW');
+    for (const list of ['summaries/', 'summaries/deals/']) {
+      await page.goto(zs + '/' + list);
+      const future = page.locator('tr[data-href^="/summaries/1/"] td').first().getByRole('link', {name: 'Полис', exact: true});
+      assert.equal(await future.getAttribute('href'), created, 'tomorrow’s policy must appear immediately after save');
+      await Promise.all([page.waitForURL(created), future.click()]);
+    }
     await verifyRoundtrip(1, 'QA-NEW', created);
     console.log('Browser PASS: new policy, separate login, two annual offers and reverse links');
 
     await page.goto(zs + '/summaries/deals/');
-    await page.locator('tr[data-href="/summaries/2/deal-summary/"]').getByRole('button', {
-      name: 'Проверить по ДФА', exact: true,
-    }).click();
+    const empty = page.locator('tr[data-href="/summaries/2/deal-summary/"]');
+    assert.equal(await empty.locator('.policy-list-link, form').count(), 0);
+    await start(2);
     await page.getByRole('radio', {name: 'Выбрать полис QA-OLD'}).waitFor();
     await checkReader(page.url(), created, formUrl);
     await page.getByRole('radio', {name: 'Выбрать полис QA-OLD'}).check();
@@ -371,7 +448,11 @@ async function run() {
     console.log('Browser PASS: three real split policies, invalid form, DFA match, next unit and completed group');
   } catch (error) {
     console.error('Location:', new URL(page.url()).pathname);
-    console.error('Page feedback:', (await page.locator('h1, h2, .errorlist, .errornote, .alert, [role=alert]').allTextContents()).join(' | ').slice(0, 2000));
+    const feedback = await page.locator('h1, h2, .errorlist, .errornote, .alert, [role=alert]')
+      .allTextContents().catch(() => []);
+    console.error('Page feedback:', feedback.join(' | ').slice(0, 2000));
+    const invalid = await page.locator('[aria-invalid=true]').evaluateAll(fields => fields.map(f => f.name)).catch(() => []);
+    if (invalid.length) console.error('Invalid fields:', invalid.join(', '));
     throw error;
   } finally {
     await browser.close();

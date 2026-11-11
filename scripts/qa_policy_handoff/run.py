@@ -149,8 +149,8 @@ def run(polis, screenshots=None):
         assert links == [(1, 'QA-NEW', 'polis-editor'), (2, 'QA-OLD', 'polis-editor'),
                          (3, 'QA-SEPARATE', 'polis-editor')], links
         check_group(db)
-        # Three original scenarios, eighteen linked units, one unrelated DFA match.
-        assert db.execute('SELECT count(*) FROM policies_policy').fetchone()[0] == 22
+        # Three original scenarios, eighteen units, one unrelated policy, plus active and terminated examples.
+        assert db.execute('SELECT count(*) FROM policies_policy').fetchone()[0] == 24
         for number in ('QA-NEW', 'QA-SEPARATE'):
             rows = db.execute("""SELECT year_number, installment_number, amount, insurance_sum, kv_rub,
                                  due_date, paid_date, insurer_date FROM policies_paymentschedule s

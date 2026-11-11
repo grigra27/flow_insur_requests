@@ -13,6 +13,8 @@ reader.groups.add(staff_group)
 for dfa, party, object_count in [
     ('FLOW-QA-01', 'lessee', 1), ('FLOW-QA-02', 'lessee', 1),
     ('FLOW-QA-02', 'lessor', 1), ('ТС-ДЕМО-018', 'lessee', 18),
+    ('FLOW-QA-CURRENT', 'lessee', 1), ('FLOW-QA-TERMINATED', 'lessee', 1),
+    ('FLOW-QA-NO-LINK', 'lessee', 1),
 ]:
     req = InsuranceRequest.objects.create(
         dfa_number=dfa, client_name='Тестовый лизингополучатель', inn='0000000000',
