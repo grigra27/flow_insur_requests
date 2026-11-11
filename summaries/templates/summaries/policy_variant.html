@@ -7,6 +7,9 @@
     {% if message %}<div role="alert" class="alert alert-warning">{{ message }}</div>{% endif %}
     {% if snapshot.variant %}
         <p>Принят вариант {{ snapshot.variant }}.</p>
+        <form method="post" action="{% url 'summaries:policy_start' summary.pk %}" class="mb-3">
+            {% csrf_token %}<button class="btn btn-primary">Продолжить в «Полисах»</button>
+        </form>
     {% elif options %}
         <form method="post" class="mb-3">
             {% csrf_token %}<input type="hidden" name="revision" value="{{ snapshot.revision }}">
@@ -20,7 +23,7 @@
                     </label>
                 {% endfor %}
             </fieldset>
-            <button class="btn btn-primary">Подтвердить вариант</button>
+            <button class="btn btn-primary">Подтвердить и перейти в «Полисы»</button>
         </form>
     {% else %}
         <p>Проверьте предложение выбранной страховой компании. Доступных вариантов нет.</p>

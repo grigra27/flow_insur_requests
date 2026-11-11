@@ -10,12 +10,15 @@ user = User.objects.create_user('zs-operator', password=os.environ['FLOW_QA_ZS_P
 reader = User.objects.create_user('zs-colleague', password=os.environ['FLOW_QA_ZS_PASSWORD'])
 user.groups.add(staff_group)
 reader.groups.add(staff_group)
-for dfa, party in [('FLOW-QA-01', 'lessee'), ('FLOW-QA-02', 'lessee'), ('FLOW-QA-02', 'lessor')]:
+for dfa, party, object_count in [
+    ('FLOW-QA-01', 'lessee', 1), ('FLOW-QA-02', 'lessee', 1),
+    ('FLOW-QA-02', 'lessor', 1), ('ТС-ДЕМО-018', 'lessee', 18),
+]:
     req = InsuranceRequest.objects.create(
         dfa_number=dfa, client_name='Тестовый лизингополучатель', inn='0000000000',
         insurance_type='КАСКО', insurance_period='на весь срок лизинга', branch='Москва',
         insured_party=party, object_description='Проверочный автомобиль', manufacturing_year='2025',
-        status='emails_sent', created_by=user)
+        status='emails_sent', created_by=user, source_object_count=object_count)
     summary = InsuranceSummary.objects.create(request=req, status='completed_accepted',
                                                selected_company='Абсолют', selected_franchise_variant=2)
     for year, insured, premium, count in [(1, 1000000, '10000.01', 2), (2, 900000, '9000', 1)]:

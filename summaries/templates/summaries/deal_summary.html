@@ -27,8 +27,6 @@
     </div>
 </div>
 
-{% include 'summaries/policy_handoff.html' %}
-
 {# ── ИТОГ СДЕЛКИ ── #}
 <div class="ds-card ds-result">
     <div class="ds-result__item">
@@ -242,7 +240,7 @@
     </div>{# /col-lg-8 #}
 
     <div class="col-lg-4">
-
+        {% include 'summaries/policy_handoff.html' %}
         {# ── РЕКВИЗИТЫ СДЕЛКИ ── #}
         <div class="ds-card">
             <div class="ds-card__head"><h2>Реквизиты сделки</h2></div>

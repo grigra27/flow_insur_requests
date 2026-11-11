@@ -109,34 +109,74 @@ def snapshot_and_options(summary):
     return data, options
 
 
+def _link_state(summary, data, base):
+    mode, links, total = data['mode'], data['links'], data['total']
+    if mode not in (None, 'common', 'separate') or not isinstance(links, list) or type(total) is not int:
+        raise ValueError('Некорректный ответ реестра')
+    result = [
+        {'number': row['policy_number'], 'url': f"{base}/policies/{int(row['policy_id'])}/",
+         'position': int(row['position'])} for row in links
+    ]
+    if not result and not (settings.FLOW_HANDOFF_ENABLED and can_start(summary)):
+        return None
+    # Пока полисов нет, количество в своде может измениться после создания плана.
+    if not result:
+        total = summary.request.source_object_count or 1
+    covered = total if result and mode == 'common' else len(result)
+    remaining = max(total - covered, 0)
+    action_label = 'Создать полис'
+    if result and remaining:
+        if remaining == 1:
+            action_label = 'Оформить последний объект'
+        elif remaining % 10 == 1 and remaining % 100 != 11:
+            action_label = f'Оформить ещё {remaining} объект'
+        else:
+            action_label = f'Оформить оставшиеся {remaining}'
+    return {
+        'links': result, 'total': total, 'mode': mode, 'covered': covered,
+        'remaining': remaining, 'action_label': action_label,
+        'can_continue': settings.FLOW_HANDOFF_ENABLED and can_start(summary) and (
+            not result or mode == 'separate' and remaining > 0
+        ),
+    }
+
+
+
+def _registry_status(base, summary_ids=None, *, summary_id=None):
+    if not settings.FLOW_SERVICE_TOKEN:
+        raise ValueError('Не задан ключ служебного обмена')
+    options = {
+        'headers': {'Authorization': f'Bearer {settings.FLOW_SERVICE_TOKEN}'},
+        'timeout': (1.5, 3), 'allow_redirects': False,
+    }
+    endpoint = f'{base}/internal/flow/v1/summaries'
+    if summary_ids is None:
+        response = requests.get(f'{endpoint}/{summary_id}/links/', **options)
+    else:
+        response = requests.post(f'{endpoint}/links/', json={'summary_ids': summary_ids}, **options)
+    if response.status_code != 200:
+        raise ValueError('Реестр недоступен')
+    return response.json()
+
+
 def policy_links(summary):
     """Реестр полисов — единственный источник связей, включая частично оформленные группы."""
     try:
         base = polis_base_url()
-        if not settings.FLOW_SERVICE_TOKEN:
-            raise ValueError('Не задан ключ служебного обмена')
-        response = requests.get(
-            f'{base}/internal/flow/v1/summaries/{summary.pk}/links/',
-            headers={'Authorization': f'Bearer {settings.FLOW_SERVICE_TOKEN}'},
-            timeout=(1.5, 3), allow_redirects=False,
-        )
-        if response.status_code != 200:
-            raise ValueError('Реестр недоступен')
-        data = response.json()
-        mode, links, total = data['mode'], data['links'], data['total']
-        if mode not in (None, 'common', 'separate') or not isinstance(links, list) or type(total) is not int:
-            raise ValueError('Некорректный ответ реестра')
-        result = [
-            {'number': row['policy_number'], 'url': f"{base}/policies/{int(row['policy_id'])}/",
-             'position': int(row['position'])} for row in links
-        ]
-        if not result and not (settings.FLOW_HANDOFF_ENABLED and can_start(summary)):
-            return None
-        return {
-            'links': result, 'total': total, 'mode': mode,
-            'can_continue': settings.FLOW_HANDOFF_ENABLED and can_start(summary) and (
-                not result or mode == 'separate' and len(result) < total
-            ),
-        }
+        return _link_state(summary, _registry_status(base, summary_id=summary.pk), base)
     except (ValueError, KeyError, TypeError, requests.RequestException):
         return {'unavailable': True}
+
+
+def policy_links_for_page(summaries):
+    """Для одной отображаемой страницы списков делаем один запрос в реестр."""
+    summaries = list(summaries)
+    if not summaries:
+        return {}
+    try:
+        base = polis_base_url()
+        response = _registry_status(base, [summary.pk for summary in summaries])
+        states = response['summaries']
+        return {summary.pk: _link_state(summary, states[str(summary.pk)], base) for summary in summaries}
+    except (ValueError, KeyError, TypeError, requests.RequestException):
+        return {summary.pk: {'unavailable': True} for summary in summaries if can_start(summary)}

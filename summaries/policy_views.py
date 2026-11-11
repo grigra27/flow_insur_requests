@@ -18,7 +18,8 @@ from django.views.decorators.http import require_GET, require_http_methods, requ
 from insurance_requests.decorators import has_user_access, user_required
 from .models import InsuranceSummary, PolicyHandoffCode, PolicyVariantDecision
 from .services.policy_handoff import (
-    InactiveAcceptance, can_start, digest, policy_links, polis_base_url, snapshot_and_options,
+    InactiveAcceptance, can_start, digest, policy_links, policy_links_for_page, polis_base_url,
+    snapshot_and_options,
 )
 
 
@@ -27,10 +28,16 @@ def in_pilot(user):
     return not group or user.groups.filter(name=group).exists()
 
 
+def _show_handoff(user):
+    return (settings.FLOW_HANDOFF_ENABLED or settings.FLOW_SERVICE_TOKEN) and in_pilot(user)
+
+
 def handoff_context(user, summary):
-    if in_pilot(user) and (settings.FLOW_HANDOFF_ENABLED or settings.FLOW_SERVICE_TOKEN):
-        return policy_links(summary)
-    return None
+    return policy_links(summary) if _show_handoff(user) else None
+
+
+def handoff_list_context(user, summaries):
+    return policy_links_for_page(summaries) if _show_handoff(user) else {}
 
 
 def employee_handoff(view):
@@ -70,6 +77,13 @@ def start(request, summary_id):
     summary = get_object_or_404(InsuranceSummary, pk=summary_id)
     if not can_start(summary):
         return _error(request, summary, 'Начать оформление можно из акцептованного свода с выбранной компанией.', 409)
+    variants = summary.get_company_available_variants(summary.selected_company)
+    if len(variants) > 1 and summary.selected_franchise_variant not in variants:
+        return redirect('summaries:policy_variant', summary_id=summary.pk)
+    return _open_polis(request, summary)
+
+
+def _open_polis(request, summary):
     try:
         base = polis_base_url()
     except ValueError:
@@ -152,7 +166,7 @@ def choose_variant(request, summary_id):
                 PolicyVariantDecision.objects.create(
                     summary=summary, selected_company=summary.selected_company, variant=variant, user=request.user,
                 )
-                return redirect('summaries:deal_summary', summary_id=summary.pk)
+                return _open_polis(request, summary)
         return render(request, 'summaries/policy_variant.html', {
             'summary': summary, 'snapshot': snapshot, 'options': options, 'message': message,
         }, status=status)

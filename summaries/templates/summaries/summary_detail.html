@@ -26,8 +26,6 @@
     </div>
 </div>
 
-{% include 'summaries/policy_handoff.html' %}
-
 <!-- Прогресс-бар статусов -->
 <div class="sd-progress">
     {% status_progress summary.request summary %}
@@ -332,6 +330,7 @@
 
     <div class="col-lg-4">
         <div class="sd-aside">
+            {% include 'summaries/policy_handoff.html' %}
             <!-- Excel-свод (с 2026-10-19 основной — V2; V1 — резерв на период перехода, затем удаляется,
                  docs/improvement_plans/backlog.md п. 4). Всем — в статусе «Готов к отправке»,
                  суперпользователю — в любом статусе (то же правило проверяют представления). -->

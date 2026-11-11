@@ -162,6 +162,7 @@
                                 </span>
                             </div>
                         {% endif %}
+                        {% include 'summaries/_policy_list_status.html' with state=policy_states|get_item:summary.pk %}
                     </td>
                     <td class="sl-cell-best">
                         {% if info.best_total %}

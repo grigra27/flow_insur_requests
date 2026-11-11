@@ -1,0 +1,16 @@
+{% if state %}
+<div class="policy-list-status sl-status-sub">
+    {% if state.unavailable %}
+        <span>Полисы: статус недоступен</span>
+    {% elif state.can_continue %}
+        <form method="post" action="{% url 'summaries:policy_start' summary.pk %}">
+            {% csrf_token %}
+            <button type="submit" class="sl-link">{% if state.links %}Полисы: {{ state.covered }} из {{ state.total }} · Продолжить{% elif summary.request.dfa_number %}Проверить по ДФА{% else %}Создать полис{% endif %}</button>
+        </form>
+    {% elif state.mode == 'separate' and state.total > 1 %}
+        <a class="sl-link" href="{% url 'summaries:summary_detail' summary.pk %}#policy-handoff-links">Полисы: {{ state.covered }} из {{ state.total }}</a>
+    {% elif state.links %}
+        <a class="sl-link" href="{{ state.links.0.url }}">{% if state.total > 1 %}Общий полис{% else %}Полис{% endif %} № {{ state.links.0.number }}</a>
+    {% endif %}
+</div>
+{% endif %}

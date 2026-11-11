@@ -298,6 +298,7 @@
                     <td>
                         <div class="dl-company">{{ deal.selected_company|insurer }}</div>
                         <div class="sl-meta">{{ deal.selected_variant_display }}</div>
+                        {% include 'summaries/_policy_list_status.html' with state=policy_states|get_item:deal.summary.pk summary=deal.summary %}
                     </td>
                     <td class="dl-num">
                         {% if deal.selected_total is not None %}

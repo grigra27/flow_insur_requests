@@ -4,7 +4,7 @@
 import re
 from urllib.parse import quote
 
-from .policy_views import handoff_context
+from .policy_views import handoff_context, handoff_list_context
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.contrib import messages
@@ -209,6 +209,7 @@ def summary_list(request):
     # Обновляем контекст шаблона для передачи информации о филиале (требование 4.1, 4.2, 4.3)
     return render(request, 'summaries/summary_list.html', {
         'summaries': summaries,
+        'policy_states': handoff_list_context(request.user, summaries.object_list),
         'paginator': paginator,
         'filter_form': filter_form,
         'available_branches': available_branches,
@@ -748,6 +749,7 @@ def deal_list(request):
 
     return render(request, 'summaries/deal_list.html', {
         'deals': rows_page,
+        'policy_states': handoff_list_context(request.user, (row['summary'] for row in rows_page)),
         'paginator': paginator,
         'filter_form': filter_form,
         'available_branches': available_branches,
