@@ -1,0 +1,22 @@
+[Unit]
+Description=External InsFlow website and backup monitor
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=insflow-monitor
+Group=insflow-monitor
+WorkingDirectory=/opt/insflow-backup-monitor
+ExecStart=/usr/bin/python3 -I /opt/insflow-backup-monitor/monitor_backups.py --config /etc/insflow-backup-monitor/config.json
+TimeoutStartSec=90s
+TimeoutStopSec=5s
+KillMode=control-group
+StateDirectory=insflow-backup-monitor
+StateDirectoryMode=0700
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/insflow-backup-monitor
