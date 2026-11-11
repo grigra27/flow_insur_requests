@@ -172,34 +172,40 @@ async function run() {
     await tab.waitForURL(zs + '/summaries/4/');
   }
 
-  async function groupListStatus(completed) {
+  async function openSourceFromRegistry(list, id, viaRow = false) {
+    await page.goto(zs + '/' + list);
+    const rows = page.locator('tr.summary-row[data-href]');
+    assert.equal(await rows.locator('a[href^="' + polis + '/"], [href*="/policy/start/"], form[action*="/policy/"]').count(), 0,
+                 'policy actions belong only on opened cards');
+    const source = '/summaries/' + id + (list === 'summaries/deals/' ? '/deal-summary/' : '/');
+    const row = rows.filter({has: page.locator('td:first-child a[href="' + source + '"]')});
+    const target = viaRow ? row.locator('.sl-client') : row.locator('td:first-child a[href="' + source + '"]');
+    await Promise.all([page.waitForURL(zs + source), target.click()]);
+    return page.locator('.policy-handoff__open');
+  }
+
+  async function checkRegistryPaths(completed) {
     for (const list of ['summaries/', 'summaries/deals/']) {
-      await page.goto(zs + '/' + list);
-      const row = id => page.locator('tr[data-href^="/summaries/' + id + '/"]');
-      assert.equal(await row(7).count(), 1);
-      assert.equal(await row(7).locator('.policy-list-link, form').count(), 0);
-      for (const [id, number] of [[1, 'QA-NEW'], [2, 'QA-OLD'], [3, 'QA-SEPARATE'],
-                                  [5, 'QA-CURRENT'], [6, 'QA-TERMINATED']]) {
-        assert.equal(await row(id).locator('form').count(), 0);
-        const direct = row(id).locator('td').first().getByRole('link', {name: 'Полис', exact: true});
-        const url = new URL(await direct.getAttribute('href'));
-        assert.equal(url.origin, polis);
-        assert.match(url.pathname, /^\/policies\/\d+\/$/);
-        const policy = await page.request.get(url.href);
-        assert.equal(policy.status(), 200);
-        assert.match(await policy.text(), new RegExp('<title>[^<]*Полис ' + number + '[^<]*</title>'));
+      if (completed === 15) {
+        await page.goto(zs + '/' + list);
+        await capture(list.includes('deals') ? 'zs-deals-list' : 'zs-summaries-list', null, true);
+        const empty = await openSourceFromRegistry(list, 7);
+        assert.equal(await empty.count(), 0);
+        assert.equal(await page.getByRole('button', {name: 'Создать полис', exact: true}).count(), 1);
+        for (const [id, number] of [[1, 'QA-NEW'], [2, 'QA-OLD'], [3, 'QA-SEPARATE'],
+                                    [5, 'QA-CURRENT'], [6, 'QA-TERMINATED']]) {
+          const direct = await openSourceFromRegistry(list, id, id === 2);
+          const url = new URL(await direct.getAttribute('href'));
+          assert.equal(url.origin, polis);
+          assert.match(url.pathname, /^\/policies\/\d+\/$/);
+          await Promise.all([page.waitForURL(url.href), direct.click()]);
+          assert.ok((await page.locator('h1').innerText()).includes(number));
+        }
       }
-      const active = row(5).locator('td').first().getByRole('link', {name: 'Полис', exact: true});
-      assert.equal(await active.count(), 1);
-      const grouped = row(4).locator('td').first().getByRole('link', {name: 'Полисы (' + completed + ')', exact: true});
-      assert.equal(await row(4).locator('.policy-list-link').count(), 1);
+      const grouped = await openSourceFromRegistry(list, 4, true);
       assert.equal(await grouped.getAttribute('href'), polis + '/policies/by-summary/4/');
-      if (completed === 15) await capture(list.includes('deals') ? 'zs-deals-list' : 'zs-summaries-list', null, true);
-      await Promise.all([page.waitForURL(await active.getAttribute('href')), active.click()]);
-      assert.match(await page.locator('h1').innerText(), /QA-CURRENT/);
-      await page.goto(zs + '/' + list);
-      await grouped.click();
-      await page.waitForURL(polis + '/policies/by-summary/4/');
+      assert.match(await grouped.innerText(), new RegExp('Открыть ' + completed + ' полисов'));
+      await Promise.all([page.waitForURL(polis + '/policies/by-summary/4/'), grouped.click()]);
       if (completed === 15) await capture('polis-linked-group', null, true);
       await openGroupPolicy(page, completed, page.url());
     }
@@ -285,7 +291,7 @@ async function run() {
 
   async function finishGroup() {
     const groupUrl = zs + '/summaries/4/deal-summary/';
-    await groupListStatus(15);
+    await checkRegistryPaths(15);
     await checkSidebar(zs + '/summaries/4/', '.sd-page .col-lg-4 .sd-aside', 'zs-summary-sidebar');
     await checkSidebar(groupUrl, '.ds-page .col-lg-4', 'zs-deal-sidebar');
     const linked = page.locator('.policy-handoff__open');
@@ -397,8 +403,8 @@ async function run() {
     await linked.click();
     await page.waitForURL(polis + '/policies/by-summary/4/');
     await openGroupPolicy(page, 18, page.url());
-    await groupListStatus(18);
-    // Explicitly follow the historical date filter, independently of the new registry links.
+    await checkRegistryPaths(18);
+    // Explicitly follow the historical date filter, independently of the full list opened from the card.
     await page.goto(polis + '/policies/by-summary/4/?in_force=1');
     await openGroupPolicy(page, 15, page.url());
   }
@@ -416,18 +422,16 @@ async function run() {
     await checkDelayedRate();
     const created = await save('QA-NEW');
     for (const list of ['summaries/', 'summaries/deals/']) {
-      await page.goto(zs + '/' + list);
-      const future = page.locator('tr[data-href^="/summaries/1/"] td').first().getByRole('link', {name: 'Полис', exact: true});
+      const future = await openSourceFromRegistry(list, 1);
       assert.equal(await future.getAttribute('href'), created, 'tomorrow’s policy must appear immediately after save');
       await Promise.all([page.waitForURL(created), future.click()]);
     }
     await verifyRoundtrip(1, 'QA-NEW', created);
     console.log('Browser PASS: new policy, separate login, two annual offers and reverse links');
 
-    await page.goto(zs + '/summaries/deals/');
-    const empty = page.locator('tr[data-href="/summaries/2/deal-summary/"]');
-    assert.equal(await empty.locator('.policy-list-link, form').count(), 0);
-    await start(2);
+    const empty = await openSourceFromRegistry('summaries/deals/', 2);
+    assert.equal(await empty.count(), 0);
+    await page.getByRole('button', {name: 'Создать полис', exact: true}).click();
     await page.getByRole('radio', {name: 'Выбрать полис QA-OLD'}).waitFor();
     await checkReader(page.url(), created, formUrl);
     await page.getByRole('radio', {name: 'Выбрать полис QA-OLD'}).check();

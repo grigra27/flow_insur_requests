@@ -1,3 +1,0 @@
-{% if state.open_url %}
-<a class="policy-list-link" href="{{ state.open_url }}">{% if state.links|length == 1 %}Полис{% else %}Полисы ({{ state.links|length }}){% endif %} <span aria-hidden="true">↗</span></a>
-{% endif %}

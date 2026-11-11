@@ -290,7 +290,6 @@
                         <div class="sl-client dl-client" title="{{ req.client_name }}">{{ req.client_name|default:req.get_display_name }}</div>
                         <div class="sl-meta">
                             <a class="dl-number" href="{% url 'summaries:deal_summary' deal.summary.pk %}" title="ИНН {{ req.inn|default:'—' }}">{{ req.get_display_name }}</a>
-                            {% include 'summaries/_policy_list_status.html' with state=policy_states|get_item:deal.summary.pk only %}
                             {% if req.branch %} · {{ req.branch|branch_badge }}{% endif %}{% if deal.type_label %} · {{ deal.type_label }}{% endif %}
                         </div>
                         {% with object_summary=req.object_summary %}

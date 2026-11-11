@@ -18,7 +18,7 @@ from django.views.decorators.http import require_GET, require_http_methods, requ
 from insurance_requests.decorators import has_user_access, user_required
 from .models import InsuranceSummary, PolicyHandoffCode, PolicyVariantDecision
 from .services.policy_handoff import (
-    InactiveAcceptance, can_start, digest, policy_links, policy_links_for_page, polis_base_url,
+    InactiveAcceptance, can_start, digest, policy_links, polis_base_url,
     snapshot_and_options,
 )
 
@@ -32,10 +32,6 @@ def handoff_context(user, summary):
     if not (settings.FLOW_SERVICE_TOKEN or settings.FLOW_HANDOFF_ENABLED):
         return None
     return policy_links(summary, allow_start=settings.FLOW_HANDOFF_ENABLED and in_pilot(user))
-
-
-def handoff_list_context(summaries):
-    return policy_links_for_page(summaries) if settings.FLOW_SERVICE_TOKEN else {}
 
 
 def employee_handoff(view):

@@ -112,7 +112,6 @@
                                     {{ req.get_display_name }}
                                 {% endif %}
                             </a>
-                            {% include 'summaries/_policy_list_status.html' with state=policy_states|get_item:summary.pk only %}
                             {% if req.item_count and req.item_count > 1 %}
                                 <span class="badge summary-list-badge summary-list-badge--batch"
                                       title="Партия из {{ req.item_count }} заявок. Этот свод относится к объекту {{ req.item_no }} из {{ req.item_count }}.">

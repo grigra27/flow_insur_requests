@@ -150,19 +150,14 @@ def _link_state(summary, data, base, *, allow_start=False):
     }
 
 
-
-def _registry_status(base, summary_ids=None, *, summary_id=None):
+def _registry_status(base, summary_id):
     if not settings.FLOW_SERVICE_TOKEN:
         raise ValueError('Не задан ключ служебного обмена')
-    options = {
-        'headers': {'Authorization': f'Bearer {settings.FLOW_SERVICE_TOKEN}'},
-        'timeout': (1.5, 3), 'allow_redirects': False,
-    }
-    endpoint = f'{base}/internal/flow/v1/summaries'
-    if summary_ids is None:
-        response = requests.get(f'{endpoint}/{summary_id}/links/', **options)
-    else:
-        response = requests.post(f'{endpoint}/links/', json={'summary_ids': summary_ids}, **options)
+    response = requests.get(
+        f'{base}/internal/flow/v1/summaries/{summary_id}/links/',
+        headers={'Authorization': f'Bearer {settings.FLOW_SERVICE_TOKEN}'},
+        timeout=(1.5, 3), allow_redirects=False,
+    )
     if response.status_code != 200:
         raise ValueError('Реестр недоступен')
     return response.json()
@@ -175,17 +170,3 @@ def policy_links(summary, *, allow_start=False):
         return _link_state(summary, _registry_status(base, summary_id=summary.pk), base, allow_start=allow_start)
     except (ValueError, KeyError, TypeError, requests.RequestException):
         return {'unavailable': True}
-
-
-def policy_links_for_page(summaries):
-    """Для одной отображаемой страницы списков делаем один запрос в реестр."""
-    summaries = list(summaries)
-    if not summaries:
-        return {}
-    try:
-        base = polis_base_url()
-        response = _registry_status(base, [summary.pk for summary in summaries])
-        states = response['summaries']
-        return {summary.pk: _link_state(summary, states[str(summary.pk)], base) for summary in summaries}
-    except (ValueError, KeyError, TypeError, requests.RequestException):
-        return {}
