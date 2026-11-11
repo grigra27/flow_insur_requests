@@ -1,0 +1,12 @@
+[Unit]
+Description=Check the InsFlow website and backups every two minutes
+
+[Timer]
+OnCalendar=*-*-* *:0/2:00
+Persistent=true
+RandomizedDelaySec=5
+AccuracySec=1s
+Unit=insflow-backup-monitor.service
+
+[Install]
+WantedBy=timers.target
