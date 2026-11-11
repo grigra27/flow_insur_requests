@@ -8,6 +8,7 @@ from urllib.parse import urlsplit
 import requests
 from django.conf import settings
 
+from core.text import plural_form
 from summaries.models import InsurerResponse
 
 
@@ -109,16 +110,28 @@ def snapshot_and_options(summary):
     return data, options
 
 
-def _link_state(summary, data, base):
+def _policy_destination(links, group_url):
+    if not links:
+        return None
+    return links[0]['url'] if len(links) == 1 else group_url
+
+
+def _link_state(summary, data, base, *, allow_start=False):
     mode, links, total = data['mode'], data['links'], data['total']
     if mode not in (None, 'common', 'separate') or not isinstance(links, list) or type(total) is not int:
         raise ValueError('Некорректный ответ реестра')
     result = [
         {'number': row['policy_number'], 'url': f"{base}/policies/{int(row['policy_id'])}/",
-         'position': int(row['position'])} for row in links
+         'position': int(row['position']), 'in_force': row.get('in_force') is True} for row in links
     ]
-    if not result and not (settings.FLOW_HANDOFF_ENABLED and can_start(summary)):
+    if not result and not can_start(summary):
         return None
+    group_url = f'{base}/policies/by-summary/{summary.pk}/'
+    active = [link for link in result if link['in_force']]
+    open_label = 'Открыть полис'
+    if len(result) > 1:
+        noun = plural_form(len(result), 'полис', 'полиса', 'полисов')
+        open_label = f'Открыть {len(result)} {noun}'
     # Пока полисов нет, количество в своде может измениться после создания плана.
     if not result:
         total = summary.request.source_object_count or 1
@@ -133,9 +146,12 @@ def _link_state(summary, data, base):
         else:
             action_label = f'Оформить оставшиеся {remaining}'
     return {
-        'links': result, 'total': total, 'mode': mode, 'covered': covered,
-        'remaining': remaining, 'action_label': action_label,
-        'can_continue': settings.FLOW_HANDOFF_ENABLED and can_start(summary) and (
+        'links': result, 'total': total, 'mode': mode, 'covered': covered, 'portal_host': urlsplit(base).netloc,
+        'remaining': remaining, 'remaining_noun': plural_form(remaining, 'объект', 'объекта', 'объектов'),
+        'action_label': action_label, 'active_count': len(active),
+        'active_url': _policy_destination(active, group_url + '?in_force=1'),
+        'open_url': _policy_destination(result, group_url), 'open_label': open_label,
+        'can_continue': allow_start and can_start(summary) and (
             not result or mode == 'separate' and remaining > 0
         ),
     }
@@ -159,11 +175,11 @@ def _registry_status(base, summary_ids=None, *, summary_id=None):
     return response.json()
 
 
-def policy_links(summary):
+def policy_links(summary, *, allow_start=False):
     """Реестр полисов — единственный источник связей, включая частично оформленные группы."""
     try:
         base = polis_base_url()
-        return _link_state(summary, _registry_status(base, summary_id=summary.pk), base)
+        return _link_state(summary, _registry_status(base, summary_id=summary.pk), base, allow_start=allow_start)
     except (ValueError, KeyError, TypeError, requests.RequestException):
         return {'unavailable': True}
 
@@ -179,4 +195,4 @@ def policy_links_for_page(summaries):
         states = response['summaries']
         return {summary.pk: _link_state(summary, states[str(summary.pk)], base) for summary in summaries}
     except (ValueError, KeyError, TypeError, requests.RequestException):
-        return {summary.pk: {'unavailable': True} for summary in summaries if can_start(summary)}
+        return {}

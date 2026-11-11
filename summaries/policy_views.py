@@ -28,16 +28,14 @@ def in_pilot(user):
     return not group or user.groups.filter(name=group).exists()
 
 
-def _show_handoff(user):
-    return (settings.FLOW_HANDOFF_ENABLED or settings.FLOW_SERVICE_TOKEN) and in_pilot(user)
-
-
 def handoff_context(user, summary):
-    return policy_links(summary) if _show_handoff(user) else None
+    if not (settings.FLOW_SERVICE_TOKEN or settings.FLOW_HANDOFF_ENABLED):
+        return None
+    return policy_links(summary, allow_start=settings.FLOW_HANDOFF_ENABLED and in_pilot(user))
 
 
-def handoff_list_context(user, summaries):
-    return policy_links_for_page(summaries) if _show_handoff(user) else {}
+def handoff_list_context(summaries):
+    return policy_links_for_page(summaries) if settings.FLOW_SERVICE_TOKEN else {}
 
 
 def employee_handoff(view):

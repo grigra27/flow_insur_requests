@@ -37,7 +37,9 @@
         font-family: 'Space Grotesk', 'Manrope', sans-serif;
         font-weight: 600;
         color: var(--sl-muted);
+        text-decoration: none;
     }
+    .dl-number:hover, .dl-number:focus-visible { color: var(--sl-teal); text-decoration: underline; }
 
     .dl-company {
         font-weight: 600;
@@ -286,8 +288,10 @@
                 <tr class="summary-row" data-href="{% url 'summaries:deal_summary' deal.summary.pk %}">
                     <td class="sl-cell-client">
                         <div class="sl-client dl-client" title="{{ req.client_name }}">{{ req.client_name|default:req.get_display_name }}</div>
-                        <div class="sl-meta" title="ИНН {{ req.inn|default:'—' }}">
-                            <span class="dl-number">{{ req.get_display_name }}</span>{% if req.branch %} · {{ req.branch|branch_badge }}{% endif %}{% if deal.type_label %} · {{ deal.type_label }}{% endif %}
+                        <div class="sl-meta">
+                            <a class="dl-number" href="{% url 'summaries:deal_summary' deal.summary.pk %}" title="ИНН {{ req.inn|default:'—' }}">{{ req.get_display_name }}</a>
+                            {% include 'summaries/_policy_list_status.html' with state=policy_states|get_item:deal.summary.pk only %}
+                            {% if req.branch %} · {{ req.branch|branch_badge }}{% endif %}{% if deal.type_label %} · {{ deal.type_label }}{% endif %}
                         </div>
                         {% with object_summary=req.object_summary %}
                             {% if object_summary %}
@@ -298,7 +302,6 @@
                     <td>
                         <div class="dl-company">{{ deal.selected_company|insurer }}</div>
                         <div class="sl-meta">{{ deal.selected_variant_display }}</div>
-                        {% include 'summaries/_policy_list_status.html' with state=policy_states|get_item:deal.summary.pk summary=deal.summary %}
                     </td>
                     <td class="dl-num">
                         {% if deal.selected_total is not None %}

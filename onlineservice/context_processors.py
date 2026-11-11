@@ -3,6 +3,7 @@
 from django.db.models import Count
 from django.urls import NoReverseMatch, reverse
 
+from core.text import plural_form as _plural
 
 def _safe_reverse(route_name):
     """Resolve URL name safely for template navigation items."""
@@ -474,14 +475,6 @@ def navigation_context(request):
         'app_user': _user_badge(getattr(request, 'user', None), user_has_admin_access),
         'app_work': _work_counters(getattr(request, 'user', None)),
     }
-
-
-def _plural(count, one, few, many):
-    if count % 10 == 1 and count % 100 != 11:
-        return one
-    if 2 <= count % 10 <= 4 and not 12 <= count % 100 <= 14:
-        return few
-    return many
 
 
 WORK_COUNTERS_CACHE_KEY = 'footer_work_counters'

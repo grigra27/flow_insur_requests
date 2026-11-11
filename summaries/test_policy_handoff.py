@@ -117,13 +117,15 @@ class PolicyHandoffTests(TestCase):
         self.assertEqual(InsuranceSummary.objects.get(pk=self.summary.pk).completed_at, self.summary.completed_at)
 
     @patch('summaries.services.policy_handoff.requests.post')
-    def test_registries_use_one_batch_for_visible_rows_and_keep_unlinked_distinct(self, post):
+    def test_registries_link_only_to_policies_in_force_for_any_employee(self, post):
         historical = InsuranceRequest.objects.create(client_name='Другой клиент', dfa_number='ДФА-2')
         InsuranceSummary.objects.create(request=historical, status='completed_accepted', selected_company='Абсолют')
         drafts = InsuranceRequest.objects.bulk_create([InsuranceRequest(client_name=f'Черновик {i}') for i in range(30)])
         InsuranceSummary.objects.bulk_create([InsuranceSummary(request=draft) for draft in drafts])
-        linked = {'mode': 'common', 'total': 1, 'links': [
-            {'position': 1, 'policy_id': 7, 'policy_number': 'П-7'},
+        linked = {'mode': 'separate', 'total': 18, 'links': [
+            {'position': 1, 'policy_id': 6, 'policy_number': 'П-6', 'in_force': False},
+            {'position': 2, 'policy_id': 7, 'policy_number': 'П-7', 'in_force': True},
+            {'position': 3, 'policy_id': 8, 'policy_number': 'П-8'},
         ]}
         def reply(url, *, json, **kwargs):
             self.assertEqual(url, 'http://127.0.0.1:8901/internal/flow/v1/summaries/links/')
@@ -140,17 +142,27 @@ class PolicyHandoffTests(TestCase):
         deals_page = self.client.get(reverse('summaries:deal_list'))
         post.assert_called_once()
         self.assertCountEqual(post.call_args.kwargs['json']['summary_ids'], page_ids)
+        direct_url = 'http://127.0.0.1:8901/policies/7/'
+        deal_url = reverse('summaries:deal_summary', args=[self.summary.pk])
+        self.assertContains(deals_page, f'<a class="dl-number" href="{deal_url}" title="ИНН {self.req.inn}">{self.req.get_display_name()}</a>', html=True)
         for page in (summary_page, deals_page):
-            self.assertContains(page, 'Полис № П-7')
-            self.assertContains(page, 'Проверить по ДФА')
-        with self.settings(FLOW_HANDOFF_GROUP='Другая группа'):
-            post.reset_mock()
-            self.assertNotContains(self.client.get(reverse('summaries:deal_list')), 'Проверить по ДФА')
-            post.assert_not_called()
+            self.assertContains(page, f'<a class="policy-list-link" href="{direct_url}">Полис <span aria-hidden="true">↗</span></a>', html=True)
+            self.assertContains(page, 'class="policy-list-link"', count=1)
+            self.assertNotContains(page, 'Проверить по ДФА')
+            self.assertNotContains(page, self.start)
+        linked['links'][0]['in_force'] = True
+        with self.settings(FLOW_HANDOFF_GROUP='Другая группа', FLOW_HANDOFF_ENABLED=False):
+            for route, params in [('summary_list', {'page': 2}), ('deal_list', {})]:
+                page = self.client.get(reverse('summaries:' + route), params)
+                group_url = f'http://127.0.0.1:8901/policies/by-summary/{self.summary.pk}/?in_force=1'
+                self.assertContains(page, f'<a class="policy-list-link" href="{group_url}">Полисы (2) <span aria-hidden="true">↗</span></a>', html=True)
+        for row in linked['links']:
+            row.pop('in_force', None)
+        self.assertNotContains(self.client.get(reverse('summaries:deal_list')), 'class="policy-list-link"')
         post.side_effect = None
         post.return_value = Mock(status_code=503)
         unavailable = self.client.get(reverse('summaries:deal_list'))
-        self.assertContains(unavailable, 'Полисы: статус недоступен')
+        self.assertNotContains(unavailable, 'class="policy-list-link"')
         self.assertNotContains(unavailable, 'Проверить по ДФА')
 
     def test_revision_tracks_selected_offer_and_request(self):
@@ -201,35 +213,43 @@ class PolicyHandoffTests(TestCase):
         get.return_value.json.return_value = data
         self.assertContains(self.client.get(url), 'Создать полис')
         InsuranceRequest.objects.filter(pk=self.req.pk).update(source_object_count=18)
-        self.assertContains(self.client.get(url), 'Оформлено 0 из 18 · Осталось 18')
+        self.assertContains(self.client.get(url), 'Оформлено 0 из 18')
         data.update(mode='separate', total=4)
-        self.assertContains(self.client.get(url), 'Оформлено 0 из 18 · Осталось 18')
+        self.assertContains(self.client.get(url), 'Оформлено 0 из 18')
         data.update(mode='separate', total=18, links=[
             {'policy_number': f'Тест-{i}', 'policy_id': i, 'position': i} for i in range(1, 16)
         ])
         partial = self.client.get(url)
-        self.assertContains(partial, 'Оформлено 15 из 18 · Осталось 3')
+        self.assertContains(partial, 'Оформлено 15 из 18')
+        self.assertContains(partial, 'Осталось оформить 3 объекта.')
         self.assertContains(partial, 'Оформить оставшиеся 3')
-        self.assertContains(partial, 'Оформленные полисы (15)')
-        self.assertContains(partial, 'Объект 15 из 18')
+        self.assertContains(partial, 'Открыть 15 полисов')
+        group_url = f'http://127.0.0.1:8901/policies/by-summary/{self.summary.pk}/'
+        self.assertContains(partial, f'href="{group_url}"')
+        with self.settings(FLOW_HANDOFF_GROUP='Другая группа'):
+            for route in ('summary_detail', 'deal_summary'):
+                reader = self.client.get(reverse('summaries:' + route, args=[self.summary.pk]))
+                self.assertContains(reader, f'href="{group_url}"')
+                self.assertNotContains(reader, self.start)
         data.update(links=[{'policy_number':'Тест-78','policy_id':3,'position':1}],mode='separate',total=2)
         split = self.client.get(url)
         self.assertContains(split, 'Оформить последний объект')
-        self.assertContains(split, 'Объект 1 из 2')
+        self.assertContains(split, 'Оформлено 1 из 2')
+        self.assertContains(split, 'href="http://127.0.0.1:8901/policies/3/"')
         data['mode'] = 'common'
         common = self.client.get(url)
-        self.assertContains(common, 'Оформлено 2 из 2 · Общий полис')
-        self.assertContains(common, 'Открыть полис № Тест-78')
-        self.assertNotContains(common, 'Объект 1 из 2')
+        self.assertContains(common, 'Общий полис на все объекты')
+        self.assertContains(common, 'Полис № Тест-78')
+        self.assertContains(common, 'Открыть полис')
         self.assertNotContains(common, self.start)
         data['mode'] = 'separate'
         with self.settings(FLOW_HANDOFF_ENABLED=False):
             disabled = self.client.get(url)
-            self.assertContains(disabled, 'Открыть полис № Тест-78')
+            self.assertContains(disabled, 'href="http://127.0.0.1:8901/policies/3/"')
             self.assertNotContains(disabled, self.start)
         InsuranceSummary.objects.filter(pk=self.summary.pk).update(status='collecting',selected_company=None)
         response = self.client.get(url)
-        self.assertContains(response,'Открыть полис № Тест-78')
+        self.assertContains(response, 'href="http://127.0.0.1:8901/policies/3/"')
         self.assertNotContains(response,self.start)
         get.return_value.status_code=503
         unavailable = self.client.get(url)

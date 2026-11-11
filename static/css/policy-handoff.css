@@ -1,62 +1,44 @@
 .policy-handoff {
+    --policy-navy: #1e3a5f;
     margin-bottom: 1rem;
-    padding: .75rem 1rem;
     border: 1px solid var(--app-border);
     border-radius: var(--app-radius-md);
     background: var(--app-surface);
     color: var(--app-text);
 }
 
-.policy-handoff__body, .policy-handoff__overview {
+.policy-handoff__band {
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
-    gap: .35rem .9rem;
-}
-
-.policy-handoff__body { flex-direction: column; align-items: stretch; gap: .65rem; }
-.policy-handoff__overview h2 {
-    margin: 0;
-    font-size: 1.05rem;
-    font-weight: 700;
-    line-height: 1.35;
-}
-
-.policy-handoff__status { margin: 0; color: var(--app-muted); font-size: .9rem; }
-.policy-handoff__hint { flex-basis: 100%; margin: 0; color: var(--app-muted); font-size: .8125rem; }
-.policy-handoff a, .policy-handoff__details summary { color: var(--app-primary-dark); }
-.policy-handoff a { overflow-wrap: anywhere; }
-.policy-handoff__open { font-size: .9rem; font-weight: 600; }
-
-.policy-handoff__button {
-    min-height: 2.75rem;
-    width: 100%;
-    max-width: 100%;
-    padding: .5rem 1rem;
-    border: 0;
-    border-radius: 8px;
-    background: var(--app-primary);
+    justify-content: space-between;
+    gap: .5rem;
+    min-height: 40px;
+    padding: .45rem .9rem;
+    border-radius: 11px 11px 0 0;
+    background: var(--policy-navy);
     color: #fff;
-    font: inherit;
-    font-size: .95rem;
-    font-weight: 600;
-    line-height: 1.3;
 }
-
-.policy-handoff__button:hover, .policy-handoff__button:active { background: var(--app-primary-dark); }
-.policy-handoff :is(a, button, summary):focus-visible { outline: 2px solid var(--app-primary-dark); outline-offset: 3px; }
-
-.policy-handoff__details { margin-top: .3rem; font-size: .875rem; }
-.policy-handoff__details summary { width: fit-content; max-width: 100%; padding: .3rem 0; font-weight: 600; cursor: pointer; }
-.policy-handoff__details ul {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
-    gap: .6rem 1.25rem;
-    margin: .35rem 0 0;
-    padding: .75rem 0 .25rem;
-    border-top: 1px solid var(--app-border);
-    list-style: none;
+.policy-handoff__band h2 { margin: 0; color: inherit; font-size: 1.125rem; font-weight: 400; letter-spacing: -.035em; }
+.policy-handoff__band h2 span { opacity: .75; }
+.policy-handoff__band small { overflow-wrap: anywhere; font-size: .7rem; }
+.policy-handoff__body { padding: .8rem .9rem .9rem; }
+.policy-handoff__body h3 { margin: 0; color: var(--app-text); font-size: 1.05rem; font-weight: 700; overflow-wrap: anywhere; }
+.policy-handoff__status { margin: .25rem 0 0; color: var(--app-muted); font-size: .8125rem; }
+.policy-handoff__actions { display: flex; flex-wrap: wrap; align-items: center; gap: .45rem .8rem; }
+.policy-handoff__actions a, .policy-handoff__actions form { margin-top: .7rem; }
+.policy-handoff__primary, .policy-handoff__secondary { font-family: inherit; font-weight: 600; font-size: .8125rem; line-height: 1.4; }
+.policy-handoff__primary {
+    display: inline-flex;
+    align-items: baseline;
+    gap: .25rem;
+    padding: .55rem .75rem;
+    border: 0;
+    border-radius: 7px;
+    background: var(--policy-navy);
+    color: #fff;
+    text-decoration: none;
 }
-
-.policy-handoff__details li { display: grid; gap: .1rem; }
-.policy-handoff__details li span { color: var(--app-muted); }
+.policy-handoff__primary:hover { background: #2b4b70; color: #fff; }
+.policy-handoff__secondary { padding: .3rem 0; border: 0; background: transparent; color: #264f79; }
+.policy-handoff__secondary:hover { color: var(--policy-navy); text-decoration: underline; }
+.policy-handoff :is(a, button):focus-visible { outline: 2px solid var(--policy-navy); outline-offset: 3px; }
