@@ -175,7 +175,7 @@ class RecoveryVK(DatabaseSender):
         date = datetime.now(timezone.utc).date().isoformat()
         self._vk_call('messages.send', self.token, {
             'peer_id': self.peer, 'random_id': random_id('failure:' + (seed or date) + ':' + code),
-            'message': '⚠️ Полная зашифрованная копия InsFlow не доставлена. '
+            'message': '⚠️ Полная зашифрованная копия ZS.insflow.ru не доставлена. '
                        'Этап: ' + {'snapshot': 'снимок данных', 'bundle': 'сборка архива',
                                   'encryption': 'шифрование', 'upload': 'передача в VK'}[code] + '. Требуется проверить состояние резервирования. '
                        'Прежние копии не удалялись.',
@@ -210,7 +210,7 @@ class RecoveryVK(DatabaseSender):
                              'Для восстановления нужен отдельный ключ владельца; в архиве и на сервере его нет.')
             message_id = self._vk_call('messages.send', self.token, {
                 'peer_id': self.peer, 'random_id': random_id(digest), 'attachment': attachment,
-                'message': '📦 Полная зашифрованная копия InsFlow: база данных, документы и настройки.\n'
+                'message': '📦 Полная зашифрованная копия ZS.insflow.ru: база данных, документы и настройки.\n'
                            + local_moment.strftime('%d.%m.%Y %H:%M МСК') + f' · {size} байт.\n'
                            + f'SHA-256: {digest}\n'
                            + recovery_hint,
