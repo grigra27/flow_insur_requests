@@ -70,7 +70,7 @@ services:
       start_period: 120s
 
   nginx:
-    image: nginx:1.25-alpine
+    image: nginx:1.30.6-alpine@sha256:583b7f2fce1cdb8da5ad5c39ebd3c33b98b87d493190e548bdee1fa8c619c311
     ports:
       - "80:80"
       - "443:443"

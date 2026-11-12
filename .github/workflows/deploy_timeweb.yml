@@ -282,7 +282,8 @@ jobs:
           
           echo "➡️ Предварительно загружаем базовые образы..."
           docker pull postgres:15 || echo "⚠️ Не удалось загрузить postgres:15"
-          docker pull nginx:1.25-alpine || echo "⚠️ Не удалось загрузить nginx:1.25-alpine"
+          NGINX_IMAGE="$(docker compose -f docker-compose.yml config --format json | python3 -c 'import json, sys; print(json.load(sys.stdin)["services"]["nginx"]["image"])')"
+          docker pull "$NGINX_IMAGE"
           
           echo "➡️ Проверяем и устанавливаем SSL сертификаты..."
           
@@ -419,6 +420,14 @@ jobs:
           
           echo "➡️ Проверяем статус контейнеров..."
           docker-compose -f docker-compose.yml ps
+
+          echo "➡️ Проверяем фактический образ и конфигурацию Nginx..."
+          NGINX_CONTAINER="$(docker compose -f docker-compose.yml ps -q nginx)"
+          EXPECTED_NGINX_IMAGE_ID="$(docker image inspect "$NGINX_IMAGE" --format '{{.Id}}')"
+          RUNNING_NGINX_IMAGE_ID="$(docker inspect "$NGINX_CONTAINER" --format '{{.Image}}')"
+          test "$RUNNING_NGINX_IMAGE_ID" = "$EXPECTED_NGINX_IMAGE_ID"
+          docker compose -f docker-compose.yml exec -T nginx nginx -v
+          docker compose -f docker-compose.yml exec -T nginx nginx -t
           
           echo "➡️ Проверяем логи web контейнера..."
           docker-compose -f docker-compose.yml logs --tail=50 web
