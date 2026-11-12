@@ -159,6 +159,7 @@ jobs:
         DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
       run: |
+        python scripts/check_production_secret_key.py
         umask 077
         mkdir -p server_env
         cat > server_env/server.env << EOF
