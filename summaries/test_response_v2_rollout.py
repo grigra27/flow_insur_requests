@@ -19,8 +19,8 @@ from insurance_requests.models import InsuranceRequest
 from summaries.services.insurer_response import set_offer_company_fields
 from summaries.models import InsuranceOffer, InsuranceSummary, InsurerResponse
 from summaries.response_template import V1_TEMPLATE_PATH, build_v2
-from summaries.services import get_excel_export_service
-from summaries.services.insurer_response import v1_comment_note, v2_strict, v2_visible
+from summaries.services.summary_export_v2 import SummaryExportV2Service
+from summaries.services.insurer_response import v2_strict, v2_visible
 
 XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 SINCE = '2026-10-08'
@@ -141,8 +141,6 @@ class ResponseTemplateV2RolloutTests(TestCase):
 
         response = InsurerResponse(summary=self.new_summary, company_name='Согаз', transport_cost=Decimal('5330'),
                                    transport_terms='на время перевозки')
-        self.assertEqual(v1_comment_note(response),
-                         'Перевозка: 5 330 ₽ — оплачивается отдельно, в премию не входит (на время перевозки).')
         self.assertEqual(TRANSPORT.fields[0].label, 'Премия за перевозку, ₽ (отдельно)')
         self.assertIn('Не включайте её в премию по годам', TRANSPORT.fields[0].hint)
         self.new_request.has_transportation = True
@@ -152,33 +150,22 @@ class ResponseTemplateV2RolloutTests(TestCase):
         transport = next(line for line in lines if line['label'] == 'Перевозка')
         self.assertEqual((transport['text'], transport['note']), ('5 330 ₽ · на время перевозки', 'отдельно от премии'))
 
-    def test_new_request_v2_file_saved_and_goes_to_v1_comments(self):
-        upload = _filled(load_workbook(BytesIO(build_v2(self.new_request, self.new_summary.pk))), {
-            'resp_inspection_status': 'Осмотр не требуется',
-            'resp_rnpk_status': 'Не будут прописаны в полисе',
-        })
+    def test_new_response_fields_are_saved_and_exported_in_v2(self):
+        upload = _filled(load_workbook(BytesIO(build_v2(self.new_request, self.new_summary.pk))),
+                         {'resp_inspection_status': 'Осмотр не требуется',
+                          'resp_rnpk_status': 'Не будут прописаны в полисе'})
         result = self._upload(self.staff, self.new_summary, upload)
         self.assertTrue(result['success'], result)
         response = InsurerResponse.objects.get(summary=self.new_summary, company_name='Согаз')
-        self.assertEqual(v1_comment_note(response),
-                         'Осмотр: осмотр не требуется. Риски РНПК не будут прописаны в полисе.')
-        ws = load_workbook(BytesIO(get_excel_export_service().generate_summary_excel(
-            self.new_summary, is_client_version=True).getvalue())).worksheets[0]
-        notes_col = next(c.column_letter for c in ws[8] if c.value == 'Комментарии')
-        comment = ws[f'{notes_col}10'].value
-        self.assertTrue(comment.startswith('Осмотр: осмотр не требуется. Риски РНПК не будут прописаны в полисе.'))
-        # страховщик ответил про осмотр — системная фраза для б/у не добавляется
-        self.assertNotIn('Обязателен осмотр предмета лизинга', comment)
+        self.assertEqual(response.get_inspection_status_display(), 'Осмотр не требуется')
+        self.assertEqual(response.get_rnpk_status_display(), 'Не будут прописаны в полисе')
+        data = SummaryExportV2Service().generate(self.new_summary, is_client_version=True).getvalue()
+        sheet = load_workbook(BytesIO(data))['Свод']
+        values = [str(c.value) for row in sheet for c in row if c.value is not None]
+        self.assertIn('Не требуется', values)
+        self.assertIn('Не будут прописаны в полисе', values)
+        self.assertNotIn('Обязателен осмотр предмета лизинга', ' '.join(values))
 
-    def test_v1_system_inspection_note_kept_without_answer(self):
-        offer = InsuranceOffer.objects.create(summary=self.old_summary, company_name='ВСК', insurance_year=1,
-                                              insurance_sum=Decimal('1000000'), franchise_1=Decimal('0'),
-                                              premium_with_franchise_1=Decimal('50000'))
-        set_offer_company_fields(offer, 'РФ', 'без ОСВР')
-        ws = load_workbook(BytesIO(get_excel_export_service().generate_summary_excel(
-            self.old_summary, is_client_version=True).getvalue())).worksheets[0]
-        notes_col = next(c.column_letter for c in ws[8] if c.value == 'Комментарии')
-        self.assertEqual(ws[f'{notes_col}10'].value, 'без ОСВР Обязателен осмотр предмета лизинга.')
 
     def test_add_form_blocks_optional_for_old_request(self):
         self.client.force_login(self.staff)

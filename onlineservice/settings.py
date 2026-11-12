@@ -404,9 +404,6 @@ LOGGING = {
 FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB
 DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB
 
-# Excel export settings
-SUMMARY_TEMPLATE_PATH = BASE_DIR / 'templates' / 'summary_template.xlsx'
-
 # VK backup delivery (daily DB dump sent to a personal chat via community token)
 VK_BACKUP_TOKEN = config('VK_BACKUP_TOKEN', default='')
 VK_BACKUP_PEER_ID = config('VK_BACKUP_PEER_ID', default='')

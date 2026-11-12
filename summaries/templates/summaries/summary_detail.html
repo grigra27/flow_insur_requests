@@ -331,8 +331,7 @@
     <div class="col-lg-4">
         <div class="sd-aside">
             {% include 'summaries/policy_handoff.html' %}
-            <!-- Excel-свод (с 2026-10-19 основной — V2; V1 — резерв на период перехода, затем удаляется,
-                 docs/improvement_plans/backlog.md п. 4). Всем — в статусе «Готов к отправке»,
+            <!-- Excel-свод: клиентская и полная версии. Всем — в статусе «Готов к отправке»,
                  суперпользователю — в любом статусе (то же правило проверяют представления). -->
             {% if summary.status == 'ready' or user.is_superuser %}
             <div class="card mb-4 sd-xls-card">
@@ -354,19 +353,6 @@
                             <i class="bi bi-file-earmark-excel-fill"></i>
                             <span><b>Полный свод</b><small>для работы · + «Параметры запроса»</small></span>
                         </a>
-                    </div>
-                    <div class="sd-xls-card__reserve">
-                        <div class="sd-xls-card__label">Прежний формат (V1) · резерв на период перехода</div>
-                        <div class="sd-xls-card__row">
-                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="generateClientSummaryFile({{ summary.id }})"
-                                    title="Прежний клиентский свод — без технического листа">
-                                <i class="bi bi-person-lines-fill"></i> Клиентский V1
-                            </button>
-                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="generateSummaryFile({{ summary.id }})"
-                                    title="Прежний полный свод — с техническим листом">
-                                <i class="bi bi-file-earmark-excel"></i> Полный V1
-                            </button>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -1399,10 +1385,6 @@
 .sd-xls-card__group { display: grid; gap: 0.5rem; }
 .sd-xls-btn--block { display: flex; width: 100%; text-decoration: none; }
 .sd-xls-card__su { font-size: 0.75rem; color: var(--sd-muted-2); }
-.sd-xls-card__reserve { padding-top: 0.75rem; border-top: 1px solid var(--sd-line); }
-.sd-xls-card__label { margin-bottom: 0.45rem; font-size: 0.74rem; color: var(--sd-muted-2); }
-.sd-xls-card__row { display: flex; flex-wrap: wrap; gap: 0.4rem; }
-.sd-xls-card__row .btn { font-size: 0.8rem; }
 .og-v2-lines { margin-top: 0.3rem; display: grid; gap: 0.15rem; }
 .og-v2-line { display: flex; align-items: baseline; gap: 0.4rem; font-size: 0.8rem; }
 .og-v2-line--missing { color: #b42318; }
@@ -2721,249 +2703,7 @@ function deleteOffer(offerId, trigger) {
     }
 }
 
-function generateSummaryFile(summaryId) {
-    // Получаем кнопку и сохраняем исходное состояние
-    const button = event.target.closest('button');
-    const originalContent = button.innerHTML;
-    const originalDisabled = button.disabled;
-    
-    // Проверяем доступность функции
-    if (!summaryId || isNaN(summaryId)) {
-        showErrorMessage('Некорректный идентификатор свода');
-        return;
-    }
-    
-    // Проверяем подключение к интернету
-    if (!navigator.onLine) {
-        showErrorMessage('Отсутствует подключение к интернету. Проверьте соединение и попробуйте еще раз.');
-        return;
-    }
-    
-    // Показываем индикатор загрузки с анимацией
-    button.innerHTML = '<i class="bi bi-hourglass-split spinner-border spinner-border-sm me-1"></i> Генерируется...';
-    button.disabled = true;
-    button.classList.add('btn-loading');
-    
-    // Показываем уведомление о начале процесса
-    showInfoMessage('Начинается генерация Excel файла...', 2000);
-    
-    // Отправляем запрос на генерацию файла с улучшенной обработкой ошибок
-    fetch(`/summaries/${summaryId}/generate-file/`, {
-        method: 'GET',
-        headers: {
-            'X-Requested-With': 'XMLHttpRequest',
-            'Cache-Control': 'no-cache'
-        }
-    })
-    .then(response => {
-        // Проверяем статус ответа
-        if (!response.ok) {
-            // Если это JSON ошибка, парсим её
-            if (response.headers.get('content-type')?.includes('application/json')) {
-                return response.json().then(data => {
-                    throw new Error(data.error || `Ошибка сервера: ${response.status}`);
-                });
-            } else {
-                // Если это не JSON, создаем общую ошибку
-                throw new Error(`Ошибка сервера: ${response.status} ${response.statusText}`);
-            }
-        }
-        
-        // Проверяем, что это действительно Excel файл
-        const contentType = response.headers.get('content-type');
-        if (!contentType || !contentType.includes('spreadsheet')) {
-            throw new Error('Сервер вернул некорректный тип файла');
-        }
-        
-        // Обрабатываем успешный ответ
-        return response.blob().then(blob => {
-            // Проверяем размер файла
-            if (blob.size === 0) {
-                throw new Error('Получен пустой файл');
-            }
-            
-            // Получаем имя файла из заголовка Content-Disposition
-            const contentDisposition = response.headers.get('Content-Disposition');
-            let filename = `svod_${summaryId}_${new Date().toISOString().slice(0, 10)}.xlsx`;
-            
-            if (contentDisposition) {
-                const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
-                if (filenameMatch && filenameMatch[1]) {
-                    filename = filenameMatch[1].replace(/['"]/g, '');
-                }
-            }
-            
-            // Создаем и инициируем скачивание файла
-            const downloadSuccess = safeDownloadFile(blob, filename);
-            
-            if (downloadSuccess) {
-                // Показываем сообщение об успехе с дополнительной информацией
-                showSuccessMessage(`Excel файл "${filename}" успешно сгенерирован и загружен`, 4000);
-                
-                // Логируем успешную операцию
-                console.log(`Excel file generated successfully: ${filename}, size: ${blob.size} bytes`);
-            } else {
-                throw new Error('Ошибка при скачивании файла. Попробуйте еще раз.');
-            }
-        });
-    })
-    .catch(error => {
-        console.error('Error generating summary file:', error);
-        
-        // Определяем тип ошибки и показываем соответствующее сообщение
-        let errorMessage = 'Произошла ошибка при генерации файла';
-        
-        if (error.name === 'TypeError' && error.message.includes('fetch')) {
-            errorMessage = 'Ошибка соединения с сервером. Проверьте подключение к интернету.';
-        } else if (error.message.includes('Файл можно генерировать только для сводов в статусе')) {
-            errorMessage = 'Файл можно генерировать только для сводов в статусе "Готов к отправке"';
-        } else if (error.message.includes('недостающих данных')) {
-            errorMessage = 'Невозможно сгенерировать файл: отсутствуют обязательные данные';
-        } else if (error.message.includes('недоступности шаблона')) {
-            errorMessage = 'Шаблон Excel файла недоступен. Обратитесь к администратору.';
-        } else if (error.message) {
-            errorMessage = error.message;
-        }
-        
-        showErrorMessage(errorMessage, 6000);
-        
-        // Дополнительная информация для разработчиков в консоли
-        console.error('Detailed error info:', {
-            message: error.message,
-            stack: error.stack,
-            summaryId: summaryId,
-            timestamp: new Date().toISOString()
-        });
-    })
-    .finally(() => {
-        // Восстанавливаем состояние кнопки
-        button.innerHTML = originalContent;
-        button.disabled = originalDisabled;
-        button.classList.remove('btn-loading');
-    });
-}
 
-function generateClientSummaryFile(summaryId) {
-    // Получаем кнопку и сохраняем исходное состояние
-    const button = event.target.closest('button');
-    const originalContent = button.innerHTML;
-    const originalDisabled = button.disabled;
-    
-    // Проверяем доступность функции
-    if (!summaryId || isNaN(summaryId)) {
-        showErrorMessage('Некорректный идентификатор свода');
-        return;
-    }
-    
-    // Проверяем подключение к интернету
-    if (!navigator.onLine) {
-        showErrorMessage('Отсутствует подключение к интернету. Проверьте соединение и попробуйте еще раз.');
-        return;
-    }
-    
-    // Показываем индикатор загрузки с анимацией
-    button.innerHTML = '<i class="bi bi-hourglass-split spinner-border spinner-border-sm me-1"></i> Генерируется...';
-    button.disabled = true;
-    button.classList.add('btn-loading');
-    
-    // Показываем уведомление о начале процесса
-    showInfoMessage('Начинается генерация клиентского Excel файла...', 2000);
-    
-    // Отправляем запрос на генерацию клиентского файла
-    fetch(`/summaries/${summaryId}/generate-client-file/`, {
-        method: 'GET',
-        headers: {
-            'X-Requested-With': 'XMLHttpRequest',
-            'Cache-Control': 'no-cache'
-        }
-    })
-    .then(response => {
-        // Проверяем статус ответа
-        if (!response.ok) {
-            // Если это JSON ошибка, парсим её
-            if (response.headers.get('content-type')?.includes('application/json')) {
-                return response.json().then(data => {
-                    throw new Error(data.error || `Ошибка сервера: ${response.status}`);
-                });
-            } else {
-                // Если это не JSON, создаем общую ошибку
-                throw new Error(`Ошибка сервера: ${response.status} ${response.statusText}`);
-            }
-        }
-        
-        // Проверяем, что это действительно Excel файл
-        const contentType = response.headers.get('content-type');
-        if (!contentType || !contentType.includes('spreadsheet')) {
-            throw new Error('Сервер вернул некорректный тип файла');
-        }
-        
-        // Обрабатываем успешный ответ
-        return response.blob().then(blob => {
-            // Проверяем размер файла
-            if (blob.size === 0) {
-                throw new Error('Получен пустой файл');
-            }
-            
-            // Получаем имя файла из заголовка Content-Disposition
-            const contentDisposition = response.headers.get('Content-Disposition');
-            let filename = `client_svod_${summaryId}_${new Date().toISOString().slice(0, 10)}.xlsx`;
-            
-            if (contentDisposition) {
-                const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
-                if (filenameMatch && filenameMatch[1]) {
-                    filename = filenameMatch[1].replace(/['"]/g, '');
-                }
-            }
-            
-            // Создаем и инициируем скачивание файла
-            const downloadSuccess = safeDownloadFile(blob, filename);
-            
-            if (downloadSuccess) {
-                // Показываем сообщение об успехе
-                showSuccessMessage(`Клиентский Excel файл "${filename}" успешно сгенерирован и загружен`, 4000);
-                
-                // Логируем успешную операцию
-                console.log(`Client Excel file generated successfully: ${filename}, size: ${blob.size} bytes`);
-            } else {
-                throw new Error('Ошибка при скачивании файла. Попробуйте еще раз.');
-            }
-        });
-    })
-    .catch(error => {
-        console.error('Error generating client summary file:', error);
-        
-        // Определяем тип ошибки и показываем соответствующее сообщение
-        let errorMessage = 'Произошла ошибка при генерации клиентского файла';
-        
-        if (error.name === 'TypeError' && error.message.includes('fetch')) {
-            errorMessage = 'Ошибка соединения с сервером. Проверьте подключение к интернету.';
-        } else if (error.message.includes('Файл можно генерировать только для сводов в статусе')) {
-            errorMessage = 'Файл можно генерировать только для сводов в статусе "Готов к отправке"';
-        } else if (error.message.includes('недостающих данных')) {
-            errorMessage = 'Невозможно сгенерировать файл: отсутствуют обязательные данные';
-        } else if (error.message.includes('недоступности шаблона')) {
-            errorMessage = 'Клиентский шаблон Excel файла недоступен. Обратитесь к администратору.';
-        } else if (error.message) {
-            errorMessage = error.message;
-        }
-        
-        showErrorMessage(errorMessage, 6000);
-        
-        // Дополнительная информация для разработчиков в консоли
-        console.error('Detailed error info:', {
-            message: error.message,
-            stack: error.stack,
-            summaryId: summaryId,
-            timestamp: new Date().toISOString()
-        });
-    })
-    .finally(() => {
-        // Восстанавливаем состояние кнопки
-        button.innerHTML = originalContent;
-        button.disabled = originalDisabled;
-        button.classList.remove('btn-loading');
-    });
-}
 
 // Функции управления статусом
 let companyVariantRequirementsCache = null;

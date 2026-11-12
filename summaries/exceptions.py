@@ -132,3 +132,11 @@ class RowProcessingError(ExcelProcessingError):
             )
         else:
             super().__init__(f"Ошибка в строке {row_number}, поле '{field_name}': {error_message}")
+
+
+class ExcelExportServiceError(Exception):
+    """An error while building a summary workbook."""
+
+
+class InvalidSummaryDataError(ExcelExportServiceError):
+    """Required summary data is missing or invalid."""

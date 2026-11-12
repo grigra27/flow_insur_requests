@@ -1,33 +1,6 @@
-"""Свод котировок V2 (бета, только суперпользователь).
+"""Current summary workbook export, built without XLSX templates.
 
-Содержание то же, что у текущего свода (ExcelExportService + шаблоны templates/*summary*.xlsx):
-лист «Свод» уходит клиенту, полная версия добавляет лист «Параметры запроса» для коллег
-из лизинговой компании. Отличия — только в подаче.
-
-Оформление «Ценники» (выбрано владельцем 2026-10-12 из десяти вариантов):
-
-- слева направо: страховая компания → ИТОГО за срок крупными «ценниками» (по предложению) →
-  детализация по годам мелким шрифтом → территория, ответы СК, комментарии;
-- в детализации сначала условие, потом результат: франшиза → тариф → премия → платежей в год;
-- строки с цифрами одной высоты; длинный текст территории/комментариев продолжается
-  в добавочную строку в конце блока СК, а не растягивает строки лет;
-- white label: ни бренда, ни контактов, ни аналитики; палитра «индиго»;
-- СК отсортированы по ИТОГО предложения 1;
-- «Выбрана СК» / «Выбрано предложение» — ручные жёлтые поля с выпадающими списками;
-  выбранная СК подсвечивается условным форматированием;
-- подписи «Предложение 1/2» с размером франшизы; вместо служебной «Нет данных: территория
-  ранее не собиралась» — «—»; дата свода в шапке; пустое примечание не выводится.
-
-Таблица (2026-10-12): сетка, тёмные линии между СК и между смысловыми блоками колонок, рамка, зебра
-по СК; индиго — предложение 1, бирюза — предложение 2, терракота — условия.
-
-Печать — «мягкие» стандартные настройки (решение владельца 2026-10-13), каждая меняется в окне печати Excel
-в один клик: A4 альбомная, «вписать все столбцы на одну страницу» (высота — сколько получится), узкие поля,
-центрирование, повтор шапки таблицы, номер страницы. Ни области печати, ни фиксированного масштаба, ни ручных
-разрывов. На экране закреплены СК и ценники.
-
-Правила данных (примечания, системные комментарии, территория, отказы) берутся у
-ExcelExportService, чтобы V1 и V2 не расходились. Старый свод этот модуль не меняет.
+Shared validation, notes and numeric rules live in SummaryDataService.
 """
 from __future__ import annotations
 
@@ -39,7 +12,6 @@ from decimal import Decimal
 from io import BytesIO
 from typing import Dict, List, Tuple
 
-from django.conf import settings
 from django.utils import timezone
 from openpyxl import Workbook
 from openpyxl.formatting.rule import FormulaRule
@@ -52,7 +24,8 @@ from core.excel_cached_values import with_cached_values
 from ..models import InsuranceSummary, InsurerResponse
 from ..response_sections import INSPECTION_SHORT, OSVR_SHORT, OSVR_VARIANT_2, SECTIONS, shown_sections
 from ..equipment_assembly import coverage_text
-from .excel_services import ExcelExportService, ExcelExportServiceError
+from ..exceptions import ExcelExportServiceError
+from .summary_data import SummaryDataService
 
 logger = logging.getLogger(__name__)
 
@@ -112,7 +85,7 @@ def text_chars(width: float) -> int:
     return max(1, int(width * 1.2))
 
 
-class SummaryExportV2Service(ExcelExportService):
+class SummaryExportV2Service(SummaryDataService):
     """Генерация свода V2 с нуля, без xlsx-шаблона."""
 
     LEGACY_TERRITORY_V2 = '—'
@@ -140,8 +113,6 @@ class SummaryExportV2Service(ExcelExportService):
         self.hair = Side(style='thin', color=self.palette['hair'])
         self.block_line = Side(style='medium', color=self.palette['block'])
         self.cell_border = Border(left=self.hair, right=self.hair, top=self.hair, bottom=self.hair)
-        # Шаблон V1 не нужен, но базовый __init__ проверяет путь — передаём существующий
-        super().__init__(str(settings.BASE_DIR / 'templates' / 'summary_template.xlsx'))
 
     # ── публичное API ────────────────────────────────────────────────────────
 

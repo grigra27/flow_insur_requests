@@ -8,7 +8,9 @@ onlineservice
 summaries.test_company_matcher
 summaries.test_templatetags
 summaries.test_offer_coverage_territory
-summaries.test_excel_integration
+summaries.test_excel_v2_integration
+summaries.test_summary_data
+summaries.test_excel_declined_companies
 summaries.test_summary_export_v2
 summaries.test_rate_formula_percent_format
 summaries.test_response_template
