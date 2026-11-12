@@ -79,6 +79,14 @@ JSON Schema v1 (`docs/insurance_request_format_package/insurance_request_schema_
 - Every `InsuranceOffer.save()` runs `full_clean()`, which calls `summaries.constants.is_valid_company_name`. The set of valid names comes from the `InsuranceCompany` model, with `FALLBACK_INSURANCE_COMPANIES` in `summaries/constants.py` as a hard-coded backstop. **Saving an offer with a name not in that set raises `ValidationError`** — when adding a new insurer, create the `InsuranceCompany` row (or use `'другое'`) before importing offers.
 - `InsuranceOffer` has `unique_together = ['summary', 'company_name', 'insurance_year']` — one offer per (summary, company, year). Multi-year offers are modelled as multiple rows with the same `company_name`.
 
+### Summary Excel export
+
+Only V2 workbooks are generated: `summaries/services/summary_export_v2.py` builds them without XLSX templates.
+Shared validation, company data, notes and numeric rules live in `summary_data.py`; insurer response imports
+remain in `excel_services.py`. Keep those shared rules when changing workbook presentation.
+Legacy `generate-file/` and `generate-client-file/` URLs keep their names and require employee access,
+then redirect to the full/client V2 URL. V2 enforces the ready-status rule, with the existing superuser exception.
+
 ### Workflow / status machine
 
 ```

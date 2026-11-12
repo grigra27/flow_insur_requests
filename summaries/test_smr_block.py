@@ -19,7 +19,6 @@ from insurance_requests.models import InsuranceRequest
 from summaries.models import InsuranceOffer, InsuranceSummary, InsurerResponse
 from summaries.response_sections import SMR, SMR_SINCE, required_sections
 from summaries.response_template import build_v2
-from summaries.services.insurer_response import v1_comment_note
 from summaries.services.summary_export_v2 import SummaryExportV2Service
 
 XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -110,7 +109,6 @@ class SmrFlowTests(TestCase):
         self.assertEqual(ws.cell(row=11, column=col).value, 'Страхуем — премия отдельно: 48 500 ₽')
         notes = ws.cell(row=11, column=titles.index('Комментарии') + 1).value
         self.assertIn('Условия СМР: монтаж 30 дней, франшиза 50 000', notes)
-        self.assertNotIn('СМР', v1_comment_note(response))  # свод V1 не меняется
         # карточка свода: ответ, сумма и условия одной строкой
         from summaries.services.insurer_response import display_lines
         line = next(l for l in display_lines(self.summary, ['Согаз'])['Согаз']['lines'] if l['label'] == 'СМР')

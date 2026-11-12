@@ -19,7 +19,6 @@ from insurance_requests.models import InsuranceRequest
 from summaries.models import InsuranceOffer, InsuranceSummary, InsurerResponse
 from summaries.response_sections import CE_RISKS, CE_RISKS_SINCE, required_sections
 from summaries.response_template import build_v2
-from summaries.services.insurer_response import v1_comment_note
 from summaries.services.summary_export_v2 import SummaryExportV2Service
 
 XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -108,7 +107,6 @@ class CeRisksFlowTests(TestCase):
         notes = ws.cell(row=11, column=titles.index('Комментарии') + 1).value
         self.assertIn('Доп. риски C/E: вне дорог, опрокидывание', notes)
         # свод V1 не меняется (решение владельца): в комментарии V1 блок C/E не попадает
-        self.assertNotIn('C/E', v1_comment_note(response))
 
     def test_missing_answer_rejected_for_new_ce_request(self):
         result = self._upload(_filled(load_workbook(BytesIO(build_v2(self.request_obj, self.summary.pk))), {

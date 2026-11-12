@@ -63,23 +63,6 @@ def v2_contour(user) -> bool:
     return v2_strict(user)
 
 
-def v1_comment_note(response) -> str:
-    """Ответы блоков одной строкой для комментария свода V1:
-    «Осмотр: требуется осмотр. Риски РНПК будут прописаны в полисе. Перевозка: 5 330 ₽ — оплачивается
-    отдельно, в премию не входит (условия).»"""
-    if response is None:
-        return ''
-    parts = []
-    if response.inspection_status:
-        label = response.get_inspection_status_display()
-        parts.append(f'Осмотр: {label[:1].lower()}{label[1:]}.')
-    if response.rnpk_status:
-        parts.append(f'Риски РНПК {response.get_rnpk_status_display().lower()}.')
-    if response.transport_cost is not None:
-        amount = f'{response.transport_cost:,.0f}'.replace(',', ' ')
-        terms = f' ({response.transport_terms.strip()})' if response.transport_terms.strip() else ''
-        parts.append(f'Перевозка: {amount} ₽ — оплачивается отдельно, в премию не входит{terms}.')
-    return ' '.join(parts)
 
 
 def save_response(summary: InsuranceSummary, company_name: str, values: Dict, template_version: int,

@@ -15,7 +15,8 @@ from insurance_requests.models import InsuranceRequest
 from summaries.forms import AddOfferToSummaryForm, OfferForm
 from summaries.models import InsuranceCompany, InsuranceOffer, InsuranceSummary, InsurerResponse
 from summaries.exceptions import MissingDataError
-from summaries.services.excel_services import ExcelExportService, ExcelResponseProcessor
+from summaries.services.excel_services import ExcelResponseProcessor
+from summaries.services.summary_export_v2 import SummaryExportV2Service
 
 
 class MockCell:
@@ -136,90 +137,69 @@ class OfferCoverageTerritoryExportTests(TestCase):
             coverage_territory=value, **fields)
 
     def setUp(self):
-        self.service = ExcelExportService(
-            Path(settings.BASE_DIR) / 'templates' / 'summary_template.xlsx'
-        )
+        self.service = SummaryExportV2Service()
 
     def _generate(self, is_client_version=False):
-        return load_workbook(
-            self.service.generate_summary_excel(
-                self.summary,
-                is_client_version=is_client_version,
-            )
-        )
+        return load_workbook(self.service.generate(self.summary, is_client_version=is_client_version))
 
     def test_all_four_exports_contain_coverage_territory(self):
-        for is_client_version in (False, True):
-            workbook = self._generate(is_client_version)
-            sheet = workbook['summary_template_sheet']
-            self.assertEqual(sheet['P10'].value, 'Российская Федерация')
-            self.assertIn('P10:P11', {str(cell_range) for cell_range in sheet.merged_cells.ranges})
-            if not is_client_version:
-                self.assertEqual(
-                    workbook['tech_info']['A27'].value,
-                    'Территория по исходной заявке:',
-                )
-                self.assertEqual(workbook['tech_info']['B27'].value, 'Российская Федерация')
-
-        InsuranceOffer.objects.filter(summary=self.summary).update(
-            premium_with_franchise_2=None,
-            franchise_2=None,
-        )
-        for is_client_version in (False, True):
-            workbook = self._generate(is_client_version)
-            sheet = workbook['summary_template_sheet']
-            self.assertEqual(sheet['J10'].value, 'Российская Федерация')
-            self.assertIn('J10:J11', {str(cell_range) for cell_range in sheet.merged_cells.ranges})
+        for dual in (True, False):
+            if not dual:
+                InsuranceOffer.objects.filter(summary=self.summary).update(premium_with_franchise_2=None, franchise_2=None)
+            for client in (False, True):
+                with self.subTest(dual=dual, client=client):
+                    workbook = self._generate(client)
+                    sheet = workbook['Свод']
+                    column = 'N' if dual else 'I'
+                    self.assertEqual(sheet[f'{column}11'].value, 'Российская Федерация')
+                    self.assertIn(f'{column}11:{column}12', {str(r) for r in sheet.merged_cells.ranges})
+                    self.assertEqual(workbook.sheetnames, ['Свод'] if client else ['Свод', 'Параметры запроса'])
 
     def test_company_territory_is_one_merged_cell(self):
         # Территория одна на СК в своде («Ответ СК») — одна объединённая ячейка на все годы
         self._territory('Российская Федерация и Республика Беларусь')
 
-        sheet = self._generate()['summary_template_sheet']
+        sheet = self._generate()['Свод']
 
-        self.assertIn('P10:P11', {str(cell_range) for cell_range in sheet.merged_cells.ranges})
-        self.assertEqual(sheet['P10'].value, 'Российская Федерация и Республика Беларусь')
+        self.assertIn('N11:N12', {str(cell_range) for cell_range in sheet.merged_cells.ranges})
+        self.assertEqual(sheet['N11'].value, 'Российская Федерация и Республика Беларусь')
 
     def test_missing_territory_is_explicit_in_export(self):
         self._territory('')
 
-        sheet = self._generate()['summary_template_sheet']
+        sheet = self._generate()['Свод']
 
-        self.assertEqual(sheet['P10'].value, 'Не указано страховщиком')
-        self.assertIn('P10:P11', {str(cell_range) for cell_range in sheet.merged_cells.ranges})
+        self.assertEqual(sheet['N11'].value, 'Не указано страховщиком')
+        self.assertIn('N11:N12', {str(cell_range) for cell_range in sheet.merged_cells.ranges})
 
     def test_legacy_territory_is_distinct_from_explicitly_missing(self):
         self._territory(None)
 
-        sheet = self._generate()['summary_template_sheet']
+        sheet = self._generate()['Свод']
 
-        self.assertEqual(sheet['P10'].value, 'Нет данных: территория ранее не собиралась')
-        self.assertIn('P10:P11', {str(cell_range) for cell_range in sheet.merged_cells.ranges})
+        self.assertEqual(sheet['N11'].value, '—')
+        self.assertIn('N11:N12', {str(cell_range) for cell_range in sheet.merged_cells.ranges})
 
     def test_notes_once_per_company_in_first_year_row(self):
         self._territory('РФ', notes='Осмотр обязателен')
 
-        sheet = self._generate()['summary_template_sheet']
+        sheet = self._generate()['Свод']
 
-        self.assertTrue(sheet['Q10'].value.startswith('Осмотр обязателен'))  # дальше — системные примечания
-        self.assertNotIn('Осмотр обязателен', sheet['Q11'].value or '')
+        notes_column = next(cell.column_letter for cell in sheet[9] if cell.value == 'Комментарии')
+        self.assertTrue(sheet[f'{notes_column}11'].value.startswith('Осмотр обязателен'))
+        self.assertNotIn('Осмотр обязателен', sheet[f'{notes_column}12'].value or '')
 
-    def test_export_sanitizes_illegal_characters_and_truncates_text(self):
+    def test_export_sanitizes_illegal_characters_and_preserves_long_text(self):
         self.offer2.delete()
-        self._territory('Россия\x03\x08\x0b\x0e\x1f\r\n' + 'А' * 32768,
+        self._territory('Россия\x03\x08\x0b\x0e\x1f\r\n' + 'А' * 2500,
                         notes='Комментарий\x03\x08\x0b\x0e\x1f ' + 'Б' * 1100)
+        sheet = self._generate()['Свод']
+        text = '\n'.join(str(c.value) for row in sheet for c in row if c.value is not None)
+        self.assertIn('Россия\n', text)
+        self.assertIn('А' * 2500, text)
+        self.assertIn('Б' * 1100, text)
+        self.assertNotRegex(text, r'[\x00-\x08\x0b-\x0c\x0e-\x1f]')
 
-        sheet = self._generate()['summary_template_sheet']
-
-        territory = sheet['P10'].value
-        notes = sheet['Q10'].value
-        self.assertTrue(territory.startswith('Россия\n'))
-        self.assertEqual(len(territory), 32767)
-        self.assertTrue(territory.endswith('...'))
-        self.assertNotRegex(territory, r'[\x00-\x08\x0b-\x0c\x0e-\x1f]')
-        self.assertEqual(len(notes), self.service.MAX_NOTES_LENGTH)
-        self.assertTrue(notes.endswith('...'))
-        self.assertNotRegex(notes, r'[\x00-\x08\x0b-\x0c\x0e-\x1f]')
 
 
 class OfferCoverageTerritoryInterfaceAndTemplateTests(TestCase):
@@ -424,28 +404,10 @@ class OfferCoverageTerritoryInterfaceAndTemplateTests(TestCase):
             summary=self.summary, company_name='Абсолют', insurance_year=5,
         ).exists())
 
-    def test_real_templates_have_new_cells_and_safe_rate_formulas(self):
+    def test_insurer_response_template_has_coverage_territory(self):
         templates_dir = Path(settings.BASE_DIR) / 'templates'
         response_template = load_workbook(templates_dir / 'flow_answer_template.xlsx')
         response_sheet = response_template.active
         self.assertEqual(response_sheet['A3'].value, 'Территория страхования')
         self.assertIn('B3:J3', {str(cell_range) for cell_range in response_sheet.merged_cells.ranges})
         self.assertIsNone(response_sheet['B3'].value)
-
-        expected = (
-            ('summary_template.xlsx', 'P'),
-            ('client_summary_template.xlsx', 'P'),
-            ('summary_template_simplified.xlsx', 'J'),
-            ('client_summary_template_simplified.xlsx', 'J'),
-        )
-        for filename, territory_column in expected:
-            workbook = load_workbook(templates_dir / filename, data_only=False)
-            sheet = workbook['summary_template_sheet']
-            self.assertEqual(
-                sheet[f'{territory_column}8'].value,
-                'Территория страхования',
-            )
-            self.assertEqual(
-                sheet['E10'].value,
-                '=IF(AND(C10<>0,F10<>0),F10/C10,"")',
-            )
