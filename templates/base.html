@@ -27,10 +27,30 @@
     <!-- Шапка (редизайн 2026-09): светлая панель, меню-сегменты, «Загрузить заявку» и пользователь справа -->
     <nav class="navbar navbar-expand-lg navbar-light app-navbar">
         <div class="{{ app_layout.container_class|default:'container app-layout-default' }}">
-            <a class="navbar-brand app-brand" href="{% url 'insurance_requests:request_list' %}">
-                <span class="app-brand-mark" aria-hidden="true">ф//</span>
-                <span class="app-brand-text"><span class="app-brand-flow">флоу</span><span class="app-brand-separator" aria-hidden="true">//</span><span class="app-brand-tail">заявки</span></span>
-            </a>
+            <div class="app-brand">
+                <div class="dropdown">
+                    <button class="app-service-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false"
+                            aria-controls="appServiceMenu" aria-label="Переключить сервис" title="Переключить сервис">
+                        <span class="app-brand-mark" aria-hidden="true">ф//</span>
+                    </button>
+                    <ul id="appServiceMenu" class="dropdown-menu app-dropdown app-service-menu" aria-label="Сервисы InsFlow">
+                        <li>
+                            <span class="dropdown-item-text app-service-current" aria-current="true">
+                                <span class="app-brand-mark" aria-hidden="true">ф//</span> Заявки
+                                <span class="ms-auto" aria-hidden="true">✓</span>
+                            </span>
+                        </li>
+                        <li>
+                            <a class="dropdown-item" href="{{ app_navigation.polis_home_url }}">
+                                <span class="app-brand-mark app-brand-mark--polis" aria-hidden="true">ф//</span> Полисы
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+                <a class="navbar-brand" href="{% url 'insurance_requests:request_list' %}" aria-label="Заявки, на главную">
+                    <span><span class="app-brand-flow">флоу</span><span class="app-brand-separator" aria-hidden="true">//</span><span class="app-brand-tail">заявки</span></span>
+                </a>
+            </div>
 
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Меню">
                 <span class="navbar-toggler-icon"></span>
@@ -173,6 +193,14 @@
 
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Bootstrap 5.1 закрывает меню по Escape, оставляя фокус на скрытой ссылке.
+        document.querySelector('.app-service-toggle').addEventListener('hide.bs.dropdown', function (event) {
+            if (!event.clickEvent && document.getElementById('appServiceMenu').contains(document.activeElement)) {
+                this.focus();
+            }
+        });
+    </script>
     
     {% block extra_js %}{% endblock %}
 </body>

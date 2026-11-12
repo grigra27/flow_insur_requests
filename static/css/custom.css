@@ -132,6 +132,7 @@ a:hover {
 
 /* ─── Шапка, крошки и футер (редизайн 2026-09, вариант «светлая шапка») ─── */
 .app-navbar {
+    z-index: 1000;
     padding: 0;
     background: rgba(255, 255, 255, 0.94);
     border-bottom: 1px solid #e3eaf0;
@@ -149,10 +150,16 @@ a:hover {
     gap: 1rem;
 }
 
+.app-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
 .app-navbar .navbar-brand {
     display: inline-flex;
     align-items: center;
-    gap: 0.55rem;
+    min-height: 44px;
     margin-right: 1.25rem;
     font-family: 'Space Grotesk', 'Trebuchet MS', sans-serif;
     font-size: 1.28rem;
@@ -173,6 +180,44 @@ a:hover {
     font-weight: 700;
     letter-spacing: -0.06em;
     box-shadow: 0 6px 14px rgba(11, 122, 117, 0.22);
+}
+
+.app-service-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    min-height: 44px;
+    padding: 0 0.2rem;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--app-muted);
+}
+
+.app-service-toggle:hover,
+.app-service-toggle[aria-expanded="true"] {
+    background: var(--app-primary-soft);
+}
+
+.app-service-toggle:focus-visible,
+.app-brand .navbar-brand:focus-visible {
+    outline: 2px solid var(--app-primary);
+    outline-offset: 2px;
+}
+
+.app-service-toggle::after {
+    content: "";
+    width: 0.42rem;
+    height: 0.42rem;
+    margin-bottom: 0.2rem;
+    border: solid currentColor;
+    border-width: 0 1.5px 1.5px 0;
+    transform: rotate(45deg);
+}
+
+.app-service-toggle[aria-expanded="true"]::after {
+    margin-bottom: -0.2rem;
+    transform: rotate(225deg);
 }
 
 .app-brand-flow {
@@ -237,7 +282,8 @@ a:hover {
     box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 16px 36px -12px rgba(16, 24, 40, 0.22);
 }
 
-.app-dropdown .dropdown-item {
+.app-dropdown .dropdown-item,
+.app-service-current {
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -257,6 +303,31 @@ a:hover {
 .app-dropdown .dropdown-item.active {
     background: #e6f3f1;
     color: var(--app-primary-dark);
+}
+
+.app-service-menu {
+    min-width: 13.25rem;
+}
+
+.app-service-menu .dropdown-item,
+.app-service-current {
+    min-height: 44px;
+}
+
+.app-service-current {
+    background: var(--app-primary-soft);
+}
+
+.app-service-menu .app-brand-mark {
+    width: 25px;
+    height: 25px;
+    border-radius: 7px;
+    font-size: 0.75rem;
+    box-shadow: none;
+}
+
+.app-brand-mark--polis {
+    background: linear-gradient(125deg, #1e3a5f, #1565c0);
 }
 
 /* Справа: «Загрузить заявку» и пользователь */
