@@ -22,6 +22,7 @@ class ExcelV2IntegrationTests(SummaryExportV2Base):
         cls.employee = User.objects.create_user('excel-employee')
         cls.employee.groups.add(Group.objects.get_or_create(name='Пользователи')[0])
         cls.admin = User.objects.create_user('excel-admin', is_superuser=True, is_staff=True)
+        cls.admin.groups.add(Group.objects.get_or_create(name='Администраторы')[0])
         cls.outsider = User.objects.create_user('excel-outsider')
         cls.summary.status = 'ready'
         cls.summary.save(update_fields=['status'])

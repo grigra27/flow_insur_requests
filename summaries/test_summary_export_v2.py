@@ -385,7 +385,9 @@ class SummaryExportV2AccessTests(SummaryExportV2Base):
             response = self.client.get(detail)
             self.assertContains(response, 'Excel-свод')
             self.assertContains(response, self._url('client'))
-            self.assertContains(response, 'резерв на период перехода')
+            self.assertNotContains(response, 'резерв на период перехода')
+            self.assertNotContains(response, 'Клиентский V1')
+            self.assertNotContains(response, 'Полный V1')
             self.assertNotContains(response, 'Не отправлять')
 
 

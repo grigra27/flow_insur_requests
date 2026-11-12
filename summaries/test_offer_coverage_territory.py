@@ -185,8 +185,9 @@ class OfferCoverageTerritoryExportTests(TestCase):
 
         sheet = self._generate()['Свод']
 
-        self.assertTrue(sheet['P11'].value.startswith('Осмотр обязателен'))  # дальше — системные примечания
-        self.assertNotIn('Осмотр обязателен', sheet['P12'].value or '')
+        notes_column = next(cell.column_letter for cell in sheet[9] if cell.value == 'Комментарии')
+        self.assertTrue(sheet[f'{notes_column}11'].value.startswith('Осмотр обязателен'))
+        self.assertNotIn('Осмотр обязателен', sheet[f'{notes_column}12'].value or '')
 
     def test_export_sanitizes_illegal_characters_and_preserves_long_text(self):
         self.offer2.delete()
