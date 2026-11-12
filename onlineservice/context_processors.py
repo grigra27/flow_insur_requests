@@ -1,5 +1,6 @@
 """Context processors for navigation and page orientation."""
 
+from django.conf import settings
 from django.db.models import Count
 from django.urls import NoReverseMatch, reverse
 
@@ -458,6 +459,7 @@ def navigation_context(request):
 
     return {
         'app_navigation': {
+            'polis_home_url': settings.FLOW_POLIS_BASE_URL.rstrip('/') + '/',
             'main_items': main_items,
             'section_items': section_items,
             'breadcrumbs': breadcrumbs,
