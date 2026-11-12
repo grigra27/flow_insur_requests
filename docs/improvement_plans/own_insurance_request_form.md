@@ -3,7 +3,8 @@
 > Закрыт 2026-10-13: реализован — страховщику уходит комплект «PDF-заявка + шаблон ответа V2» (с 2026-10-07), исходный Excel лизингополучателя не уходит. Актуальные задачи — [backlog.md](backlog.md).
 
 Дата: 2026-05-18.
-Статус: верхнеуровневый план, до проектирования и кода.
+Статус: **реализовано, план закрыт 13.10.2026** — PDF-заявка и шаблон ответа V2 используются с 07.10.
+Ниже сохранён исторический дизайн.
 
 ## Цель
 
@@ -255,7 +256,7 @@ data-миграции, никакого ретроспективного splitti
 
 - [insurance_request_format_package/insurance_request_format_research.md](../insurance_request_format_package/insurance_request_format_research.md)
   — результаты анализа 151 заявки, обоснование JSON-формата.
-- [insurance_request_format_package/insurance_request_schema_v1.json](../insurance_request_format_package/insurance_request_schema_v1.json)
-  — формальный контракт.
+- [insurance_request_format_package/insurance_request_schema_v2.json](../insurance_request_format_package/insurance_request_schema_v2.json)
+  — актуальный формальный контракт (заменил V1).
 - [insurance_request_parser_v2_improvement_plan.md](../insurance_request_parser_v2_improvement_plan.md)
   — план улучшения парсера.

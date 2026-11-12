@@ -1,5 +1,10 @@
 # Обязательные проверки CI
 
+**Подтверждённый результат на 12.11.2026:** 1 070 регрессионных тестов и отдельные
+50 PostgreSQL-тестов прошли в [production workflow релиза `1405acc5`](https://github.com/grigra27/flow_insur_requests/actions/runs/43276017086).
+Проверка [PR #7](https://github.com/grigra27/flow_insur_requests/pull/7) также прошла все 1 070 регрессионных тестов.
+Числа 831/836 в документах перехода от 06.11 относятся к историческим прогонам.
+
 Проверка pull request и job `test` перед production-выкладкой запускают одну команду:
 
 ```bash
