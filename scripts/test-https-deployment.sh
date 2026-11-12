@@ -71,7 +71,8 @@ test_nginx_config() {
         echo -e "${GREEN}✅ nginx-timeweb/default.conf exists (HTTPS config)${NC}"
         
         # Check if it contains HTTPS configuration
-        if grep -q "listen 443 ssl http2" "nginx-timeweb/default.conf"; then
+        if grep -Eq 'listen[[:space:]]+443[[:space:]]+ssl' "nginx-timeweb/default.conf" && \
+           grep -Eq '^[[:space:]]*http2[[:space:]]+on;' "nginx-timeweb/default.conf"; then
             echo -e "${GREEN}✅ default.conf contains HTTPS configuration${NC}"
         else
             echo -e "${RED}❌ default.conf does not contain HTTPS configuration${NC}"
