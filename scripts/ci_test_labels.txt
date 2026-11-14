@@ -46,3 +46,4 @@ summaries.test_user_activity
 summaries.test_employee_timeline
 
 summaries.test_policy_handoff
+summaries.test_policy_search

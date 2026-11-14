@@ -46,6 +46,7 @@ def domain_aware_redirect(request):
 
 urlpatterns = [
     path('internal/flow/v1/exchange/', policy_views.exchange, name='flow_exchange'),
+    path('internal/flow/v1/summaries/search/', policy_views.search, name='flow_summary_search'),
     path('internal/flow/v1/summaries/<int:summary_id>/', policy_views.current, name='flow_current'),
     path('admin/', admin.site.urls),
     path('login/', login_view, name='login'),

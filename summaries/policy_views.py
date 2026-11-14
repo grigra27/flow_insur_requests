@@ -21,6 +21,7 @@ from .services.policy_handoff import (
     InactiveAcceptance, can_start, digest, policy_links, polis_base_url,
     snapshot_and_options,
 )
+from .services.policy_search import parse_search_params, search_summaries
 
 
 def in_pilot(user):
@@ -117,6 +118,16 @@ def exchange(request):
         if not (ticket.issued_by.is_active and has_user_access(ticket.issued_by) and in_pilot(ticket.issued_by)):
             return JsonResponse({'error': 'access_revoked'}, status=403)
         return _current(ticket.summary)
+
+
+@service_handoff
+@require_GET
+def search(request):
+    try:
+        params = parse_search_params(request.GET, len(request.META.get('QUERY_STRING', '')))
+    except ValueError as error:
+        return JsonResponse({'error': str(error)}, status=400)
+    return JsonResponse(search_summaries(**params))
 
 
 @service_handoff

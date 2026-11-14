@@ -57,7 +57,7 @@ jobs:
     - name: Run required Django checks and regression suite
       run: bash scripts/run_ci_checks.sh
 
-    - name: Check equipment assembly responses on PostgreSQL
+    - name: Check equipment assembly responses and policy matching on PostgreSQL
       env:
         DB_ENGINE: django.db.backends.postgresql
         DB_NAME: insflow_ci
@@ -66,7 +66,7 @@ jobs:
         DB_HOST: 127.0.0.1
         DB_PORT: '5432'
         ENABLE_HTTPS: 'False'
-      run: python manage.py test summaries.test_equipment_assembly_block --noinput
+      run: python manage.py test summaries.test_equipment_assembly_block summaries.test_policy_search --noinput
 
   build-and-deploy:
     needs: test

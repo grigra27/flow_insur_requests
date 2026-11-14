@@ -50,7 +50,7 @@ class AuthenticationMiddleware:
         Проверяет, является ли URL публичным (не требующим аутентификации)
         """
         # Только служебные представления со своей обязательной Bearer-аутентификацией.
-        if path == '/internal/flow/v1/exchange/' or re.fullmatch(r'/internal/flow/v1/summaries/[0-9]+/', path):
+        if path in ('/internal/flow/v1/exchange/', '/internal/flow/v1/summaries/search/') or re.fullmatch(r'/internal/flow/v1/summaries/[0-9]+/', path):
             return True
         for public_url in self.public_urls:
             if path.startswith(public_url):
